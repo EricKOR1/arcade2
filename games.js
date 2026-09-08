@@ -1,6 +1,6 @@
-// 게임 목록 등록표
-// 새 게임을 추가하려면 아래 GAMES 객체에 항목 하나를 추가하고,
-// index.html / admin.html 하단의 <script> 목록에 게임 엔진 파일을 넣어주세요.
+// 게임 등록표
+// 새 게임을 추가하려면 아래에 항목 하나를 추가하고,
+// index.html / admin.html 아래쪽 <script> 목록에 엔진 파일을 넣어주세요.
 
 const GAMES = {
   tetris: {
@@ -8,18 +8,26 @@ const GAMES = {
     desc: '블록을 쌓아 줄을 지우세요',
     cols: 10,
     rows: 20,
+    hasNext: true,                             // 다음 블록 미리보기 사용
+    controls: ['left', 'rotate', 'right', 'down', 'drop'],
+    labels: { down: '↓', drop: '바로 내리기', rotate: '↻' },
     create: function (canvas, cellSize) { return new TetrisGame(canvas, cellSize); }
+  },
+
+  racing: {
+    name: '자동차 레이싱',
+    desc: '상대 차를 피해 멀리 달리세요',
+    cols: 5,
+    rows: 12,
+    hasNext: false,
+    controls: ['left', 'right', 'boost'],
+    labels: { boost: '부스트 (꾹 누르기)' },
+    create: function (canvas, cellSize) { return new RacingGame(canvas, cellSize); }
   }
-  // 예시) 다음에 게임을 추가할 때:
-  // snake: {
-  //   name: '스네이크',
-  //   desc: '먹이를 먹고 길어지세요',
-  //   cols: 16, rows: 16,
-  //   create: function (canvas, cellSize) { return new SnakeGame(canvas, cellSize); }
-  // }
 };
 
 function getGameId() {
   const params = new URLSearchParams(location.search);
-  return params.get('game') || 'tetris';
+  const id = params.get('game');
+  return (id && GAMES[id]) ? id : 'tetris';
 }

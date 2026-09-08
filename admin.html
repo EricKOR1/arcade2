@@ -60,10 +60,11 @@
 <script src="firebase-config.js"></script>
 <script src="shared.js"></script>
 <script src="tetris-engine.js"></script>
+<script src="racing-engine.js"></script>
 <script src="games.js"></script>
 <script>
 (function () {
-  const CELL = 6;
+  const CELL_BY_GAME = { tetris: 6, racing: 11 };
 
   const sessionRef = db.ref('session');
   const sessionStatusRef = db.ref('session/status');
@@ -96,6 +97,13 @@
     gameList.appendChild(btn);
   });
 
+  function clearCards() {
+    Object.keys(cardByPlayer).forEach(id => {
+      cardByPlayer[id].wrapper.remove();
+      delete cardByPlayer[id];
+    });
+  }
+
   function studentUrl(gameId) {
     const base = location.href.replace(/admin\.html.*$/, '');
     return base + 'index.html?game=' + gameId;
@@ -103,11 +111,8 @@
 
   function openLobby(gameId) {
     currentGameId = gameId;
+    clearCards();
     playersRef.remove();
-    Object.keys(cardByPlayer).forEach(id => {
-      cardByPlayer[id].wrapper.remove();
-      delete cardByPlayer[id];
-    });
     sessionRef.set({ game: gameId, status: 'waiting' });
     renderQR(gameId);
   }
@@ -146,7 +151,7 @@
   sessionRef.on('value', snap => {
     const s = snap.val() || {};
     const status = s.status || 'idle';
-    if (s.game) currentGameId = s.game;
+    if (s.game && s.game !== currentGameId) { currentGameId = s.game; clearCards(); }
 
     const labels = { idle: '게임 선택', waiting: '입장 대기 중', playing: '진행 중', ended: '종료됨' };
     statusBadge.textContent = labels[status] || status;
@@ -199,8 +204,9 @@
         const name = document.createElement('div');
         name.className = 'player-name';
         const canvas = document.createElement('canvas');
-        canvas.width = def.cols * CELL;
-        canvas.height = def.rows * CELL;
+        const cs = CELL_BY_GAME[currentGameId] || 6;
+        canvas.width = def.cols * cs;
+        canvas.height = def.rows * cs;
         const score = document.createElement('div');
         score.className = 'player-score';
         wrapper.appendChild(name);
@@ -218,7 +224,7 @@
       card.nameEl.textContent = p.nickname || '(이름 없음)';
       card.scoreEl.textContent = (p.score || 0) + '점';
       card.wrapper.classList.toggle('over', p.status === 'gameover');
-      if (p.board) drawBoardGrid(card.ctx, rowsToBoard(p.board), CELL);
+      if (p.board) drawBoardGrid(card.ctx, rowsToBoard(p.board), CELL_BY_GAME[currentGameId] || 6);
     });
 
     const sorted = ids.slice().sort((a, b) => (players[b].score || 0) - (players[a].score || 0));

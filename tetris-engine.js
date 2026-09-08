@@ -1,22 +1,23 @@
-// 테트리스 게임 엔진 — 참가자 화면(index.html) 전용
+// 테트리스 엔진 — 고스트 블록, 다음 블록 미리보기, 레벨, 락 딜레이 포함
 
-function createEmptyBoard() {
-  return Array.from({ length: TETRIS_ROWS }, () => Array(TETRIS_COLS).fill(0));
-}
+const TETRIS_COLS = 10;
+const TETRIS_ROWS = 20;
+
+const PIECE_SHAPES = {
+  1: [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],
+  2: [[2,0,0],[2,2,2],[0,0,0]],
+  3: [[0,0,3],[3,3,3],[0,0,0]],
+  4: [[4,4],[4,4]],
+  5: [[0,5,5],[5,5,0],[0,0,0]],
+  6: [[0,6,0],[6,6,6],[0,0,0]],
+  7: [[7,7,0],[0,7,7],[0,0,0]]
+};
 
 function rotateMatrix(m) {
   const n = m.length;
-  const result = Array.from({ length: n }, () => Array(n).fill(0));
-  for (let y = 0; y < n; y++) {
-    for (let x = 0; x < n; x++) {
-      result[x][n - 1 - y] = m[y][x];
-    }
-  }
-  return result;
-}
-
-function randomPieceType() {
-  return Math.floor(Math.random() * 7) + 1;
+  const r = Array.from({ length: n }, () => Array(n).fill(0));
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) r[x][n - 1 - y] = m[y][x];
+  return r;
 }
 
 class TetrisGame {
@@ -24,40 +25,129 @@ class TetrisGame {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.cellSize = cellSize;
-    this.board = createEmptyBoard();
+    this.board = Array.from({ length: TETRIS_ROWS }, () => Array(TETRIS_COLS).fill(0));
     this.score = 0;
+    this.lines = 0;
+    this.level = 1;
     this.gameOver = false;
-    this.dropInterval = 800; // ms — 이 값을 줄이면 더 빨리 떨어짐
+    this.bag = [];
+    this.nextType = this.drawFromBag();
     this.lastDrop = 0;
+    this.lockTimer = null;
+    this.lockResets = 0;
+    this.softDropping = false;
+    this.flashRows = [];
+    this.flashUntil = 0;
+    this.onNextChange = null;
     this.spawnPiece();
   }
 
+  get dropInterval() {
+    return Math.max(90, 800 - (this.level - 1) * 65);
+  }
+
+  // 7종을 골고루 섞어 뽑기 (정식 테트리스 방식)
+  drawFromBag() {
+    if (this.bag.length === 0) {
+      this.bag = [1, 2, 3, 4, 5, 6, 7];
+      for (let i = this.bag.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [this.bag[i], this.bag[j]] = [this.bag[j], this.bag[i]];
+      }
+    }
+    return this.bag.pop();
+  }
+
   spawnPiece() {
-    const type = randomPieceType();
-    const matrix = PIECE_SHAPES[type];
-    this.piece = {
-      type,
-      matrix,
-      x: Math.floor((TETRIS_COLS - matrix[0].length) / 2),
-      y: 0
-    };
+    const type = this.nextType;
+    this.nextType = this.drawFromBag();
+    if (this.onNextChange) this.onNextChange(this.nextType);
+    const matrix = PIECE_SHAPES[type].map(r => r.slice());
+    this.piece = { type, matrix, x: Math.floor((TETRIS_COLS - matrix[0].length) / 2), y: 0 };
+    this.lockTimer = null;
+    this.lockResets = 0;
     if (this.collides(this.piece, 0, 0)) {
       this.gameOver = true;
+      if (window.Sound) Sound.gameOver();
     }
   }
 
-  collides(piece, offsetX, offsetY) {
+  collides(piece, ox, oy) {
     const m = piece.matrix;
     for (let y = 0; y < m.length; y++) {
       for (let x = 0; x < m[y].length; x++) {
         if (!m[y][x]) continue;
-        const boardX = piece.x + x + offsetX;
-        const boardY = piece.y + y + offsetY;
-        if (boardX < 0 || boardX >= TETRIS_COLS || boardY >= TETRIS_ROWS) return true;
-        if (boardY >= 0 && this.board[boardY][boardX]) return true;
+        const bx = piece.x + x + ox, by = piece.y + y + oy;
+        if (bx < 0 || bx >= TETRIS_COLS || by >= TETRIS_ROWS) return true;
+        if (by >= 0 && this.board[by][bx]) return true;
       }
     }
     return false;
+  }
+
+  ghostY() {
+    let dy = 0;
+    while (!this.collides(this.piece, 0, dy + 1)) dy++;
+    return this.piece.y + dy;
+  }
+
+  touchingGround() { return this.collides(this.piece, 0, 1); }
+
+  // 바닥에 닿아도 잠깐 여유를 줘서 옆으로 밀어넣을 수 있게 함
+  startLockDelay(now) {
+    if (this.lockTimer === null) this.lockTimer = now;
+  }
+  resetLockDelay(now) {
+    if (this.lockTimer !== null && this.lockResets < 15) {
+      this.lockTimer = now;
+      this.lockResets++;
+    }
+  }
+
+  move(dx) {
+    if (this.gameOver) return;
+    if (!this.collides(this.piece, dx, 0)) {
+      this.piece.x += dx;
+      if (window.Sound) Sound.move();
+      if (this.touchingGround()) this.resetLockDelay(performance.now());
+    }
+  }
+
+  rotate() {
+    if (this.gameOver) return;
+    const rotated = rotateMatrix(this.piece.matrix);
+    const test = { type: this.piece.type, matrix: rotated, x: this.piece.x, y: this.piece.y };
+    // 벽에 붙어 있을 때 살짝 밀어서 회전 (월킥)
+    for (const kick of [0, -1, 1, -2, 2]) {
+      test.x = this.piece.x + kick;
+      if (!this.collides(test, 0, 0)) {
+        this.piece.matrix = rotated;
+        this.piece.x = test.x;
+        if (window.Sound) Sound.rotate();
+        if (this.touchingGround()) this.resetLockDelay(performance.now());
+        return;
+      }
+    }
+  }
+
+  softDrop() {
+    if (this.gameOver) return;
+    if (!this.collides(this.piece, 0, 1)) {
+      this.piece.y++;
+      this.score += 1;
+      if (window.Sound) Sound.softDrop();
+    } else {
+      this.startLockDelay(performance.now());
+    }
+  }
+
+  hardDrop() {
+    if (this.gameOver) return;
+    let dist = 0;
+    while (!this.collides(this.piece, 0, 1)) { this.piece.y++; dist++; }
+    this.score += dist * 2;
+    if (window.Sound) Sound.hardDrop();
+    this.lockPiece();
   }
 
   merge() {
@@ -65,84 +155,74 @@ class TetrisGame {
     for (let y = 0; y < m.length; y++) {
       for (let x = 0; x < m[y].length; x++) {
         if (m[y][x]) {
-          const boardY = this.piece.y + y;
-          const boardX = this.piece.x + x;
-          if (boardY >= 0) this.board[boardY][boardX] = this.piece.type;
+          const by = this.piece.y + y, bx = this.piece.x + x;
+          if (by >= 0) this.board[by][bx] = this.piece.type;
         }
       }
     }
   }
 
   clearLines() {
-    let cleared = 0;
-    this.board = this.board.filter(row => {
-      const full = row.every(cell => cell !== 0);
-      if (full) cleared++;
-      return !full;
-    });
-    while (this.board.length < TETRIS_ROWS) {
-      this.board.unshift(Array(TETRIS_COLS).fill(0));
+    const cleared = [];
+    for (let y = 0; y < TETRIS_ROWS; y++) {
+      if (this.board[y].every(c => c !== 0)) cleared.push(y);
     }
-    if (cleared > 0) {
-      const points = [0, 100, 300, 500, 800];
-      this.score += points[cleared] || cleared * 200;
+    if (cleared.length === 0) return;
+    this.flashRows = cleared;
+    this.flashUntil = performance.now() + 130;
+    this.board = this.board.filter((_, y) => cleared.indexOf(y) === -1);
+    while (this.board.length < TETRIS_ROWS) this.board.unshift(Array(TETRIS_COLS).fill(0));
+
+    const points = [0, 100, 300, 500, 800];
+    this.score += (points[cleared.length] || 0) * this.level;
+    this.lines += cleared.length;
+    if (window.Sound) Sound.clear(cleared.length);
+
+    const newLevel = Math.floor(this.lines / 10) + 1;
+    if (newLevel > this.level) {
+      this.level = newLevel;
+      if (window.Sound) Sound.levelUp();
     }
-  }
-
-  move(dx) {
-    if (this.gameOver) return;
-    if (!this.collides(this.piece, dx, 0)) this.piece.x += dx;
-  }
-
-  rotate() {
-    if (this.gameOver) return;
-    const rotated = rotateMatrix(this.piece.matrix);
-    const test = Object.assign({}, this.piece, { matrix: rotated });
-    if (!this.collides(test, 0, 0)) this.piece.matrix = rotated;
-  }
-
-  softDrop() {
-    if (this.gameOver) return;
-    if (!this.collides(this.piece, 0, 1)) {
-      this.piece.y++;
-    } else {
-      this.lockPiece();
-    }
-  }
-
-  hardDrop() {
-    if (this.gameOver) return;
-    while (!this.collides(this.piece, 0, 1)) this.piece.y++;
-    this.lockPiece();
   }
 
   lockPiece() {
     this.merge();
+    if (window.Sound) Sound.lock();
     this.clearLines();
     this.spawnPiece();
   }
 
-  tick(timestamp) {
+  tick(now) {
     if (this.gameOver) return;
-    if (timestamp - this.lastDrop > this.dropInterval) {
-      this.softDrop();
-      this.lastDrop = timestamp;
+    const interval = this.softDropping ? 45 : this.dropInterval;
+    if (now - this.lastDrop > interval) {
+      if (!this.collides(this.piece, 0, 1)) {
+        this.piece.y++;
+        if (this.softDropping) this.score += 1;
+      } else {
+        this.startLockDelay(now);
+      }
+      this.lastDrop = now;
+    }
+    if (this.lockTimer !== null) {
+      if (!this.touchingGround()) {
+        this.lockTimer = null;
+      } else if (now - this.lockTimer > 480) {
+        this.lockPiece();
+      }
     }
     this.draw();
   }
 
-  // 떨어지는 조각까지 합친 스냅샷 — 관리자 화면 전송용
+  // 교사 화면 전송용 스냅샷 (고정된 블록 + 현재 블록)
   getSnapshot() {
-    const snap = this.board.map(row => row.slice());
+    const snap = this.board.map(r => r.slice());
     const m = this.piece.matrix;
     for (let y = 0; y < m.length; y++) {
       for (let x = 0; x < m[y].length; x++) {
         if (m[y][x]) {
-          const by = this.piece.y + y;
-          const bx = this.piece.x + x;
-          if (by >= 0 && by < TETRIS_ROWS && bx >= 0 && bx < TETRIS_COLS) {
-            snap[by][bx] = this.piece.type;
-          }
+          const by = this.piece.y + y, bx = this.piece.x + x;
+          if (by >= 0 && by < TETRIS_ROWS && bx >= 0 && bx < TETRIS_COLS) snap[by][bx] = this.piece.type;
         }
       }
     }
@@ -150,6 +230,72 @@ class TetrisGame {
   }
 
   draw() {
-    drawBoardGrid(this.ctx, this.getSnapshot(), this.cellSize);
+    const ctx = this.ctx, cs = this.cellSize;
+    const w = TETRIS_COLS * cs, h = TETRIS_ROWS * cs;
+
+    ctx.fillStyle = '#12141b';
+    ctx.fillRect(0, 0, w, h);
+
+    // 배경 격자
+    ctx.strokeStyle = 'rgba(255,255,255,0.045)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let x = 1; x < TETRIS_COLS; x++) { ctx.moveTo(x * cs, 0); ctx.lineTo(x * cs, h); }
+    for (let y = 1; y < TETRIS_ROWS; y++) { ctx.moveTo(0, y * cs); ctx.lineTo(w, y * cs); }
+    ctx.stroke();
+
+    // 쌓인 블록
+    for (let y = 0; y < TETRIS_ROWS; y++) {
+      for (let x = 0; x < TETRIS_COLS; x++) {
+        const v = this.board[y][x];
+        if (v) drawBevelCell(ctx, x * cs, y * cs, cs, CELL_COLORS[v]);
+      }
+    }
+
+    if (!this.gameOver) {
+      // 착지 예상 위치(고스트)
+      const gy = this.ghostY();
+      const m = this.piece.matrix;
+      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+      ctx.lineWidth = 2;
+      for (let y = 0; y < m.length; y++) {
+        for (let x = 0; x < m[y].length; x++) {
+          if (m[y][x]) {
+            const px = (this.piece.x + x) * cs, py = (gy + y) * cs;
+            ctx.strokeRect(px + 2, py + 2, cs - 4, cs - 4);
+          }
+        }
+      }
+      // 현재 블록
+      for (let y = 0; y < m.length; y++) {
+        for (let x = 0; x < m[y].length; x++) {
+          if (m[y][x]) {
+            const by = this.piece.y + y;
+            if (by >= 0) drawBevelCell(ctx, (this.piece.x + x) * cs, by * cs, cs, CELL_COLORS[this.piece.type]);
+          }
+        }
+      }
+    }
+
+    // 줄 삭제 순간 번쩍임
+    if (performance.now() < this.flashUntil) {
+      ctx.fillStyle = 'rgba(255,255,255,0.75)';
+      this.flashRows.forEach(y => ctx.fillRect(0, y * cs, w, cs));
+    }
+  }
+
+  // 다음 블록 미리보기 그리기
+  drawNext(ctx, size) {
+    const m = PIECE_SHAPES[this.nextType];
+    ctx.clearRect(0, 0, size * 4, size * 4);
+    let minX = 4, maxX = -1, minY = 4, maxY = -1;
+    for (let y = 0; y < m.length; y++) for (let x = 0; x < m[y].length; x++) {
+      if (m[y][x]) { minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y); }
+    }
+    const pw = (maxX - minX + 1), ph = (maxY - minY + 1);
+    const offX = (4 - pw) / 2 - minX, offY = (4 - ph) / 2 - minY;
+    for (let y = 0; y < m.length; y++) for (let x = 0; x < m[y].length; x++) {
+      if (m[y][x]) drawBevelCell(ctx, (x + offX) * size, (y + offY) * size, size, CELL_COLORS[this.nextType]);
+    }
   }
 }
