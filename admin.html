@@ -4,46 +4,76 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0e0f13">
-<title>아케이드 게임 - 교사용</title>
+<title>교사용 대시보드</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div class="admin">
+
   <header class="admin-header">
-    <h1>교사용 화면</h1>
-    <span id="status-badge" class="badge">대기 중</span>
+    <h1>교사용 대시보드</h1>
+    <span id="status-badge" class="badge">게임 선택</span>
     <span id="count-badge" class="badge">0명 접속</span>
   </header>
 
-  <div class="controls">
-    <button id="start-btn">게임 시작</button>
-    <button id="end-btn">게임 종료</button>
-    <button id="reset-btn" class="danger">전체 초기화</button>
-  </div>
-
-  <section id="waiting-panel">
-    <h2>대기자 명단</h2>
-    <ul id="waiting-list"></ul>
-    <p id="waiting-empty" class="empty-note">아직 입장한 학생이 없습니다.</p>
+  <!-- 1단계: 게임 고르기 -->
+  <section id="select-panel">
+    <h2>게임을 선택하세요</h2>
+    <div id="game-list"></div>
   </section>
 
+  <!-- 2단계: QR + 대기실 -->
+  <section id="lobby-panel" class="hidden">
+    <div class="session-layout">
+      <div class="qr-box">
+        <p class="qr-hint">학생들이 이 QR을 찍으면 입장합니다</p>
+        <div id="qr-canvas"></div>
+        <p class="qr-url" id="qr-url"></p>
+      </div>
+      <div>
+        <h2 id="lobby-title">대기자 명단</h2>
+        <div class="controls">
+          <button id="start-btn">게임 시작</button>
+          <button id="back-btn" class="ghost">게임 바꾸기</button>
+          <button id="reset-btn" class="danger">명단 비우기</button>
+        </div>
+        <ul id="waiting-list"></ul>
+        <p id="waiting-empty" class="empty-note">아직 입장한 학생이 없습니다.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3단계: 실시간 현황 -->
   <section id="live-panel" class="hidden">
     <h2>실시간 플레이 현황</h2>
+    <div class="controls">
+      <button id="end-btn" class="danger">게임 종료</button>
+    </div>
     <div id="live-grid"></div>
   </section>
+
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="firebase-config.js"></script>
 <script src="shared.js"></script>
+<script src="tetris-engine.js"></script>
+<script src="games.js"></script>
 <script>
 (function () {
-  const CELL = 6; // 미니 보드 한 칸 크기(px)
+  const CELL = 6;
 
+  const sessionRef = db.ref('session');
   const sessionStatusRef = db.ref('session/status');
+  const sessionGameRef = db.ref('session/game');
   const playersRef = db.ref('players');
 
+  const selectPanel = document.getElementById('select-panel');
+  const lobbyPanel = document.getElementById('lobby-panel');
+  const livePanel = document.getElementById('live-panel');
+  const gameList = document.getElementById('game-list');
   const liveGrid = document.getElementById('live-grid');
   const waitingList = document.getElementById('waiting-list');
   const waitingEmpty = document.getElementById('waiting-empty');
@@ -51,6 +81,51 @@
   const countBadge = document.getElementById('count-badge');
 
   const cardByPlayer = {};
+  let currentGameId = null;
+  let qrInstance = null;
+
+  // ── 게임 카드 만들기 ──
+  Object.keys(GAMES).forEach(id => {
+    const g = GAMES[id];
+    const btn = document.createElement('button');
+    btn.className = 'game-card';
+    btn.innerHTML = '<div class="title"></div><div class="desc"></div>';
+    btn.querySelector('.title').textContent = g.name;
+    btn.querySelector('.desc').textContent = g.desc;
+    btn.addEventListener('click', () => openLobby(id));
+    gameList.appendChild(btn);
+  });
+
+  function studentUrl(gameId) {
+    const base = location.href.replace(/admin\.html.*$/, '');
+    return base + 'index.html?game=' + gameId;
+  }
+
+  function openLobby(gameId) {
+    currentGameId = gameId;
+    playersRef.remove();
+    Object.keys(cardByPlayer).forEach(id => {
+      cardByPlayer[id].wrapper.remove();
+      delete cardByPlayer[id];
+    });
+    sessionRef.set({ game: gameId, status: 'waiting' });
+    renderQR(gameId);
+  }
+
+  function renderQR(gameId) {
+    const url = studentUrl(gameId);
+    const box = document.getElementById('qr-canvas');
+    box.innerHTML = '';
+    qrInstance = new QRCode(box, {
+      text: url,
+      width: 220,
+      height: 220,
+      correctLevel: QRCode.CorrectLevel.M
+    });
+    document.getElementById('qr-url').textContent = url;
+    document.getElementById('lobby-title').textContent =
+      (GAMES[gameId] ? GAMES[gameId].name : gameId) + ' — 대기자 명단';
+  }
 
   document.getElementById('start-btn').addEventListener('click', () => {
     sessionStatusRef.set('playing');
@@ -58,24 +133,35 @@
   document.getElementById('end-btn').addEventListener('click', () => {
     sessionStatusRef.set('ended');
   });
-  document.getElementById('reset-btn').addEventListener('click', () => {
-    if (!confirm('모든 참가자 명단을 지우고 새로 시작할까요?')) return;
+  document.getElementById('back-btn').addEventListener('click', () => {
+    sessionRef.set({ game: null, status: 'idle' });
     playersRef.remove();
-    sessionStatusRef.set('waiting');
-    Object.keys(cardByPlayer).forEach(id => {
-      cardByPlayer[id].wrapper.remove();
-      delete cardByPlayer[id];
-    });
+  });
+  document.getElementById('reset-btn').addEventListener('click', () => {
+    if (!confirm('대기자 명단을 비울까요?')) return;
+    playersRef.remove();
   });
 
-  sessionStatusRef.on('value', snap => {
-    const status = snap.val() || 'waiting';
-    const labels = { waiting: '대기 중', playing: '진행 중', ended: '종료됨' };
+  // ── 세션 상태에 따라 화면 전환 ──
+  sessionRef.on('value', snap => {
+    const s = snap.val() || {};
+    const status = s.status || 'idle';
+    if (s.game) currentGameId = s.game;
+
+    const labels = { idle: '게임 선택', waiting: '입장 대기 중', playing: '진행 중', ended: '종료됨' };
     statusBadge.textContent = labels[status] || status;
-    document.getElementById('live-panel').classList.toggle('hidden', status !== 'playing');
-    document.getElementById('waiting-panel').classList.toggle('hidden', status === 'playing');
+    statusBadge.classList.toggle('live', status === 'playing');
+
+    selectPanel.classList.toggle('hidden', status !== 'idle');
+    lobbyPanel.classList.toggle('hidden', !(status === 'waiting' || status === 'ended'));
+    livePanel.classList.toggle('hidden', status !== 'playing');
+
+    if ((status === 'waiting' || status === 'ended') && currentGameId && !document.querySelector('#qr-canvas img, #qr-canvas canvas')) {
+      renderQR(currentGameId);
+    }
   });
 
+  // ── 참가자 목록 감시 ──
   playersRef.on('value', snap => {
     const players = snap.val() || {};
     countBadge.textContent = Object.keys(players).length + '명 접속';
@@ -96,9 +182,10 @@
 
   function renderLiveGrid(players) {
     const ids = Object.keys(players);
+    const def = GAMES[currentGameId] || GAMES.tetris;
 
     Object.keys(cardByPlayer).forEach(id => {
-      if (!ids.includes(id)) {
+      if (ids.indexOf(id) === -1) {
         cardByPlayer[id].wrapper.remove();
         delete cardByPlayer[id];
       }
@@ -112,8 +199,8 @@
         const name = document.createElement('div');
         name.className = 'player-name';
         const canvas = document.createElement('canvas');
-        canvas.width = TETRIS_COLS * CELL;
-        canvas.height = TETRIS_ROWS * CELL;
+        canvas.width = def.cols * CELL;
+        canvas.height = def.rows * CELL;
         const score = document.createElement('div');
         score.className = 'player-score';
         wrapper.appendChild(name);
@@ -131,12 +218,9 @@
       card.nameEl.textContent = p.nickname || '(이름 없음)';
       card.scoreEl.textContent = (p.score || 0) + '점';
       card.wrapper.classList.toggle('over', p.status === 'gameover');
-      if (p.board) {
-        drawBoardGrid(card.ctx, rowsToBoard(p.board), CELL);
-      }
+      if (p.board) drawBoardGrid(card.ctx, rowsToBoard(p.board), CELL);
     });
 
-    // 점수 높은 순으로 카드 정렬
     const sorted = ids.slice().sort((a, b) => (players[b].score || 0) - (players[a].score || 0));
     sorted.forEach(id => {
       if (cardByPlayer[id]) liveGrid.appendChild(cardByPlayer[id].wrapper);
