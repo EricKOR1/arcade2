@@ -60,7 +60,10 @@
           </div>
         </div>
         <div class="hud-br">
-          <div class="item-slot" id="item-slot"><span id="item-icon"></span></div>
+          <div class="item-rack">
+            <div class="item-slot" id="item-slot-0"><span></span></div>
+            <div class="item-slot small" id="item-slot-1"><span></span></div>
+          </div>
           <div class="item-name" id="item-name"></div>
         </div>
         <div class="hud-badges" id="hud-badges"></div>
@@ -377,7 +380,7 @@
 
   // ── 레이싱 HUD (매 프레임 갱신) ──
   const ROLL_ICONS = ['🍌','⚡','🚀','🌀','🛡','🌩'];
-  let lastItemKey = '';
+  let lastItemSig = '';
   function renderKartHud(h) {
     document.getElementById('hud-rank').textContent = h.rank;
     document.getElementById('hud-total').textContent = '/' + h.total;
@@ -386,35 +389,41 @@
     document.getElementById('hud-speed').textContent = h.speed;
     document.getElementById('hud-speed-bar').style.width = h.speedPct.toFixed(0) + '%';
 
-    const slot = document.getElementById('item-slot');
-    const icon = document.getElementById('item-icon');
+    const sig = h.items.join(',') + (h.rolling ? '|roll' : '');
     const nameEl = document.getElementById('item-name');
-    const key = h.rolling ? 'roll' : (h.item || '');
-    if (h.rolling) {
-      icon.textContent = ROLL_ICONS[Math.floor(performance.now()/70) % ROLL_ICONS.length];
-      nameEl.textContent = '';
-      slot.className = 'item-slot rolling';
-    } else if (h.item) {
-      if (key !== lastItemKey) {
-        icon.textContent = ITEMS[h.item].icon;
-        nameEl.textContent = ITEMS[h.item].name;
-        slot.className = 'item-slot has pop';
-        setTimeout(() => slot.classList.remove('pop'), 320);
+
+    for (let i = 0; i < 2; i++) {
+      const slot = document.getElementById('item-slot-' + i);
+      const icon = slot.firstElementChild;
+      const it = h.items[i];
+      // 룰렛은 비어 있는 첫 칸에서 돌아감
+      const rollingHere = h.rolling && i === h.items.length;
+      const base = 'item-slot' + (i === 1 ? ' small' : '');
+      if (rollingHere) {
+        icon.textContent = ROLL_ICONS[Math.floor(performance.now()/70) % ROLL_ICONS.length];
+        slot.className = base + ' rolling';
+      } else if (it) {
+        icon.textContent = ITEMS[it].icon;
+        slot.className = base + ' has' + (i === 0 ? ' ready' : '');
+        if (sig !== lastItemSig) {
+          slot.classList.add('pop');
+          setTimeout(() => slot.classList.remove('pop'), 320);
+        }
+      } else {
+        icon.textContent = '';
+        slot.className = base;
       }
-    } else {
-      icon.textContent = '';
-      nameEl.textContent = '';
-      slot.className = 'item-slot';
     }
-    lastItemKey = key;
+    nameEl.textContent = h.items.length ? ITEMS[h.items[0]].name : '';
+    lastItemSig = sig;
 
     const badges = document.getElementById('hud-badges');
     const want = [];
     if (h.shield) want.push('🛡 방어막');
     if (h.boost)  want.push('⚡ 부스터');
-    const sig = want.join('|');
-    if (badges.dataset.sig !== sig) {
-      badges.dataset.sig = sig;
+    const bsig = want.join('|');
+    if (badges.dataset.sig !== bsig) {
+      badges.dataset.sig = bsig;
       badges.innerHTML = '';
       want.forEach(t => {
         const b = document.createElement('span');

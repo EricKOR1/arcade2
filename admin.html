@@ -131,7 +131,8 @@
     el.querySelector('.badge').textContent = t.tag || '';
     const tk = new Track(t);
     el.querySelector('.track-spec').textContent =
-      '길이 ' + (tk.length/1000).toFixed(1) + 'km급 · 폭 ' + t.width + ' · 출발 ' + tk.perRow + '열';
+      '길이 ' + (tk.length/1000).toFixed(1) + 'k · 폭 ' + t.width
+      + ' · ' + t.laps + '바퀴 · 출발 ' + tk.perRow + '열';
     el.addEventListener('click', () => openLobby('kart', id));
     $('track-list').appendChild(el);
   });
@@ -345,8 +346,10 @@
       const r = document.createElement('span'); r.className = 'r'; r.textContent = (i + 1) + '.';
       const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = names[id] || '?';
       const lp = document.createElement('span'); lp.className = 'lp';
+      const totalLaps = specTrack ? specTrack.laps : 3;
       lp.textContent = p.finished ? '완주'
-        : (Math.min((p.lap || 0) + 1, 3) + '/3바퀴' + (p.shield ? ' 🛡' : '') + (p.boost ? ' ⚡' : ''));
+        : (Math.min((p.lap || 0) + 1, totalLaps) + '/' + totalLaps + '바퀴'
+           + (p.shield ? ' 🛡' : '') + (p.boost ? ' ⚡' : ''));
       li.append(r, nm, lp);
       ul.appendChild(li);
     });
