@@ -4,26 +4,51 @@
 const TRACKS = {
   meadow: {
     name: '초원 서킷', desc: '넓고 완만한 코스. 처음 하는 학생에게 좋아요',
+    tag: '입문 · 10~20명',
     width: 300, laps: 3,
     bg: '#16261C', grass: '#1E3427', road: '#33383F',
     pts: [[400,900],[400,500],[700,260],[1200,220],[1700,300],
           [2000,600],[2050,1000],[1850,1350],[1400,1480],[900,1420],[520,1250]]
   },
   figure8: {
-    name: '교차로 코스', desc: '8자로 꼬인 코스. 코너가 많아 역전이 자주 나요',
-    width: 270, laps: 3,
+    name: '교차로 코스', desc: '8자로 크게 꼬인 코스. 코너가 많아 역전이 자주 나요',
+    tag: '보통 · 20명 내외',
+    width: 300, laps: 3,
     bg: '#1D1A2B', grass: '#272338', road: '#35394A',
-    pts: [[500,400],[1000,300],[1500,500],[1800,900],[1500,1250],
-          [1000,1350],[600,1150],[500,800],[900,700],[1400,800],
-          [1600,1100],[1200,1250],[800,1150],[600,800]]
+    pts: [[1250,850],[1600,600],[2050,450],[2400,700],[2400,1150],[2050,1400],
+          [1650,1300],[1350,950],[1000,600],[600,480],[250,750],[250,1200],
+          [600,1480],[1050,1400]]
   },
   canyon: {
-    name: '협곡 레이스', desc: '좁고 긴 고난도 코스. 실력자용',
-    width: 240, laps: 3,
+    name: '협곡 레이스', desc: '길게 이어지는 고난도 코스. 실력자용',
+    tag: '어려움 · 20명 내외',
+    width: 300, laps: 3,
     bg: '#241A12', grass: '#33251A', road: '#3B3B44',
-    pts: [[350,800],[500,400],[900,250],[1300,380],[1500,700],
-          [1850,780],[2150,550],[2400,800],[2300,1200],[1900,1400],
-          [1500,1250],[1150,1400],[750,1350],[400,1150]]
+    pts: [[400,900],[500,450],[900,220],[1400,250],[1800,500],[2100,850],
+          [2500,950],[2850,700],[3200,850],[3300,1300],[3000,1650],[2550,1750],
+          [2100,1600],[1650,1750],[1200,1800],[750,1600],[450,1300]]
+  },
+
+  grand: {
+    name: '그랜드 서킷',
+    desc: '가장 넓고 긴 코스. 30명이 한꺼번에 달려도 넉넉해요',
+    tag: '보통 · 30명 권장',
+    width: 440, laps: 3,
+    bg: '#131F2A', grass: '#1B2F3D', road: '#343A44',
+    pts: [[600,1200],[600,700],[900,350],[1400,250],[1900,300],[2350,500],
+          [2700,850],[3050,1150],[3150,1600],[2900,2000],[2450,2200],[1950,2250],
+          [1500,2150],[1150,1900],[900,1550]]
+  },
+
+  alpine: {
+    name: '알파인 그랑프리',
+    desc: '가장 길고 코너가 많은 코스. S자 구간과 헤어핀이 이어집니다',
+    tag: '어려움 · 30명 가능',
+    width: 360, laps: 3,
+    bg: '#1A1A26', grass: '#252536', road: '#383C48',
+    pts: [[500,1300],[450,850],[700,450],[1150,300],[1600,420],[1850,780],
+          [2200,950],[2600,780],[2950,900],[3100,1300],[2950,1750],[2550,1950],
+          [2150,1800],[1800,1950],[1400,2100],[950,2050],[600,1750]]
   }
 };
 
@@ -45,10 +70,26 @@ function densify(pts, per) {
 class Track {
   constructor(def) {
     this.def = def;
-    this.center = densify(def.pts, 16);
+    // 웨이포인트 간격이 넓은 대형 코스일수록 곡선을 더 촘촘하게
+    let avgSeg = 0;
+    for (let i = 0; i < def.pts.length; i++) {
+      const a = def.pts[i], b = def.pts[(i+1) % def.pts.length];
+      avgSeg += Math.hypot(b[0]-a[0], b[1]-a[1]);
+    }
+    avgSeg /= def.pts.length;
+    const per = Math.max(14, Math.min(40, Math.round(avgSeg / 12)));
+    this.center = densify(def.pts, per);
     this.n = this.center.length;
     this.halfW = def.width / 2;
     this.laps = def.laps;
+
+    // 중앙선 한 칸의 실제 길이와 전체 둘레
+    this.length = 0;
+    for (let i = 0; i < this.n; i++) {
+      const a = this.center[i], b = this.center[(i+1) % this.n];
+      this.length += Math.hypot(b[0]-a[0], b[1]-a[1]);
+    }
+    this.stepLen = this.length / this.n;
 
     this.tangent = this.center.map((p, i) => {
       const q = this.center[(i+1) % this.n];
@@ -62,12 +103,14 @@ class Track {
       return a[0]*b[1] - a[1]*b[0];   // 양수 = 우회전, 음수 = 좌회전
     });
 
-    // 아이템 상자 (3줄)
+    // 아이템 상자 — 넓으면 5줄, 좁으면 3줄. 코스가 길수록 더 자주 배치
     this.itemSpots = [];
-    const gap = Math.floor(this.n / 9);
+    const cols = this.halfW >= 180 ? [-0.62,-0.31,0,0.31,0.62] : [-0.5,0,0.5];
+    const rows = Math.max(9, Math.round(this.length / 900));
+    const gap = Math.max(12, Math.floor(this.n / rows));
     for (let i = 24; i < this.n; i += gap) {
       const [tx, ty] = this.tangent[i], nx = -ty, ny = tx;
-      [-0.5, 0, 0.5].forEach(off => this.itemSpots.push({
+      cols.forEach(off => this.itemSpots.push({
         x: this.center[i][0] + nx*this.halfW*off,
         y: this.center[i][1] + ny*this.halfW*off,
         takenUntil: 0
@@ -76,8 +119,9 @@ class Track {
 
     // 부스터 패드 — 구간마다 가장 곧은 지점을 골라 배치
     this.boostPads = [];
-    const seg = Math.floor(this.n / 5);
-    for (let s = 0; s < 5; s++) {
+    const padCount = Math.max(5, Math.round(this.length / 1600));
+    const seg = Math.floor(this.n / padCount);
+    for (let s = 0; s < padCount; s++) {
       let best = s*seg, bestC = Infinity;
       for (let k = 0; k < seg; k++) {
         const i = (s*seg + k) % this.n;
@@ -85,7 +129,7 @@ class Track {
         if (c < bestC) { bestC = c; best = i; }
       }
       const [tx, ty] = this.tangent[best], nx = -ty, ny = tx;
-      const side = (s % 2 === 0) ? 0.34 : -0.34;
+      const side = (s % 2 === 0) ? 0.36 : -0.36;
       this.boostPads.push({
         x: this.center[best][0] + nx*this.halfW*side,
         y: this.center[best][1] + ny*this.halfW*side,
@@ -101,12 +145,22 @@ class Track {
     this.sprite = null;
   }
 
+  // 출발 그리드 — 트랙이 넓을수록 한 줄에 여러 대를 세움
+  get perRow() {
+    if (this.halfW >= 200) return 4;
+    if (this.halfW >= 150) return 3;
+    return 2;
+  }
+
   startPos(slot) {
-    const back = 30 + Math.floor(slot/2) * 38;
-    let i = (this.n - Math.round(back/6)) % this.n;
+    const per = this.perRow;
+    const row = Math.floor(slot / per), col = slot % per;
+    const back = 36 + row * 46;
+    let i = (this.n - Math.round(back / this.stepLen)) % this.n;
     if (i < 0) i += this.n;
     const [tx, ty] = this.tangent[i], nx = -ty, ny = tx;
-    const side = (slot % 2 === 0) ? -0.4 : 0.4;
+    const spread = 0.68;
+    const side = per === 1 ? 0 : (-spread + (2*spread) * (col / (per - 1)));
     return {
       x: this.center[i][0] + nx*this.halfW*side,
       y: this.center[i][1] + ny*this.halfW*side,
@@ -116,7 +170,7 @@ class Track {
 
   nearestIndex(x, y, hint) {
     let best = hint || 0, bestD = Infinity;
-    const span = (hint === undefined) ? this.n : 60;
+    const span = (hint === undefined) ? this.n : 45;
     for (let k = -span; k <= span; k++) {
       const i = ((hint||0) + k + this.n*2) % this.n;
       const dx = this.center[i][0]-x, dy = this.center[i][1]-y;
@@ -130,8 +184,11 @@ class Track {
   buildSprite(scale) {
     const pad = this.def.width;
     const b = this.bounds;
-    const w = Math.ceil((b.maxX - b.minX + pad*2) * scale);
-    const h = Math.ceil((b.maxY - b.minY + pad*2) * scale);
+    // 태블릿 메모리를 위해 스프라이트 최대 변을 제한
+    const rawW = b.maxX - b.minX + pad*2, rawH = b.maxY - b.minY + pad*2;
+    scale = Math.min(scale, 1700 / Math.max(rawW, rawH));
+    const w = Math.ceil(rawW * scale);
+    const h = Math.ceil(rawH * scale);
     const cv = document.createElement('canvas');
     cv.width = w; cv.height = h;
     const g = cv.getContext('2d');
@@ -158,9 +215,10 @@ class Track {
     stroke(d.road, d.width);                          // 노면
     stroke('rgba(255,255,255,0.10)', 4, [30, 34]);    // 중앙 점선
 
-    // 연석 흰 줄무늬
-    for (let i = 0; i < this.n; i += 6) {
-      if ((i / 6) % 2 !== 0) continue;
+    // 연석 흰 줄무늬 (약 90px 간격)
+    const kerbStep = Math.max(2, Math.round(45 / this.stepLen));
+    for (let i = 0; i < this.n; i += kerbStep) {
+      if ((i / kerbStep) % 2 !== 0) continue;
       const [tx, ty] = this.tangent[i], nx = -ty, ny = tx;
       [-1, 1].forEach(side => {
         g.save();
@@ -172,15 +230,17 @@ class Track {
       });
     }
 
-    // 진행 방향 화살표 (노면에 새김)
-    for (let i = 8; i < this.n; i += 22) {
+    // 진행 방향 화살표 (약 380px 간격으로 노면에 새김)
+    const arrowStep = Math.max(6, Math.round(380 / this.stepLen));
+    for (let i = 8; i < this.n; i += arrowStep) {
       const [tx, ty] = this.tangent[i];
       g.save();
       g.translate(c[i][0], c[i][1]);
       g.rotate(Math.atan2(ty, tx));
-      g.fillStyle = 'rgba(255,255,255,0.16)';
+      const as = Math.max(1, d.width / 300);
+      g.fillStyle = 'rgba(255,255,255,0.17)';
       g.beginPath();
-      g.moveTo(26, 0); g.lineTo(-12, -22); g.lineTo(-3, 0); g.lineTo(-12, 22);
+      g.moveTo(26*as, 0); g.lineTo(-12*as, -22*as); g.lineTo(-3*as, 0); g.lineTo(-12*as, 22*as);
       g.closePath(); g.fill();
       g.restore();
     }
@@ -566,7 +626,7 @@ class KartGame {
 
     this.camX += (this.x - this.camX) * 0.2;
     this.camY += (this.y - this.camY) * 0.2;
-    const zoom = Math.min(1.2, Math.max(0.6, H/760));
+    const zoom = Math.min(1.2, Math.max(0.5, H / (620 + t.def.width * 0.55)));
 
     ctx.save();
     ctx.fillStyle = t.def.bg;

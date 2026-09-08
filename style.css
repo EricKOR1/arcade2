@@ -152,7 +152,9 @@ html, body {
 .game-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--gc) }
 .game-card:active { transform: scale(.985) }
 
-#track-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 13px }
+#track-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 13px }
+.track-meta { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; align-items: flex-start }
+.track-spec { font-size: 12px; opacity: .45; font-variant-numeric: tabular-nums }
 .track-card { cursor: pointer; text-align: left }
 .track-card:active { transform: scale(.985) }
 

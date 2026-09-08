@@ -123,9 +123,15 @@
     const el = document.createElement('div');
     el.className = 'card bg-base-200 shadow track-card';
     el.innerHTML = '<div class="card-body p-5"><h3 class="card-title text-base"></h3>' +
-                   '<p class="text-sm opacity-60"></p></div>';
+                   '<p class="text-sm opacity-60"></p>' +
+                   '<div class="track-meta"><span class="badge badge-sm badge-outline"></span>' +
+                   '<span class="track-spec"></span></div></div>';
     el.querySelector('.card-title').textContent = t.name;
     el.querySelector('p').textContent = t.desc;
+    el.querySelector('.badge').textContent = t.tag || '';
+    const tk = new Track(t);
+    el.querySelector('.track-spec').textContent =
+      '길이 ' + (tk.length/1000).toFixed(1) + 'km급 · 폭 ' + t.width + ' · 출발 ' + tk.perRow + '열';
     el.addEventListener('click', () => openLobby('kart', id));
     $('track-list').appendChild(el);
   });
@@ -299,8 +305,12 @@
     const fit = () => {
       const w = canvas.parentElement.clientWidth;
       const dpr = window.devicePixelRatio || 1;
-      canvas.style.height = Math.round(w * 0.66) + 'px';
-      canvas.width = Math.round(w * dpr); canvas.height = Math.round(w * 0.66 * dpr);
+      const b = specTrack.bounds, pad = specTrack.def.width;
+      let ratio = (b.maxY - b.minY + pad) / (b.maxX - b.minX + pad);
+      ratio = Math.max(0.45, Math.min(0.85, ratio));
+      const h = Math.round(w * ratio);
+      canvas.style.height = h + 'px';
+      canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
       canvas.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
     };
     fit();
