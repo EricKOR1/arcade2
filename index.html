@@ -44,10 +44,28 @@
       <div class="chip" id="chip-b"><span class="k" id="k-b">LEVEL</span><span class="v num" id="val-b">1</span></div>
       <div class="spacer"></div>
       <div class="chip next-box" id="next-box"><span class="k">NEXT</span><canvas id="next-canvas"></canvas></div>
-      <div class="item-slot" id="item-slot"></div>
       <button id="mute-btn" class="btn btn-square btn-sm btn-ghost" aria-label="소리 끄기">♪</button>
     </div>
-    <div class="canvas-wrap" id="canvas-wrap"><canvas id="game-canvas"></canvas></div>
+    <div class="canvas-wrap" id="canvas-wrap">
+      <canvas id="game-canvas"></canvas>
+      <div class="kart-hud hidden" id="kart-hud">
+        <div class="hud-tl">
+          <div class="pos-box"><b class="num" id="hud-rank">1</b><span id="hud-total">/1</span></div>
+          <div class="lap-box">LAP <b class="num" id="hud-lap">1</b><span id="hud-laps">/3</span></div>
+        </div>
+        <div class="hud-bl">
+          <div class="speedo">
+            <div class="sp-bar"><i id="hud-speed-bar"></i></div>
+            <div class="sp-num"><b class="num" id="hud-speed">0</b><span>km/h</span></div>
+          </div>
+        </div>
+        <div class="hud-br">
+          <div class="item-slot" id="item-slot"><span id="item-icon"></span></div>
+          <div class="item-name" id="item-name"></div>
+        </div>
+        <div class="hud-badges" id="hud-badges"></div>
+      </div>
+    </div>
     <div class="pad" id="pad"></div>
   </section>
 
@@ -95,12 +113,10 @@
   document.getElementById('over-chip').textContent = def.name;
 
   if (!def.hasNext) document.getElementById('next-box').classList.add('hidden');
-  if (!isKart) document.getElementById('item-slot').classList.add('hidden');
   if (def.fullBleed) document.getElementById('canvas-wrap').classList.add('bleed');
   if (isKart) {
-    document.getElementById('k-main').textContent = '순위';
-    document.getElementById('k-a').textContent = 'LAP';
-    document.getElementById('chip-b').classList.add('hidden');
+    document.querySelector('.topbar').classList.add('kart-mode');
+    document.getElementById('kart-hud').classList.remove('hidden');
   }
 
   function show(id) {
@@ -251,7 +267,7 @@
           cellSize: cellSize, trackId: trackId, slot: slot,
           myId: playerId, myName: myNickname,
           onDropHazard: dropHazard, onHitHazard: hitHazard,
-          onBolt: fireBolt, onFinish: reportFinish
+          onAttack: sendAttack, onFinish: reportFinish
         });
         if (def.hasNext) { game.onNextChange = drawNextPreview; drawNextPreview(); }
         game.draw();
@@ -269,11 +285,6 @@
     if (!game) return;
     if (isKart) {
       myPosRef.set(game.serialize());
-      document.getElementById('game-score').textContent = game.rank + '/' + game.total;
-      document.getElementById('val-a').textContent = Math.min(game.lap + 1, 3) + '/3';
-      const slot = document.getElementById('item-slot');
-      slot.textContent = game.item ? ITEMS[game.item].icon : '';
-      slot.classList.toggle('has', !!game.item);
     } else {
       playerRef.update(Object.assign({ status: game.gameOver ? 'gameover' : 'playing' }, def.sync(game)));
       document.getElementById('game-score').textContent = game.score;
@@ -295,7 +306,13 @@
     eventsRef.on('child_added', s => {
       const e = s.val();
       if (!e || e.by === playerId || !game) return;
-      if (e.type === 'bolt' && game.progress > e.p) game.hitByBolt();
+      if (e.type === 'bolt') {
+        if (game.progress > e.p) game.hitByBolt();
+      } else if (e.type === 'missile' && e.target === playerId) {
+        game.hitByMissile();
+      } else if (e.type === 'swap' && e.target === playerId) {
+        game.teleportTo(e.state);
+      }
     });
 
     playersRef.on('child_added', s => { names[s.key] = (s.val() || {}).nickname || ''; });
@@ -304,10 +321,11 @@
   function applyPeer(id, raw) {
     if (id === playerId || !raw) return;
     const a = String(raw).split(',');
+    const fl = +a[5] || 0;
     peerPos[id] = {
-      x: +a[0], y: +a[1], angle: +a[2], lap: +a[3],
-      progress: +a[4], spin: a[5] === '1', finished: a[6] === '1',
-      name: names[id] || ''
+      x: +a[0], y: +a[1], angle: +a[2], lap: +a[3], progress: +a[4],
+      spin: !!(fl & 1), shield: !!(fl & 2), boost: !!(fl & 4),
+      finished: a[6] === '1', name: names[id] || ''
     };
     pushPeers();
   }
@@ -319,8 +337,13 @@
 
   function dropHazard(x, y) { hazardsRef.push({ x: Math.round(x), y: Math.round(y) }); }
   function hitHazard(hid)   { hazardsRef.child(hid).remove(); }
-  function fireBolt(progress) {
-    const ref = eventsRef.push({ type: 'bolt', by: playerId, p: progress });
+  // 아이템 공격 전송 (bolt는 전체, missile/swap은 특정 대상)
+  function sendAttack(type, target, payload) {
+    const msg = { type: type, by: playerId };
+    if (target) msg.target = target;
+    if (type === 'bolt') msg.p = payload.p;
+    if (type === 'swap') msg.state = payload;
+    const ref = eventsRef.push(msg);
     setTimeout(() => ref.remove(), 3000);
   }
 
@@ -348,7 +371,58 @@
     if (!game) return;
     if (game.gameOver) { game.draw(); return; }
     game.tick(ts);
+    if (isKart) renderKartHud(game.hud());
     requestAnimationFrame(loop);
+  }
+
+  // ── 레이싱 HUD (매 프레임 갱신) ──
+  const ROLL_ICONS = ['🍌','⚡','🚀','🌀','🛡','🌩'];
+  let lastItemKey = '';
+  function renderKartHud(h) {
+    document.getElementById('hud-rank').textContent = h.rank;
+    document.getElementById('hud-total').textContent = '/' + h.total;
+    document.getElementById('hud-lap').textContent = h.lap;
+    document.getElementById('hud-laps').textContent = '/' + h.laps;
+    document.getElementById('hud-speed').textContent = h.speed;
+    document.getElementById('hud-speed-bar').style.width = h.speedPct.toFixed(0) + '%';
+
+    const slot = document.getElementById('item-slot');
+    const icon = document.getElementById('item-icon');
+    const nameEl = document.getElementById('item-name');
+    const key = h.rolling ? 'roll' : (h.item || '');
+    if (h.rolling) {
+      icon.textContent = ROLL_ICONS[Math.floor(performance.now()/70) % ROLL_ICONS.length];
+      nameEl.textContent = '';
+      slot.className = 'item-slot rolling';
+    } else if (h.item) {
+      if (key !== lastItemKey) {
+        icon.textContent = ITEMS[h.item].icon;
+        nameEl.textContent = ITEMS[h.item].name;
+        slot.className = 'item-slot has pop';
+        setTimeout(() => slot.classList.remove('pop'), 320);
+      }
+    } else {
+      icon.textContent = '';
+      nameEl.textContent = '';
+      slot.className = 'item-slot';
+    }
+    lastItemKey = key;
+
+    const badges = document.getElementById('hud-badges');
+    const want = [];
+    if (h.shield) want.push('🛡 방어막');
+    if (h.boost)  want.push('⚡ 부스터');
+    const sig = want.join('|');
+    if (badges.dataset.sig !== sig) {
+      badges.dataset.sig = sig;
+      badges.innerHTML = '';
+      want.forEach(t => {
+        const b = document.createElement('span');
+        b.className = 'hud-badge';
+        b.textContent = t;
+        badges.appendChild(b);
+      });
+    }
   }
 
   // ── 조작 바인딩 ──

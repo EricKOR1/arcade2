@@ -316,8 +316,10 @@
   function setPos(id, raw) {
     if (!raw) return;
     const a = String(raw).split(',');
-    peerPos[id] = { x: +a[0], y: +a[1], angle: +a[2], lap: +a[3],
-                    progress: +a[4], spin: a[5] === '1', finished: a[6] === '1' };
+    const fl = +a[5] || 0;
+    peerPos[id] = { x: +a[0], y: +a[1], angle: +a[2], lap: +a[3], progress: +a[4],
+                    spin: !!(fl & 1), shield: !!(fl & 2), boost: !!(fl & 4),
+                    finished: a[6] === '1' };
     renderStandings();
   }
 
@@ -333,7 +335,8 @@
       const r = document.createElement('span'); r.className = 'r'; r.textContent = (i + 1) + '.';
       const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = names[id] || '?';
       const lp = document.createElement('span'); lp.className = 'lp';
-      lp.textContent = p.finished ? '완주' : (Math.min((p.lap || 0) + 1, 3) + '/3바퀴');
+      lp.textContent = p.finished ? '완주'
+        : (Math.min((p.lap || 0) + 1, 3) + '/3바퀴' + (p.shield ? ' 🛡' : '') + (p.boost ? ' ⚡' : ''));
       li.append(r, nm, lp);
       ul.appendChild(li);
     });
@@ -343,64 +346,69 @@
     const ctx = canvas.getContext('2d');
     const W = canvas.clientWidth, H = canvas.clientHeight;
     const t = specTrack; if (!t) return;
-    const c = t.center;
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    c.forEach(p => { minX = Math.min(minX, p[0]); maxX = Math.max(maxX, p[0]);
-                     minY = Math.min(minY, p[1]); maxY = Math.max(maxY, p[1]); });
-    const pad = 40;
-    const sc = Math.min((W - pad * 2) / (maxX - minX), (H - pad * 2) / (maxY - minY));
-    const ox = (W - (maxX - minX) * sc) / 2 - minX * sc;
-    const oy = (H - (maxY - minY) * sc) / 2 - minY * sc;
+    if (!t.sprite) t.buildSprite(0.62);
+    const b = t.bounds, pad = 60;
+    const sc = Math.min((W - pad) / (b.maxX - b.minX + t.def.width),
+                        (H - pad) / (b.maxY - b.minY + t.def.width));
+    const ox = (W - (b.maxX - b.minX) * sc) / 2 - b.minX * sc;
+    const oy = (H - (b.maxY - b.minY) * sc) / 2 - b.minY * sc;
 
     ctx.fillStyle = t.def.bg; ctx.fillRect(0, 0, W, H);
     ctx.save(); ctx.translate(ox, oy); ctx.scale(sc, sc);
 
-    ctx.strokeStyle = t.def.road; ctx.lineWidth = t.def.width;
-    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(c[0][0], c[0][1]);
-    for (let i = 1; i < c.length; i++) ctx.lineTo(c[i][0], c[i][1]);
-    ctx.closePath(); ctx.stroke();
-    ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = t.def.width - 12; ctx.stroke();
-    ctx.strokeStyle = t.def.road; ctx.lineWidth = t.def.width - 20; ctx.stroke();
-
-    // 출발선
-    const [tx, ty] = t.tangent[0], nx = -ty, ny = tx;
-    for (let i = 0; i < 8; i++) {
-      ctx.fillStyle = (i % 2 === 0) ? '#F2F4F8' : '#2A2F3D';
-      const off = -t.halfW + i * (t.def.width / 8);
-      ctx.save();
-      ctx.translate(c[0][0] + nx * off, c[0][1] + ny * off);
-      ctx.rotate(Math.atan2(ty, tx));
-      ctx.fillRect(0, 0, 18, t.def.width / 8);
-      ctx.restore();
-    }
+    // 트랙(연석 · 방향 화살표 · 부스터 패드 포함)을 미리 그려둔 이미지로
+    const sp = t.sprite;
+    ctx.drawImage(sp.canvas, sp.x, sp.y, sp.w, sp.h);
 
     // 바나나
     const hz = peerPos.__hz || {};
     Object.keys(hz).forEach(k => {
       ctx.fillStyle = '#FFD166';
-      ctx.beginPath(); ctx.arc(hz[k].x, hz[k].y, 11, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(hz[k].x, hz[k].y, 13, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#8A6D1F'; ctx.lineWidth = 2.5; ctx.stroke();
     });
 
-    // 카트
+    // 카트 (뒤에서부터 그려 1등이 위로)
+    const accent = (getComputedStyle(document.documentElement)
+                     .getPropertyValue('--game-hex') || '#F5A524').trim();
     const ids = Object.keys(peerPos).filter(k => k !== '__hz');
-    ids.sort((a, b) => (peerPos[a].progress || 0) - (peerPos[b].progress || 0));
+    ids.sort((a, b2) => (peerPos[a].progress || 0) - (peerPos[b2].progress || 0));
     ids.forEach((id, i) => {
       const p = peerPos[id];
-      const leader = i === ids.length - 1 && ids.length > 1;
+      const leader = (i === ids.length - 1) && ids.length > 1;
       ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.angle);
-      ctx.fillStyle = p.finished ? '#565D6E' : (leader ? 'var(--game-hex)' : '#EF476F');
-      if (leader) ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--game-hex') || '#F5A524';
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.beginPath(); ctx.ellipse(0, 6, 21, 13, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = p.finished ? '#565D6E' : (leader ? accent : '#EF476F');
       ctx.beginPath();
-      if (ctx.roundRect) ctx.roundRect(-18, -11, 36, 22, 6); else ctx.rect(-18, -11, 36, 22);
+      if (ctx.roundRect) ctx.roundRect(-20, -13, 40, 26, 8); else ctx.rect(-20, -13, 40, 26);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.4)';
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(4, -9, 12, 18, 4); else ctx.rect(4, -9, 12, 18);
       ctx.fill();
       ctx.restore();
+      if (p.shield) {
+        ctx.save(); ctx.translate(p.x, p.y);
+        ctx.strokeStyle = 'rgba(6,214,160,0.85)'; ctx.lineWidth = 3.5;
+        ctx.beginPath(); ctx.arc(0, 0, 29, 0, Math.PI * 2); ctx.stroke();
+        ctx.restore();
+      }
       const nm = names[id] || '';
       if (nm) {
         ctx.save();
-        ctx.font = '600 ' + Math.round(15 / sc * 1.4) + 'px Pretendard, sans-serif';
-        ctx.textAlign = 'center'; ctx.fillStyle = '#EAECF2';
-        ctx.fillText(nm, p.x, p.y - 26);
+        const fs = Math.max(13, Math.round(14 / sc));
+        ctx.font = '700 ' + fs + 'px Pretendard, sans-serif';
+        ctx.textAlign = 'center';
+        const tw = ctx.measureText(nm).width + 14;
+        ctx.fillStyle = leader ? accent : 'rgba(12,15,22,0.82)';
+        if (ctx.roundRect) {
+          ctx.beginPath();
+          ctx.roundRect(p.x - tw / 2, p.y - 30 - fs, tw, fs + 8, 6);
+          ctx.fill();
+        }
+        ctx.fillStyle = leader ? '#1A1204' : '#EAECF2';
+        ctx.fillText(nm, p.x, p.y - 30 - fs * 0.15);
         ctx.restore();
       }
     });

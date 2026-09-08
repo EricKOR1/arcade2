@@ -61,17 +61,66 @@ html, body {
 .next-box { display: flex; align-items: center; gap: 8px; padding: 5px 10px 5px 12px; }
 #next-canvas { display: block }
 
+.canvas-wrap { flex: 1; display: flex; justify-content: center; align-items: center;
+               min-height: 0; padding: 4px 10px; position: relative; }
+.canvas-wrap.bleed { padding: 0 }
+
+/* ══ 레이싱 HUD (캔버스 위 오버레이) ══ */
+.kart-hud { position: absolute; inset: 0; pointer-events: none; font-variant-numeric: tabular-nums }
+.hud-tl { position: absolute; top: 12px; left: 12px; display: flex; flex-direction: column; gap: 8px }
+.hud-bl { position: absolute; bottom: 14px; left: 14px }
+.hud-br { position: absolute; bottom: 14px; right: 14px; display: flex; flex-direction: column;
+          align-items: center; gap: 6px }
+.hud-badges { position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+              display: flex; gap: 6px }
+
+.pos-box {
+  display: flex; align-items: baseline; gap: 2px;
+  padding: 7px 16px 8px; border-radius: 14px;
+  background: linear-gradient(160deg, rgba(255,209,102,.95), rgba(245,165,36,.95));
+  color: #241703; box-shadow: 0 6px 18px -8px rgba(0,0,0,.9);
+}
+.pos-box b { font-size: 30px; font-weight: 800; line-height: 1 }
+.pos-box span { font-size: 14px; font-weight: 700; opacity: .65 }
+
+.lap-box {
+  display: flex; align-items: baseline; gap: 3px;
+  padding: 6px 14px; border-radius: 12px;
+  background: rgba(10,13,20,.78); color: #EAECF2;
+  font-size: 11px; font-weight: 700; letter-spacing: .08em;
+}
+.lap-box b { font-size: 20px; font-weight: 800; letter-spacing: 0 }
+.lap-box span { font-size: 13px; opacity: .55; font-weight: 700 }
+
+.speedo { display: flex; flex-direction: column; gap: 5px; width: 128px }
+.sp-bar { height: 8px; border-radius: 999px; background: rgba(10,13,20,.78); overflow: hidden }
+.sp-bar i { display: block; height: 100%; width: 0%; border-radius: 999px;
+            background: linear-gradient(90deg, #4CC9F0, #FFD166 70%, #EF476F);
+            transition: width .09s linear }
+.sp-num { display: flex; align-items: baseline; gap: 4px; color: #EAECF2;
+          text-shadow: 0 2px 8px rgba(0,0,0,.9) }
+.sp-num b { font-size: 25px; font-weight: 800; line-height: 1 }
+.sp-num span { font-size: 11px; opacity: .6; font-weight: 700 }
+
 .item-slot {
-  width: 52px; height: 52px; border-radius: 14px; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center; font-size: 26px;
-  background: hsl(var(--b2, 0 0% 12%)); border: 2px dashed hsl(var(--bc, 0 0% 100%) / 0.18);
+  width: 74px; height: 74px; border-radius: 20px;
+  display: flex; align-items: center; justify-content: center; font-size: 38px;
+  background: rgba(10,13,20,.7); border: 2px dashed rgba(255,255,255,.2);
+  transition: transform .15s, border-color .15s;
 }
 .item-slot.has { border-style: solid; border-color: var(--game-hex);
-  background: color-mix(in srgb, var(--game-hex) 18%, transparent); }
+  background: rgba(10,13,20,.85); box-shadow: 0 0 26px -6px var(--game-hex) }
+.item-slot.rolling { border-color: #FFD166; animation: rollspin .28s linear infinite }
+.item-slot.pop { transform: scale(1.18) }
+@keyframes rollspin { 0%,100% { transform: rotate(-4deg) } 50% { transform: rotate(4deg) } }
+@media (prefers-reduced-motion: reduce) { .item-slot.rolling { animation: none } }
+.item-name { font-size: 12px; font-weight: 700; color: #FFD166;
+             text-shadow: 0 2px 6px rgba(0,0,0,.9) }
 
-.canvas-wrap { flex: 1; display: flex; justify-content: center; align-items: center;
-               min-height: 0; padding: 4px 10px; }
-.canvas-wrap.bleed { padding: 0 }
+.hud-badge { padding: 5px 12px; border-radius: 999px; font-size: 12px; font-weight: 700;
+             background: rgba(10,13,20,.82); color: #06D6A0 }
+
+.topbar.kart-mode { display: none }
 #game-canvas { border-radius: 14px; touch-action: none; display: block;
                box-shadow: 0 0 0 1px hsl(var(--bc, 0 0% 100%) / .1), 0 0 48px -16px var(--game-hex); }
 .canvas-wrap.bleed #game-canvas { border-radius: 0; box-shadow: none }
@@ -146,6 +195,9 @@ html, body {
 #standings li.done .r { opacity: 1; color: var(--game-hex) }
 
 @media (orientation: landscape) and (max-height: 540px) {
+  .item-slot { width: 58px; height: 58px; font-size: 30px; border-radius: 16px }
+  .pos-box b { font-size: 24px } .lap-box b { font-size: 17px }
+  .speedo { width: 108px } .sp-num b { font-size: 20px }
   .pad button { min-height: 46px; font-size: 20px }
   .pad .k-drop, .pad.pad-kart .k-item { font-size: 14px }
   .pad.pad-kart button { min-height: 52px }
