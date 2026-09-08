@@ -1,0 +1,99 @@
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: #0e0f13;
+  color: #e6e6e6;
+  font-family: -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+}
+
+.app, .admin {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 24px 16px;
+}
+
+.screen h1 { font-size: 22px; font-weight: 500; margin-bottom: 8px; }
+.screen p { color: #a3a3a3; line-height: 1.6; }
+.hidden { display: none !important; }
+
+input[type="text"] {
+  width: 100%;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #333;
+  background: #1a1c22;
+  color: #fff;
+  font-size: 16px;
+  margin: 12px 0;
+}
+
+button {
+  padding: 12px 20px;
+  border-radius: 8px;
+  border: none;
+  background: #4ade80;
+  color: #06210f;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+}
+button.danger { background: #f87171; color: #2c0a0a; }
+button + button { margin-left: 8px; }
+
+.error { color: #f87171; }
+
+.game-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+canvas {
+  background: #1e2129;
+  border-radius: 4px;
+  display: block;
+}
+
+.hint { font-size: 13px; margin-top: 12px; }
+
+/* 관리자 화면 */
+.admin { max-width: 960px; }
+.admin-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.badge {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #1a1c22;
+  border: 1px solid #333;
+  font-size: 13px;
+}
+.controls { margin-bottom: 24px; }
+
+#waiting-list { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+#waiting-list li {
+  padding: 6px 12px;
+  background: #1a1c22;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+#live-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 16px;
+}
+.player-card {
+  background: #1a1c22;
+  border-radius: 8px;
+  padding: 8px;
+  text-align: center;
+}
+.player-name { font-size: 13px; margin-bottom: 4px; }
+.player-score { font-size: 12px; color: #a3a3a3; margin-top: 4px; }
+.player-card canvas { width: 100%; height: auto; }

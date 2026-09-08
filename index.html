@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>아케이드 게임 - 참가자</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+
+  <section id="screen-join" class="screen">
+    <h1>닉네임을 입력하세요</h1>
+    <input id="nickname-input" type="text" maxlength="8" placeholder="예: 홍길동">
+    <button id="join-btn">입장하기</button>
+    <p id="join-error" class="error hidden"></p>
+  </section>
+
+  <section id="screen-wait" class="screen hidden">
+    <h1>입장 완료!</h1>
+    <p><strong id="my-nickname"></strong>님, 대기 중입니다.</p>
+    <p>선생님이 게임을 시작하면 자동으로 화면이 바뀝니다.</p>
+  </section>
+
+  <section id="screen-game" class="screen hidden">
+    <div class="game-header">
+      <span id="game-nickname"></span>
+      <span id="game-score">점수: 0</span>
+    </div>
+    <canvas id="game-canvas" width="240" height="480"></canvas>
+    <p class="hint">← → 이동 · ↑ 회전 · ↓ 빨리 내리기 · Space 바로 떨어뜨리기</p>
+  </section>
+
+  <section id="screen-over" class="screen hidden">
+    <h1>게임 종료</h1>
+    <p>최종 점수: <strong id="final-score"></strong></p>
+  </section>
+
+  <section id="screen-ended" class="screen hidden">
+    <h1>세션이 종료되었습니다</h1>
+  </section>
+
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script src="shared.js"></script>
+<script src="tetris-engine.js"></script>
+<script>
+(function () {
+  const CELL = 24;
+
+  function show(id) {
+    document.querySelectorAll('.screen').forEach(el => el.classList.add('hidden'));
+    document.getElementById(id).classList.remove('hidden');
+  }
+
+  // 새로고침해도 같은 참가자로 인식하도록 세션에 ID 저장
+  let playerId = sessionStorage.getItem('playerId');
+  if (!playerId) {
+    playerId = 'p_' + Math.random().toString(36).slice(2, 10);
+    sessionStorage.setItem('playerId', playerId);
+  }
+
+  const playerRef = db.ref('players/' + playerId);
+  const sessionStatusRef = db.ref('session/status');
+
+  let game = null;
+  let syncTimer = null;
+  let started = false;
+
+  document.getElementById('join-btn').addEventListener('click', join);
+  document.getElementById('nickname-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') join();
+  });
+
+  function join() {
+    const nickname = document.getElementById('nickname-input').value.trim();
+    if (!nickname) {
+      const err = document.getElementById('join-error');
+      err.textContent = '닉네임을 입력해주세요.';
+      err.classList.remove('hidden');
+      return;
+    }
+    playerRef.set({
+      nickname: nickname,
+      status: 'waiting',
+      joinedAt: firebase.database.ServerValue.TIMESTAMP,
+      score: 0
+    });
+    // 브라우저를 닫거나 연결이 끊기면 자동으로 명단에서 삭제
+    playerRef.onDisconnect().remove();
+
+    document.getElementById('my-nickname').textContent = nickname;
+    document.getElementById('game-nickname').textContent = nickname;
+    show('screen-wait');
+  }
+
+  sessionStatusRef.on('value', snap => {
+    const status = snap.val();
+    if (status === 'playing' && !started) {
+      startGame();
+    } else if (status === 'ended') {
+      stopGame();
+      show('screen-ended');
+    }
+  });
+
+  function startGame() {
+    started = true;
+    playerRef.update({ status: 'playing' });
+    show('screen-game');
+
+    const canvas = document.getElementById('game-canvas');
+    game = new TetrisGame(canvas, CELL);
+
+    document.addEventListener('keydown', handleKey);
+
+    // 0.2초마다 현재 보드 상태를 관리자 화면으로 전송 (실시간처럼 보이게)
+    syncTimer = setInterval(() => {
+      if (!game) return;
+      playerRef.update({
+        board: boardToRows(game.getSnapshot()),
+        score: game.score,
+        status: game.gameOver ? 'gameover' : 'playing'
+      });
+      document.getElementById('game-score').textContent = '점수: ' + game.score;
+      if (game.gameOver) endGame();
+    }, 200);
+
+    requestAnimationFrame(loop);
+  }
+
+  function loop(ts) {
+    if (!game || game.gameOver) return;
+    game.tick(ts);
+    requestAnimationFrame(loop);
+  }
+
+  function handleKey(e) {
+    if (!game || game.gameOver) return;
+    if (e.key === 'ArrowLeft') game.move(-1);
+    else if (e.key === 'ArrowRight') game.move(1);
+    else if (e.key === 'ArrowDown') game.softDrop();
+    else if (e.key === 'ArrowUp') game.rotate();
+    else if (e.key === ' ') { e.preventDefault(); game.hardDrop(); }
+  }
+
+  function endGame() {
+    document.getElementById('final-score').textContent = game.score;
+    show('screen-over');
+    clearInterval(syncTimer);
+    document.removeEventListener('keydown', handleKey);
+  }
+
+  function stopGame() {
+    clearInterval(syncTimer);
+    document.removeEventListener('keydown', handleKey);
+  }
+})();
+</script>
+</body>
+</html>
