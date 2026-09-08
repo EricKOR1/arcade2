@@ -350,7 +350,7 @@ class KartGame {
     this.fx = [];
   }
 
-  resize() { this.track.sprite = null; }
+  resize() { /* 3D 뷰는 매 프레임 투영하므로 별도 갱신 불필요 */ }
 
   // ── 조작 ──
   move(dir) { this.steer = dir; }
@@ -472,6 +472,14 @@ class KartGame {
     this.speed *= 0.2;
     if (window.Sound) Sound.crash();
     this.showToast('미끄러졌다!', '#FFD166');
+  }
+
+  // 마음에 안 드는 아이템을 버려서 다음 상자를 받을 수 있게 함
+  dropItem() {
+    if (!this.items.length || this.finished) return;
+    const it = this.items.shift();
+    if (window.Sound) Sound.lock();
+    this.showToast(ITEMS[it].name + ' 버림', '#9AA3B2');
   }
 
   showToast(text, color) { this.toast = { text, color: color || '#fff', until: performance.now() + 1500 }; }
@@ -634,7 +642,7 @@ class KartGame {
     };
   }
 
-  // ── 그리기 ──
+  // ── 그리기 (원근 투영 3D 뷰) ──
   draw() {
     const ctx = this.ctx;
     const W = this.canvas.clientWidth || this.canvas.width;
@@ -642,179 +650,422 @@ class KartGame {
     const t = this.track;
     const now = performance.now();
 
-    if (!t.sprite) t.buildSprite(0.62);
+    // 카메라: 플레이어 뒤 위쪽에서 진행 방향을 바라봄
+    const cam = this.setupCamera(W, H);
 
-    this.camX += (this.x - this.camX) * 0.2;
-    this.camY += (this.y - this.camY) * 0.2;
-    // 화면에 보이는 도로 폭이 기기와 무관하게 비슷하도록
-    const zoom = Math.max(0.18, Math.min(1.3, (Math.min(W, H * 0.72) * 0.82) / t.def.width));
-
-    ctx.save();
-    ctx.fillStyle = t.def.bg;
-    ctx.fillRect(0, 0, W, H);
-
-    ctx.translate(W/2, H*0.62);           // 시야를 앞쪽으로
-    ctx.scale(zoom, zoom);
-    ctx.rotate(-this.angle - Math.PI/2);  // 진행 방향이 항상 위
-    ctx.translate(-this.camX, -this.camY);
-
-    const sp = t.sprite;
-    ctx.drawImage(sp.canvas, sp.x, sp.y, sp.w, sp.h);
-
-    this.drawItemBoxes(ctx, now);
-    this.drawHazards(ctx);
-    this.drawPeers(ctx);
-    this.drawKart(ctx, this.x, this.y, this.angle, '#4CC9F0', this.myName, true,
-                  now < this.spinUntil || now < this.stunUntil, now < this.shieldUntil, now < this.boostUntil);
-    ctx.restore();
+    this.drawSky(ctx, W, H, cam);
+    this.drawRoad(ctx, W, H, cam, now);
+    this.drawSprites(ctx, W, H, cam, now);
 
     if (now < this.boostUntil) this.drawSpeedLines(ctx, W, H);
     this.drawMinimap(ctx, W, H);
     this.drawCanvasOverlay(ctx, W, H, now);
   }
 
-  drawSpeedLines(ctx, W, H) {
-    ctx.save();
-    ctx.strokeStyle = 'rgba(76,201,240,0.35)';
-    ctx.lineWidth = 3;
-    for (let i = 0; i < 14; i++) {
-      const a = (i/14) * Math.PI*2 + performance.now()/400;
-      const r1 = Math.min(W,H)*0.42, r2 = Math.min(W,H)*0.72;
-      ctx.beginPath();
-      ctx.moveTo(W/2 + Math.cos(a)*r1, H/2 + Math.sin(a)*r1);
-      ctx.lineTo(W/2 + Math.cos(a)*r2, H/2 + Math.sin(a)*r2);
-      ctx.stroke();
+  setupCamera(W, H) {
+    const t = this.track;
+    const boosting = performance.now() < this.boostUntil;
+    const back = t.carLen * (boosting ? 3.2 : 2.8);   // 부스터 중엔 살짝 뒤로 빠짐
+    const horizonY = H * 0.33;
+    // 도로 폭이 화면의 약 1.24배로 보이도록 초점거리 결정
+    const f = (W * 0.62) * back / t.halfW;
+    const height = (H * 0.45) * back / f;
+    return {
+      x: this.x - Math.cos(this.angle) * back,
+      y: this.y - Math.sin(this.angle) * back,
+      cos: Math.cos(this.angle), sin: Math.sin(this.angle),
+      f: f, h: height, horizonY: horizonY, near: t.carLen * 0.35, W: W, H: H
+    };
+  }
+
+  // 지면 위 한 점(높이 z)을 화면 좌표로 투영
+  project(cam, wx, wy, z) {
+    const dx = wx - cam.x, dy = wy - cam.y;
+    const lz =  dx * cam.cos + dy * cam.sin;
+    if (lz < cam.near) return null;
+    const lx = -dx * cam.sin + dy * cam.cos;
+    return {
+      x: cam.W / 2 + cam.f * lx / lz,
+      y: cam.horizonY + cam.f * (cam.h - (z || 0)) / lz,
+      s: cam.f / lz,
+      z: lz
+    };
+  }
+
+  drawSky(ctx, W, H, cam) {
+    const d = this.track.def;
+    const sky = ctx.createLinearGradient(0, 0, 0, cam.horizonY);
+    sky.addColorStop(0, d.bg);
+    sky.addColorStop(1, this.lighten(d.grass, 0.35));
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, W, cam.horizonY + 1);
+
+    // 멀리 보이는 능선 — 방향을 틀 때 함께 흘러가서 회전감을 줌
+    const shift = (-this.angle * W * 0.62) % (W * 0.9);
+    ctx.fillStyle = this.lighten(d.grass, 0.12);
+    ctx.beginPath();
+    ctx.moveTo(-W, cam.horizonY);
+    for (let i = -2; i <= 4; i++) {
+      const bx = shift + i * W * 0.45;
+      const bh = 26 + ((i * 37) % 5) * 9;
+      ctx.lineTo(bx - W * 0.24, cam.horizonY);
+      ctx.lineTo(bx, cam.horizonY - bh);
+      ctx.lineTo(bx + W * 0.24, cam.horizonY);
     }
-    ctx.restore();
+    ctx.lineTo(W * 3, cam.horizonY);
+    ctx.closePath();
+    ctx.fill();
+
+    // 지면
+    ctx.fillStyle = d.grass;
+    ctx.fillRect(0, cam.horizonY, W, H - cam.horizonY);
   }
 
-  drawItemBoxes(ctx, now) {
-    const k = this.track.carScale;
-    const wob = Math.sin(now/260)*4*k;
-    this.track.itemSpots.forEach(s => {
-      if (now < s.takenUntil) return;
-      ctx.save();
-      ctx.translate(s.x, s.y + wob);
-      ctx.rotate(now/650);
-      ctx.scale(k, k);
-      const grd = ctx.createLinearGradient(-17,-17,17,17);
-      grd.addColorStop(0, '#FFE9A3'); grd.addColorStop(1, '#F5A524');
-      ctx.fillStyle = grd;
-      ctx.strokeStyle = '#FFF6D8'; ctx.lineWidth = 2.5;
+  drawRoad(ctx, W, H, cam, now) {
+    const t = this.track, d = t.def, n = t.n;
+    const K = Math.min(110, Math.ceil(2600 / t.stepLen));
+    const DETAIL = 26;            // 이 거리까지만 연석·점선·잔디 줄무늬를 그림
+
+    // 가까울수록 촘촘하게, 멀수록 듬성듬성 (성능)
+    const segs = [];
+    let k = -8;
+    while (k < K) {
+      const i = ((this.segIdx + k) % n + n) % n;
+      const c = t.center[i];
+      const [tx, ty] = t.tangent[i];
+      const nx = -ty, ny = tx;
+      const L = this.project(cam, c[0] + nx * t.halfW, c[1] + ny * t.halfW, 0);
+      const R = this.project(cam, c[0] - nx * t.halfW, c[1] - ny * t.halfW, 0);
+      if (!L || !R) {
+        if (segs.length) break;
+        k += 1; continue;
+      }
+      segs.push({ i: i, L: L, R: R, cx: c[0], cy: c[1], nx: nx, ny: ny, tx: tx, ty: ty, k: k,
+                  detail: k < DETAIL });
+      k += (k < DETAIL) ? 1 : (k < DETAIL * 2 ? 2 : 4);
+    }
+    if (segs.length < 2) return;
+
+    const quad = (a, b, c2, d2, color) => {
+      ctx.fillStyle = color;
       ctx.beginPath();
-      if (ctx.roundRect) ctx.roundRect(-17,-17,34,34,8); else ctx.rect(-17,-17,34,34);
-      ctx.fill(); ctx.stroke();
-      ctx.fillStyle = '#6B4A00';
-      ctx.font = 'bold 19px sans-serif';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText('?', 0, 1);
-      ctx.restore();
-    });
+      ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+      ctx.lineTo(c2.x, c2.y); ctx.lineTo(d2.x, d2.y);
+      ctx.closePath(); ctx.fill();
+    };
+
+    const roadLight = this.lighten(d.road, 0.055);
+    const grassLight = this.lighten(d.grass, 0.06);
+
+    // 먼 곳부터 그림 (화가 알고리즘)
+    for (let s2 = segs.length - 1; s2 > 0; s2--) {
+      const far = segs[s2], near = segs[s2 - 1];
+      const band = Math.floor(far.i / 5) % 2 === 0;
+
+      if (near.detail) {
+        // 갓길 줄무늬 — 속도감
+        if (band) {
+          ctx.fillStyle = grassLight;
+          ctx.beginPath();
+          ctx.moveTo(0, far.L.y); ctx.lineTo(W, far.L.y);
+          ctx.lineTo(W, near.L.y); ctx.lineTo(0, near.L.y);
+          ctx.closePath(); ctx.fill();
+        }
+        // 연석
+        const kerbW = 0.055;
+        const kL1 = this.edge(cam, far, 1 + kerbW), kL2 = this.edge(cam, near, 1 + kerbW);
+        const kR1 = this.edge(cam, far, -1 - kerbW), kR2 = this.edge(cam, near, -1 - kerbW);
+        const kerbColor = band ? '#E4E9F0' : '#D94A4A';
+        if (kL1 && kL2) quad(far.L, kL1, kL2, near.L, kerbColor);
+        if (kR1 && kR2) quad(far.R, kR1, kR2, near.R, kerbColor);
+      }
+
+      // 노면
+      quad(far.L, far.R, near.R, near.L, band ? roadLight : d.road);
+
+      // 중앙 점선
+      if (near.detail && Math.floor(far.i / 3) % 2 === 0) {
+        const a1 = this.edge(cam, far, 0.035), a2 = this.edge(cam, far, -0.035);
+        const b1 = this.edge(cam, near, 0.035), b2 = this.edge(cam, near, -0.035);
+        if (a1 && a2 && b1 && b2) quad(a1, a2, b2, b1, 'rgba(255,255,255,0.13)');
+      }
+    }
+
+    this.drawRoadMarks(ctx, cam, segs, now);
   }
 
-  drawHazards(ctx) {
-    Object.keys(this.hazards).forEach(id => {
-      const h = this.hazards[id];
-      ctx.save();
-      ctx.translate(h.x, h.y);
-      ctx.scale(this.track.carScale, this.track.carScale);
-      ctx.fillStyle = 'rgba(0,0,0,0.3)';
-      ctx.beginPath(); ctx.ellipse(0, 5, 14, 7, 0, 0, Math.PI*2); ctx.fill();
-      ctx.fillStyle = '#FFD166';
-      ctx.beginPath(); ctx.ellipse(0, 0, 14, 9, Math.PI/5, 0, Math.PI*2); ctx.fill();
-      ctx.strokeStyle = '#8A6D1F'; ctx.lineWidth = 2; ctx.stroke();
-      ctx.restore();
-    });
+  // 중앙선에서 좌우로 off(-1~1) 만큼 떨어진 지점을 투영
+  edge(cam, seg, off) {
+    return this.project(cam, seg.cx + seg.nx * this.track.halfW * off,
+                             seg.cy + seg.ny * this.track.halfW * off, 0);
   }
 
-  drawPeers(ctx) {
-    Object.keys(this.peers).forEach(id => {
-      const p = this.peers[id];
-      p.x += ((p.tx !== undefined ? p.tx : p.x) - p.x) * 0.25;
-      p.y += ((p.ty !== undefined ? p.ty : p.y) - p.y) * 0.25;
-      let da = (p.tangle !== undefined ? p.tangle : p.angle) - p.angle;
-      while (da >  Math.PI) da -= Math.PI*2;
-      while (da < -Math.PI) da += Math.PI*2;
-      p.angle += da * 0.25;
-      this.drawKart(ctx, p.x, p.y, p.angle, p.finished ? '#565D6E' : '#EF476F',
-                    p.name, false, p.spin, p.shield, p.boost);
-    });
-  }
+  drawRoadMarks(ctx, cam, segs, now) {
+    const t = this.track, n = t.n;
+    const seen = {};
+    segs.forEach(sg => { seen[sg.i] = sg; });
 
-  drawKart(ctx, x, y, angle, color, name, isMe, spinning, shield, boosting) {
-    const now = performance.now();
-    const k = this.track.carScale;
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.scale(k, k);
+    // 진행 방향 화살표
+    const arrowStep = Math.max(6, Math.round(380 / t.stepLen));
+    for (let s = segs.length - 1; s >= 0; s--) {
+      const sg = segs[s];
+      if (sg.k > 60 || sg.i % arrowStep !== 0) continue;
+      const len = t.halfW * 0.34;
+      const tip = this.project(cam, sg.cx + sg.tx * len, sg.cy + sg.ty * len, 0);
+      const bl  = this.project(cam, sg.cx - sg.tx * len * 0.5 + sg.nx * len * 0.55,
+                                    sg.cy - sg.ty * len * 0.5 + sg.ny * len * 0.55, 0);
+      const br  = this.project(cam, sg.cx - sg.tx * len * 0.5 - sg.nx * len * 0.55,
+                                    sg.cy - sg.ty * len * 0.5 - sg.ny * len * 0.55, 0);
+      if (!tip || !bl || !br) continue;
+      ctx.fillStyle = 'rgba(255,255,255,0.22)';
+      ctx.beginPath();
+      ctx.moveTo(tip.x, tip.y); ctx.lineTo(bl.x, bl.y); ctx.lineTo(br.x, br.y);
+      ctx.closePath(); ctx.fill();
+    }
 
-    if (boosting) {
-      ctx.save(); ctx.rotate(angle);
+    // 부스터 패드
+    const padLimit = t.stepLen * 90;
+    t.boostPads.forEach(p => {
+      if (Math.hypot(p.x - this.x, p.y - this.y) > padLimit) return;
+      const half = t.halfW * 0.17;
+      const a = this.project(cam, p.x + Math.cos(p.angle)*half - Math.sin(p.angle)*half,
+                                  p.y + Math.sin(p.angle)*half + Math.cos(p.angle)*half, 0);
+      const b = this.project(cam, p.x + Math.cos(p.angle)*half + Math.sin(p.angle)*half,
+                                  p.y + Math.sin(p.angle)*half - Math.cos(p.angle)*half, 0);
+      const c = this.project(cam, p.x - Math.cos(p.angle)*half + Math.sin(p.angle)*half,
+                                  p.y - Math.sin(p.angle)*half - Math.cos(p.angle)*half, 0);
+      const dd = this.project(cam, p.x - Math.cos(p.angle)*half - Math.sin(p.angle)*half,
+                                   p.y - Math.sin(p.angle)*half + Math.cos(p.angle)*half, 0);
+      if (!a || !b || !c || !dd) return;
       ctx.fillStyle = 'rgba(76,201,240,0.55)';
       ctx.beginPath();
-      ctx.moveTo(-20, -9); ctx.lineTo(-20, 9);
-      ctx.lineTo(-44 - Math.random()*14, 0);
+      ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.lineTo(c.x,c.y); ctx.lineTo(dd.x,dd.y);
       ctx.closePath(); ctx.fill();
-      ctx.restore();
+    });
+
+    // 출발/결승선
+    const finish = seen[0];
+    if (finish) {
+      const cells = 10;
+      for (let i = 0; i < cells; i++) {
+        const o1 = 1 - (2 * i / cells), o2 = 1 - (2 * (i+1) / cells);
+        const p1 = this.edge(cam, finish, o1), p2 = this.edge(cam, finish, o2);
+        const ahead = { cx: finish.cx + finish.tx * t.stepLen * 2,
+                        cy: finish.cy + finish.ty * t.stepLen * 2,
+                        nx: finish.nx, ny: finish.ny };
+        const p3 = this.edge(cam, ahead, o2), p4 = this.edge(cam, ahead, o1);
+        if (!p1 || !p2 || !p3 || !p4) continue;
+        ctx.fillStyle = (i % 2 === 0) ? '#F4F6FA' : '#1A1D24';
+        ctx.beginPath();
+        ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.lineTo(p3.x,p3.y); ctx.lineTo(p4.x,p4.y);
+        ctx.closePath(); ctx.fill();
+      }
+    }
+  }
+
+  // ── 입체 물체 (카트 · 아이템 상자 · 바나나) ──
+  drawSprites(ctx, W, H, cam, now) {
+    const t = this.track;
+    const list = [];
+
+    this.track.itemSpots.forEach(sp => {
+      if (now < sp.takenUntil) return;
+      const p = this.project(cam, sp.x, sp.y, 0);
+      if (!p || p.x < -200 || p.x > W + 200) return;
+      list.push({ z: p.z, kind: 'box', wx: sp.x, wy: sp.y });
+    });
+
+    Object.keys(this.hazards).forEach(id => {
+      const h = this.hazards[id];
+      const p = this.project(cam, h.x, h.y, 0);
+      if (!p || p.x < -200 || p.x > W + 200) return;
+      list.push({ z: p.z, kind: 'banana', wx: h.x, wy: h.y });
+    });
+
+    Object.keys(this.peers).forEach(id => {
+      const pr = this.peers[id];
+      pr.x += ((pr.tx !== undefined ? pr.tx : pr.x) - pr.x) * 0.25;
+      pr.y += ((pr.ty !== undefined ? pr.ty : pr.y) - pr.y) * 0.25;
+      let da = (pr.tangle !== undefined ? pr.tangle : pr.angle) - pr.angle;
+      while (da >  Math.PI) da -= Math.PI*2;
+      while (da < -Math.PI) da += Math.PI*2;
+      pr.angle += da * 0.25;
+      const p = this.project(cam, pr.x, pr.y, 0);
+      if (!p) return;
+      list.push({ z: p.z, kind: 'kart', peer: pr });
+    });
+
+    const me = this.project(cam, this.x, this.y, 0);
+    if (me) list.push({ z: me.z, kind: 'me' });
+
+    // 가까운 것 위주로 상한을 둠 (30명 + 바나나 다수여도 부담 없게)
+    list.sort((a, b) => a.z - b.z);
+    const shown = list.slice(0, 26).reverse();   // 가까운 26개만, 먼 것부터 그림
+    shown.forEach(o => {
+      if (o.kind === 'box')        this.drawBox3D(ctx, cam, o.wx, o.wy, now);
+      else if (o.kind === 'banana')this.drawBanana3D(ctx, cam, o.wx, o.wy);
+      else if (o.kind === 'kart')  this.drawKart3D(ctx, cam, o.peer.x, o.peer.y, o.peer.angle,
+                                     o.peer.finished ? '#565D6E' : '#EF476F', o.peer.name, false,
+                                     o.peer.spin, o.peer.shield, o.peer.boost, now);
+      else this.drawKart3D(ctx, cam, this.x, this.y, this.angle, '#4CC9F0', this.myName, true,
+                           now < this.spinUntil || now < this.stunUntil,
+                           now < this.shieldUntil, now < this.boostUntil, now);
+    });
+  }
+
+  // 세계 좌표 (중심, 각도, 가로/세로, 높이)를 입체 상자로 그림
+  boxCorners(cam, cx, cy, angle, len, wid, height) {
+    const co = Math.cos(angle), si = Math.sin(angle);
+    const pts = [[len/2,-wid/2],[len/2,wid/2],[-len/2,wid/2],[-len/2,-wid/2]];
+    const g = [], u = [];
+    for (const [dx, dy] of pts) {
+      const wx = cx + dx*co - dy*si, wy = cy + dx*si + dy*co;
+      const p0 = this.project(cam, wx, wy, 0);
+      const p1 = this.project(cam, wx, wy, height);
+      if (!p0 || !p1) return null;
+      g.push(p0); u.push(p1);
+    }
+    return { g: g, u: u };
+  }
+
+  fillPoly(ctx, pts, color) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.closePath(); ctx.fill();
+  }
+
+  drawKart3D(ctx, cam, x, y, angle, color, name, isMe, spinning, shield, boosting, now) {
+    const t = this.track;
+    const L = t.carLen, Wd = t.carLen * 0.66, Hh = t.carLen * 0.42;
+    const b = this.boxCorners(cam, x, y, angle, L, Wd, Hh);
+    if (!b) return;
+
+    // 그림자
+    this.fillPoly(ctx, b.g, 'rgba(0,0,0,0.34)');
+
+    // 부스터 불꽃
+    if (boosting) {
+      const fl = this.boxCorners(cam, x - Math.cos(angle)*L*0.75, y - Math.sin(angle)*L*0.75,
+                                 angle, L*0.5, Wd*0.5, Hh*0.5);
+      if (fl) this.fillPoly(ctx, fl.u, 'rgba(76,201,240,0.6)');
     }
 
-    ctx.rotate(angle);
-    ctx.fillStyle = 'rgba(0,0,0,0.32)';
-    ctx.beginPath(); ctx.ellipse(0, 6, 21, 13, 0, 0, Math.PI*2); ctx.fill();
+    // 옆면 4개 (뒤쪽부터)
+    const dark = this.shade(color, -0.32), mid = this.shade(color, -0.14);
+    for (let i = 0; i < 4; i++) {
+      const j = (i + 1) % 4;
+      const face = [b.g[i], b.g[j], b.u[j], b.u[i]];
+      this.fillPoly(ctx, face, i === 0 ? mid : dark);
+    }
+    // 윗면
+    this.fillPoly(ctx, b.u, color);
+    // 앞유리
+    const gw = this.boxCorners(cam, x + Math.cos(angle)*L*0.16, y + Math.sin(angle)*L*0.16,
+                               angle, L*0.3, Wd*0.62, Hh * 1.02);
+    if (gw) this.fillPoly(ctx, gw.u, 'rgba(255,255,255,0.34)');
 
-    ctx.fillStyle = '#12151B';
-    ctx.fillRect(-14,-16,12,9); ctx.fillRect(-14,8,12,9);
-    ctx.fillRect(8,-16,12,9);   ctx.fillRect(8,8,12,9);
+    const c = this.project(cam, x, y, Hh);
+    if (!c) return;
 
-    const grd = ctx.createLinearGradient(0,-13,0,13);
-    grd.addColorStop(0, color);
-    grd.addColorStop(1, 'rgba(0,0,0,0.35)');
-    ctx.fillStyle = grd;
-    ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(-20,-13,40,26,8); else ctx.rect(-20,-13,40,26);
-    ctx.fill();
-
-    ctx.fillStyle = 'rgba(255,255,255,0.4)';
-    ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(4,-9,12,18,4); else ctx.rect(4,-9,12,18);
-    ctx.fill();
-
-    if (isMe) {
-      ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 2;
+    if (shield) {
+      ctx.strokeStyle = 'rgba(6,214,160,0.85)';
+      ctx.lineWidth = Math.max(1.5, 3 * c.s * 12);
       ctx.beginPath();
-      if (ctx.roundRect) ctx.roundRect(-20,-13,40,26,8); else ctx.rect(-20,-13,40,26);
+      ctx.ellipse(c.x, c.y, L * 0.85 * c.s, L * 0.42 * c.s, 0, 0, Math.PI*2);
+      ctx.stroke();
+    }
+    if (spinning) {
+      ctx.strokeStyle = '#FFD166';
+      ctx.lineWidth = Math.max(2, 3.5 * c.s * 12);
+      const a0 = now/80 % (Math.PI*2);
+      ctx.beginPath();
+      ctx.ellipse(c.x, c.y, L * 0.8 * c.s, L * 0.4 * c.s, 0, a0, a0 + 2.2);
+      ctx.stroke();
+    }
+
+    // 이름표 (화면 기준 고정 크기)
+    if (name) {
+      const fs = Math.max(9, Math.min(15, 3200 * c.s / 100));
+      const top = this.project(cam, x, y, Hh * 2.6);
+      if (!top) return;
+      ctx.font = '700 ' + fs.toFixed(1) + 'px Pretendard, sans-serif';
+      ctx.textAlign = 'center';
+      const tw = ctx.measureText(name).width + fs;
+      ctx.fillStyle = isMe ? 'rgba(76,201,240,0.92)' : 'rgba(12,15,22,0.8)';
+      if (ctx.roundRect) {
+        ctx.beginPath();
+        ctx.roundRect(top.x - tw/2, top.y - fs*1.35, tw, fs*1.5, fs*0.35);
+        ctx.fill();
+      }
+      ctx.fillStyle = isMe ? '#06121A' : '#EAECF2';
+      ctx.fillText(name, top.x, top.y - fs*0.2);
+    }
+  }
+
+  drawBox3D(ctx, cam, x, y, now) {
+    const t = this.track;
+    const sz = t.carLen * 0.55;
+    const bob = Math.sin(now/280 + x*0.01) * sz * 0.16;
+    const b = this.boxCorners(cam, x, y, now/650, sz, sz, sz);
+    if (!b) return;
+    const lift = p => ({ x: p.x, y: p.y - bob, s: p.s });
+    const g = b.g.map(lift), u = b.u.map(lift);
+    this.fillPoly(ctx, b.g, 'rgba(0,0,0,0.28)');
+    for (let i = 0; i < 4; i++) {
+      const j = (i+1) % 4;
+      this.fillPoly(ctx, [g[i], g[j], u[j], u[i]], i % 2 ? '#C77F12' : '#E39A1C');
+    }
+    this.fillPoly(ctx, u, '#FFD166');
+    const c = this.project(cam, x, y, sz);
+    if (c) {
+      const fs = Math.max(8, Math.min(26, 2600 * c.s / 100));
+      ctx.fillStyle = '#6B4A00';
+      ctx.font = 'bold ' + fs.toFixed(1) + 'px sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('?', c.x, c.y - bob);
+      ctx.textBaseline = 'alphabetic';
+    }
+  }
+
+  drawBanana3D(ctx, cam, x, y) {
+    const t = this.track;
+    const r = t.carLen * 0.3;
+    const g = this.project(cam, x, y, 0);
+    const u = this.project(cam, x, y, r * 0.7);
+    if (!g || !u) return;
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath(); ctx.ellipse(g.x, g.y, r*g.s*1.1, r*g.s*0.5, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#FFD166';
+    ctx.beginPath(); ctx.ellipse(u.x, u.y, r*u.s*1.1, r*u.s*0.62, 0.5, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#8A6D1F'; ctx.lineWidth = Math.max(1, 2*u.s*12); ctx.stroke();
+  }
+
+  // 색 보조
+  shade(hex, amt) {
+    const n = parseInt(hex.slice(1), 16);
+    const cl = v => Math.max(0, Math.min(255, Math.round(v)));
+    const r = cl(((n >> 16) & 255) * (1 + amt));
+    const g = cl(((n >> 8) & 255) * (1 + amt));
+    const b = cl((n & 255) * (1 + amt));
+    return 'rgb(' + r + ',' + g + ',' + b + ')';
+  }
+  lighten(hex, amt) { return this.shade(hex, amt); }
+
+  drawSpeedLines(ctx, W, H) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(76,201,240,0.32)';
+    ctx.lineWidth = 3;
+    for (let i = 0; i < 16; i++) {
+      const a = (i/16) * Math.PI*2 + performance.now()/380;
+      const r1 = Math.min(W,H)*0.4, r2 = Math.min(W,H)*0.78;
+      ctx.beginPath();
+      ctx.moveTo(W/2 + Math.cos(a)*r1, H*0.55 + Math.sin(a)*r1);
+      ctx.lineTo(W/2 + Math.cos(a)*r2, H*0.55 + Math.sin(a)*r2);
       ctx.stroke();
     }
     ctx.restore();
-
-    if (shield) {
-      ctx.save(); ctx.translate(x, y); ctx.scale(k, k);
-      ctx.strokeStyle = 'rgba(6,214,160,0.85)'; ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.arc(0, 0, 29 + Math.sin(now/180)*2, 0, Math.PI*2); ctx.stroke();
-      ctx.restore();
-    }
-    if (spinning) {
-      ctx.save(); ctx.translate(x, y); ctx.scale(k, k);
-      ctx.strokeStyle = '#FFD166'; ctx.lineWidth = 3.5;
-      const a0 = now/80 % (Math.PI*2);
-      ctx.beginPath(); ctx.arc(0, 0, 27, a0, a0 + 2.2); ctx.stroke();
-      ctx.restore();
-    }
-
-    if (name) {
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.rotate(this.angle + Math.PI/2);
-      ctx.scale(k, k);
-      ctx.font = '700 13px Pretendard, sans-serif';
-      ctx.textAlign = 'center';
-      const w = ctx.measureText(name).width + 14;
-      ctx.fillStyle = isMe ? 'rgba(76,201,240,0.9)' : 'rgba(12,15,22,0.78)';
-      if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(-w/2, -50, w, 21, 7); ctx.fill(); }
-      ctx.fillStyle = isMe ? '#06121A' : '#EAECF2';
-      ctx.fillText(name, 0, -35);
-      ctx.restore();
-    }
   }
 
   drawMinimap(ctx, W, H) {
@@ -842,7 +1093,7 @@ class KartGame {
     Object.keys(this.peers).forEach(id => {
       const p = this.peers[id];
       ctx.fillStyle = p.finished ? '#565D6E' : '#EF476F';
-      ctx.beginPath(); ctx.arc(mx(p.x), my(p.y), 3.2, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(mx(p.x), my(p.y), 3.4, 0, Math.PI*2); ctx.fill();
     });
     ctx.fillStyle = '#4CC9F0';
     ctx.beginPath(); ctx.arc(mx(this.x), my(this.y), 4.8, 0, Math.PI*2); ctx.fill();

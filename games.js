@@ -30,7 +30,7 @@ const GAMES = {
     needsPeers: true,
     hasNext: false,
     hasTracks: true,
-    controls: ['left', 'item', 'right'],
+    controls: ['left', 'item', 'right', 'discard'],
     create: function (canvas, opts) {
       return new KartGame(canvas, opts);
     },

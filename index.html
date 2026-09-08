@@ -230,7 +230,8 @@
     rotate:{ label: '↻', cls: 'k-rotate btn btn-neutral' },
     down:  { label: '↓', cls: 'k-down btn btn-neutral' },
     drop:  { label: '바로 내리기', cls: 'k-drop btn btn-primary' },
-    item:  { label: '아이템 사용', cls: 'k-item btn btn-primary' }
+    item:  { label: '아이템 사용', cls: 'k-item btn btn-primary' },
+    discard: { label: '✕ 아이템 버리기', cls: 'k-discard btn btn-ghost' }
   };
   function buildPad() {
     const pad = document.getElementById('pad');
@@ -440,7 +441,8 @@
     if (byId('btn-right')) press('btn-right', () => game && game.move(1),  () => game && game.releaseSteer && game.releaseSteer(1),  isKart ? null : 90);
     if (byId('btn-rotate')) tap('btn-rotate', () => game && game.rotate());
     if (byId('btn-drop'))   tap('btn-drop',   () => game && game.hardDrop());
-    if (byId('btn-item'))   tap('btn-item',   () => game && game.useItem());
+    if (byId('btn-item'))    tap('btn-item',    () => game && game.useItem());
+    if (byId('btn-discard')) tap('btn-discard', () => game && game.dropItem());
     if (byId('btn-down')) press('btn-down',
       () => { if (game) { game.softDropping = true; game.softDrop(); } },
       () => { if (game) game.softDropping = false; });
@@ -507,6 +509,9 @@
     else if (e.key === 'ArrowDown') { game.softDropping = true; }
     else if (e.key === 'ArrowUp') game.rotate();
     else if (e.key === ' ') { e.preventDefault(); isKart ? game.useItem() : game.hardDrop(); }
+    else if (isKart && (e.key === 'd' || e.key === 'D' || e.key === 'Backspace')) {
+      e.preventDefault(); game.dropItem();
+    }
   }
   function onKeyUp(e) {
     if (!game) return;

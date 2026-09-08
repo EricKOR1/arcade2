@@ -136,8 +136,14 @@ html, body {
 .pad button { min-height: 62px; font-size: 25px; font-weight: 500; border-radius: 14px; }
 .pad .k-down { grid-column: 1 }
 .pad .k-drop { grid-column: 2 / 4; font-size: 16px; font-weight: 600 }
+.pad.pad-kart { grid-template-columns: 1fr 1.25fr 1fr }
+.pad.pad-kart button { min-height: 70px; font-size: 28px }
 .pad.pad-kart .k-item { font-size: 17px; font-weight: 700 }
-.pad.pad-kart button { min-height: 72px; font-size: 28px }
+.pad .k-discard {
+  grid-column: 1 / 4; min-height: 46px; font-size: 14px; font-weight: 600;
+  background: transparent; border: 1px solid rgba(255,255,255,.14); color: rgba(255,255,255,.5);
+}
+.pad .k-discard:active { background: rgba(255,255,255,.08) }
 
 .result-score { font-size: 62px; font-weight: 700; color: var(--game-hex);
                 letter-spacing: -.04em; line-height: 1.05; margin: 2px 0 }
@@ -208,6 +214,7 @@ html, body {
   .pad button { min-height: 46px; font-size: 20px }
   .pad .k-drop, .pad.pad-kart .k-item { font-size: 14px }
   .pad.pad-kart button { min-height: 52px }
+  .pad .k-discard { min-height: 36px; font-size: 12px }
   .topbar { padding: 5px 12px 3px }
   .chip { padding: 4px 10px } .chip .v { font-size: 15px }
   .item-slot { width: 42px; height: 42px; font-size: 21px }
