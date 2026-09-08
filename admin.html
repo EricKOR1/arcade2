@@ -2,15 +2,17 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>아케이드 게임 - 관리자</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0e0f13">
+<title>아케이드 게임 - 교사용</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div class="admin">
   <header class="admin-header">
-    <h1>관리자 화면</h1>
+    <h1>교사용 화면</h1>
     <span id="status-badge" class="badge">대기 중</span>
+    <span id="count-badge" class="badge">0명 접속</span>
   </header>
 
   <div class="controls">
@@ -20,8 +22,9 @@
   </div>
 
   <section id="waiting-panel">
-    <h2>대기자 (<span id="waiting-count">0</span>명)</h2>
+    <h2>대기자 명단</h2>
     <ul id="waiting-list"></ul>
+    <p id="waiting-empty" class="empty-note">아직 입장한 학생이 없습니다.</p>
   </section>
 
   <section id="live-panel" class="hidden">
@@ -36,17 +39,18 @@
 <script src="shared.js"></script>
 <script>
 (function () {
-  const CELL = 8; // 관리자 화면의 미니 보드는 작게 표시
+  const CELL = 6; // 미니 보드 한 칸 크기(px)
 
   const sessionStatusRef = db.ref('session/status');
   const playersRef = db.ref('players');
 
   const liveGrid = document.getElementById('live-grid');
   const waitingList = document.getElementById('waiting-list');
-  const waitingCount = document.getElementById('waiting-count');
+  const waitingEmpty = document.getElementById('waiting-empty');
   const statusBadge = document.getElementById('status-badge');
+  const countBadge = document.getElementById('count-badge');
 
-  const cardByPlayer = {}; // playerId -> { wrapper, ctx, nameEl, scoreEl }
+  const cardByPlayer = {};
 
   document.getElementById('start-btn').addEventListener('click', () => {
     sessionStatusRef.set('playing');
@@ -55,9 +59,13 @@
     sessionStatusRef.set('ended');
   });
   document.getElementById('reset-btn').addEventListener('click', () => {
-    if (!confirm('모든 참가자 명단을 지우고 새 세션을 시작할까요?')) return;
+    if (!confirm('모든 참가자 명단을 지우고 새로 시작할까요?')) return;
     playersRef.remove();
     sessionStatusRef.set('waiting');
+    Object.keys(cardByPlayer).forEach(id => {
+      cardByPlayer[id].wrapper.remove();
+      delete cardByPlayer[id];
+    });
   });
 
   sessionStatusRef.on('value', snap => {
@@ -70,14 +78,15 @@
 
   playersRef.on('value', snap => {
     const players = snap.val() || {};
+    countBadge.textContent = Object.keys(players).length + '명 접속';
     renderWaitingList(players);
     renderLiveGrid(players);
   });
 
   function renderWaitingList(players) {
     const entries = Object.entries(players);
-    waitingCount.textContent = entries.length;
     waitingList.innerHTML = '';
+    waitingEmpty.classList.toggle('hidden', entries.length > 0);
     entries.forEach(([id, p]) => {
       const li = document.createElement('li');
       li.textContent = p.nickname || '(이름 없음)';
@@ -88,7 +97,6 @@
   function renderLiveGrid(players) {
     const ids = Object.keys(players);
 
-    // 나갔거나 삭제된 참가자의 카드 제거
     Object.keys(cardByPlayer).forEach(id => {
       if (!ids.includes(id)) {
         cardByPlayer[id].wrapper.remove();
@@ -113,7 +121,7 @@
         wrapper.appendChild(score);
         liveGrid.appendChild(wrapper);
         cardByPlayer[id] = {
-          wrapper,
+          wrapper: wrapper,
           ctx: canvas.getContext('2d'),
           nameEl: name,
           scoreEl: score
@@ -121,10 +129,17 @@
       }
       const card = cardByPlayer[id];
       card.nameEl.textContent = p.nickname || '(이름 없음)';
-      card.scoreEl.textContent = '점수: ' + (p.score || 0);
+      card.scoreEl.textContent = (p.score || 0) + '점';
+      card.wrapper.classList.toggle('over', p.status === 'gameover');
       if (p.board) {
         drawBoardGrid(card.ctx, rowsToBoard(p.board), CELL);
       }
+    });
+
+    // 점수 높은 순으로 카드 정렬
+    const sorted = ids.slice().sort((a, b) => (players[b].score || 0) - (players[a].score || 0));
+    sorted.forEach(id => {
+      if (cardByPlayer[id]) liveGrid.appendChild(cardByPlayer[id].wrapper);
     });
   }
 })();

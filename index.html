@@ -2,42 +2,56 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>아케이드 게임 - 참가자</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0e0f13">
+<title>아케이드 게임</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div class="app">
 
-  <section id="screen-join" class="screen">
+  <section id="screen-join" class="screen centered">
     <h1>닉네임을 입력하세요</h1>
-    <input id="nickname-input" type="text" maxlength="8" placeholder="예: 홍길동">
+    <p>선생님이 게임을 시작하면 바로 플레이합니다.</p>
+    <input id="nickname-input" type="text" maxlength="8" placeholder="예: 홍길동" autocomplete="off" autocapitalize="off">
     <button id="join-btn">입장하기</button>
     <p id="join-error" class="error hidden"></p>
   </section>
 
-  <section id="screen-wait" class="screen hidden">
-    <h1>입장 완료!</h1>
-    <p><strong id="my-nickname"></strong>님, 대기 중입니다.</p>
-    <p>선생님이 게임을 시작하면 자동으로 화면이 바뀝니다.</p>
+  <section id="screen-wait" class="screen centered hidden">
+    <h1><span class="waiting-dot"></span>대기 중</h1>
+    <p><strong id="my-nickname"></strong>님, 입장했습니다.</p>
+    <p>시작하면 화면이 자동으로 바뀝니다.</p>
   </section>
 
   <section id="screen-game" class="screen hidden">
     <div class="game-header">
       <span id="game-nickname"></span>
-      <span id="game-score">점수: 0</span>
+      <span id="game-score">0점</span>
     </div>
-    <canvas id="game-canvas" width="240" height="480"></canvas>
-    <p class="hint">← → 이동 · ↑ 회전 · ↓ 빨리 내리기 · Space 바로 떨어뜨리기</p>
+    <div class="canvas-wrap">
+      <canvas id="game-canvas"></canvas>
+    </div>
+    <div class="pad">
+      <button id="btn-left" aria-label="왼쪽으로">←</button>
+      <button id="btn-rotate" aria-label="회전">↻</button>
+      <button id="btn-right" aria-label="오른쪽으로">→</button>
+      <button id="btn-drop" class="wide">바로 내리기</button>
+    </div>
   </section>
 
-  <section id="screen-over" class="screen hidden">
+  <section id="screen-over" class="screen centered hidden">
     <h1>게임 종료</h1>
-    <p>최종 점수: <strong id="final-score"></strong></p>
+    <p>최종 점수</p>
+    <h1 id="final-score" style="color:#4ade80"></h1>
   </section>
 
-  <section id="screen-ended" class="screen hidden">
-    <h1>세션이 종료되었습니다</h1>
+  <section id="screen-ended" class="screen centered hidden">
+    <h1>수업이 종료되었습니다</h1>
+    <p>수고했어요!</p>
   </section>
 
 </div>
@@ -49,14 +63,12 @@
 <script src="tetris-engine.js"></script>
 <script>
 (function () {
-  const CELL = 24;
 
   function show(id) {
     document.querySelectorAll('.screen').forEach(el => el.classList.add('hidden'));
     document.getElementById(id).classList.remove('hidden');
   }
 
-  // 새로고침해도 같은 참가자로 인식하도록 세션에 ID 저장
   let playerId = sessionStorage.getItem('playerId');
   if (!playerId) {
     playerId = 'p_' + Math.random().toString(36).slice(2, 10);
@@ -69,34 +81,36 @@
   let game = null;
   let syncTimer = null;
   let started = false;
+  let cellSize = 20;
 
+  // ── 입장 ──
   document.getElementById('join-btn').addEventListener('click', join);
   document.getElementById('nickname-input').addEventListener('keydown', e => {
-    if (e.key === 'Enter') join();
+    if (e.key === 'Enter') { e.target.blur(); join(); }
   });
 
   function join() {
     const nickname = document.getElementById('nickname-input').value.trim();
+    const err = document.getElementById('join-error');
     if (!nickname) {
-      const err = document.getElementById('join-error');
       err.textContent = '닉네임을 입력해주세요.';
       err.classList.remove('hidden');
       return;
     }
+    err.classList.add('hidden');
     playerRef.set({
       nickname: nickname,
       status: 'waiting',
       joinedAt: firebase.database.ServerValue.TIMESTAMP,
       score: 0
     });
-    // 브라우저를 닫거나 연결이 끊기면 자동으로 명단에서 삭제
     playerRef.onDisconnect().remove();
-
     document.getElementById('my-nickname').textContent = nickname;
     document.getElementById('game-nickname').textContent = nickname;
     show('screen-wait');
   }
 
+  // ── 세션 상태 감시 ──
   sessionStatusRef.on('value', snap => {
     const status = snap.val();
     if (status === 'playing' && !started) {
@@ -107,17 +121,43 @@
     }
   });
 
+  // ── 화면 크기에 맞춰 캔버스 크기 계산 ──
+  function fitCanvas() {
+    const canvas = document.getElementById('game-canvas');
+    const wrap = canvas.parentElement;
+    const availW = wrap.clientWidth;
+    const availH = wrap.clientHeight;
+    // 10칸 x 20칸 비율을 유지하면서 화면에 최대한 크게
+    const byWidth = Math.floor(availW / TETRIS_COLS);
+    const byHeight = Math.floor(availH / TETRIS_ROWS);
+    cellSize = Math.max(12, Math.min(byWidth, byHeight));
+    const dpr = window.devicePixelRatio || 1;
+    canvas.style.width = (cellSize * TETRIS_COLS) + 'px';
+    canvas.style.height = (cellSize * TETRIS_ROWS) + 'px';
+    canvas.width = cellSize * TETRIS_COLS * dpr;
+    canvas.height = cellSize * TETRIS_ROWS * dpr;
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (game) { game.cellSize = cellSize; game.draw(); }
+  }
+
+  window.addEventListener('resize', () => { if (game) fitCanvas(); });
+  window.addEventListener('orientationchange', () => {
+    setTimeout(() => { if (game) fitCanvas(); }, 300);
+  });
+
   function startGame() {
     started = true;
     playerRef.update({ status: 'playing' });
     show('screen-game');
 
     const canvas = document.getElementById('game-canvas');
-    game = new TetrisGame(canvas, CELL);
+    fitCanvas();
+    game = new TetrisGame(canvas, cellSize);
+    game.draw();
 
-    document.addEventListener('keydown', handleKey);
+    bindControls();
 
-    // 0.2초마다 현재 보드 상태를 관리자 화면으로 전송 (실시간처럼 보이게)
     syncTimer = setInterval(() => {
       if (!game) return;
       playerRef.update({
@@ -125,7 +165,7 @@
         score: game.score,
         status: game.gameOver ? 'gameover' : 'playing'
       });
-      document.getElementById('game-score').textContent = '점수: ' + game.score;
+      document.getElementById('game-score').textContent = game.score + '점';
       if (game.gameOver) endGame();
     }, 200);
 
@@ -138,6 +178,68 @@
     requestAnimationFrame(loop);
   }
 
+  // ── 터치 조작 ──
+  function bindControls() {
+    hold('btn-left', () => game && game.move(-1));
+    hold('btn-right', () => game && game.move(1));
+    tap('btn-rotate', () => game && game.rotate());
+    tap('btn-drop', () => game && game.hardDrop());
+    bindSwipe();
+    document.addEventListener('keydown', handleKey); // PC 테스트용
+  }
+
+  // 짧게 누르면 1칸, 길게 누르면 연속 이동
+  function hold(id, fn) {
+    const el = document.getElementById(id);
+    let timer = null, repeat = null;
+    const start = e => {
+      e.preventDefault();
+      fn();
+      timer = setTimeout(() => { repeat = setInterval(fn, 90); }, 280);
+    };
+    const stop = () => { clearTimeout(timer); clearInterval(repeat); repeat = null; };
+    el.addEventListener('touchstart', start, { passive: false });
+    el.addEventListener('touchend', stop);
+    el.addEventListener('touchcancel', stop);
+    el.addEventListener('mousedown', start);
+    el.addEventListener('mouseup', stop);
+    el.addEventListener('mouseleave', stop);
+  }
+
+  function tap(id, fn) {
+    const el = document.getElementById(id);
+    el.addEventListener('touchstart', e => { e.preventDefault(); fn(); }, { passive: false });
+    el.addEventListener('click', e => { e.preventDefault(); fn(); });
+  }
+
+  // 캔버스 위 스와이프: 좌우 이동, 아래로 쓸면 바로 내리기, 탭하면 회전
+  function bindSwipe() {
+    const canvas = document.getElementById('game-canvas');
+    let sx = 0, sy = 0, moved = false;
+    canvas.addEventListener('touchstart', e => {
+      const t = e.touches[0];
+      sx = t.clientX; sy = t.clientY; moved = false;
+    }, { passive: true });
+    canvas.addEventListener('touchmove', e => {
+      if (!game) return;
+      const t = e.touches[0];
+      const dx = t.clientX - sx;
+      const dy = t.clientY - sy;
+      const threshold = cellSize;
+      if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > threshold) {
+        game.move(dx > 0 ? 1 : -1);
+        sx = t.clientX; moved = true;
+      } else if (dy > threshold * 2) {
+        game.hardDrop();
+        sy = t.clientY; moved = true;
+      }
+      e.preventDefault();
+    }, { passive: false });
+    canvas.addEventListener('touchend', () => {
+      if (!moved && game) game.rotate();
+    });
+  }
+
   function handleKey(e) {
     if (!game || game.gameOver) return;
     if (e.key === 'ArrowLeft') game.move(-1);
@@ -148,7 +250,7 @@
   }
 
   function endGame() {
-    document.getElementById('final-score').textContent = game.score;
+    document.getElementById('final-score').textContent = game.score + '점';
     show('screen-over');
     clearInterval(syncTimer);
     document.removeEventListener('keydown', handleKey);
@@ -158,7 +260,8 @@
     clearInterval(syncTimer);
     document.removeEventListener('keydown', handleKey);
   }
+
+  // 화면 확대(핀치 줌) 방지
+  document.addEventListener('gesturestart', e => e.preventDefault());
 })();
-</script>
-</body>
-</html>
+</script></body></html>
