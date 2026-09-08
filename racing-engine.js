@@ -65,7 +65,7 @@ class RacingGame {
     // 최소 한 개의 차선은 비워둬서 항상 피할 길이 있도록
     const count = Math.random() < 0.45 ? 2 : 1;
     const lanes = [0, 1, 2, 3, 4].sort(() => Math.random() - 0.5).slice(0, count);
-    const colorPool = ['#f87171', '#facc15', '#a78bfa', '#3b82f6', '#f97316'];
+    const colorPool = ['#EF476F', '#4361EE', '#B15DFF', '#4CC9F0', '#06D6A0'];
     lanes.forEach(l => {
       this.obstacles.push({
         lane: l,
@@ -161,11 +161,11 @@ class RacingGame {
     }
 
     // 도로
-    ctx.fillStyle = '#22252d';
+    ctx.fillStyle = '#151821';
     ctx.fillRect(0, 0, w, h);
 
     // 갓길
-    ctx.fillStyle = '#2f333d';
+    ctx.fillStyle = '#1F232D';
     ctx.fillRect(0, 0, this.laneW * 0.12, h);
     ctx.fillRect(w - this.laneW * 0.12, 0, this.laneW * 0.12, h);
 
@@ -186,11 +186,11 @@ class RacingGame {
     this.obstacles.forEach(o => this.drawCar(ctx, this.laneCenter(o.lane), o.y, o.color, false));
 
     // 내 차
-    this.drawCar(ctx, this.carX, this.carY, this.gameOver ? '#6b7280' : '#4ade80', true);
+    this.drawCar(ctx, this.carX, this.carY, this.gameOver ? '#565D6E' : '#F5A524', true);
 
     // 부스트 불꽃
     if (this.boosting && !this.gameOver) {
-      ctx.fillStyle = 'rgba(250, 204, 21, 0.75)';
+      ctx.fillStyle = 'rgba(255, 209, 102, 0.8)';
       const fx = this.carX, fy = this.carY + this.carH;
       ctx.beginPath();
       ctx.moveTo(fx - this.carW * 0.22, fy);

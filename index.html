@@ -6,42 +6,45 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" content="#0e0f13">
-<title>아케이드 게임</title>
+<meta name="theme-color" content="#0E1016">
+<title>아케이드</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div class="app">
 
+  <!-- 입장 -->
   <section id="screen-join" class="screen centered active">
-    <p class="game-label" id="join-game-name"></p>
-    <h1>닉네임을 입력하세요</h1>
-    <input id="nickname-input" type="text" maxlength="8" placeholder="예: 홍길동" autocomplete="off" autocapitalize="off">
-    <button id="join-btn">입장하기</button>
+    <div class="game-chip" id="join-chip"></div>
+    <h1 class="title-lg">닉네임을 정해주세요</h1>
+    <p class="subtle">친구들에게 이 이름으로 보여요</p>
+    <div class="field">
+      <input id="nickname-input" type="text" maxlength="8" placeholder="8자 이내" autocomplete="off" autocapitalize="off">
+    </div>
+    <button id="join-btn" class="btn-full">입장하기</button>
     <p id="join-error" class="error hidden"></p>
   </section>
 
+  <!-- 대기 -->
   <section id="screen-wait" class="screen centered">
-    <h1><span class="waiting-dot"></span>대기 중</h1>
-    <p><strong id="my-nickname"></strong>님, 입장했습니다.</p>
-    <p id="wait-game-name" class="game-label"></p>
-    <p>시작하면 화면이 자동으로 바뀝니다.</p>
+    <div class="pulse-ring"><span id="wait-count">0</span></div>
+    <h1 class="title-lg">시작을 기다리는 중</h1>
+    <p class="subtle">선생님이 시작하면 자동으로 넘어갑니다</p>
+    <div class="roster" id="roster"></div>
   </section>
 
+  <!-- 게임 -->
   <section id="screen-game" class="screen">
-    <div class="hud">
-      <div class="hud-left">
-        <div class="hud-stat"><span class="hud-label">점수</span><span id="game-score">0</span></div>
-        <div class="hud-stat" id="stat-lines"><span class="hud-label">줄</span><span id="game-lines">0</span></div>
-        <div class="hud-stat" id="stat-level"><span class="hud-label">레벨</span><span id="game-level">1</span></div>
+    <div class="topbar">
+      <div class="stat primary"><span class="k">SCORE</span><span class="v num" id="game-score">0</span></div>
+      <div class="stat" id="stat-lines"><span class="k">LINES</span><span class="v num" id="game-lines">0</span></div>
+      <div class="stat" id="stat-level"><span class="k">LEVEL</span><span class="v num" id="game-level">1</span></div>
+      <div class="spacer"></div>
+      <div class="next-box" id="next-box">
+        <span class="k">NEXT</span>
+        <canvas id="next-canvas"></canvas>
       </div>
-      <div class="hud-right">
-        <div id="next-box" class="next-box">
-          <span class="hud-label">다음</span>
-          <canvas id="next-canvas"></canvas>
-        </div>
-        <button id="mute-btn" class="mute-btn" aria-label="소리 끄기">♪</button>
-      </div>
+      <button id="mute-btn" class="icon-btn" aria-label="소리 끄기">♪</button>
     </div>
     <div class="canvas-wrap">
       <canvas id="game-canvas"></canvas>
@@ -49,17 +52,19 @@
     <div class="pad" id="pad"></div>
   </section>
 
+  <!-- 결과 -->
   <section id="screen-over" class="screen centered">
-    <h1>게임 종료</h1>
-    <p>최종 점수</p>
-    <div class="big-score" id="final-score"></div>
-    <p id="final-detail"></p>
-    <p>다음 게임을 기다려주세요.</p>
+    <div class="game-chip" id="over-chip"></div>
+    <p class="subtle">최종 점수</p>
+    <div class="result-score num" id="final-score">0</div>
+    <p class="subtle" id="final-detail"></p>
+    <div class="rank-pill hidden" id="rank-pill"></div>
   </section>
 
+  <!-- 종료 -->
   <section id="screen-ended" class="screen centered">
-    <h1>수업이 종료되었습니다</h1>
-    <p>수고했어요!</p>
+    <h1 class="title-lg">수업이 끝났습니다</h1>
+    <p class="subtle">함께해줘서 고마워요</p>
   </section>
 
 </div>
@@ -77,10 +82,12 @@
 
   const gameId = getGameId();
   const def = GAMES[gameId];
-  document.getElementById('join-game-name').textContent = def.name;
-  document.getElementById('wait-game-name').textContent = def.name;
-
   const isTetris = (gameId === 'tetris');
+
+  applyAccent(gameId);
+  document.getElementById('join-chip').textContent = def.name;
+  document.getElementById('over-chip').textContent = def.name;
+
   if (!def.hasNext) document.getElementById('next-box').classList.add('hidden');
   if (!isTetris) {
     document.getElementById('stat-lines').classList.add('hidden');
@@ -99,11 +106,13 @@
   }
 
   const playerRef = db.ref('players/' + playerId);
+  const playersRef = db.ref('players');
   const sessionStatusRef = db.ref('session/status');
 
   let game = null, syncTimer = null, started = false, cellSize = 20;
+  let myNickname = '';
 
-  // ── 소리 켜기/끄기 ──
+  // ── 소리 토글 ──
   const muteBtn = document.getElementById('mute-btn');
   muteBtn.addEventListener('click', () => {
     const on = !Sound.isEnabled();
@@ -119,23 +128,38 @@
   });
 
   function join() {
-    Sound.resume(); // 첫 터치에서 오디오 활성화
+    Sound.resume();
     const nickname = document.getElementById('nickname-input').value.trim();
     const err = document.getElementById('join-error');
     if (!nickname) {
-      err.textContent = '닉네임을 입력해주세요.';
+      err.textContent = '닉네임을 입력해주세요';
       err.classList.remove('hidden');
       return;
     }
     err.classList.add('hidden');
+    myNickname = nickname;
     playerRef.set({
       nickname: nickname, game: gameId, status: 'waiting',
       joinedAt: firebase.database.ServerValue.TIMESTAMP, score: 0
     });
     playerRef.onDisconnect().remove();
-    document.getElementById('my-nickname').textContent = nickname;
     show('screen-wait');
   }
+
+  // 대기실에 누가 있는지 실시간 표시
+  playersRef.on('value', snap => {
+    const players = snap.val() || {};
+    const ids = Object.keys(players);
+    document.getElementById('wait-count').textContent = ids.length;
+    const roster = document.getElementById('roster');
+    roster.innerHTML = '';
+    ids.forEach(id => {
+      const el = document.createElement('span');
+      el.textContent = players[id].nickname || '';
+      if (id === playerId) el.className = 'me';
+      roster.appendChild(el);
+    });
+  });
 
   sessionStatusRef.on('value', snap => {
     const status = snap.val();
@@ -143,7 +167,7 @@
     else if (status === 'ended') { stopGame(); show('screen-ended'); }
   });
 
-  // ── 화면을 가득 채우도록 캔버스 크기 계산 ──
+  // ── 캔버스를 화면에 꽉 채우기 ──
   function fitCanvas() {
     const canvas = document.getElementById('game-canvas');
     const wrap = canvas.parentElement;
@@ -166,8 +190,15 @@
   window.addEventListener('resize', () => { if (game) fitCanvas(); });
   window.addEventListener('orientationchange', () => setTimeout(() => { if (game) fitCanvas(); }, 350));
 
-  // ── 조작 버튼 만들기 ──
-  const PAD_ICONS = { left: '←', right: '→', rotate: '↻', down: '↓', drop: '바로 내리기', boost: '부스트' };
+  // ── 조작 패드 구성 ──
+  const PAD = {
+    left:   { label: '←', cls: 'k-left' },
+    right:  { label: '→', cls: 'k-right' },
+    rotate: { label: '↻', cls: 'k-rotate' },
+    down:   { label: '↓', cls: 'k-down' },
+    drop:   { label: '바로 내리기', cls: 'k-drop' },
+    boost:  { label: '부스트', cls: 'k-boost' }
+  };
   function buildPad() {
     const pad = document.getElementById('pad');
     pad.innerHTML = '';
@@ -175,9 +206,9 @@
     def.controls.forEach(c => {
       const b = document.createElement('button');
       b.id = 'btn-' + c;
-      b.textContent = (def.labels && def.labels[c]) || PAD_ICONS[c] || c;
-      if (c === 'drop' || c === 'boost') b.classList.add('wide');
-      b.setAttribute('aria-label', b.textContent);
+      b.className = PAD[c].cls;
+      b.textContent = PAD[c].label;
+      b.setAttribute('aria-label', PAD[c].label);
       pad.appendChild(b);
     });
   }
@@ -193,10 +224,7 @@
     requestAnimationFrame(() => {
       fitCanvas();
       game = def.create(canvas, cellSize);
-      if (def.hasNext) {
-        game.onNextChange = drawNextPreview;
-        drawNextPreview();
-      }
+      if (def.hasNext) { game.onNextChange = drawNextPreview; drawNextPreview(); }
       game.draw();
       bindControls();
       Sound.start();
@@ -222,7 +250,7 @@
 
   function drawNextPreview() {
     const c = document.getElementById('next-canvas');
-    const size = 12, dpr = window.devicePixelRatio || 1;
+    const size = 11, dpr = window.devicePixelRatio || 1;
     c.style.width = (size * 4) + 'px';
     c.style.height = (size * 4) + 'px';
     c.width = size * 4 * dpr; c.height = size * 4 * dpr;
@@ -237,20 +265,17 @@
     requestAnimationFrame(loop);
   }
 
-  // ── 터치 조작 ──
+  // ── 조작 ──
   function bindControls() {
-    if (document.getElementById('btn-left')) hold('btn-left', () => game && game.move(-1));
-    if (document.getElementById('btn-right')) hold('btn-right', () => game && game.move(1));
+    if (document.getElementById('btn-left'))   hold('btn-left',  () => game && game.move(-1));
+    if (document.getElementById('btn-right'))  hold('btn-right', () => game && game.move(1));
     if (document.getElementById('btn-rotate')) tap('btn-rotate', () => game && game.rotate());
-    if (document.getElementById('btn-drop')) tap('btn-drop', () => game && game.hardDrop());
-
-    // ↓ 버튼: 누르고 있는 동안 천천히 내려감 (옆으로 끼워넣기 가능)
+    if (document.getElementById('btn-drop'))   tap('btn-drop',   () => game && game.hardDrop());
     if (document.getElementById('btn-down')) {
       press('btn-down',
         () => { if (game) { game.softDropping = true; game.softDrop(); } },
         () => { if (game) game.softDropping = false; });
     }
-    // 부스트: 누르고 있는 동안 가속
     if (document.getElementById('btn-boost')) {
       press('btn-boost',
         () => { if (game && game.setBoost) game.setBoost(true); },
@@ -261,7 +286,6 @@
     document.addEventListener('keyup', handleKeyUp);
   }
 
-  // 짧게 누르면 한 번, 길게 누르면 반복
   function hold(id, fn) {
     const el = document.getElementById(id);
     let timer = null, repeat = null;
@@ -275,7 +299,6 @@
     el.addEventListener('mousedown', start);
   }
 
-  // 누르는 동안 계속 유지
   function press(id, onStart, onEnd) {
     const el = document.getElementById(id);
     const s = e => { e.preventDefault(); onStart(); };
@@ -327,12 +350,29 @@
   }
 
   function endGame() {
-    document.getElementById('final-score').textContent = game.score;
+    const myScore = game.score;
+    document.getElementById('final-score').textContent = myScore;
     document.getElementById('final-detail').textContent =
-      isTetris ? (game.lines + '줄 · 레벨 ' + game.level) : '';
+      isTetris ? (game.lines + '줄 완성 · 레벨 ' + game.level) : '끝까지 달렸어요';
     show('screen-over');
     clearInterval(syncTimer);
     stopGame();
+
+    // 전체 중 몇 등인지 표시
+    playersRef.once('value').then(snap => {
+      const players = snap.val() || {};
+      const scores = Object.keys(players).map(id => players[id].score || 0);
+      if (scores.length < 2) return;
+      scores.sort((a, b) => b - a);
+      const rank = scores.indexOf(myScore) + 1;
+      const pill = document.getElementById('rank-pill');
+      pill.innerHTML = '';
+      pill.appendChild(document.createTextNode(scores.length + '명 중 '));
+      const b = document.createElement('b');
+      b.textContent = rank + '등';
+      pill.appendChild(b);
+      pill.classList.remove('hidden');
+    });
   }
 
   function stopGame() {

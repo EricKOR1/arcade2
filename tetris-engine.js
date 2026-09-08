@@ -233,11 +233,11 @@ class TetrisGame {
     const ctx = this.ctx, cs = this.cellSize;
     const w = TETRIS_COLS * cs, h = TETRIS_ROWS * cs;
 
-    ctx.fillStyle = '#12141b';
+    ctx.fillStyle = '#0B0D12';
     ctx.fillRect(0, 0, w, h);
 
     // 배경 격자
-    ctx.strokeStyle = 'rgba(255,255,255,0.045)';
+    ctx.strokeStyle = 'rgba(255,255,255,0.04)';
     ctx.lineWidth = 1;
     ctx.beginPath();
     for (let x = 1; x < TETRIS_COLS; x++) { ctx.moveTo(x * cs, 0); ctx.lineTo(x * cs, h); }
@@ -256,7 +256,7 @@ class TetrisGame {
       // 착지 예상 위치(고스트)
       const gy = this.ghostY();
       const m = this.piece.matrix;
-      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+      ctx.strokeStyle = 'rgba(255,255,255,0.26)';
       ctx.lineWidth = 2;
       for (let y = 0; y < m.length; y++) {
         for (let x = 0; x < m[y].length; x++) {
