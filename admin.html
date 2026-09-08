@@ -1,40 +1,50 @@
 <!doctype html>
-<html lang="ko">
+<html lang="ko" data-theme="dim">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0E1016">
+<meta name="theme-color" content="#1B2027">
 <title>교사용 대시보드</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@4.12.24/dist/full.min.css">
 <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body class="bg-base-100 text-base-content">
 <div class="admin">
 
   <div class="admin-top">
     <h1>아케이드</h1>
-    <span class="pill" id="status-pill"><span class="dot"></span><span id="status-text">게임 선택</span></span>
-    <span class="pill" id="count-pill">0명 접속</span>
+    <span class="badge badge-lg" id="status-badge">게임 선택</span>
+    <span class="badge badge-lg badge-ghost" id="count-badge">0명 접속</span>
   </div>
   <p class="admin-sub" id="admin-sub">플레이할 게임을 고르면 학생용 QR이 만들어집니다.</p>
 
-  <!-- 1단계 -->
+  <!-- 1단계: 게임 선택 -->
   <section id="select-panel">
     <div id="game-list"></div>
   </section>
 
-  <!-- 2단계 -->
+  <!-- 1-2단계: 트랙 선택 -->
+  <section id="track-panel" class="hidden">
+    <div class="controls"><button id="track-back" class="btn btn-ghost btn-sm">← 게임 선택으로</button></div>
+    <h2 class="section-h">트랙을 고르세요</h2>
+    <div id="track-list"></div>
+  </section>
+
+  <!-- 2단계: QR + 대기실 -->
   <section id="lobby-panel" class="hidden">
     <div class="session-layout">
-      <div class="qr-card">
-        <p class="k">학생들이 이 QR을 찍으면 입장합니다</p>
-        <div id="qr-canvas"></div>
-        <p class="qr-url" id="qr-url"></p>
+      <div class="card bg-base-200 shadow">
+        <div class="card-body items-center text-center p-6">
+          <p class="text-sm opacity-60 mb-2">학생들이 이 QR을 찍으면 입장합니다</p>
+          <div id="qr-canvas"></div>
+          <p class="qr-url" id="qr-url"></p>
+        </div>
       </div>
       <div>
         <div class="controls">
-          <button id="start-btn">게임 시작</button>
-          <button id="back-btn" class="ghost">게임 바꾸기</button>
-          <button id="reset-btn" class="danger">명단 비우기</button>
+          <button id="start-btn" class="btn btn-primary">게임 시작</button>
+          <button id="back-btn" class="btn btn-ghost">게임 바꾸기</button>
+          <button id="reset-btn" class="btn btn-outline btn-error">명단 비우기</button>
         </div>
         <h2 class="section-h">입장한 학생</h2>
         <ul id="waiting-list"></ul>
@@ -43,12 +53,19 @@
     </div>
   </section>
 
-  <!-- 3단계 -->
+  <!-- 3단계: 진행 중 -->
   <section id="live-panel" class="hidden">
-    <div class="controls">
-      <button id="end-btn" class="danger">게임 종료</button>
-    </div>
+    <div class="controls"><button id="end-btn" class="btn btn-outline btn-error">게임 종료</button></div>
+    <!-- 테트리스: 학생별 미니 보드 -->
     <div id="live-grid"></div>
+    <!-- 카트: 전체 맵 관전 -->
+    <div id="spectate" class="spectate hidden">
+      <canvas id="spectate-canvas"></canvas>
+      <div>
+        <h2 class="section-h">실시간 순위</h2>
+        <ul id="standings"></ul>
+      </div>
+    </div>
   </section>
 
 </div>
@@ -63,187 +80,331 @@
 <script src="games.js"></script>
 <script>
 (function () {
-  const CELL_BY_GAME = { tetris: 6, racing: 11 };
+  const CELL = { tetris: 6 };
 
-  const sessionRef = db.ref('session');
-  const sessionStatusRef = db.ref('session/status');
-  const playersRef = db.ref('players');
+  const sessionRef  = db.ref('session');
+  const statusRef   = db.ref('session/status');
+  const playersRef  = db.ref('players');
+  const posRef      = db.ref('pos');
+  const hazardsRef  = db.ref('hazards');
+  const eventsRef   = db.ref('events');
+  const finishRef   = db.ref('finishCount');
 
-  const selectPanel = document.getElementById('select-panel');
-  const lobbyPanel = document.getElementById('lobby-panel');
-  const livePanel = document.getElementById('live-panel');
-  const gameList = document.getElementById('game-list');
-  const liveGrid = document.getElementById('live-grid');
-  const waitingList = document.getElementById('waiting-list');
-  const waitingEmpty = document.getElementById('waiting-empty');
-  const statusPill = document.getElementById('status-pill');
-  const statusText = document.getElementById('status-text');
-  const countPill = document.getElementById('count-pill');
-  const adminSub = document.getElementById('admin-sub');
+  const $ = id => document.getElementById(id);
+  const selectPanel = $('select-panel'), trackPanel = $('track-panel');
+  const lobbyPanel = $('lobby-panel'), livePanel = $('live-panel');
+  const liveGrid = $('live-grid'), spectate = $('spectate');
 
   const cardByPlayer = {};
-  let currentGameId = null;
+  const names = {}, peerPos = {};
+  let currentGameId = null, currentTrack = 'meadow';
+  let specTrack = null, specRaf = null;
 
   // ── 게임 선택 카드 ──
   Object.keys(GAMES).forEach(id => {
     const g = GAMES[id];
-    const btn = document.createElement('button');
-    btn.className = 'game-card';
-    btn.style.setProperty('--card-accent', g.accent);
-    btn.style.setProperty('--card-accent-soft', g.accentSoft);
-    const n = document.createElement('div'); n.className = 'gname'; n.textContent = g.name;
-    const d = document.createElement('div'); d.className = 'gdesc'; d.textContent = g.desc;
-    const m = document.createElement('div'); m.className = 'gmeta'; m.textContent = g.meta;
-    btn.appendChild(n); btn.appendChild(d); btn.appendChild(m);
-    btn.addEventListener('click', () => openLobby(id));
-    gameList.appendChild(btn);
+    const el = document.createElement('div');
+    el.className = 'card bg-base-200 shadow game-card';
+    el.style.setProperty('--gc', g.hex);
+    el.innerHTML = '<div class="card-body p-6">' +
+      '<h3 class="card-title text-lg"></h3>' +
+      '<p class="text-sm opacity-60 leading-relaxed"></p>' +
+      '<div class="card-actions mt-3"><span class="badge badge-outline"></span></div></div>';
+    el.querySelector('.card-title').textContent = g.name;
+    el.querySelector('p').textContent = g.desc;
+    el.querySelector('.badge').textContent = g.meta;
+    el.addEventListener('click', () => chooseGame(id));
+    $('game-list').appendChild(el);
   });
 
+  // ── 트랙 선택 카드 ──
+  Object.keys(TRACKS).forEach(id => {
+    const t = TRACKS[id];
+    const el = document.createElement('div');
+    el.className = 'card bg-base-200 shadow track-card';
+    el.innerHTML = '<div class="card-body p-5"><h3 class="card-title text-base"></h3>' +
+                   '<p class="text-sm opacity-60"></p></div>';
+    el.querySelector('.card-title').textContent = t.name;
+    el.querySelector('p').textContent = t.desc;
+    el.addEventListener('click', () => openLobby('kart', id));
+    $('track-list').appendChild(el);
+  });
+  $('track-back').addEventListener('click', () => {
+    trackPanel.classList.add('hidden');
+    selectPanel.classList.remove('hidden');
+  });
+
+  function chooseGame(id) {
+    if (GAMES[id].hasTracks) {
+      currentGameId = id;
+      applyAccent(id);
+      selectPanel.classList.add('hidden');
+      trackPanel.classList.remove('hidden');
+    } else {
+      openLobby(id, null);
+    }
+  }
+
   function clearCards() {
-    Object.keys(cardByPlayer).forEach(id => {
-      cardByPlayer[id].wrapper.remove();
-      delete cardByPlayer[id];
-    });
+    Object.keys(cardByPlayer).forEach(id => { cardByPlayer[id].wrapper.remove(); delete cardByPlayer[id]; });
   }
 
   function studentUrl(gameId) {
-    const base = location.href.replace(/admin\.html.*$/, '');
-    return base + 'index.html?game=' + gameId;
+    return location.href.replace(/admin\.html.*$/, '') + 'index.html?game=' + gameId;
   }
 
-  function openLobby(gameId) {
+  function openLobby(gameId, trackId) {
     currentGameId = gameId;
+    if (trackId) currentTrack = trackId;
     clearCards();
-    playersRef.remove();
-    sessionRef.set({ game: gameId, status: 'waiting' });
+    Object.keys(peerPos).forEach(k => delete peerPos[k]);
+    playersRef.remove(); posRef.remove(); hazardsRef.remove(); eventsRef.remove();
+    finishRef.set(0);
+    trackPanel.classList.add('hidden');
+    sessionRef.set({ game: gameId, status: 'waiting', track: currentTrack });
     renderQR(gameId);
   }
 
   function renderQR(gameId) {
     const url = studentUrl(gameId);
-    const box = document.getElementById('qr-canvas');
+    const box = $('qr-canvas');
     box.innerHTML = '';
-    new QRCode(box, { text: url, width: 210, height: 210, correctLevel: QRCode.CorrectLevel.M });
-    document.getElementById('qr-url').textContent = url;
+    new QRCode(box, { text: url, width: 208, height: 208, correctLevel: QRCode.CorrectLevel.M });
+    $('qr-url').textContent = url;
   }
 
-  document.getElementById('start-btn').addEventListener('click', () => sessionStatusRef.set('playing'));
-  document.getElementById('end-btn').addEventListener('click', () => sessionStatusRef.set('ended'));
-  document.getElementById('back-btn').addEventListener('click', () => {
+  $('start-btn').addEventListener('click', () => statusRef.set('playing'));
+  $('end-btn').addEventListener('click', () => statusRef.set('ended'));
+  $('back-btn').addEventListener('click', () => {
     sessionRef.set({ game: null, status: 'idle' });
-    playersRef.remove();
+    playersRef.remove(); posRef.remove(); hazardsRef.remove(); eventsRef.remove();
   });
-  document.getElementById('reset-btn').addEventListener('click', () => {
+  $('reset-btn').addEventListener('click', () => {
     if (!confirm('입장한 학생 명단을 비울까요?')) return;
-    playersRef.remove();
+    playersRef.remove(); posRef.remove();
   });
 
-  // ── 상태에 따른 화면 전환 ──
+  // ── 상태 전환 ──
   sessionRef.on('value', snap => {
     const s = snap.val() || {};
     const status = s.status || 'idle';
     if (s.game && s.game !== currentGameId) { currentGameId = s.game; clearCards(); }
+    if (s.track) currentTrack = s.track;
     if (currentGameId) applyAccent(currentGameId);
 
-    const gname = currentGameId && GAMES[currentGameId] ? GAMES[currentGameId].name : '';
+    const g = GAMES[currentGameId];
+    const gname = g ? g.name : '';
     const labels = { idle: '게임 선택', waiting: '입장 대기 중', playing: '진행 중', ended: '종료됨' };
     const subs = {
       idle: '플레이할 게임을 고르면 학생용 QR이 만들어집니다.',
       waiting: gname + ' — 학생들이 QR로 입장하는 중입니다.',
-      playing: gname + ' — 모든 학생의 화면을 실시간으로 보고 있습니다.',
-      ended: gname + ' — 게임이 끝났습니다. 다시 시작하거나 게임을 바꿀 수 있습니다.'
+      playing: gname + ' — 실시간으로 지켜보는 중입니다.',
+      ended: gname + ' — 종료됐습니다. 다시 시작하거나 게임을 바꿀 수 있습니다.'
     };
-    statusText.textContent = labels[status] || status;
-    statusPill.classList.toggle('on', status === 'playing' || status === 'waiting');
-    adminSub.textContent = subs[status] || '';
+    const badge = $('status-badge');
+    badge.textContent = labels[status] || status;
+    badge.className = 'badge badge-lg ' + (status === 'playing' ? 'badge-primary' : 'badge-ghost');
+    $('admin-sub').textContent = subs[status] || '';
 
-    selectPanel.classList.toggle('hidden', status !== 'idle');
+    selectPanel.classList.toggle('hidden', status !== 'idle' || !trackPanel.classList.contains('hidden'));
     lobbyPanel.classList.toggle('hidden', !(status === 'waiting' || status === 'ended'));
     livePanel.classList.toggle('hidden', status !== 'playing');
 
+    const shared = g && g.adminView === 'shared';
+    liveGrid.classList.toggle('hidden', !!shared);
+    spectate.classList.toggle('hidden', !shared);
+
+    if (status === 'playing' && shared) startSpectate();
+    else stopSpectate();
+
     if ((status === 'waiting' || status === 'ended') && currentGameId &&
-        !document.querySelector('#qr-canvas img, #qr-canvas canvas')) {
-      renderQR(currentGameId);
-    }
+        !document.querySelector('#qr-canvas img, #qr-canvas canvas')) renderQR(currentGameId);
   });
 
   // ── 참가자 ──
   playersRef.on('value', snap => {
     const players = snap.val() || {};
-    countPill.textContent = Object.keys(players).length + '명 접속';
-    renderWaitingList(players);
-    renderLiveGrid(players);
+    Object.keys(players).forEach(id => { names[id] = players[id].nickname || ''; });
+    $('count-badge').textContent = Object.keys(players).length + '명 접속';
+    renderWaiting(players);
+    const g = GAMES[currentGameId];
+    if (!g || g.adminView !== 'shared') renderGrid(players);
   });
 
-  function renderWaitingList(players) {
-    const entries = Object.entries(players);
-    waitingList.innerHTML = '';
-    waitingEmpty.classList.toggle('hidden', entries.length > 0);
-    entries.forEach(([id, p]) => {
-      const name = p.nickname || '?';
+  function renderWaiting(players) {
+    const list = $('waiting-list');
+    const ids = Object.keys(players);
+    list.innerHTML = '';
+    $('waiting-empty').classList.toggle('hidden', ids.length > 0);
+    ids.forEach(id => {
+      const name = players[id].nickname || '?';
       const li = document.createElement('li');
-      const av = document.createElement('span');
-      av.className = 'av';
-      av.textContent = name.charAt(0);
-      const label = document.createElement('span');
-      label.textContent = name;
-      li.appendChild(av); li.appendChild(label);
-      waitingList.appendChild(li);
+      li.className = 'flex items-center gap-3 bg-base-200 rounded-full pl-2 pr-5 py-2';
+      li.innerHTML = '<div class="avatar placeholder"><div class="bg-primary text-primary-content rounded-full w-8">' +
+                     '<span class="text-sm font-bold"></span></div></div><span class="font-medium text-sm"></span>';
+      li.querySelector('span.text-sm.font-bold').textContent = name.charAt(0);
+      li.querySelector('span.font-medium').textContent = name;
+      list.appendChild(li);
     });
   }
 
-  function renderLiveGrid(players) {
+  // ── 테트리스: 학생별 미니 보드 ──
+  function renderGrid(players) {
     const ids = Object.keys(players);
-    const def = GAMES[currentGameId] || GAMES.tetris;
-    const cs = CELL_BY_GAME[currentGameId] || 6;
-
+    const g = GAMES[currentGameId] || GAMES.tetris;
+    const cs = CELL[currentGameId] || 6;
     Object.keys(cardByPlayer).forEach(id => {
-      if (ids.indexOf(id) === -1) {
-        cardByPlayer[id].wrapper.remove();
-        delete cardByPlayer[id];
-      }
+      if (ids.indexOf(id) === -1) { cardByPlayer[id].wrapper.remove(); delete cardByPlayer[id]; }
     });
-
     ids.forEach(id => {
       const p = players[id];
       if (!cardByPlayer[id]) {
         const wrapper = document.createElement('div');
         wrapper.className = 'player-card';
-        const badge = document.createElement('div');
-        badge.className = 'rank-badge hidden';
-        const name = document.createElement('div');
-        name.className = 'player-name';
+        const badge = document.createElement('div'); badge.className = 'rank-badge hidden';
+        const name = document.createElement('div'); name.className = 'player-name';
         const canvas = document.createElement('canvas');
-        canvas.width = def.cols * cs;
-        canvas.height = def.rows * cs;
-        const score = document.createElement('div');
-        score.className = 'player-score num';
-        wrapper.appendChild(badge); wrapper.appendChild(name);
-        wrapper.appendChild(canvas); wrapper.appendChild(score);
+        canvas.width = g.grid.cols * cs; canvas.height = g.grid.rows * cs;
+        const score = document.createElement('div'); score.className = 'player-score num';
+        wrapper.append(badge, name, canvas, score);
         liveGrid.appendChild(wrapper);
-        cardByPlayer[id] = {
-          wrapper: wrapper, badge: badge, ctx: canvas.getContext('2d'),
-          nameEl: name, scoreEl: score
-        };
+        cardByPlayer[id] = { wrapper, badge, ctx: canvas.getContext('2d'), nameEl: name, scoreEl: score };
       }
-      const card = cardByPlayer[id];
-      card.nameEl.textContent = p.nickname || '(이름 없음)';
-      card.scoreEl.textContent = (p.score || 0);
-      card.wrapper.classList.toggle('over', p.status === 'gameover');
-      if (p.board) drawBoardGrid(card.ctx, rowsToBoard(p.board), cs);
+      const c = cardByPlayer[id];
+      c.nameEl.textContent = p.nickname || '(이름 없음)';
+      c.scoreEl.textContent = p.score || 0;
+      c.wrapper.classList.toggle('over', p.status === 'gameover');
+      if (p.board) drawBoardGrid(c.ctx, rowsToBoard(p.board), cs);
     });
-
-    // 점수순 정렬 + 1~3등 배지
     const sorted = ids.slice().sort((a, b) => (players[b].score || 0) - (players[a].score || 0));
     sorted.forEach((id, i) => {
-      const card = cardByPlayer[id];
-      if (!card) return;
-      liveGrid.appendChild(card.wrapper);
-      const isTop = i < 3 && ids.length > 1;
-      card.badge.classList.toggle('hidden', !isTop);
-      card.wrapper.classList.toggle('top', i === 0 && ids.length > 1);
-      if (isTop) card.badge.textContent = (i + 1) + '등';
+      const c = cardByPlayer[id]; if (!c) return;
+      liveGrid.appendChild(c.wrapper);
+      const top = i < 3 && ids.length > 1;
+      c.badge.classList.toggle('hidden', !top);
+      c.wrapper.classList.toggle('top', i === 0 && ids.length > 1);
+      if (top) c.badge.textContent = (i + 1) + '등';
     });
+  }
+
+  // ── 카트: 전체 맵 관전 ──
+  function startSpectate() {
+    if (specRaf) return;
+    specTrack = new Track(TRACKS[currentTrack] || TRACKS.meadow);
+    posRef.on('child_added',   s => setPos(s.key, s.val()));
+    posRef.on('child_changed', s => setPos(s.key, s.val()));
+    posRef.on('child_removed', s => { delete peerPos[s.key]; });
+    hazardsRef.on('value', s => { peerPos.__hz = s.val() || {}; });
+    const canvas = $('spectate-canvas');
+    const fit = () => {
+      const w = canvas.parentElement.clientWidth;
+      const dpr = window.devicePixelRatio || 1;
+      canvas.style.height = Math.round(w * 0.66) + 'px';
+      canvas.width = Math.round(w * dpr); canvas.height = Math.round(w * 0.66 * dpr);
+      canvas.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+    fit();
+    window.addEventListener('resize', fit);
+    const draw = () => { drawSpectate(canvas); specRaf = requestAnimationFrame(draw); };
+    specRaf = requestAnimationFrame(draw);
+  }
+  function stopSpectate() {
+    if (!specRaf) return;
+    cancelAnimationFrame(specRaf); specRaf = null;
+    posRef.off(); hazardsRef.off();
+  }
+  function setPos(id, raw) {
+    if (!raw) return;
+    const a = String(raw).split(',');
+    peerPos[id] = { x: +a[0], y: +a[1], angle: +a[2], lap: +a[3],
+                    progress: +a[4], spin: a[5] === '1', finished: a[6] === '1' };
+    renderStandings();
+  }
+
+  function renderStandings() {
+    const ids = Object.keys(peerPos).filter(k => k !== '__hz');
+    ids.sort((a, b) => (peerPos[b].progress || 0) - (peerPos[a].progress || 0));
+    const ul = $('standings');
+    ul.innerHTML = '';
+    ids.forEach((id, i) => {
+      const p = peerPos[id];
+      const li = document.createElement('li');
+      if (p.finished) li.className = 'done';
+      const r = document.createElement('span'); r.className = 'r'; r.textContent = (i + 1) + '.';
+      const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = names[id] || '?';
+      const lp = document.createElement('span'); lp.className = 'lp';
+      lp.textContent = p.finished ? '완주' : (Math.min((p.lap || 0) + 1, 3) + '/3바퀴');
+      li.append(r, nm, lp);
+      ul.appendChild(li);
+    });
+  }
+
+  function drawSpectate(canvas) {
+    const ctx = canvas.getContext('2d');
+    const W = canvas.clientWidth, H = canvas.clientHeight;
+    const t = specTrack; if (!t) return;
+    const c = t.center;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    c.forEach(p => { minX = Math.min(minX, p[0]); maxX = Math.max(maxX, p[0]);
+                     minY = Math.min(minY, p[1]); maxY = Math.max(maxY, p[1]); });
+    const pad = 40;
+    const sc = Math.min((W - pad * 2) / (maxX - minX), (H - pad * 2) / (maxY - minY));
+    const ox = (W - (maxX - minX) * sc) / 2 - minX * sc;
+    const oy = (H - (maxY - minY) * sc) / 2 - minY * sc;
+
+    ctx.fillStyle = t.def.bg; ctx.fillRect(0, 0, W, H);
+    ctx.save(); ctx.translate(ox, oy); ctx.scale(sc, sc);
+
+    ctx.strokeStyle = t.def.road; ctx.lineWidth = t.def.width;
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(c[0][0], c[0][1]);
+    for (let i = 1; i < c.length; i++) ctx.lineTo(c[i][0], c[i][1]);
+    ctx.closePath(); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = t.def.width - 12; ctx.stroke();
+    ctx.strokeStyle = t.def.road; ctx.lineWidth = t.def.width - 20; ctx.stroke();
+
+    // 출발선
+    const [tx, ty] = t.tangent[0], nx = -ty, ny = tx;
+    for (let i = 0; i < 8; i++) {
+      ctx.fillStyle = (i % 2 === 0) ? '#F2F4F8' : '#2A2F3D';
+      const off = -t.halfW + i * (t.def.width / 8);
+      ctx.save();
+      ctx.translate(c[0][0] + nx * off, c[0][1] + ny * off);
+      ctx.rotate(Math.atan2(ty, tx));
+      ctx.fillRect(0, 0, 18, t.def.width / 8);
+      ctx.restore();
+    }
+
+    // 바나나
+    const hz = peerPos.__hz || {};
+    Object.keys(hz).forEach(k => {
+      ctx.fillStyle = '#FFD166';
+      ctx.beginPath(); ctx.arc(hz[k].x, hz[k].y, 11, 0, Math.PI * 2); ctx.fill();
+    });
+
+    // 카트
+    const ids = Object.keys(peerPos).filter(k => k !== '__hz');
+    ids.sort((a, b) => (peerPos[a].progress || 0) - (peerPos[b].progress || 0));
+    ids.forEach((id, i) => {
+      const p = peerPos[id];
+      const leader = i === ids.length - 1 && ids.length > 1;
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.angle);
+      ctx.fillStyle = p.finished ? '#565D6E' : (leader ? 'var(--game-hex)' : '#EF476F');
+      if (leader) ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--game-hex') || '#F5A524';
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(-18, -11, 36, 22, 6); else ctx.rect(-18, -11, 36, 22);
+      ctx.fill();
+      ctx.restore();
+      const nm = names[id] || '';
+      if (nm) {
+        ctx.save();
+        ctx.font = '600 ' + Math.round(15 / sc * 1.4) + 'px Pretendard, sans-serif';
+        ctx.textAlign = 'center'; ctx.fillStyle = '#EAECF2';
+        ctx.fillText(nm, p.x, p.y - 26);
+        ctx.restore();
+      }
+    });
+    ctx.restore();
   }
 })();
 </script>

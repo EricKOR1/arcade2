@@ -1,70 +1,75 @@
 <!doctype html>
-<html lang="ko">
+<html lang="ko" data-theme="dim">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" content="#0E1016">
+<meta name="theme-color" content="#1B2027">
 <title>아케이드</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@4.12.24/dist/full.min.css">
 <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body class="bg-base-100 text-base-content">
 <div class="app">
 
   <!-- 입장 -->
   <section id="screen-join" class="screen centered active">
-    <div class="game-chip" id="join-chip"></div>
+    <div class="badge badge-primary badge-lg gap-2 mb-3" id="join-chip"></div>
     <h1 class="title-lg">닉네임을 정해주세요</h1>
-    <p class="subtle">친구들에게 이 이름으로 보여요</p>
-    <div class="field">
-      <input id="nickname-input" type="text" maxlength="8" placeholder="8자 이내" autocomplete="off" autocapitalize="off">
+    <p class="muted">친구들에게 이 이름으로 보여요</p>
+    <div class="stack mt-5">
+      <input id="nickname-input" type="text" maxlength="8" placeholder="8자 이내"
+             class="input input-bordered input-lg w-full text-center font-semibold"
+             autocomplete="off" autocapitalize="off">
+      <button id="join-btn" class="btn btn-primary btn-lg btn-block">입장하기</button>
+      <p id="join-error" class="text-error text-sm hidden"></p>
     </div>
-    <button id="join-btn" class="btn-full">입장하기</button>
-    <p id="join-error" class="error hidden"></p>
   </section>
 
   <!-- 대기 -->
   <section id="screen-wait" class="screen centered">
-    <div class="pulse-ring"><span id="wait-count">0</span></div>
+    <div class="pulse-ring"><b id="wait-count">0</b></div>
     <h1 class="title-lg">시작을 기다리는 중</h1>
-    <p class="subtle">선생님이 시작하면 자동으로 넘어갑니다</p>
+    <p class="muted">선생님이 시작하면 자동으로 넘어갑니다</p>
     <div class="roster" id="roster"></div>
   </section>
 
   <!-- 게임 -->
   <section id="screen-game" class="screen">
     <div class="topbar">
-      <div class="stat primary"><span class="k">SCORE</span><span class="v num" id="game-score">0</span></div>
-      <div class="stat" id="stat-lines"><span class="k">LINES</span><span class="v num" id="game-lines">0</span></div>
-      <div class="stat" id="stat-level"><span class="k">LEVEL</span><span class="v num" id="game-level">1</span></div>
+      <div class="chip hot"><span class="k" id="k-main">SCORE</span><span class="v num" id="game-score">0</span></div>
+      <div class="chip" id="chip-a"><span class="k" id="k-a">LINES</span><span class="v num" id="val-a">0</span></div>
+      <div class="chip" id="chip-b"><span class="k" id="k-b">LEVEL</span><span class="v num" id="val-b">1</span></div>
       <div class="spacer"></div>
-      <div class="next-box" id="next-box">
-        <span class="k">NEXT</span>
-        <canvas id="next-canvas"></canvas>
-      </div>
-      <button id="mute-btn" class="icon-btn" aria-label="소리 끄기">♪</button>
+      <div class="chip next-box" id="next-box"><span class="k">NEXT</span><canvas id="next-canvas"></canvas></div>
+      <div class="item-slot" id="item-slot"></div>
+      <button id="mute-btn" class="btn btn-square btn-sm btn-ghost" aria-label="소리 끄기">♪</button>
     </div>
-    <div class="canvas-wrap">
-      <canvas id="game-canvas"></canvas>
-    </div>
+    <div class="canvas-wrap" id="canvas-wrap"><canvas id="game-canvas"></canvas></div>
     <div class="pad" id="pad"></div>
   </section>
 
   <!-- 결과 -->
   <section id="screen-over" class="screen centered">
-    <div class="game-chip" id="over-chip"></div>
-    <p class="subtle">최종 점수</p>
+    <div class="badge badge-primary badge-lg mb-3" id="over-chip"></div>
+    <p class="muted" id="over-label">최종 점수</p>
     <div class="result-score num" id="final-score">0</div>
-    <p class="subtle" id="final-detail"></p>
-    <div class="rank-pill hidden" id="rank-pill"></div>
+    <p class="muted" id="final-detail"></p>
+    <div class="stats bg-base-200 shadow mt-5 hidden" id="rank-stat">
+      <div class="stat place-items-center py-4">
+        <div class="stat-title text-xs">전체 순위</div>
+        <div class="stat-value text-primary text-3xl num" id="rank-value">-</div>
+        <div class="stat-desc" id="rank-desc"></div>
+      </div>
+    </div>
   </section>
 
   <!-- 종료 -->
   <section id="screen-ended" class="screen centered">
     <h1 class="title-lg">수업이 끝났습니다</h1>
-    <p class="subtle">함께해줘서 고마워요</p>
+    <p class="muted">함께해줘서 고마워요</p>
   </section>
 
 </div>
@@ -83,15 +88,19 @@
   const gameId = getGameId();
   const def = GAMES[gameId];
   const isTetris = (gameId === 'tetris');
+  const isKart = (gameId === 'kart');
 
   applyAccent(gameId);
   document.getElementById('join-chip').textContent = def.name;
   document.getElementById('over-chip').textContent = def.name;
 
   if (!def.hasNext) document.getElementById('next-box').classList.add('hidden');
-  if (!isTetris) {
-    document.getElementById('stat-lines').classList.add('hidden');
-    document.getElementById('stat-level').classList.add('hidden');
+  if (!isKart) document.getElementById('item-slot').classList.add('hidden');
+  if (def.fullBleed) document.getElementById('canvas-wrap').classList.add('bleed');
+  if (isKart) {
+    document.getElementById('k-main').textContent = '순위';
+    document.getElementById('k-a').textContent = 'LAP';
+    document.getElementById('chip-b').classList.add('hidden');
   }
 
   function show(id) {
@@ -105,20 +114,24 @@
     sessionStorage.setItem('playerId', playerId);
   }
 
-  const playerRef = db.ref('players/' + playerId);
+  const playerRef  = db.ref('players/' + playerId);
   const playersRef = db.ref('players');
-  const sessionStatusRef = db.ref('session/status');
+  const posRef     = db.ref('pos');
+  const myPosRef   = db.ref('pos/' + playerId);
+  const hazardsRef = db.ref('hazards');
+  const eventsRef  = db.ref('events');
+  const sessionRef = db.ref('session');
 
   let game = null, syncTimer = null, started = false, cellSize = 20;
-  let myNickname = '';
+  let myNickname = '', trackId = 'meadow';
+  const names = {}, peerPos = {}, hazards = {};
 
-  // ── 소리 토글 ──
+  // ── 소리 ──
   const muteBtn = document.getElementById('mute-btn');
   muteBtn.addEventListener('click', () => {
     const on = !Sound.isEnabled();
     Sound.setEnabled(on);
     muteBtn.textContent = on ? '♪' : '✕';
-    muteBtn.classList.toggle('off', !on);
   });
 
   // ── 입장 ──
@@ -131,11 +144,7 @@
     Sound.resume();
     const nickname = document.getElementById('nickname-input').value.trim();
     const err = document.getElementById('join-error');
-    if (!nickname) {
-      err.textContent = '닉네임을 입력해주세요';
-      err.classList.remove('hidden');
-      return;
-    }
+    if (!nickname) { err.textContent = '닉네임을 입력해주세요'; err.classList.remove('hidden'); return; }
     err.classList.add('hidden');
     myNickname = nickname;
     playerRef.set({
@@ -143,66 +152,71 @@
       joinedAt: firebase.database.ServerValue.TIMESTAMP, score: 0
     });
     playerRef.onDisconnect().remove();
+    myPosRef.onDisconnect().remove();
     show('screen-wait');
   }
 
-  // 대기실에 누가 있는지 실시간 표시
-  playersRef.on('value', snap => {
+  // 대기실 인원
+  const rosterListener = playersRef.on('value', snap => {
     const players = snap.val() || {};
     const ids = Object.keys(players);
+    ids.forEach(id => { names[id] = players[id].nickname || ''; });
     document.getElementById('wait-count').textContent = ids.length;
     const roster = document.getElementById('roster');
     roster.innerHTML = '';
     ids.forEach(id => {
       const el = document.createElement('span');
+      el.className = 'badge badge-lg' + (id === playerId ? ' badge-primary' : ' badge-ghost');
       el.textContent = players[id].nickname || '';
-      if (id === playerId) el.className = 'me';
       roster.appendChild(el);
     });
   });
 
-  sessionStatusRef.on('value', snap => {
-    const status = snap.val();
-    if (status === 'playing' && !started) startGame();
-    else if (status === 'ended') { stopGame(); show('screen-ended'); }
+  sessionRef.on('value', snap => {
+    const s = snap.val() || {};
+    if (s.track) trackId = s.track;
+    if (s.status === 'playing' && !started) startGame();
+    else if (s.status === 'ended') { stopGame(); show('screen-ended'); }
   });
 
-  // ── 캔버스를 화면에 꽉 채우기 ──
+  // ── 캔버스 크기 ──
   function fitCanvas() {
     const canvas = document.getElementById('game-canvas');
     const wrap = canvas.parentElement;
     const availW = wrap.clientWidth, availH = wrap.clientHeight;
     if (availW <= 0 || availH <= 0) return;
-    cellSize = Math.max(10, Math.floor(Math.min(availW / def.cols, availH / def.rows)));
     const dpr = window.devicePixelRatio || 1;
-    const w = cellSize * def.cols, h = cellSize * def.rows;
-    canvas.style.width = w + 'px';
-    canvas.style.height = h + 'px';
-    canvas.width = Math.round(w * dpr);
-    canvas.height = Math.round(h * dpr);
+    let w, h;
+    if (def.fullBleed) {
+      w = availW; h = availH;
+    } else {
+      cellSize = Math.max(10, Math.floor(Math.min(availW / def.grid.cols, availH / def.grid.rows)));
+      w = cellSize * def.grid.cols; h = cellSize * def.grid.rows;
+    }
+    canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+    canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
     canvas.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
     if (game) {
       if (game.resize) game.resize(cellSize); else game.cellSize = cellSize;
       game.draw();
     }
   }
-
   window.addEventListener('resize', () => { if (game) fitCanvas(); });
   window.addEventListener('orientationchange', () => setTimeout(() => { if (game) fitCanvas(); }, 350));
 
-  // ── 조작 패드 구성 ──
+  // ── 조작 패드 ──
   const PAD = {
-    left:   { label: '←', cls: 'k-left' },
-    right:  { label: '→', cls: 'k-right' },
-    rotate: { label: '↻', cls: 'k-rotate' },
-    down:   { label: '↓', cls: 'k-down' },
-    drop:   { label: '바로 내리기', cls: 'k-drop' },
-    boost:  { label: '부스트', cls: 'k-boost' }
+    left:  { label: '←', cls: 'k-left btn btn-neutral' },
+    right: { label: '→', cls: 'k-right btn btn-neutral' },
+    rotate:{ label: '↻', cls: 'k-rotate btn btn-neutral' },
+    down:  { label: '↓', cls: 'k-down btn btn-neutral' },
+    drop:  { label: '바로 내리기', cls: 'k-drop btn btn-primary' },
+    item:  { label: '아이템 사용', cls: 'k-item btn btn-primary' }
   };
   function buildPad() {
     const pad = document.getElementById('pad');
     pad.innerHTML = '';
-    pad.classList.toggle('pad-race', gameId === 'racing');
+    pad.classList.toggle('pad-kart', isKart);
     def.controls.forEach(c => {
       const b = document.createElement('button');
       b.id = 'btn-' + c;
@@ -213,6 +227,7 @@
     });
   }
 
+  // ── 시작 ──
   function startGame() {
     started = true;
     Sound.resume();
@@ -220,39 +235,109 @@
     show('screen-game');
     buildPad();
 
-    const canvas = document.getElementById('game-canvas');
-    requestAnimationFrame(() => {
-      fitCanvas();
-      game = def.create(canvas, cellSize);
-      if (def.hasNext) { game.onNextChange = drawNextPreview; drawNextPreview(); }
-      game.draw();
-      bindControls();
-      Sound.start();
+    playersRef.once('value').then(snap => {
+      const players = snap.val() || {};
+      Object.keys(players).forEach(id => { names[id] = players[id].nickname || ''; });
+      const order = Object.keys(players).sort((a, b) => (players[a].joinedAt || 0) - (players[b].joinedAt || 0));
+      const slot = Math.max(0, order.indexOf(playerId));
 
-      syncTimer = setInterval(() => {
-        if (!game) return;
-        playerRef.update({
-          board: boardToRows(game.getSnapshot()),
-          score: game.score,
-          status: game.gameOver ? 'gameover' : 'playing'
+      // 테트리스는 다른 사람 정보가 필요 없으므로 수신을 끊어 통신량을 아낌
+      if (!def.needsPeers) playersRef.off('value', rosterListener);
+
+      const canvas = document.getElementById('game-canvas');
+      requestAnimationFrame(() => {
+        fitCanvas();
+        game = def.create(canvas, {
+          cellSize: cellSize, trackId: trackId, slot: slot,
+          myId: playerId, myName: myNickname,
+          onDropHazard: dropHazard, onHitHazard: hitHazard,
+          onBolt: fireBolt, onFinish: reportFinish
         });
-        document.getElementById('game-score').textContent = game.score;
-        if (isTetris) {
-          document.getElementById('game-lines').textContent = game.lines;
-          document.getElementById('game-level').textContent = game.level;
-        }
-        if (game.gameOver) endGame();
-      }, 200);
+        if (def.hasNext) { game.onNextChange = drawNextPreview; drawNextPreview(); }
+        game.draw();
+        bindControls();
+        if (def.needsPeers) attachPeerSync();
+        Sound.start();
 
-      requestAnimationFrame(loop);
+        syncTimer = setInterval(pushState, isKart ? 165 : 200);
+        requestAnimationFrame(loop);
+      });
+    });
+  }
+
+  function pushState() {
+    if (!game) return;
+    if (isKart) {
+      myPosRef.set(game.serialize());
+      document.getElementById('game-score').textContent = game.rank + '/' + game.total;
+      document.getElementById('val-a').textContent = Math.min(game.lap + 1, 3) + '/3';
+      const slot = document.getElementById('item-slot');
+      slot.textContent = game.item ? ITEMS[game.item].icon : '';
+      slot.classList.toggle('has', !!game.item);
+    } else {
+      playerRef.update(Object.assign({ status: game.gameOver ? 'gameover' : 'playing' }, def.sync(game)));
+      document.getElementById('game-score').textContent = game.score;
+      document.getElementById('val-a').textContent = game.lines;
+      document.getElementById('val-b').textContent = game.level;
+    }
+    if (game.gameOver) endGame();
+  }
+
+  // ── 카트: 다른 플레이어 · 아이템 동기화 ──
+  function attachPeerSync() {
+    posRef.on('child_added',   s => applyPeer(s.key, s.val()));
+    posRef.on('child_changed', s => applyPeer(s.key, s.val()));
+    posRef.on('child_removed', s => { delete peerPos[s.key]; pushPeers(); });
+
+    hazardsRef.on('child_added',   s => { hazards[s.key] = s.val(); if (game) game.setHazards(hazards); });
+    hazardsRef.on('child_removed', s => { delete hazards[s.key]; if (game) game.setHazards(hazards); });
+
+    eventsRef.on('child_added', s => {
+      const e = s.val();
+      if (!e || e.by === playerId || !game) return;
+      if (e.type === 'bolt' && game.progress > e.p) game.hitByBolt();
+    });
+
+    playersRef.on('child_added', s => { names[s.key] = (s.val() || {}).nickname || ''; });
+  }
+
+  function applyPeer(id, raw) {
+    if (id === playerId || !raw) return;
+    const a = String(raw).split(',');
+    peerPos[id] = {
+      x: +a[0], y: +a[1], angle: +a[2], lap: +a[3],
+      progress: +a[4], spin: a[5] === '1', finished: a[6] === '1',
+      name: names[id] || ''
+    };
+    pushPeers();
+  }
+  function pushPeers() {
+    if (!game || !game.setPeers) return;
+    Object.keys(peerPos).forEach(id => { peerPos[id].name = names[id] || peerPos[id].name; });
+    game.setPeers(peerPos);
+  }
+
+  function dropHazard(x, y) { hazardsRef.push({ x: Math.round(x), y: Math.round(y) }); }
+  function hitHazard(hid)   { hazardsRef.child(hid).remove(); }
+  function fireBolt(progress) {
+    const ref = eventsRef.push({ type: 'bolt', by: playerId, p: progress });
+    setTimeout(() => ref.remove(), 3000);
+  }
+
+  // 완주 순위를 원자적으로 배정
+  function reportFinish() {
+    db.ref('finishCount').transaction(c => (c || 0) + 1, (err, ok, snap) => {
+      const rank = ok ? snap.val() : null;
+      if (game) game.finishRank = rank;
+      playerRef.update({ status: 'finished', score: rank ? (1000 - rank) : 0, rank: rank });
+      showResult(rank);
     });
   }
 
   function drawNextPreview() {
     const c = document.getElementById('next-canvas');
     const size = 11, dpr = window.devicePixelRatio || 1;
-    c.style.width = (size * 4) + 'px';
-    c.style.height = (size * 4) + 'px';
+    c.style.width = (size * 4) + 'px'; c.style.height = (size * 4) + 'px';
     c.width = size * 4 * dpr; c.height = size * 4 * dpr;
     const ctx = c.getContext('2d');
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -260,125 +345,129 @@
   }
 
   function loop(ts) {
-    if (!game || game.gameOver) { if (game && game.draw) game.draw(); return; }
+    if (!game) return;
+    if (game.gameOver) { game.draw(); return; }
     game.tick(ts);
     requestAnimationFrame(loop);
   }
 
-  // ── 조작 ──
+  // ── 조작 바인딩 ──
   function bindControls() {
-    if (document.getElementById('btn-left'))   hold('btn-left',  () => game && game.move(-1));
-    if (document.getElementById('btn-right'))  hold('btn-right', () => game && game.move(1));
-    if (document.getElementById('btn-rotate')) tap('btn-rotate', () => game && game.rotate());
-    if (document.getElementById('btn-drop'))   tap('btn-drop',   () => game && game.hardDrop());
-    if (document.getElementById('btn-down')) {
-      press('btn-down',
-        () => { if (game) { game.softDropping = true; game.softDrop(); } },
-        () => { if (game) game.softDropping = false; });
-    }
-    if (document.getElementById('btn-boost')) {
-      press('btn-boost',
-        () => { if (game && game.setBoost) game.setBoost(true); },
-        () => { if (game && game.setBoost) game.setBoost(false); });
-    }
+    if (byId('btn-left'))  press('btn-left',  () => game && game.move(-1), () => game && game.releaseSteer && game.releaseSteer(-1), isKart ? null : 90);
+    if (byId('btn-right')) press('btn-right', () => game && game.move(1),  () => game && game.releaseSteer && game.releaseSteer(1),  isKart ? null : 90);
+    if (byId('btn-rotate')) tap('btn-rotate', () => game && game.rotate());
+    if (byId('btn-drop'))   tap('btn-drop',   () => game && game.hardDrop());
+    if (byId('btn-item'))   tap('btn-item',   () => game && game.useItem());
+    if (byId('btn-down')) press('btn-down',
+      () => { if (game) { game.softDropping = true; game.softDrop(); } },
+      () => { if (game) game.softDropping = false; });
     bindSwipe();
-    document.addEventListener('keydown', handleKeyDown);
-    document.addEventListener('keyup', handleKeyUp);
+    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('keyup', onKeyUp);
   }
+  function byId(id) { return document.getElementById(id); }
 
-  function hold(id, fn) {
-    const el = document.getElementById(id);
-    let timer = null, repeat = null;
+  // 누르는 동안 유지 (repeat 값을 주면 연타처럼 반복)
+  function press(id, onStart, onEnd, repeatMs) {
+    const el = byId(id);
+    let rep = null, delay = null;
     const start = e => {
-      e.preventDefault(); fn();
-      timer = setTimeout(() => { repeat = setInterval(fn, 90); }, 260);
+      e.preventDefault(); onStart();
+      if (repeatMs) delay = setTimeout(() => { rep = setInterval(onStart, repeatMs); }, 250);
     };
-    const stop = () => { clearTimeout(timer); clearInterval(repeat); repeat = null; };
+    const stop = () => { clearTimeout(delay); clearInterval(rep); rep = null; if (onEnd) onEnd(); };
     el.addEventListener('touchstart', start, { passive: false });
     ['touchend','touchcancel','mouseup','mouseleave'].forEach(ev => el.addEventListener(ev, stop));
     el.addEventListener('mousedown', start);
   }
 
-  function press(id, onStart, onEnd) {
-    const el = document.getElementById(id);
-    const s = e => { e.preventDefault(); onStart(); };
-    el.addEventListener('touchstart', s, { passive: false });
-    ['touchend','touchcancel','mouseup','mouseleave'].forEach(ev => el.addEventListener(ev, onEnd));
-    el.addEventListener('mousedown', s);
-  }
-
   function tap(id, fn) {
-    const el = document.getElementById(id);
+    const el = byId(id);
     let touched = false;
     el.addEventListener('touchstart', e => { e.preventDefault(); touched = true; fn(); }, { passive: false });
     el.addEventListener('click', e => { e.preventDefault(); if (!touched) fn(); touched = false; });
   }
 
   function bindSwipe() {
-    const canvas = document.getElementById('game-canvas');
+    const canvas = byId('game-canvas');
+    if (isKart) {
+      // 카트: 화면 좌/우 절반을 눌러도 조향
+      let dir = 0;
+      canvas.addEventListener('touchstart', e => {
+        const t = e.touches[0];
+        dir = (t.clientX < window.innerWidth / 2) ? -1 : 1;
+        if (game) game.move(dir);
+      }, { passive: true });
+      const rel = () => { if (game && game.releaseSteer) game.releaseSteer(dir); };
+      canvas.addEventListener('touchend', rel);
+      canvas.addEventListener('touchcancel', rel);
+      return;
+    }
     let sx = 0, sy = 0, moved = false;
     canvas.addEventListener('touchstart', e => {
       const t = e.touches[0]; sx = t.clientX; sy = t.clientY; moved = false;
     }, { passive: true });
     canvas.addEventListener('touchmove', e => {
       if (!game) return;
-      const t = e.touches[0];
-      const dx = t.clientX - sx, dy = t.clientY - sy, th = cellSize;
-      if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > th) {
-        game.move(dx > 0 ? 1 : -1); sx = t.clientX; moved = true;
-      } else if (isTetris && dy > th * 2) {
-        game.hardDrop(); sy = t.clientY; moved = true;
-      }
+      const t = e.touches[0], dx = t.clientX - sx, dy = t.clientY - sy, th = cellSize;
+      if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > th) { game.move(dx > 0 ? 1 : -1); sx = t.clientX; moved = true; }
+      else if (dy > th * 2) { game.hardDrop(); sy = t.clientY; moved = true; }
       e.preventDefault();
     }, { passive: false });
-    canvas.addEventListener('touchend', () => {
-      if (!moved && game && isTetris) game.rotate();
-    });
+    canvas.addEventListener('touchend', () => { if (!moved && game) game.rotate(); });
   }
 
-  function handleKeyDown(e) {
+  function onKeyDown(e) {
     if (!game || game.gameOver) return;
     if (e.key === 'ArrowLeft') game.move(-1);
     else if (e.key === 'ArrowRight') game.move(1);
-    else if (e.key === 'ArrowDown') { game.softDropping = true; if (game.setBoost) game.setBoost(true); }
+    else if (e.key === 'ArrowDown') { game.softDropping = true; }
     else if (e.key === 'ArrowUp') game.rotate();
-    else if (e.key === ' ') { e.preventDefault(); game.hardDrop(); }
+    else if (e.key === ' ') { e.preventDefault(); isKart ? game.useItem() : game.hardDrop(); }
   }
-  function handleKeyUp(e) {
+  function onKeyUp(e) {
     if (!game) return;
-    if (e.key === 'ArrowDown') { game.softDropping = false; if (game.setBoost) game.setBoost(false); }
+    if (e.key === 'ArrowLeft'  && game.releaseSteer) game.releaseSteer(-1);
+    if (e.key === 'ArrowRight' && game.releaseSteer) game.releaseSteer(1);
+    if (e.key === 'ArrowDown') game.softDropping = false;
   }
 
+  // ── 결과 ──
   function endGame() {
-    const myScore = game.score;
-    document.getElementById('final-score').textContent = myScore;
-    document.getElementById('final-detail').textContent =
-      isTetris ? (game.lines + '줄 완성 · 레벨 ' + game.level) : '끝까지 달렸어요';
-    show('screen-over');
     clearInterval(syncTimer);
     stopGame();
-
-    // 전체 중 몇 등인지 표시
+    document.getElementById('final-score').textContent = game.score;
+    document.getElementById('final-detail').textContent = game.lines + '줄 완성 · 레벨 ' + game.level;
+    show('screen-over');
     playersRef.once('value').then(snap => {
       const players = snap.val() || {};
       const scores = Object.keys(players).map(id => players[id].score || 0);
       if (scores.length < 2) return;
       scores.sort((a, b) => b - a);
-      const rank = scores.indexOf(myScore) + 1;
-      const pill = document.getElementById('rank-pill');
-      pill.innerHTML = '';
-      pill.appendChild(document.createTextNode(scores.length + '명 중 '));
-      const b = document.createElement('b');
-      b.textContent = rank + '등';
-      pill.appendChild(b);
-      pill.classList.remove('hidden');
+      showRank(scores.indexOf(game.score) + 1, scores.length);
     });
+  }
+
+  function showResult(rank) {
+    document.getElementById('over-label').textContent = '완주 순위';
+    document.getElementById('final-score').textContent = rank ? rank + '등' : '완주';
+    document.getElementById('final-detail').textContent = '3바퀴를 모두 돌았습니다';
+    show('screen-over');
+    clearInterval(syncTimer);
+    playersRef.once('value').then(s => showRank(rank, Object.keys(s.val() || {}).length));
+  }
+
+  function showRank(rank, total) {
+    if (!rank || total < 2) return;
+    document.getElementById('rank-value').textContent = rank + '등';
+    document.getElementById('rank-desc').textContent = '전체 ' + total + '명';
+    document.getElementById('rank-stat').classList.remove('hidden');
   }
 
   function stopGame() {
     clearInterval(syncTimer);
-    document.removeEventListener('keydown', handleKeyDown);
-    document.removeEventListener('keyup', handleKeyUp);
+    document.removeEventListener('keydown', onKeyDown);
+    document.removeEventListener('keyup', onKeyUp);
   }
 
   document.addEventListener('gesturestart', e => e.preventDefault());

@@ -6,27 +6,35 @@ const GAMES = {
   tetris: {
     name: '테트리스',
     desc: '떨어지는 블록을 빈틈없이 쌓아 가로줄을 지우세요',
-    meta: '1인 플레이 · 점수 경쟁',
-    accent: '#8B7CF6',
-    accentSoft: 'rgba(139, 124, 246, 0.14)',
-    cols: 10,
-    rows: 20,
+    meta: '개인전 · 점수 경쟁',
+    // daisyUI primary 색 (oklch: 밝기 채도 색상)
+    primary: '68.5% 0.163 288', primaryContent: '100% 0 0',
+    hex: '#8B7CF6',
+    grid: { cols: 10, rows: 20 },     // 캔버스를 격자 비율로 맞춤
+    adminView: 'grid',                // 교사 화면: 학생별 미니 보드
+    needsPeers: false,
     hasNext: true,
     controls: ['left', 'rotate', 'right', 'down', 'drop'],
-    create: function (canvas, cellSize) { return new TetrisGame(canvas, cellSize); }
+    create: function (canvas, opts) { return new TetrisGame(canvas, opts.cellSize); },
+    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score }; }
   },
 
-  racing: {
-    name: '자동차 레이싱',
-    desc: '차선을 옮겨가며 상대 차를 피해 최대한 멀리 달리세요',
-    meta: '1인 플레이 · 거리 경쟁',
-    accent: '#F5A524',
-    accentSoft: 'rgba(245, 165, 36, 0.14)',
-    cols: 5,
-    rows: 12,
+  kart: {
+    name: '카트 레이싱',
+    desc: '모두 함께 출발해 아이템을 쓰며 3바퀴를 먼저 도세요',
+    meta: '실시간 대전 · 순위 경쟁',
+    primary: '77.5% 0.154 71', primaryContent: '18% 0.03 71',
+    hex: '#F5A524',
+    fullBleed: true,                  // 캔버스가 화면 전체를 채움
+    adminView: 'shared',              // 교사 화면: 모두가 한 맵에
+    needsPeers: true,
     hasNext: false,
-    controls: ['left', 'right', 'boost'],
-    create: function (canvas, cellSize) { return new RacingGame(canvas, cellSize); }
+    hasTracks: true,
+    controls: ['left', 'item', 'right'],
+    create: function (canvas, opts) {
+      return new KartGame(canvas, opts);
+    },
+    sync: function (g) { return { score: g.score }; }
   }
 };
 
@@ -36,10 +44,12 @@ function getGameId() {
   return (id && GAMES[id]) ? id : 'tetris';
 }
 
-// 게임별 강조색을 화면 전체에 적용
+// 게임별 강조색을 daisyUI 테마에 반영
 function applyAccent(gameId) {
   const g = GAMES[gameId];
   if (!g) return;
-  document.documentElement.style.setProperty('--accent', g.accent);
-  document.documentElement.style.setProperty('--accent-soft', g.accentSoft);
+  const r = document.documentElement.style;
+  r.setProperty('--p', g.primary);
+  r.setProperty('--pc', g.primaryContent);
+  r.setProperty('--game-hex', g.hex);
 }
