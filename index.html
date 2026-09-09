@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ko" data-theme="dim">
+<html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
@@ -8,11 +8,10 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1B2027">
 <title>아케이드</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@4.12.24/dist/full.min.css">
 <link rel="stylesheet" href="platform.css">
 <link rel="stylesheet" href="style.css">
 </head>
-<body class="bg-base-100 text-base-content">
+<body>
 <div class="app">
 
   <!-- 입장 -->
@@ -120,6 +119,10 @@
 <script src="shared.js"></script>
 <script src="tetris-engine.js"></script>
 <script src="racing-engine.js"></script>
+<script src="snake-engine.js"></script>
+<script src="breakout-engine.js"></script>
+<script src="flappy-engine.js"></script>
+<script src="shooter-engine.js"></script>
 <script src="games.js"></script>
 <script src="app.js"></script>
 <script>
@@ -136,6 +139,12 @@
   document.getElementById('over-chip').textContent = def.name;
 
   document.getElementById('exit-chip').textContent = def.name;
+  // 점수 옆 보조 수치 두 칸 — 게임마다 무엇을 보여 줄지 정합니다
+  const stats = def.stats || [];
+  [['chip-a','k-a'],['chip-b','k-b']].forEach(([chip, k], i) => {
+    if (stats[i]) document.getElementById(k).textContent = stats[i].label;
+    else document.getElementById(chip).classList.add('hidden');
+  });
   if (!def.hasNext) document.getElementById('next-box').classList.add('hidden');
   if (def.fullBleed) document.getElementById('canvas-wrap').classList.add('bleed');
   if (isKart) {
@@ -253,22 +262,25 @@
   const PAD = {
     left:  { label: '←', cls: 'k-left btn btn-neutral' },
     right: { label: '→', cls: 'k-right btn btn-neutral' },
+    up:    { label: '↑', cls: 'k-up btn btn-neutral' },
     rotate:{ label: '↻', cls: 'k-rotate btn btn-neutral' },
     down:  { label: '↓', cls: 'k-down btn btn-neutral' },
     drop:  { label: '바로 내리기', cls: 'k-drop btn btn-primary' },
+    fire:  { label: '발사', cls: 'k-fire btn btn-primary' },
+    jump:  { label: '점프', cls: 'k-jump btn btn-primary' },
     item:  { label: '아이템 사용', cls: 'k-item btn btn-primary' },
     discard: { label: '✕ 아이템 버리기', cls: 'k-discard btn btn-ghost' }
   };
   function buildPad() {
     const pad = document.getElementById('pad');
     pad.innerHTML = '';
-    pad.classList.toggle('pad-kart', isKart);
+    pad.className = 'pad' + (isKart ? ' pad-kart' : '') + (def.padLayout ? ' pad-' + def.padLayout : '');
     def.controls.forEach(c => {
       const b = document.createElement('button');
       b.id = 'btn-' + c;
       b.className = PAD[c].cls;
-      b.textContent = PAD[c].label;
-      b.setAttribute('aria-label', PAD[c].label);
+      b.textContent = (def.labels && def.labels[c]) || PAD[c].label;
+      b.setAttribute('aria-label', b.textContent);
       pad.appendChild(b);
     });
   }
@@ -358,9 +370,13 @@
       myPosRef.set(game.serialize());
     } else {
       playerRef.update(Object.assign({ status: game.gameOver ? 'gameover' : 'playing' }, def.sync(game)));
-      document.getElementById('game-score').textContent = game.score;
-      document.getElementById('val-a').textContent = game.lines;
-      document.getElementById('val-b').textContent = game.level;
+      const scoreEl = document.getElementById('game-score');
+      if (String(game.score) !== scoreEl.textContent) {
+        scoreEl.textContent = game.score;
+        scoreEl.classList.remove('bump'); void scoreEl.offsetWidth; scoreEl.classList.add('bump');
+      }
+      if (stats[0]) document.getElementById('val-a').textContent = game[stats[0].key];
+      if (stats[1]) document.getElementById('val-b').textContent = game[stats[1].key];
     }
     if (game.gameOver) endGame();
   }
@@ -516,6 +532,11 @@
     if (byId('btn-down')) press('btn-down',
       () => { if (game) { game.softDropping = true; game.softDrop(); } },
       () => { if (game) game.softDropping = false; });
+    if (byId('btn-up'))   tap('btn-up',   () => game && (game.up ? game.up() : game.rotate()));
+    if (byId('btn-jump')) tap('btn-jump', () => game && (game.jump ? game.jump() : game.rotate()));
+    if (byId('btn-fire')) press('btn-fire',
+      () => { if (game) { game.firing = true; if (game.fire) game.fire(); } },
+      () => { if (game) game.firing = false; });
     bindSwipe();
     document.addEventListener('keydown', onKeyDown);
     document.addEventListener('keyup', onKeyUp);
@@ -566,7 +587,8 @@
       if (!game) return;
       const t = e.touches[0], dx = t.clientX - sx, dy = t.clientY - sy, th = cellSize;
       if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > th) { game.move(dx > 0 ? 1 : -1); sx = t.clientX; moved = true; }
-      else if (dy > th * 2) { game.hardDrop(); sy = t.clientY; moved = true; }
+      else if (dy > th * 2) { (game.down ? game.down() : game.hardDrop()); sy = t.clientY; moved = true; }
+      else if (dy < -th * 2) { (game.up ? game.up() : game.rotate()); sy = t.clientY; moved = true; }
       e.preventDefault();
     }, { passive: false });
     canvas.addEventListener('touchend', () => { if (!moved && game) game.rotate(); });
@@ -595,7 +617,7 @@
     clearInterval(syncTimer);
     stopGame();
     document.getElementById('final-score').textContent = game.score;
-    document.getElementById('final-detail').textContent = game.lines + '줄 완성 · 레벨 ' + game.level;
+    document.getElementById('final-detail').textContent = def.detail ? def.detail(game) : '';
     show('screen-over');
     playersRef.once('value').then(snap => {
       const players = snap.val() || {};

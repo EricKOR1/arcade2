@@ -12,6 +12,7 @@ var games = {};          /* 게임이 스스로 등록합니다 */
 var loaded = {};         /* 이미 내려받은 게임 파일 */
 var info = {};           /* 게임 파일의 GAMEINFO 블록 */
 var routeSent = {};      /* 여정(기관 순서)을 이미 올린 방 */
+var spectate = false;    /* 교사 관전 모드 — 방에 내 자리를 만들지 않습니다 */
 var current = null;      /* 지금 올라와 있는 게임 */
 var hooks = { home: null, score: null };
 
@@ -220,6 +221,7 @@ function call(method, payload) {
     /* ── 대결: 참가 ── */
     if (method === "roomJoin") {
       var rr = roomRef(game, level);
+      if (spectate) return once(rr).then(function (v) { return ok(roomPayload(v)); });
       return once(rr).then(function (v) {
         v = v || {};
         var init = {};
@@ -238,6 +240,7 @@ function call(method, payload) {
     /* ── 대결: 내 위치 보내기 ── */
     if (method === "roomPing") {
       var rr2 = roomRef(game, level);
+      if (spectate) return once(rr2).then(function (v) { return ok(roomPayload(v)); });
       var ex = peekExtra();
       var upd = {
         nm: lab.nm, cl: lab.cl, i: payload.i || 0, m: payload.m || 1,
@@ -272,6 +275,7 @@ function call(method, payload) {
 
     /* ── 대결: 풀던 자리 이어 하기 ── */
     if (method === "roomResume") {
+      if (spectate) return Promise.resolve(ok({ resume: null }));
       return once(roomRef(game, level)).then(function (v) {
         v = v || {};
         var me = (v.players || {})[key];
@@ -284,6 +288,7 @@ function call(method, payload) {
 
     /* ── 점수 저장 (최고 기록만 남김) ── */
     if (method === "saveScore") {
+      if (spectate) return Promise.resolve(ok({}));
       /* submitAndRank 를 거치지 않고 직접 부르는 게임(몸속 여행)도
          교사 화면에 점수가 올라가도록 여기서 한 번 더 알립니다 */
       if (hooks.score) { try { hooks.score(payload); } catch (e) {} }
@@ -330,6 +335,8 @@ return {
   /* 아케이드 쪽에서만 쓰는 부분 */
   _games: games,
   _peek: peekExtra,
+  _spectate: function (v) { spectate = !!v; },
+  _state: function () { return (current && current.peek) ? current.peek() : null; },
   _info: info,
   _mount: mountGame,
   _stop: stopGame,

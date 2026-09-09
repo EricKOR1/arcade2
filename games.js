@@ -17,9 +17,79 @@ const GAMES = {
     grid: { cols: 10, rows: 20 },
     adminView: 'grid',
     needsPeers: false, hasNext: true,
+    stats: [{ key: 'lines', label: 'LINES' }, { key: 'level', label: 'LEVEL' }],
+    detail: function (g) { return g.lines + '줄 완성 · 레벨 ' + g.level; },
     controls: ['left', 'rotate', 'right', 'down', 'drop'],
     create: function (canvas, opts) { return new TetrisGame(canvas, opts.cellSize); },
     sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score }; }
+  },
+
+  snake: {
+    type: 'canvas',
+    name: '스네이크',
+    desc: '먹이를 먹어 몸을 길게 키우세요. 벽이나 자기 몸에 부딪히면 끝',
+    meta: '개인전 · 길이 경쟁',
+    primary: '82% 0.16 165', primaryContent: '18% 0.05 165', hex: '#06D6A0',
+    grid: { cols: 20, rows: 20 },
+    adminView: 'grid',
+    needsPeers: false, hasNext: false,
+    stats: [{ key: 'length', label: '길이' }, { key: 'level', label: '속도' }],
+    detail: function (g) { return '길이 ' + g.length + ' · 속도 단계 ' + g.level; },
+    controls: ['up', 'left', 'down', 'right'],
+    padLayout: 'dpad',
+    create: function (canvas, opts) { return new SnakeGame(canvas, opts.cellSize); },
+    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, length: g.length }; }
+  },
+
+  breakout: {
+    type: 'canvas',
+    name: '벽돌깨기',
+    desc: '패들로 공을 튕겨 벽돌을 모두 부수세요. 공을 놓치면 목숨이 줄어요',
+    meta: '개인전 · 점수 경쟁',
+    primary: '80% 0.15 75', primaryContent: '20% 0.04 75', hex: '#FFD166',
+    grid: { cols: 12, rows: 20 },
+    adminView: 'grid',
+    needsPeers: false, hasNext: false,
+    stats: [{ key: 'left', label: '남은 벽돌' }, { key: 'level', label: '단계' }],
+    detail: function (g) { return g.level + '단계까지 · 벽돌 ' + g.left + '개 남음'; },
+    controls: ['left', 'fire', 'right'],
+    labels: { fire: '발사' },
+    create: function (canvas, opts) { return new BreakoutGame(canvas, opts.cellSize); },
+    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, level: g.level }; }
+  },
+
+  flappy: {
+    type: 'canvas',
+    name: '하늘 날기',
+    desc: '톡톡 눌러 날개짓하며 기둥 사이를 통과하세요. 어디에 닿아도 끝',
+    meta: '개인전 · 통과 수 경쟁',
+    primary: '72% 0.13 240', primaryContent: '100% 0 0', hex: '#4CC9F0',
+    grid: { cols: 12, rows: 20 },
+    adminView: 'grid',
+    needsPeers: false, hasNext: false,
+    stats: [{ key: 'passed', label: '통과' }],
+    detail: function (g) { return '기둥 ' + g.passed + '개 통과'; },
+    controls: ['jump'],
+    labels: { jump: '점프' },
+    create: function (canvas, opts) { return new FlappyGame(canvas, opts.cellSize); },
+    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, passed: g.passed }; }
+  },
+
+  shooter: {
+    type: 'canvas',
+    name: '우주 방어',
+    desc: '내려오는 적을 쏘아 막으세요. 적이 줄수록 빨라지고, 파도가 갈수록 강해져요',
+    meta: '개인전 · 점수 경쟁',
+    primary: '68% 0.2 300', primaryContent: '100% 0 0', hex: '#B15DFF',
+    grid: { cols: 12, rows: 20 },
+    adminView: 'grid',
+    needsPeers: false, hasNext: false,
+    stats: [{ key: 'wave', label: 'WAVE' }, { key: 'lives', label: '목숨' }],
+    detail: function (g) { return g.wave + '번째 파도까지 버팀'; },
+    controls: ['left', 'fire', 'right'],
+    labels: { fire: '발사 (꾹)' },
+    create: function (canvas, opts) { return new ShooterGame(canvas, opts.cellSize); },
+    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, wave: g.wave }; }
   },
 
   kart: {

@@ -1,15 +1,14 @@
 <!doctype html>
-<html lang="ko" data-theme="dim">
+<html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1B2027">
 <title>교사용 대시보드</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@4.12.24/dist/full.min.css">
 <link rel="stylesheet" href="platform.css">
 <link rel="stylesheet" href="style.css">
 </head>
-<body class="bg-base-100 text-base-content">
+<body>
 <div class="admin" id="admin-root">
 
   <div class="admin-top">
@@ -68,7 +67,20 @@
       </div>
       <div class="controls" id="room-ctl"></div>
       <div class="jstats" id="j-stats"></div>
-      <div class="jmap">
+
+      <div class="specbar">
+        <button id="spec-btn" class="btn btn-primary btn-sm">🎬 게임 화면으로 관전</button>
+        <label class="follow-wrap">따라갈 학생
+          <select id="j-follow" class="select select-sm select-bordered"></select>
+        </label>
+        <span class="spec-note" id="spec-note"></span>
+      </div>
+
+      <!-- 실제 게임 화면 관전 -->
+      <div class="jstage hidden" id="j-stage"><div class="dom-host" id="spec-host"></div></div>
+
+      <!-- 관전 전 개요 지도 -->
+      <div class="jmap" id="j-map">
         <div class="jcanvas-wrap"><canvas id="j-canvas"></canvas></div>
         <div class="jside">
           <h3>실시간 순위</h3>
@@ -96,6 +108,8 @@
 
 </div>
 
+<div id="overlay" hidden></div>
+
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -103,10 +117,15 @@
 <script src="shared.js"></script>
 <script src="tetris-engine.js"></script>
 <script src="racing-engine.js"></script>
+<script src="snake-engine.js"></script>
+<script src="breakout-engine.js"></script>
+<script src="flappy-engine.js"></script>
+<script src="shooter-engine.js"></script>
 <script src="games.js"></script>
+<script src="app.js"></script>
 <script>
 (function () {
-  const CELL = { tetris: 6 };
+  const CELL = { tetris: 6, snake: 5, breakout: 8, flappy: 8, shooter: 8 };
 
   const sessionRef  = db.ref('session');
   const statusRef   = db.ref('session/status');
@@ -249,7 +268,7 @@
     };
     const badge = $('status-badge');
     badge.textContent = labels[status] || status;
-    badge.className = 'badge badge-lg ' + (status === 'playing' ? 'badge-primary' : 'badge-ghost');
+    badge.className = 'badge badge-lg ' + (status === 'playing' ? 'badge-primary live' : 'badge-ghost');
     $('admin-sub').textContent = subs[status] || '';
 
     selectPanel.classList.toggle('hidden', status !== 'idle' || !trackPanel.classList.contains('hidden'));
@@ -380,6 +399,7 @@
   let roomGame = null, roomSel = null, jRaf = null, jLast = 0;
 
   function stopRooms() {
+    if (specOn) stopSpec();
     Object.keys(roomRefs).forEach(k => { roomRefs[k].off(); delete roomRefs[k]; });
     Object.keys(roomData).forEach(k => delete roomData[k]);
     Object.keys(dots).forEach(k => delete dots[k]);
@@ -424,7 +444,11 @@
       b.dataset.lv = rm.level;
       b.innerHTML = '<b></b><i></i>';
       b.querySelector('b').textContent = rm.tab || rm.name;
-      b.onclick = () => { roomSel = rm.level; Object.keys(dots).forEach(k => delete dots[k]); };
+      b.onclick = () => {
+        if (specOn) stopSpec();                 // 모드가 바뀌면 관전을 다시 시작해야 합니다
+        roomSel = rm.level;
+        Object.keys(dots).forEach(k => delete dots[k]);
+      };
       box.appendChild(b);
     });
   }
@@ -476,8 +500,13 @@
         '<button class="btn btn-primary" id="rm-go">' + (status === 'run' ? '새로 출발' : '출발') + '</button>' +
         '<button class="btn btn-ghost" id="rm-end">마치기</button>';
       const ref = roomRefs[roomSel];
-      $('rm-go').onclick = () => ref.update({ status: 'run', startAt: Date.now(),
-        seed: Math.floor(Math.random() * 1000000) + 1, auto: false });
+      $('rm-go').onclick = () => {
+        const wasSpec = specOn;
+        if (wasSpec) stopSpec();
+        ref.update({ status: 'run', startAt: Date.now(),
+                     seed: Math.floor(Math.random() * 1000000) + 1, auto: false });
+        if (wasSpec) setTimeout(startSpec, 900);   // 새 문제 세트로 다시 붙습니다
+      };
       $('rm-end').onclick = () => ref.update({ status: 'end', auto: false });
     }
 
@@ -494,6 +523,8 @@
       (v.seed ? '<span class="jchip dim">문제 세트 #' + v.seed + '</span>' : '');
     if ($('j-stats').innerHTML !== html) $('j-stats').innerHTML = html;
 
+    renderFollow(live.filter(p => p.r));
+    if (specOn) { renderRank(live); return; }   // 관전 중에는 게임 화면이 대신합니다
     drawBodyMap(v, live, dt);
     renderRank(live);
   }
@@ -522,6 +553,110 @@
       li.append(n, nm, og, sc);
       ul.appendChild(li);
     });
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     게임 화면 관전 — 학생이 보는 그 화면(기관 애니메이션)을
+     교사 화면에 그대로 띄우고, 카메라만 학생을 따라가게 합니다.
+     게임 파일은 손대지 않고, 게임이 열어 둔 peek() 으로 조종합니다.
+     ══════════════════════════════════════════════════════════ */
+  let specOn = false, specTimer = null, specAuto = null, followKey = 'lead';
+
+  $('spec-btn').addEventListener('click', () => (specOn ? stopSpec() : startSpec()));
+  $('j-follow').addEventListener('change', e => { followKey = e.target.value; });
+
+  function specNote(t) { $('spec-note').textContent = t || ''; }
+
+  function startSpec() {
+    const g = GAMES[roomGame];
+    if (!g || g.type !== 'html') return;
+    specOn = true;
+    $('spec-btn').textContent = '⏹ 관전 끝내기';
+    $('spec-btn').className = 'btn btn-outline btn-error btn-sm';
+    $('j-stage').classList.remove('hidden');
+    $('j-map').classList.add('hidden');
+    document.body.classList.add('jspec');
+    specNote('게임 화면을 불러오는 중…');
+
+    // 교사 화면은 방에 자기 자리를 만들지 않습니다 (가짜 학생 방지)
+    App._spectate(true);
+    App.user = { name: '', grade: '관전', cls: '', num: 'teacher-view' };
+    App.meta = { id: roomGame, name: g.name };
+    App._onHome(() => stopSpec());
+
+    App._mount(g.appId || roomGame, g.src, $('spec-host')).then(() => {
+      specNote('대기실로 들어가는 중…');
+      specAuto = setInterval(autoStep, 400);
+      specTimer = setInterval(followTick, 120);
+    })["catch"](e => specNote('불러오기 실패: ' + e.message));
+  }
+
+  function stopSpec() {
+    specOn = false;
+    if (specAuto) { clearInterval(specAuto); specAuto = null; }
+    if (specTimer) { clearInterval(specTimer); specTimer = null; }
+    try { App._stop(); } catch (e) {}
+    App._spectate(false);
+    $('spec-host').innerHTML = '';
+    $('spec-btn').textContent = '🎬 게임 화면으로 관전';
+    $('spec-btn').className = 'btn btn-primary btn-sm';
+    $('j-stage').classList.add('hidden');
+    $('j-map').classList.remove('hidden');
+    document.body.classList.remove('jspec');
+    specNote('');
+  }
+
+  /* 게임의 모드 선택 → 대결 참가 → 출발 을 대신 눌러 줍니다 */
+  function autoStep() {
+    if (!specOn) return;
+    const start = document.getElementById('bdStart');     // 출발!
+    if (start) { start.click(); specNote('관전 중 — 카메라가 학생을 따라갑니다'); return; }
+    const join = document.getElementById('bdJoinNow');    // 진행 중인 경기에 끼어들기
+    if (join) { join.click(); return; }
+    const vs = document.getElementById('bdVs');           // 대결 참가
+    if (vs) { vs.click(); specNote('출발 신호를 기다리는 중…'); return; }
+    const fresh = document.getElementById('bdFresh');
+    if (fresh) { fresh.click(); return; }
+    const card = $('spec-host').querySelector('.bdcard[data-i="' + (roomSel - 1) + '"]');
+    if (card) { card.click(); return; }
+  }
+
+  /* 카메라를 따라갈 학생에게 붙입니다 */
+  function followTick() {
+    if (!specOn) return;
+    const S = App._state();
+    if (!S || !S.steps || !S.total) return;
+
+    S.time = Math.max(S.time || 0, 900);   // 관전 중에는 시간이 끝나지 않게
+    S.over = false;
+    S.size = 0.02;                          // 교사 화면의 주인공 표시는 아주 작게
+    S.label = '';
+
+    const live = liveOf(roomData[roomSel] || {}).filter(p => p.r);
+    if (!live.length) return;
+    let t = null;
+    if (followKey === 'lead') t = live.slice().sort((a, b) => (b.i || 0) - (a.i || 0))[0];
+    else t = live.filter(p => p.k === followKey)[0]
+          || live.slice().sort((a, b) => (b.i || 0) - (a.i || 0))[0];
+    if (!t) return;
+    S.i = Math.max(0, Math.min(S.total - 1, t.i || 0));
+    S.moving = false;
+  }
+
+  /* 따라갈 학생 목록 */
+  function renderFollow(live) {
+    const sel = $('j-follow');
+    const sig = 'lead|' + live.map(p => p.k + ':' + p.nm).join('|');
+    if (sel.dataset.sig === sig) return;
+    sel.dataset.sig = sig;
+    const keep = sel.value || followKey;
+    sel.innerHTML = '<option value="lead">1등 자동 따라가기</option>' +
+      live.map(p => '<option value="' + p.k + '"></option>').join('');
+    Array.prototype.forEach.call(sel.querySelectorAll('option'), (o, i) => {
+      if (i > 0) o.textContent = live[i - 1].nm;
+    });
+    sel.value = Array.prototype.some.call(sel.options, o => o.value === keep) ? keep : 'lead';
+    followKey = sel.value;
   }
 
   /* ══ 인체 지도 — 게임 안 화면과 같은 좌표를 씁니다 ══ */

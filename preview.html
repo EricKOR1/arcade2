@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>디자인 미리보기</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  body { overflow: auto }
+  .pv { padding: 28px; display: grid; gap: 28px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); max-width: 1500px; margin: 0 auto }
+  .frame { border-radius: 30px; border: 1px solid var(--a-line2); overflow: hidden; position: relative; background: var(--a-bg2);
+           box-shadow: var(--shadow-panel); min-height: 640px; display: flex; flex-direction: column }
+  .frame > .lbl { position: absolute; top: 10px; left: 14px; font-size: 11px; letter-spacing: .1em; color: var(--a-faint); font-weight: 700; z-index: 2 }
+  .frame .app { position: relative; inset: auto; flex: 1 }
+  .frame .screen { min-height: 600px }
+  .frame .admin { position: relative; inset: auto; padding: 44px 22px 26px }
+  .fake-canvas { width: 240px; height: 400px; border-radius: 18px; background: #0B0D12;
+    box-shadow: 0 0 0 1px var(--a-line2), 0 0 0 5px rgba(255,255,255,.03), 0 30px 70px -30px rgba(0,0,0,.95), 0 0 80px -28px var(--accent-glow);
+    display: grid; grid-template-columns: repeat(10, 1fr); gap: 1px; padding: 6px }
+  .fake-canvas i { display: block; border-radius: 3px }
+  .theme { position: fixed; top: 12px; right: 14px; display: flex; gap: 6px; z-index: 9 }
+  .theme button { width: 26px; height: 26px; border-radius: 50%; border: 2px solid rgba(255,255,255,.6); cursor: pointer }
+</style></head>
+<body>
+<div class="theme" title="게임별 강조색 바꿔보기">
+  <button style="background:#8B7CF6" onclick="setA('#8B7CF6')"></button>
+  <button style="background:#F5A524" onclick="setA('#F5A524')"></button>
+  <button style="background:#06D6A0" onclick="setA('#06D6A0')"></button>
+  <button style="background:#4CC9F0" onclick="setA('#4CC9F0')"></button>
+  <button style="background:#FF8A56" onclick="setA('#FF8A56')"></button>
+</div>
+<div class="pv">
+
+  <div class="frame"><span class="lbl">학생 · 입장</span>
+    <div class="app"><section class="screen centered active">
+      <div class="badge badge-primary badge-lg mb-3">테트리스</div>
+      <h1 class="title-lg">닉네임을 정해주세요</h1>
+      <p class="muted">친구들에게 이 이름으로 보여요</p>
+      <div class="stack mt-5">
+        <input class="input input-bordered input-lg w-full text-center font-semibold" placeholder="8자 이내">
+        <button class="btn btn-primary btn-lg btn-block">입장하기</button>
+      </div>
+    </section></div>
+  </div>
+
+  <div class="frame"><span class="lbl">학생 · 대기</span>
+    <div class="app"><section class="screen centered active">
+      <div class="pulse-ring"><b>12</b></div>
+      <h1 class="title-lg">시작을 기다리는 중</h1>
+      <p class="muted">선생님이 시작하면 자동으로 넘어갑니다</p>
+      <div class="roster">
+        <span class="badge badge-lg badge-primary">지훈</span><span class="badge badge-lg badge-ghost">하은</span>
+        <span class="badge badge-lg badge-ghost">민서</span><span class="badge badge-lg badge-ghost">서준</span>
+        <span class="badge badge-lg badge-ghost">예린</span><span class="badge badge-lg badge-ghost">도윤</span>
+      </div>
+    </section></div>
+  </div>
+
+  <div class="frame"><span class="lbl">학생 · 플레이</span>
+    <div class="app"><section class="screen active" style="padding:0">
+      <div class="topbar" style="margin-top:26px">
+        <div class="chip hot"><span class="k">SCORE</span><span class="v num">1,240</span></div>
+        <div class="chip"><span class="k">LINES</span><span class="v num">7</span></div>
+        <div class="chip"><span class="k">LEVEL</span><span class="v num">2</span></div>
+        <div class="spacer"></div>
+        <button class="icon-btn btn">♪</button>
+      </div>
+      <div class="canvas-wrap"><div class="fake-canvas" id="fc"></div></div>
+      <div class="pad">
+        <button class="k-left btn">←</button><button class="k-rotate btn">↻</button><button class="k-right btn">→</button>
+        <button class="k-down btn">↓</button><button class="k-drop btn">바로 내리기</button>
+      </div>
+    </section></div>
+  </div>
+
+  <div class="frame"><span class="lbl">학생 · 결과</span>
+    <div class="app"><section class="screen centered active">
+      <div class="badge badge-primary badge-lg mb-3">테트리스</div>
+      <p class="muted">최종 점수</p>
+      <div class="result-score num">1,240</div>
+      <p class="muted">7줄 완성 · 레벨 2</p>
+      <div class="stats shadow mt-5"><div class="stat place-items-center py-4">
+        <div class="stat-title text-xs">전체 순위</div>
+        <div class="stat-value text-primary text-3xl num">3등</div>
+        <div class="stat-desc">전체 12명</div>
+      </div></div>
+    </section></div>
+  </div>
+
+  <div class="frame" style="grid-column: 1 / -1; min-height: 420px"><span class="lbl">교사 · 게임 선택</span>
+    <div class="admin">
+      <div class="admin-top"><h1>아케이드</h1><span class="badge badge-lg badge-primary live">진행 중</span><span class="badge badge-lg badge-ghost">12명 접속</span></div>
+      <p class="admin-sub">플레이할 게임을 고르면 학생용 QR이 만들어집니다.</p>
+      <div id="game-list">
+        <div class="card bg-base-200 shadow game-card" style="--gc:#8B7CF6"><div class="card-body p-6"><h3 class="card-title text-lg">테트리스</h3><p class="text-sm opacity-60 leading-relaxed">떨어지는 블록을 빈틈없이 쌓아 가로줄을 지우세요</p><div class="card-actions mt-3"><span class="badge badge-outline">개인전 · 점수 경쟁</span></div></div></div>
+        <div class="card bg-base-200 shadow game-card" style="--gc:#F5A524"><div class="card-body p-6"><h3 class="card-title text-lg">카트 레이싱</h3><p class="text-sm opacity-60 leading-relaxed">모두 함께 출발해 아이템을 쓰며 3바퀴를 먼저 도세요</p><div class="card-actions mt-3"><span class="badge badge-outline">실시간 대전 · 순위 경쟁</span></div></div></div>
+        <div class="card bg-base-200 shadow game-card" style="--gc:#06D6A0"><div class="card-body p-6"><h3 class="card-title text-lg">스네이크</h3><p class="text-sm opacity-60 leading-relaxed">먹이를 먹어 몸을 길게 키우세요</p><div class="card-actions mt-3"><span class="badge badge-outline">개인전 · 길이 경쟁</span></div></div></div>
+        <div class="card bg-base-200 shadow game-card" style="--gc:#4CC9F0"><div class="card-body p-6"><h3 class="card-title text-lg">하늘 날기</h3><p class="text-sm opacity-60 leading-relaxed">톡톡 눌러 날개짓하며 기둥 사이를 통과하세요</p><div class="card-actions mt-3"><span class="badge badge-outline">개인전 · 통과 수 경쟁</span></div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="frame" style="grid-column: 1 / -1; min-height: 360px"><span class="lbl">교사 · 실시간 현황</span>
+    <div class="admin">
+      <div class="controls"><button class="btn btn-primary">게임 시작</button><button class="btn btn-ghost">게임 바꾸기</button><button class="btn btn-outline btn-error">명단 비우기</button></div>
+      <h2 class="section-h">입장한 학생</h2>
+      <ul id="waiting-list">
+        <li class="flex items-center gap-3 bg-base-200 rounded-full pl-2 pr-5 py-2"><div class="avatar placeholder"><div class="w-8"><span class="text-sm font-bold">지</span></div></div><span class="font-medium text-sm">지훈</span></li>
+        <li class="flex items-center gap-3 bg-base-200 rounded-full pl-2 pr-5 py-2"><div class="avatar placeholder"><div class="w-8"><span class="text-sm font-bold">하</span></div></div><span class="font-medium text-sm">하은</span></li>
+        <li class="flex items-center gap-3 bg-base-200 rounded-full pl-2 pr-5 py-2"><div class="avatar placeholder"><div class="w-8"><span class="text-sm font-bold">민</span></div></div><span class="font-medium text-sm">민서</span></li>
+      </ul>
+      <h2 class="section-h" style="margin-top:22px">학생별 미니 보드</h2>
+      <div id="live-grid">
+        <div class="player-card top"><div class="rank-badge">1등</div><div class="player-name">지훈</div><div style="height:96px;border-radius:9px;background:#0B0D12"></div><div class="player-score num">1,240</div></div>
+        <div class="player-card"><div class="rank-badge">2등</div><div class="player-name">하은</div><div style="height:96px;border-radius:9px;background:#0B0D12"></div><div class="player-score num">980</div></div>
+        <div class="player-card over"><div class="player-name">민서</div><div style="height:96px;border-radius:9px;background:#0B0D12"></div><div class="player-score num">410</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+  function setA(h){ document.documentElement.style.setProperty('--game-hex', h); }
+  const fc = document.getElementById('fc'), cols = ['#4CC9F0','#4361EE','#F79824','#FFD166','#06D6A0','#B15DFF','#EF476F'];
+  for (let i = 0; i < 160; i++) { const e = document.createElement('i'); const r = Math.floor(i/10);
+    e.style.background = (r > 10 && Math.random() < 0.55) ? cols[Math.floor(Math.random()*7)] : 'transparent'; fc.appendChild(e); }
+</script>
+</body></html>
