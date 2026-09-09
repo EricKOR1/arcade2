@@ -6,6 +6,7 @@
 <meta name="theme-color" content="#1B2027">
 <title>교사용 대시보드</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@4.12.24/dist/full.min.css">
+<link rel="stylesheet" href="platform.css">
 <link rel="stylesheet" href="style.css">
 </head>
 <body class="bg-base-100 text-base-content">
@@ -56,8 +57,21 @@
   <!-- 3단계: 진행 중 -->
   <section id="live-panel" class="hidden">
     <div class="controls"><button id="end-btn" class="btn btn-outline btn-error">게임 종료</button></div>
+
+    <!-- 모드별 실시간 대결 출발 (몸속 여행) -->
+    <section id="room-panel" class="hidden">
+      <h2 class="section-h">실시간 대결 출발</h2>
+      <p class="text-sm opacity-60 mb-3" style="margin-top:-8px">
+        학생이 게임에서 <b>대결 참가</b>를 누르고 대기실에 모이면, 아래 모드의 <b>출발</b>을 눌러 동시에 시작하세요.</p>
+      <div id="room-list"></div>
+    </section>
+
+    <h2 class="section-h" id="live-h">실시간 현황</h2>
     <!-- 테트리스: 학생별 미니 보드 -->
     <div id="live-grid"></div>
+    <!-- 학습 게임: 점수 목록 -->
+    <div id="live-list" class="hidden"></div>
+
     <!-- 카트: 전체 맵 관전 -->
     <div id="spectate" class="spectate hidden">
       <canvas id="spectate-canvas"></canvas>
@@ -195,6 +209,7 @@
   $('start-btn').addEventListener('click', () => statusRef.set('playing'));
   $('end-btn').addEventListener('click', () => statusRef.set('ended'));
   $('back-btn').addEventListener('click', () => {
+    stopRooms();
     sessionRef.set({ game: null, status: 'idle' });
     playersRef.remove(); posRef.remove(); hazardsRef.remove(); eventsRef.remove();
   });
@@ -229,11 +244,19 @@
     lobbyPanel.classList.toggle('hidden', !(status === 'waiting' || status === 'ended'));
     livePanel.classList.toggle('hidden', status !== 'playing');
 
-    const shared = g && g.adminView === 'shared';
-    liveGrid.classList.toggle('hidden', !!shared);
-    spectate.classList.toggle('hidden', !shared);
+    const view = (g && g.adminView) || 'grid';
+    liveGrid.classList.toggle('hidden', view !== 'grid');
+    spectate.classList.toggle('hidden', view !== 'shared');
+    $('live-list').classList.toggle('hidden', view !== 'list');
+    $('live-h').textContent = (view === 'list') ? '학생별 진행 상황' : '실시간 현황';
 
-    if (status === 'playing' && shared) startSpectate();
+    // 모드별 대결 출발 패널 (몸속 여행처럼 rooms 를 가진 게임만)
+    const hasRooms = !!(g && g.rooms && status === 'playing');
+    $('room-panel').classList.toggle('hidden', !hasRooms);
+    if (hasRooms) buildRooms(g);
+    else stopRooms();
+
+    if (status === 'playing' && view === 'shared') startSpectate();
     else stopSpectate();
 
     if ((status === 'waiting' || status === 'ended') && currentGameId &&
@@ -247,7 +270,9 @@
     $('count-badge').textContent = Object.keys(players).length + '명 접속';
     renderWaiting(players);
     const g = GAMES[currentGameId];
-    if (!g || g.adminView !== 'shared') renderGrid(players);
+    const view = (g && g.adminView) || 'grid';
+    if (view === 'grid') renderGrid(players);
+    else if (view === 'list') renderList(players);
   });
 
   function renderWaiting(players) {
@@ -304,6 +329,92 @@
       c.wrapper.classList.toggle('top', i === 0 && ids.length > 1);
       if (top) c.badge.textContent = (i + 1) + '등';
     });
+  }
+
+  // ── 학습 게임: 학생별 점수 목록 ──
+  function renderList(players) {
+    const ids = Object.keys(players);
+    const box = $('live-list');
+    if (!ids.length) {
+      box.innerHTML = '<p class="empty-note">아직 플레이 중인 학생이 없습니다</p>';
+      return;
+    }
+    ids.sort((a, b) => (players[b].score || 0) - (players[a].score || 0));
+    box.innerHTML = '<ul id="score-list"></ul>';
+    const ul = box.querySelector('#score-list');
+    ids.forEach((id, i) => {
+      const p = players[id];
+      const li = document.createElement('li');
+      if (i === 0 && ids.length > 1) li.className = 'top';
+      const r = document.createElement('span'); r.className = 'r';
+      r.textContent = (['🥇','🥈','🥉'][i] || (i + 1) + '.');
+      const nm = document.createElement('span'); nm.className = 'nm';
+      nm.textContent = p.nickname || '(이름 없음)';
+      const lv = document.createElement('span'); lv.className = 'lp';
+      lv.textContent = (p.level ? p.level + '단계' : '진행 중')
+                     + (p.cleared ? ' · 완료' : '')
+                     + (p.status === 'left' ? ' · 나감' : '');
+      const sc = document.createElement('span'); sc.className = 'sc';
+      sc.textContent = (p.score || 0) + '점';
+      li.append(r, nm, lv, sc);
+      ul.appendChild(li);
+    });
+  }
+
+  // ── 모드별 실시간 대결 출발 ──
+  const roomRefs = [];
+  let roomTimer = null;
+  function stopRooms() {
+    if (roomTimer) { clearInterval(roomTimer); roomTimer = null; }
+    while (roomRefs.length) roomRefs.pop().off();
+  }
+  function buildRooms(g) {
+    if (roomTimer) return;
+    const list = $('room-list');
+    list.innerHTML = '';
+    g.rooms.forEach(function (rm) {
+      const ref = db.ref('rooms/' + currentGameId + '/L' + rm.level);
+      const card = document.createElement('div');
+      card.className = 'room-card';
+      card.innerHTML =
+        '<div class="rm-top"><b class="rm-name"></b><span class="badge badge-sm rm-st"></span></div>' +
+        '<p class="rm-cnt"></p>' +
+        '<div class="rm-btns">' +
+          '<button class="btn btn-primary btn-sm rm-go">출발</button>' +
+          '<button class="btn btn-ghost btn-sm rm-end">마치기</button>' +
+        '</div>';
+      card.querySelector('.rm-name').textContent = rm.name;
+      card.querySelector('.rm-go').addEventListener('click', function () {
+        ref.update({ status: 'run', startAt: Date.now(),
+                     seed: Math.floor(Math.random() * 1000000) + 1, auto: false });
+      });
+      card.querySelector('.rm-end').addEventListener('click', function () {
+        ref.update({ status: 'end', auto: false });
+      });
+      list.appendChild(card);
+
+      ref.on('value', function (snap) {
+        const v = snap.val() || {};
+        const ps = v.players || {};
+        const now = Date.now();
+        const keys = Object.keys(ps);
+        const live = keys.filter(k => (now - (ps[k].t || 0)) < 20000);
+        const wait = live.filter(k => !ps[k].r).length;
+        const run = live.filter(k => ps[k].r && !ps[k].d).length;
+        const done = live.filter(k => ps[k].d).length;
+        const labels = { wait: '대기실', run: '진행 중', end: '종료됨' };
+        const st = v.status || 'wait';
+        const b = card.querySelector('.rm-st');
+        b.textContent = labels[st] || st;
+        b.className = 'badge badge-sm rm-st ' + (st === 'run' ? 'badge-primary' : 'badge-ghost');
+        card.querySelector('.rm-cnt').textContent =
+          '대기 ' + wait + '명 · 달리는 중 ' + run + '명 · 완주 ' + done + '명'
+          + (v.seed ? ' · 문제 세트 #' + v.seed : '');
+        card.querySelector('.rm-go').textContent = (st === 'run') ? '새로 출발' : '출발';
+      });
+      roomRefs.push(ref);
+    });
+    roomTimer = setInterval(function () {}, 60000);   // 패널이 살아 있음을 표시
   }
 
   // ── 카트: 전체 맵 관전 ──

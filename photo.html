@@ -1,0 +1,613 @@
+<script>
+/* ─── 이 게임의 정보 (대시보드 카드에 표시됩니다) ───
+   GAS 는 주석을 지우므로 반드시 아래처럼 코드로 적어야 합니다. */
+var GAMEINFO = {
+name   : "광합성 온실 관리자",
+badge  : "중2 · 식물과 에너지",
+icon   : "leaf",
+color  : "leaf",
+desc   : "빛·이산화탄소·온도를 나눠 주며 여러 식물을 살리는 실시간 관리 게임",
+grades : "2"
+};
+</script>
+
+<style>
+/* ══════════════════════════════════════════════
+   game_photo — 광합성 온실 관리자
+   위 GAME 블록이 대시보드에 표시되는 정보입니다.
+   이 파일은 학생이 이 게임을 고를 때만 서버에서 내려받습니다.
+   ══════════════════════════════════════════════ */
+/* ── 시간 · 계절 ── */
+.timebar{position:relative;height:10px;border-radius:999px;background:rgba(0,0,0,.36);
+  overflow:hidden;margin-bottom:8px;box-shadow:inset 0 1px 4px rgba(0,0,0,.6)}
+.timebar i{display:block;height:100%;width:0;border-radius:999px;
+  background:linear-gradient(90deg,#EAF4F0,#8FE8D0);box-shadow:0 0 16px rgba(234,244,240,.4)}
+.timebar .tick{position:absolute;top:0;width:2px;height:100%;background:var(--ink);opacity:.75}
+.seasonrow{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:18px}
+.seasonrow div{font-size:11.5px;text-align:center;color:var(--muted);padding:7px 0;
+  border-radius:11px;font-weight:600;background:rgba(255,255,255,.035);
+  border:1px solid transparent;transition:all .3s cubic-bezier(.2,.8,.2,1)}
+.seasonrow div.on{background:var(--panel2);color:var(--paper);border-color:var(--line2);
+  box-shadow:0 6px 18px -10px rgba(0,0,0,.9)}
+
+/* ── 자원 ── */
+.budgets{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:10px}
+@media(max-width:560px){.budgets{grid-template-columns:1fr}}
+.bud{background:var(--glass);border:1px solid var(--line);border-radius:16px;padding:13px 16px;
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);transition:border-color .25s,box-shadow .25s}
+.bud .r{display:flex;justify-content:space-between;font-size:12px;margin-bottom:8px;
+  color:var(--muted);font-weight:600}
+.bud .r b{font-family:var(--num);font-size:14px;font-weight:700;color:var(--paper);font-variant-numeric:tabular-nums}
+.bud .g{height:8px;border-radius:999px;background:rgba(0,0,0,.36);overflow:hidden;
+  box-shadow:inset 0 1px 3px rgba(0,0,0,.55)}
+.bud .g i{display:block;height:100%;border-radius:999px}
+.bud.full{border-color:rgba(255,77,106,.6);box-shadow:0 0 0 3px rgba(255,77,106,.12)}
+.bud.full .r b{color:var(--alert)}
+.warn{min-height:20px;font-size:12.5px;color:var(--alert);font-weight:700;margin-bottom:12px}
+
+/* ── 식물 카드 ── */
+.plants{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:12px}
+.pcard{position:relative;background:rgba(255,255,255,.045);border:1px solid var(--line);
+  border-radius:18px;padding:10px 9px 12px;cursor:pointer;text-align:center;overflow:hidden;
+  transition:transform .18s cubic-bezier(.2,.8,.2,1),box-shadow .22s,border-color .22s,background .22s}
+.pcard::after{content:"";position:absolute;inset:0;border-radius:18px;pointer-events:none;
+  background:linear-gradient(180deg,rgba(255,255,255,.08),transparent 42%)}
+.pcard:hover{transform:translateY(-3px);border-color:var(--line2);background:rgba(255,255,255,.075)}
+.pcard.sel{border-color:rgba(255,255,255,.5);background:rgba(255,255,255,.1);
+  box-shadow:0 0 0 2px rgba(255,255,255,.16),0 18px 34px -20px rgba(0,0,0,1)}
+.pcard.dead{opacity:.38;cursor:not-allowed;filter:grayscale(.75);transform:none}
+.pcard.danger{border-color:var(--alert);animation:danger 1.3s ease-in-out infinite}
+@keyframes danger{0%,100%{box-shadow:0 0 0 0 rgba(255,77,106,0)}50%{box-shadow:0 0 0 5px rgba(255,77,106,.22)}}
+.pcard svg{width:100%;height:62px;display:block}
+.pcard .nm{font-size:12.5px;font-weight:700;margin-top:3px;letter-spacing:-.01em}
+.pcard .hb{height:6px;border-radius:999px;background:rgba(0,0,0,.4);margin-top:8px;overflow:hidden}
+.pcard .hb i{display:block;height:100%;border-radius:999px}
+.pcard .st{font-size:10px;color:var(--muted);font-family:var(--num);font-weight:600;
+  margin-top:5px;line-height:1.45;font-variant-numeric:tabular-nums}
+
+/* ── 조절 장치 ── */
+.pname{font-size:19px;font-weight:800;margin:0 0 3px;letter-spacing:-.025em}
+.pdesc{font-size:12.5px;color:var(--muted);margin:0 0 18px;line-height:1.55}
+.ctrl{margin-bottom:18px}
+.ctrl-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+.ctrl-name{font-size:13.5px;font-weight:700;display:flex;align-items:center;gap:8px}
+.dot{width:10px;height:10px;border-radius:50%;box-shadow:0 0 0 3px rgba(255,255,255,.07)}
+.ctrl-val{font-family:var(--num);font-size:15px;font-weight:700;font-variant-numeric:tabular-nums}
+.slider{position:relative;height:28px}
+.zone{position:absolute;top:10px;height:8px;border-radius:999px;pointer-events:none}
+.zone.ok{background:rgba(123,224,79,.4);box-shadow:0 0 12px rgba(123,224,79,.25)}
+.zone.waste{background:repeating-linear-gradient(45deg,rgba(255,255,255,.16) 0 4px,transparent 4px 9px)}
+.satline{position:absolute;top:5px;width:2px;height:18px;border-radius:2px;
+  background:var(--paper);opacity:.85;pointer-events:none;box-shadow:0 0 8px rgba(255,255,255,.5)}
+input[type=range]{position:relative;width:100%;-webkit-appearance:none;appearance:none;
+  background:transparent;margin:0;height:28px;cursor:pointer}
+input[type=range]::-webkit-slider-runnable-track{height:8px;border-radius:999px;
+  background:rgba(0,0,0,.38);box-shadow:inset 0 1px 3px rgba(0,0,0,.6)}
+input[type=range]::-moz-range-track{height:8px;border-radius:999px;
+  background:rgba(0,0,0,.38);box-shadow:inset 0 1px 3px rgba(0,0,0,.6)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:24px;height:24px;
+  border-radius:50%;margin-top:-8px;background:var(--c,#fff);border:3px solid rgba(255,255,255,.94);
+  box-shadow:0 5px 14px rgba(0,0,0,.55);transition:transform .12s}
+input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;
+  background:var(--c,#fff);border:3px solid rgba(255,255,255,.94);box-shadow:0 5px 14px rgba(0,0,0,.55)}
+input[type=range]:active::-webkit-slider-thumb{transform:scale(1.14)}
+input[type=range]:focus-visible{outline:2px solid var(--paper);outline-offset:5px;border-radius:999px}
+input[type=range]:disabled{opacity:.3;cursor:not-allowed}
+.fb{font-size:12.5px;margin-top:7px;font-weight:700}
+.fb.ok{color:var(--leaf)} .fb.lo{color:var(--light)} .fb.hi{color:var(--alert)} .fb.wa{color:var(--muted)}
+
+.psrow{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);
+  margin-top:6px;font-weight:600}
+.psrow span:last-child{font-family:var(--num);font-weight:700;color:var(--paper);font-variant-numeric:tabular-nums}
+.psbar{height:12px;border-radius:999px;background:rgba(0,0,0,.38);overflow:hidden;margin-top:7px;
+  box-shadow:inset 0 1px 4px rgba(0,0,0,.6)}
+.psbar i{display:block;height:100%;border-radius:999px;transition:none}
+.limit{margin-top:14px;border:1px solid var(--line);border-left:3px solid var(--line2);
+  border-radius:14px;padding:12px 15px;font-size:12.5px;line-height:1.6;background:rgba(0,0,0,.2)}
+.limit b{font-weight:700}
+
+/* ── 그래프 ── */
+.charts{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:18px}
+@media(max-width:640px){.charts{grid-template-columns:1fr}}
+.chart{background:var(--glass);border:1px solid var(--line);border-radius:20px;padding:16px;
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.chart h3{font-size:13px;margin:0 0 4px;font-weight:700;letter-spacing:-.01em}
+.chart p{font-size:11.5px;color:var(--muted);margin:0 0 9px;line-height:1.5;min-height:34px}
+.chart svg{width:100%;height:92px;display:block}
+
+</style>
+
+<script>
+(function () {
+"use strict";
+
+var TPL = '<div class="gamebar">\n    <h1>광합성 온실 관리자</h1>\n    <button id="pRestart">처음부터</button>\n    <button id="pQuit">나가기</button>\n    <div class="sub">봄·여름·가을·겨울을 지나며 식물을 살리세요</div>\n  </div>\n  <div class="readouts" style="margin-bottom:14px">\n    <div class="chip"><span>단계</span><b id="rLv">1</b></div>\n    <div class="chip season"><span>계절 · 바깥 기온</span><b id="rSeason">봄 16°C</b></div>\n    <div class="chip"><span>남은 시간</span><b id="rTime">60</b></div>\n    <div class="chip"><span>살아있는 식물</span><b id="rAlive">0 / 0</b></div>\n    <div class="chip"><span>목표</span><b id="rGoal">–</b></div>\n  </div>\n  <div class="timebar"><i id="tBar"></i><span class="tick" style="left:25%"></span><span class="tick" style="left:50%"></span><span class="tick" style="left:75%"></span></div>\n  <div class="seasonrow" id="srow"><div>봄</div><div>여름</div><div>가을</div><div>겨울</div></div>\n\n  <div class="budgets">\n    <div class="bud" id="budL">\n      <div class="r"><span>조명 전력 (남은 양)</span><b id="budLt">0</b></div>\n      <div class="g"><i id="budLb" style="background:var(--light);width:100%"></i></div>\n    </div>\n    <div class="bud" id="budC">\n      <div class="r"><span>이산화탄소 공급 (남은 양)</span><b id="budCt">0</b></div>\n      <div class="g"><i id="budCb" style="background:var(--co2);width:100%"></i></div>\n    </div>\n  </div>\n  <div class="warn" id="warn"></div>\n\n  <div class="grid">\n    <div class="card">\n      <h2>온실 (식물을 눌러 선택)</h2>\n      <div class="plants" id="plants"></div>\n    </div>\n\n    <div class="card">\n      <h2>조절 장치</h2>\n      <h3 class="pname" id="pName">–</h3>\n      <p class="pdesc" id="pDesc">–</p>\n\n      <div class="ctrl">\n        <div class="ctrl-head"><span class="ctrl-name"><i class="dot" style="background:var(--light)"></i>빛의 세기</span><span class="ctrl-val" id="vL">–</span></div>\n        <div class="slider">\n          <div class="zone waste" id="zL"></div><div class="satline" id="mL"></div>\n          <input type="range" id="sL" min="0" max="100" value="50" style="--c:var(--light)" aria-label="빛의 세기">\n        </div>\n        <div class="fb" id="fL">–</div>\n      </div>\n\n      <div class="ctrl">\n        <div class="ctrl-head"><span class="ctrl-name"><i class="dot" style="background:var(--co2)"></i>이산화탄소</span><span class="ctrl-val" id="vC">–</span></div>\n        <div class="slider">\n          <div class="zone waste" id="zC"></div><div class="satline" id="mC"></div>\n          <input type="range" id="sC" min="100" max="1500" step="20" value="600" style="--c:var(--co2)" aria-label="이산화탄소 농도">\n        </div>\n        <div class="fb" id="fC">–</div>\n      </div>\n\n      <div class="ctrl">\n        <div class="ctrl-head"><span class="ctrl-name"><i class="dot" style="background:var(--temp)"></i>온도</span><span class="ctrl-val" id="vT">–</span></div>\n        <div class="slider">\n          <div class="zone ok" id="zT"></div>\n          <input type="range" id="sT" min="0" max="45" value="22" style="--c:var(--temp)" aria-label="온도">\n        </div>\n        <div class="fb" id="fT">–</div>\n      </div>\n\n      <div class="psrow"><span>이 식물의 광합성량</span><span id="vPs">–</span></div>\n      <div class="psbar"><i id="psBar" style="width:0"></i></div>\n      <div class="limit" id="limit">–</div>\n\n      <div class="btns">\n        <button id="bPause">일시정지</button>\n        <button id="bRetry">단계 다시하기</button>\n      </div>\n    </div>\n  </div>\n\n  <div class="charts">\n    <div class="chart">\n      <h3 style="color:var(--light)">빛의 세기</h3>\n      <p>세게 할수록 늘지만, 흰 선을 넘으면 더 올려도 그대로예요.</p>\n      <svg viewBox="0 0 200 92" id="chL"></svg>\n    </div>\n    <div class="chart">\n      <h3 style="color:var(--co2)">이산화탄소 농도</h3>\n      <p>빛과 같아요. 일정 농도부터는 아무리 늘려도 변화가 없어요.</p>\n      <svg viewBox="0 0 200 92" id="chC"></svg>\n    </div>\n    <div class="chart">\n      <h3 style="color:var(--temp)">온도</h3>\n      <p>알맞은 온도가 있고, 너무 뜨거우면 효소가 망가져 뚝 떨어져요.</p>\n      <svg viewBox="0 0 200 92" id="chT"></svg>\n    </div>\n  </div>';
+
+function OV(html){ App.overlay(html); }
+
+var el = {};
+
+/* ── 화면 만들기 ── */
+function mount(root) {
+  root.innerHTML = TPL;
+  ["plants","pName","pDesc","sL","sC","sT","vL","vC","vT","fL","fC","fT","zL","zC","zT",
+   "mL","mC","psBar","vPs","limit","rLv","rTime","rAlive","rGoal","rSeason","tBar","srow",
+   "bPause","bRetry","budL","budC","budLt","budCt","budLb","budCb","warn","chL","chC","chT",
+   "pQuit","pRestart"]
+   .forEach(function (i) { el[i] = root.querySelector("#" + i); });
+
+  [el.sL, el.sC, el.sT].forEach(function (s) {
+    s.addEventListener("input", function () {
+      if (!S) return;
+      var p = S.plants[sel];
+      if (p && !p.dead) { applySliders(); calc(p); render(); }
+    });
+    // 잡고 있는 동안에는 자동 갱신이 손잡이를 밀지 않게 한다
+    ["pointerdown", "touchstart", "mousedown"].forEach(function (ev) {
+      s.addEventListener(ev, function () { DRAG = true; }, { passive: true });
+    });
+    ["keydown"].forEach(function (ev) {
+      s.addEventListener(ev, function () { DRAG = true; });
+    });
+    ["blur", "keyup"].forEach(function (ev) {
+      s.addEventListener(ev, function () { DRAG = false; });
+    });
+  });
+  ["pointerup", "touchend", "touchcancel", "mouseup", "pointercancel"].forEach(function (ev) {
+    document.addEventListener(ev, function () { DRAG = false; }, { passive: true });
+  });
+  el.bPause.onclick = function () {
+    if (!S || S.over) return;
+    S.running = !S.running;
+    this.textContent = S.running ? "일시정지" : "계속하기";
+  };
+  el.bRetry.onclick = function () { if (S) startLevel(S.lv); };
+  el.pQuit.onclick = App.goHome;
+  el.pRestart.onclick = function () { if (S) startLevel(0); else photoIntro(); };
+}
+
+/* ── 게임 로직 ── */
+var TYPES=[
+  {n:"해바라기", d:"빛을 많이 받아야 최대가 돼요.",    Ls:80, Cs:900,  T:[24,32]},
+  {n:"상추",     d:"서늘한 곳을 좋아해요.",            Ls:55, Cs:800,  T:[14,22]},
+  {n:"고사리",   d:"그늘 식물. 적은 빛으로 충분해요.",  Ls:30, Cs:600,  T:[18,26]},
+  {n:"선인장",   d:"덥고 밝은 곳에서 살아요.",          Ls:85, Cs:500,  T:[30,40]},
+  {n:"토마토",   d:"이산화탄소를 많이 써요.",           Ls:65, Cs:1150, T:[22,30]},
+  {n:"이끼",     d:"어둡고 서늘한 곳을 좋아해요.",      Ls:25, Cs:450,  T:[12,20]}
+];
+var SEASONS=[{n:"봄",out:16},{n:"여름",out:34},{n:"가을",out:18},{n:"겨울",out:2}];
+var LEVELS=[
+  {plants:3,  sec:60, goal:.67, drift:1.0, mult:1.10},
+  {plants:4,  sec:60, goal:.75, drift:1.2, mult:0.96},
+  {plants:5,  sec:65, goal:.80, drift:1.4, mult:0.88},
+  {plants:6,  sec:65, goal:.83, drift:1.6, mult:0.82},
+  {plants:8,  sec:70, goal:.87, drift:1.8, mult:0.76},
+  {plants:10, sec:70, goal:.90, drift:2.0, mult:0.70}
+];
+var TYPEPOOL=[[0,1,2],[0,1,2,4],[0,1,2,3,4],[0,1,2,3,4,5],[0,1,2,3,4,5],[0,1,2,3,4,5]];
+var RNG={L:{min:0,max:100},C:{min:100,max:1500},T:{min:0,max:45}};
+var ALIVE_PS=55;
+var S=null, sel=0, last=0, warnT=0, DRAG=false, acc=0, errCount=0;
+
+function scoreL(v,Ls){ return Math.max(0,Math.min(100,v/Ls*100)); }
+function scoreC(v,Cs){ return Math.max(0,Math.min(100,(v-80)/(Cs-80)*100)); }
+function scoreT(v,b){
+  if(v>=b[0]&&v<=b[1]) return 100;
+  if(v<b[0]) return Math.max(0,100-(b[0]-v)/9*100);
+  return Math.max(0,100-(v-b[1])/5*100);
+}
+function calc(p){
+  var t=TYPES[p.type];
+  p.sL=scoreL(p.L,t.Ls); p.sC=scoreC(p.C,t.Cs); p.sT=scoreT(p.T,t.T);
+  p.ps=Math.min(p.sL,Math.min(p.sC,p.sT));
+}
+
+
+function startLevel(n){
+  var L=LEVELS[n], pool=TYPEPOOL[n].slice(), list=[], i, sumL=0, sumC=0;
+  for(i=0;i<L.plants;i++){
+    if(!pool.length) pool=TYPEPOOL[n].slice();
+    var k=pool.splice(Math.floor(Math.random()*pool.length),1)[0], t=TYPES[k];
+    sumL+=t.Ls; sumC+=t.Cs;
+    list.push({type:k,hp:100,dead:false,ps:0,
+      L:t.Ls*Math.min(1,L.mult)*0.9,
+      C:Math.max(120,t.Cs*Math.min(1,L.mult)*0.9),
+      T:(t.T[0]+t.T[1])/2});
+  }
+  S={lv:n,t:L.sec,plants:list,running:true,over:false,
+     budL:Math.round(sumL*L.mult),
+     budC:Math.max(Math.round(sumC*L.mult),L.plants*140)};
+  sel=0; warnT=0; acc=0; errCount=0; DRAG=false; el.warn.textContent="";
+  for(var q=0;q<4;q++) el.srow.children[q].textContent=SEASONS[q].n+" "+SEASONS[q].out+"°";
+  el.bPause.textContent="일시정지";
+  buildCards(); syncSliders(); drawCharts(); render(); last=0;
+}
+function season(){
+  var L=LEVELS[S.lv];
+  var idx=Math.min(3,Math.floor((L.sec-S.t)/(L.sec/4)));
+  return {i:idx,s:SEASONS[idx]};
+}
+function buildCards(){
+  el.plants.innerHTML="";
+  S.plants.forEach(function(p,i){
+    var d=document.createElement("div");
+    d.className="pcard"; d.tabIndex=0;
+    d.innerHTML='<svg viewBox="0 0 80 62"></svg><div class="nm">'+TYPES[p.type].n+
+      '</div><div class="hb"><i></i></div><div class="st"></div>';
+    d.onclick=function(){ if(!S.plants[i].dead){ sel=i; syncSliders(); drawCharts(); render(); } };
+    d.onkeydown=function(e){ if(e.key==="Enter"||e.key===" "){e.preventDefault();d.click();} };
+    el.plants.appendChild(d);
+    p.el=d; p.svg=d.querySelector("svg"); p.bar=d.querySelector(".hb i"); p.stx=d.querySelector(".st");
+    p._sig=null;
+  });
+}
+function hcol(hp){ return hp>=65?"#7ec850":hp>=35?"#cbbf46":"#a9763a"; }
+function hdrk(hp){ return hp>=65?"#5da339":hp>=35?"#a2953a":"#8a5f30"; }
+var POT='<path d="M30 56 L34 48 L46 48 L50 56 Z" fill="#4a382c"/>'+
+        '<rect x="28" y="44" width="24" height="6" rx="2" fill="#5a4436"/>'+
+        '<ellipse cx="40" cy="46" rx="11" ry="2.4" fill="#241a14"/>';
+
+/* 해바라기 — 큰 꽃송이와 곧은 줄기 */
+function pSunflower(hp,d){
+  var c=hcol(hp), k=hdrk(hp), h=29*(1-d*0.28), bend=d*7;
+  var tx=40+bend, ty=46-h;
+  var pc=hp>=65?"#ffc247":hp>=35?"#d3a44b":"#a2874f";
+  var s='<path d="M40 46 Q'+(40+bend*0.6)+' '+(46-h/2)+' '+tx+' '+ty+'" stroke="'+k+'" stroke-width="3" fill="none" stroke-linecap="round"/>';
+  s+='<ellipse cx="'+(32+bend*0.4)+'" cy="'+(46-h*0.42)+'" rx="8" ry="4" fill="'+c+'" transform="rotate('+(-26+d*30)+' '+(32+bend*0.4)+' '+(46-h*0.42)+')"/>';
+  s+='<ellipse cx="'+(48+bend*0.4)+'" cy="'+(46-h*0.28)+'" rx="8" ry="4" fill="'+c+'" transform="rotate('+(26-d*30)+' '+(48+bend*0.4)+' '+(46-h*0.28)+')"/>';
+  var cy=ty-5;
+  for(var i=0;i<10;i++){
+    var a=i*36, r=a*Math.PI/180;
+    var px=tx+Math.cos(r)*6.4, py=cy+Math.sin(r)*6.4;
+    s+='<ellipse cx="'+px.toFixed(1)+'" cy="'+py.toFixed(1)+'" rx="4" ry="2.2" fill="'+pc+'" transform="rotate('+a+' '+px.toFixed(1)+' '+py.toFixed(1)+')"/>';
+  }
+  s+='<circle cx="'+tx+'" cy="'+cy+'" r="4.6" fill="#6b4a2a"/>';
+  return s;
+}
+
+/* 상추 — 줄기 없이 넓은 잎이 겹친 로제트 */
+function pLettuce(hp,d){
+  var c=hcol(hp), k=hdrk(hp), sc=1-d*0.28, s='';
+  [[-76,k],[-40,c],[0,c],[40,c],[76,k]].forEach(function(o){
+    s+='<ellipse cx="40" cy="'+(45-10*sc)+'" rx="'+(10*sc).toFixed(1)+'" ry="'+(6.2*sc).toFixed(1)+
+       '" fill="'+o[1]+'" transform="rotate('+o[0]+' 40 46)"/>';
+  });
+  s+='<ellipse cx="40" cy="'+(45-6*sc)+'" rx="'+(6.4*sc).toFixed(1)+'" ry="'+(4.6*sc).toFixed(1)+'" fill="'+c+'"/>';
+  s+='<ellipse cx="40" cy="'+(45-7*sc)+'" rx="'+(3*sc).toFixed(1)+'" ry="'+(2.2*sc).toFixed(1)+'" fill="'+k+'" opacity=".55"/>';
+  return s;
+}
+
+/* 고사리 — 작은 잎이 촘촘히 달린 잎줄기 여러 개 */
+function pFern(hp,d){
+  var c=hcol(hp), k=hdrk(hp), s='', len=27*(1-d*0.3);
+  [-42,-14,14,42].forEach(function(a){
+    var r=(a+d*22*(a>0?1:-1))*Math.PI/180, pts=[], i;
+    for(i=0;i<=5;i++){
+      var t=i/5;
+      pts.push([40+Math.sin(r)*t*len*0.8+Math.sin(r)*t*t*5, 46-Math.cos(r)*t*len]);
+    }
+    s+='<path d="M'+pts.map(function(q){return q[0].toFixed(1)+' '+q[1].toFixed(1);}).join(' L')+
+       '" stroke="'+k+'" stroke-width="1.7" fill="none" stroke-linecap="round"/>';
+    for(i=1;i<=5;i++){
+      var q=pts[i], sz=(3.6-i*0.36).toFixed(1);
+      s+='<ellipse cx="'+(q[0]-sz).toFixed(1)+'" cy="'+q[1].toFixed(1)+'" rx="'+sz+'" ry="1.7" fill="'+c+'"/>';
+      s+='<ellipse cx="'+(q[0]-(-sz)).toFixed(1)+'" cy="'+q[1].toFixed(1)+'" rx="'+sz+'" ry="1.7" fill="'+c+'"/>';
+    }
+  });
+  return s;
+}
+
+/* 선인장 — 두꺼운 기둥과 팔, 가시 */
+function pCactus(hp,d){
+  var c=hp>=65?"#6bbf59":hp>=35?"#a8ad4c":"#9a7c44";
+  var k=hp>=65?"#4f9642":hp>=35?"#868c3c":"#7d6538";
+  var h=30*(1-d*0.22), top=46-h, s='';
+  s+='<rect x="35" y="'+top.toFixed(1)+'" width="10" height="'+h.toFixed(1)+'" rx="5" fill="'+c+'"/>';
+  s+='<rect x="36.5" y="'+(top+3).toFixed(1)+'" width="2" height="'+(h-7).toFixed(1)+'" rx="1" fill="'+k+'" opacity=".5"/>';
+  s+='<rect x="32" y="'+(46-h*0.34).toFixed(1)+'" width="8" height="5" fill="'+c+'"/>';
+  s+='<rect x="28.5" y="'+(46-h*0.62).toFixed(1)+'" width="6.5" height="'+(h*0.32).toFixed(1)+'" rx="3.2" fill="'+c+'"/>';
+  s+='<rect x="40" y="'+(46-h*0.5).toFixed(1)+'" width="8" height="5" fill="'+c+'"/>';
+  s+='<rect x="45" y="'+(46-h*0.74).toFixed(1)+'" width="6.5" height="'+(h*0.28).toFixed(1)+'" rx="3.2" fill="'+c+'"/>';
+  for(var i=0;i<4;i++){
+    var y=top+6+i*(h-9)/3.4;
+    s+='<line x1="34.6" y1="'+y.toFixed(1)+'" x2="32.4" y2="'+(y-1.6).toFixed(1)+'" stroke="#e9f2ec" stroke-width="1" opacity=".55"/>';
+    s+='<line x1="45.4" y1="'+(y+2).toFixed(1)+'" x2="47.6" y2="'+(y+0.4).toFixed(1)+'" stroke="#e9f2ec" stroke-width="1" opacity=".55"/>';
+  }
+  if(hp>=75) s+='<circle cx="40" cy="'+(top-2.5).toFixed(1)+'" r="3" fill="#ff8fb0"/>';
+  return s;
+}
+
+/* 토마토 — 덤불 모양에 빨간 열매 */
+function pTomato(hp,d){
+  var c=hcol(hp), k=hdrk(hp), h=25*(1-d*0.26), bend=d*6, s='';
+  s+='<path d="M40 46 Q'+(40+bend*0.6)+' '+(46-h/2)+' '+(40+bend)+' '+(46-h)+'" stroke="'+k+'" stroke-width="2.6" fill="none" stroke-linecap="round"/>';
+  [[0.34,-1],[0.58,1],[0.84,-1],[0.96,1]].forEach(function(o){
+    var f=o[0], dir=o[1], ly=46-h*f, lx=40+bend*f;
+    for(var j=0;j<3;j++){
+      var cx=lx+dir*(4.4+j*2.3), cy=ly+j*1.1+d*3.5;
+      var a=dir*(18+j*20)+d*38*dir;
+      s+='<ellipse cx="'+cx.toFixed(1)+'" cy="'+cy.toFixed(1)+'" rx="4.4" ry="2.3" fill="'+c+'" transform="rotate('+a.toFixed(0)+' '+cx.toFixed(1)+' '+cy.toFixed(1)+')"/>';
+    }
+  });
+  if(hp>=45){
+    var fc=hp>=70?"#ff5a45":"#dd8a4a";
+    s+='<circle cx="'+(33.5+bend*0.5).toFixed(1)+'" cy="'+(46-h*0.46).toFixed(1)+'" r="3.6" fill="'+fc+'"/>';
+    s+='<circle cx="'+(46.5+bend*0.5).toFixed(1)+'" cy="'+(46-h*0.68).toFixed(1)+'" r="3" fill="'+fc+'"/>';
+  }
+  return s;
+}
+
+/* 이끼 — 낮게 깔린 덩어리와 가느다란 홀씨자루 */
+function pMoss(hp,d){
+  var c=hcol(hp), k=hdrk(hp), sc=1-d*0.3, s='', i;
+  [[32,44.5,7],[48,44.5,6.5],[40,43.5,9]].forEach(function(o){
+    s+='<ellipse cx="'+o[0]+'" cy="'+(o[1]+d*2).toFixed(1)+'" rx="'+(o[2]*sc).toFixed(1)+
+       '" ry="'+(4.4*sc).toFixed(1)+'" fill="'+c+'"/>';
+  });
+  s+='<ellipse cx="40" cy="'+(41.5+d*2).toFixed(1)+'" rx="'+(8.5*sc).toFixed(1)+'" ry="'+(3.6*sc).toFixed(1)+'" fill="'+k+'" opacity=".7"/>';
+  for(i=0;i<5;i++){
+    var x=31.5+i*4.3, hg=9*sc-Math.abs(i-2)*1.1, x2=x+d*4;
+    s+='<line x1="'+x.toFixed(1)+'" y1="'+(41.5+d*2).toFixed(1)+'" x2="'+x2.toFixed(1)+
+       '" y2="'+(41.5-hg+d*2).toFixed(1)+'" stroke="'+k+'" stroke-width="1.1"/>';
+    s+='<ellipse cx="'+x2.toFixed(1)+'" cy="'+(41.5-hg+d*2).toFixed(1)+'" rx="1.8" ry="1.3" fill="'+c+'"/>';
+  }
+  return s;
+}
+
+var DRAW=[pSunflower,pLettuce,pFern,pCactus,pTomato,pMoss];
+
+function plantSVG(p){
+  if(p.dead){
+    return POT+'<path d="M40 45 Q46 39 44 31" stroke="#6b5a4a" stroke-width="2.6" fill="none" stroke-linecap="round"/>'+
+      '<ellipse cx="34" cy="35" rx="7.5" ry="3.6" fill="#7a6450" transform="rotate(42 34 35)"/>'+
+      '<ellipse cx="47" cy="39" rx="6" ry="3" fill="#6b5a4a" transform="rotate(-34 47 39)"/>';
+  }
+  return POT+DRAW[p.type](p.hp,(100-p.hp)/100);
+}
+
+function syncSliders(){
+  var p=S.plants[sel]; if(!p) return;
+  el.sL.value=Math.round(p.L);
+  el.sC.value=Math.round(p.C/20)*20;
+  el.sT.value=Math.round(p.T);
+  el.sL.disabled=el.sC.disabled=el.sT.disabled=p.dead;
+  markZones();
+}
+function frac(v,r){ return (v-r.min)/(r.max-r.min); }
+function posCalc(f){ return "calc("+(f*100)+"% - "+(f*24-12)+"px)"; }
+function widCalc(w){ return "calc("+(w*100)+"% - "+(w*24)+"px)"; }
+function markZones(){
+  var p=S.plants[sel]; if(!p) return;
+  var t=TYPES[p.type];
+  var fl=frac(t.Ls,RNG.L), fc=frac(t.Cs,RNG.C);
+  el.mL.style.left="calc("+(fl*100)+"% - "+(fl*24-11)+"px)";
+  el.mC.style.left="calc("+(fc*100)+"% - "+(fc*24-11)+"px)";
+  el.zL.style.left=posCalc(fl); el.zL.style.width=widCalc(1-fl);
+  el.zC.style.left=posCalc(fc); el.zC.style.width=widCalc(1-fc);
+  var a=frac(t.T[0],RNG.T), b=frac(t.T[1],RNG.T);
+  el.zT.style.left=posCalc(a); el.zT.style.width=widCalc(b-a);
+}
+function used(key){
+  var s=0;
+  S.plants.forEach(function(p){ if(!p.dead) s+=(key==="L"?p.L:p.C); });
+  return s;
+}
+function applySliders(){
+  var p=S.plants[sel]; if(!p||p.dead) return;
+  var oL=0,oC=0;
+  S.plants.forEach(function(q,i){ if(!q.dead&&i!==sel){ oL+=q.L; oC+=q.C; } });
+  var maxL=Math.max(0,S.budL-oL), maxC=Math.max(100,S.budC-oC), hit="";
+  var vL=+el.sL.value, vC=+el.sC.value;
+  if(vL>maxL){ vL=Math.floor(maxL); el.sL.value=vL; hit="조명 전력이 모자라요 — 다른 식물의 빛을 줄이세요"; }
+  if(vC>maxC){ vC=Math.floor(maxC/20)*20; el.sC.value=vC; hit="이산화탄소가 모자라요 — 다른 식물의 공급을 줄이세요"; }
+  p.L=vL; p.C=vC; p.T=+el.sT.value;
+  if(hit){ el.warn.textContent=hit; warnT=1.6; }
+}
+function update(dt){
+  var L=LEVELS[S.lv];
+  S.t-=dt;
+  if(warnT>0){ warnT-=dt; if(warnT<=0) el.warn.textContent=""; }
+  var out=season().s.out;
+  S.plants.forEach(function(p){
+    if(p.dead) return;
+    var t=TYPES[p.type];
+    p.L=Math.max(0,  p.L-t.Ls*0.018*L.drift*dt);
+    p.C=Math.max(100,p.C-t.Cs*0.018*L.drift*dt);
+    p.T=p.T+(out-p.T)*0.045*L.drift*dt;
+    calc(p);
+    p.hp=Math.min(100,p.hp+(p.ps-ALIVE_PS)/(100-ALIVE_PS)*5*dt);
+    if(p.hp<=0){ p.hp=0; p.dead=true; }
+  });
+  if(!DRAG) syncSliders();
+  var alive=S.plants.filter(function(p){return !p.dead;}).length;
+  var need=Math.ceil(S.plants.length*L.goal);
+  if(S.t<=0) finish(alive>=need,alive);
+  else if(alive<need) finish(false,alive);
+}
+function render(){
+  var L=LEVELS[S.lv], sn=season();
+  var alive=S.plants.filter(function(p){return !p.dead;}).length;
+  var need=Math.ceil(S.plants.length*L.goal);
+  el.rLv.textContent=S.lv+1;
+  el.rSeason.textContent=sn.s.n+" "+sn.s.out+"°C";
+  el.rTime.textContent=Math.max(0,Math.ceil(S.t));
+  el.rAlive.textContent=alive+" / "+S.plants.length;
+  el.rGoal.textContent=need+"그루";
+  el.tBar.style.width=Math.min(100,Math.max(0,(1-S.t/L.sec)*100))+"%";
+  for(var k=0;k<4;k++) el.srow.children[k].className=(k===sn.i?"on":"");
+
+  var uL=used("L"), uC=used("C");
+  var leftL=Math.max(0,S.budL-uL), leftC=Math.max(0,S.budC-uC);
+  el.budLt.textContent=Math.round(leftL)+" / "+S.budL;
+  el.budCt.textContent=Math.round(leftC)+" / "+S.budC;
+  el.budLb.style.width=(leftL/S.budL*100)+"%";
+  el.budCb.style.width=(leftC/S.budC*100)+"%";
+  el.budLb.style.background=(leftL/S.budL<0.08)?"var(--alert)":"var(--light)";
+  el.budCb.style.background=(leftC/S.budC<0.08)?"var(--alert)":"var(--co2)";
+  el.budL.className="bud"+(leftL<1?" full":"");
+  el.budC.className="bud"+(leftC<20?" full":"");
+
+  S.plants.forEach(function(p,i){
+    calc(p);
+    var ps=Math.round(p.ps), hp=Math.round(p.hp);
+    var sig=(p.dead?"d":"")+Math.round(hp/4);      // 모습이 달라졌을 때만 다시 그린다
+    if(p._sig!==sig){ p._sig=sig; p.svg.innerHTML=plantSVG(p); }
+    p.bar.style.width=hp+"%";
+    p.bar.style.background=hp>=60?"var(--leaf)":hp>=30?"var(--light)":"var(--alert)";
+    p.stx.innerHTML=p.dead?"시들었어요":"건강 "+hp+"%<br>광합성 "+ps;
+    p.el.className="pcard"+(i===sel?" sel":"")+(p.dead?" dead":"")+((!p.dead&&hp<35)?" danger":"");
+  });
+
+  var p=S.plants[sel]; if(!p) return;
+  var t=TYPES[p.type];
+  el.pName.textContent=t.n+(p.dead?" (시듦)":"");
+  el.pDesc.textContent=t.d;
+  el.vL.textContent=p.L.toFixed(0);
+  el.vC.textContent=p.C.toFixed(0)+" ppm";
+  el.vT.textContent=p.T.toFixed(0)+" °C";
+  setFb(el.fL,p.sL,p.L>t.Ls+3);
+  setFb(el.fC,p.sC,p.C>t.Cs+40);
+  if(p.sT>=100){ el.fT.textContent="✓ 알맞아요"; el.fT.className="fb ok"; }
+  else if(p.T<t.T[0]){ el.fT.textContent="↑ 추워요 — 온도를 올려 주세요"; el.fT.className="fb lo"; }
+  else{ el.fT.textContent="↓ 더워요 — 온도를 내려 주세요"; el.fT.className="fb hi"; }
+
+  var psv=Math.round(p.ps);
+  el.vPs.textContent=psv+" / 100";
+  el.psBar.style.width=psv+"%";
+  el.psBar.style.background=psv>=70?"var(--leaf)":psv>=ALIVE_PS?"var(--light)":"var(--alert)";
+
+  var arr=[{k:"빛의 세기",v:p.sL},{k:"이산화탄소",v:p.sC},{k:"온도",v:p.sT}];
+  arr.sort(function(a,b){return a.v-b.v;});
+  el.limit.innerHTML=p.dead?"이 식물은 시들었어요. 다른 식물을 돌봐 주세요."
+    :arr[0].v>=100?"세 조건이 모두 충분해요. 광합성량이 최대입니다."
+    :"지금 이 식물의 <b style='color:var(--paper)'>한계 요인</b>은 <b style='color:var(--paper)'>"+arr[0].k+
+     "</b>예요. 광합성량은 가장 부족한 것 하나에 맞춰집니다.";
+  moveDot(el.chL,p.L); moveDot(el.chC,p.C); moveDot(el.chT,p.T);
+}
+function setFb(node,score,over){
+  if(score<100){ node.textContent="↑ 부족해요 — 더 올려 주세요"; node.className="fb lo"; }
+  else if(over){ node.textContent="✓ 최대예요 — 더 올려도 그대로 (낭비)"; node.className="fb wa"; }
+  else{ node.textContent="✓ 딱 최대예요"; node.className="fb ok"; }
+}
+function drawChart(svg,fn,xmin,xmax,color,ticks){
+  var pts=[],i,x;
+  for(i=0;i<=70;i++){
+    x=xmin+(xmax-xmin)*i/70;
+    pts.push((12+178*i/70).toFixed(1)+","+(80-70*Math.max(0,Math.min(1,fn(x)/100))).toFixed(1));
+  }
+  var g='<line x1="12" y1="80" x2="194" y2="80" stroke="rgba(255,255,255,.16)" stroke-width="1.5"/>'+
+        '<line x1="12" y1="6" x2="12" y2="80" stroke="rgba(255,255,255,.16)" stroke-width="1.5"/>';
+  ticks.forEach(function(t){
+    var px=12+178*(t.v-xmin)/(xmax-xmin);
+    g+='<text x="'+px+'" y="90" fill="#8AA8A4" font-size="8.5" font-weight="600" text-anchor="middle" font-family="Outfit,sans-serif">'+t.l+'</text>';
+  });
+  g+='<polyline points="'+pts.join(" ")+'" fill="none" stroke="'+color+'" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>';
+  g+='<circle class="pt" cx="12" cy="80" r="5" fill="'+color+'" stroke="#06171a" stroke-width="2.5"/>';
+  svg.innerHTML=g; svg._c={fn:fn,xmin:xmin,xmax:xmax};
+}
+function moveDot(svg,v){
+  var c=svg._c; if(!c) return;
+  v=Math.max(c.xmin,Math.min(c.xmax,v));
+  var d=svg.querySelector(".pt");
+  d.setAttribute("cx",(12+178*(v-c.xmin)/(c.xmax-c.xmin)).toFixed(1));
+  d.setAttribute("cy",(80-70*Math.max(0,Math.min(1,c.fn(v)/100))).toFixed(1));
+}
+function drawCharts(){
+  var t=TYPES[S.plants[sel].type];
+  drawChart(el.chL,function(x){return scoreL(x,t.Ls);},0,100,"#FFC53D",
+    [{v:0,l:"0"},{v:t.Ls,l:"포화점"},{v:100,l:"100"}]);
+  drawChart(el.chC,function(x){return scoreC(x,t.Cs);},100,1500,"#4FD1E0",
+    [{v:100,l:"100"},{v:t.Cs,l:"포화점"},{v:1500,l:"1500"}]);
+  drawChart(el.chT,function(x){return scoreT(x,t.T);},0,45,"#FF8A56",
+    [{v:0,l:"0"},{v:(t.T[0]+t.T[1])/2,l:"최적"},{v:45,l:"45°C"}]);
+}
+function loop(now){
+  requestAnimationFrame(loop);                 // 어떤 일이 있어도 루프는 이어진다
+  if(!last) last=now;
+  var dt=Math.min(.1,(now-last)/1000); last=now;
+  if(!S||!S.running||S.over) return;
+  try{
+    update(dt);
+    acc+=dt;
+    if(!S.over && acc>=0.07){ acc=0; render(); }   // 초당 약 14번만 다시 그린다
+    errCount=0;
+  }catch(e){
+    errCount++;
+    if(errCount>30){                            // 계속 실패하면 안내하고 멈춘다
+      S.running=false;
+      try{ App.overlay('<h2>게임이 멈췄어요</h2>'+
+        '<p>잠시 문제가 생겼습니다. 다시 시작하거나 대시보드로 돌아가 주세요.</p>'+
+        '<div class="btns"><button class="primary" id="phRe">단계 다시하기</button>'+
+        '<button id="phHome">대시보드로</button></div>');
+        document.getElementById("phRe").onclick=function(){ App.closeOverlay(); errCount=0; startLevel(S?S.lv:0); };
+        document.getElementById("phHome").onclick=function(){ App.closeOverlay(); App.goHome(); };
+      }catch(e2){}
+    }
+  }
+}
+
+/* ── 안내 / 결과 ── */
+function roundScore(alive,total,avgHp,cleared){
+  return Math.round(alive*100 + avgHp*2 + (cleared?200:0));
+}
+function photoIntro(){
+  OV(
+    '<h2>온실을 맡아 주세요</h2>'+
+    '<p>한 단계는 <b>봄 → 여름 → 가을 → 겨울</b>로 흘러갑니다. 계절마다 바깥 기온이 달라져요.</p>'+
+    '<ul>'+
+    '<li><b>온도</b>는 바깥 기온에 끌려갑니다. 여름엔 내리고 겨울엔 올려 주세요.</li>'+
+    '<li><b>빛과 이산화탄소</b>는 온실 전체가 나눠 씁니다. 한 식물에 몰아주면 다른 식물이 못 받아요.</li>'+
+    '<li>흰 선(포화점)을 넘으면 더 줘도 광합성량이 늘지 않아요. 그 위는 낭비입니다.</li>'+
+    '<li>광합성량은 <b>가장 부족한 조건 하나</b>가 정합니다. 이것이 <b>한계 요인</b>이에요.</li>'+
+    '</ul>'+
+    '<div class="btns"><button class="primary" id="go">1단계 시작</button>'+
+    '<button id="gback">대시보드로</button></div>');
+  document.getElementById("go").onclick=function(){ App.closeOverlay(); startLevel(0); };
+  document.getElementById("gback").onclick=function(){ App.closeOverlay(); App.goHome(); };
+}
+function finish(win,alive){
+  S.over=true; S.running=false;
+  var L=LEVELS[S.lv], isLast=(S.lv===LEVELS.length-1);
+  var sumHp=0;
+  S.plants.forEach(function(p){ sumHp+=p.dead?0:p.hp; });
+  var avgHp=sumHp/S.plants.length;
+  var score=roundScore(alive,S.plants.length,avgHp,win);
+
+  OV(
+    '<h2>'+(win?(isLast?"온실 관리 완료!":(S.lv+1)+"단계 성공"):(S.lv+1)+"단계 실패")+'</h2>'+
+    '<p>'+(win?(isLast?"모든 단계를 마쳤어요. 빛과 이산화탄소는 포화점까지만, 온도는 계절에 맞게 — 이것이 핵심입니다."
+                      :"다음 단계는 식물이 더 많고 나눠 쓸 자원은 더 빠듯해집니다.")
+             :"한 식물에 자원을 몰아주면 다른 식물이 굶습니다. 포화점(흰 선)까지만 올려 골고루 나눠 보세요.")+'</p>'+
+    '<div class="res">'+
+      '<div><span>살린 식물</span><b>'+alive+'</b></div>'+
+      '<div><span>평균 건강</span><b>'+Math.round(avgHp)+'%</b></div>'+
+      '<div><span>점수</span><b>'+score+'</b></div>'+
+    '</div>'+
+    '<div class="msg" id="sv">점수를 저장하는 중…</div>'+
+    '<div id="rk"></div>'+
+    '<div class="btns">'+
+      '<button class="primary" id="nx">'+(win?(isLast?"처음부터 다시":(S.lv+2)+"단계 시작"):"다시 도전")+'</button>'+
+      '<button id="gback2">대시보드로</button></div>');
+  document.getElementById("nx").onclick=function(){
+    App.closeOverlay(); startLevel(win?(isLast?0:S.lv+1):S.lv);
+  };
+  document.getElementById("gback2").onclick=function(){ App.closeOverlay(); App.goHome(); };
+
+  App.submitAndRank("photo",{level:S.lv+1,score:score,d1:alive,d2:S.plants.length,cleared:win},
+    document.getElementById("sv"), document.getElementById("rk"), S.lv+1);
+}
+
+/* ── 등록 ── */
+var raf = null;
+App.registerGame({
+  id: "photo",
+  mount: mount,
+  start: function () {
+    photoIntro();
+    if (!raf) raf = requestAnimationFrame(loop);
+  },
+  stop: function () { S = null; }
+});
+
+})();
+</script>

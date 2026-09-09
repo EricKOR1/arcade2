@@ -1,0 +1,137 @@
+/* ══════════════════════════════════════════════════════════
+   platform.css — 과학 게임(광합성·힘·몸속 여행)이 기대하는
+   공용 디자인 토큰과 컴포넌트. 원본 GAS 플랫폼의 테마를 재현합니다.
+   게임 파일을 한 줄도 고치지 않고 그대로 쓰기 위한 층입니다.
+
+   ※ 공용 클래스 이름(.card .btns .chip …)이 대시보드의 daisyUI 와
+     겹치므로, 모두 .dom-host / #overlay 안쪽으로만 적용합니다.
+   ══════════════════════════════════════════════════════════ */
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&display=swap');
+
+:root {
+  --ink:    #04121a;
+  --panel:  #0d2029;
+  --panel2: #143240;
+  --paper:  #EAF4F0;
+  --muted:  #8AA8A4;
+  --line:   rgba(255,255,255,.10);
+  --line2:  rgba(255,255,255,.20);
+  --glass:  rgba(255,255,255,.05);
+
+  --leaf:  #7BE04F;
+  --light: #FFC53D;
+  --co2:   #4FD1E0;
+  --temp:  #FF8A56;
+  --alert: #FF4D6A;
+
+  --gleaf:  linear-gradient(135deg,#9BF06F,#57C433);
+  --glight: linear-gradient(135deg,#FFE083,#F0A81C);
+  --gco2:   linear-gradient(135deg,#7FE6F2,#2FA9BC);
+  --gtemp:  linear-gradient(135deg,#FFB088,#EE6A32);
+  --galert: linear-gradient(135deg,#FF8098,#E3223F);
+
+  --sans: "Pretendard Variable", Pretendard, -apple-system, "Apple SD Gothic Neo", sans-serif;
+  --num:  "Outfit", "Pretendard Variable", Pretendard, sans-serif;
+}
+
+/* ── 게임이 올라가는 무대 ── */
+.dom-host {
+  position: absolute; inset: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  background: var(--ink); color: var(--paper); font-family: var(--sans); font-size: 16px;
+  padding: 16px 16px calc(30px + env(safe-area-inset-bottom));
+  -webkit-user-select: none; user-select: none;
+}
+.dom-host *, #overlay * { box-sizing: border-box }
+.dom-host canvas { max-width: 100% }
+.dom-host h1, .dom-host h2, .dom-host h3, .dom-host h4 { letter-spacing: -.02em }
+
+/* ── 상단 바 ── */
+.dom-host .gamebar { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-bottom: 14px }
+.dom-host .gamebar h1 { font-size: 20px; font-weight: 800; margin: 0; flex: 1 1 auto; min-width: 0 }
+.dom-host .gamebar .sub { flex: 1 1 100%; font-size: 12.5px; color: var(--muted);
+  font-weight: 600; line-height: 1.5 }
+
+/* ── 버튼 ── */
+.dom-host button, #overlay button {
+  font-family: var(--sans); font-size: 13px; font-weight: 700; color: var(--paper);
+  background: var(--glass); border: 1px solid var(--line2); border-radius: 11px;
+  padding: 9px 14px; cursor: pointer; transition: background .15s, transform .1s;
+  -webkit-tap-highlight-color: transparent;
+}
+.dom-host button:hover, #overlay button:hover { background: rgba(255,255,255,.11) }
+.dom-host button:active, #overlay button:active { transform: scale(.97) }
+.dom-host button:disabled, #overlay button:disabled { opacity: .45; cursor: not-allowed }
+.dom-host button.primary, #overlay button.primary {
+  background: var(--gleaf); color: #062012; border-color: transparent; font-weight: 800 }
+.dom-host button.danger, #overlay button.danger {
+  background: var(--galert); color: #2a0a0f; border-color: transparent; font-weight: 800 }
+
+/* ── 수치 칩 ── */
+.dom-host .readouts { display: flex; gap: 9px; flex-wrap: wrap }
+.dom-host .readouts .chip { background: var(--glass); border: 1px solid var(--line);
+  border-radius: 14px; padding: 8px 15px; min-width: 84px }
+.dom-host .readouts .chip span { display: block; font-size: 9.5px; color: var(--muted);
+  font-weight: 700; letter-spacing: .08em }
+.dom-host .readouts .chip b { display: block; font-family: var(--num); font-size: 18px;
+  font-weight: 800; margin-top: 2px; font-variant-numeric: tabular-nums }
+.dom-host .readouts .chip.season b { font-size: 15px }
+
+/* ── 2단 배치와 카드 ── */
+.dom-host .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px }
+@media (max-width: 920px) { .dom-host .grid { grid-template-columns: 1fr } }
+.dom-host .card { background: var(--glass); border: 1px solid var(--line); border-radius: 20px;
+  padding: 18px; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px) }
+.dom-host .card h2 { font-size: 10.5px; letter-spacing: .14em; color: var(--muted);
+  font-weight: 700; text-transform: uppercase; margin: 0 0 13px }
+
+/* ── 버튼 묶음 · 결과 표 · 안내 문구 ── */
+.dom-host .btns, #overlay .btns { display: flex; gap: 9px; flex-wrap: wrap; margin-top: 14px }
+.dom-host .btns button, #overlay .btns button { padding: 13px 18px; font-size: 14px }
+
+.dom-host .res, #overlay .res { display: grid; gap: 10px; margin: 14px 0;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)) }
+.dom-host .res > div, #overlay .res > div { background: rgba(0,0,0,.24);
+  border: 1px solid var(--line); border-radius: 14px; padding: 11px 12px; text-align: center }
+.dom-host .res span, #overlay .res span { display: block; font-size: 10px; color: var(--muted);
+  font-weight: 700; letter-spacing: .05em }
+.dom-host .res b, #overlay .res b { display: block; font-family: var(--num); font-size: 21px;
+  font-weight: 800; margin-top: 3px; font-variant-numeric: tabular-nums }
+
+.dom-host .msg, #overlay .msg { font-size: 12.5px; font-weight: 700; margin: 10px 0; color: var(--muted) }
+.dom-host .msg.good, #overlay .msg.good { color: var(--leaf) }
+.dom-host .msg.bad,  #overlay .msg.bad  { color: var(--alert) }
+
+/* ── 순위표 ── */
+.dom-host .rank, #overlay .rank { margin: 8px 0 4px }
+.dom-host .rank h4, #overlay .rank h4 { font-size: 11px; letter-spacing: .1em;
+  color: var(--muted); font-weight: 700; margin: 0 0 8px }
+.dom-host .rank ol, #overlay .rank ol { list-style: none; padding: 0; margin: 0;
+  display: flex; flex-direction: column; gap: 5px }
+.dom-host .rank li, #overlay .rank li { display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px; background: rgba(0,0,0,.24); border-radius: 10px; font-size: 13px }
+#overlay .rank li .n { width: 26px; font-family: var(--num); font-weight: 800; color: var(--muted) }
+#overlay .rank li .nm { flex: 1; font-weight: 700; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis }
+#overlay .rank li .sc { font-family: var(--num); font-weight: 800; font-variant-numeric: tabular-nums }
+#overlay .rank li.me { background: rgba(123,224,79,.18); color: var(--leaf) }
+#overlay .rank li.me .n, #overlay .rank li.me .sc { color: var(--leaf) }
+#overlay .rank .empty, .dom-host .rank .empty { font-size: 12.5px; color: var(--muted) }
+
+/* ── 팝업 ── */
+#overlay {
+  position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center;
+  background: rgba(2,10,15,.72); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  padding: 20px; overflow-y: auto; font-family: var(--sans); color: var(--paper);
+}
+#overlay[hidden] { display: none }
+#overlay .ov { width: 100%; max-width: 560px; background: var(--panel);
+  border: 1px solid var(--line2); border-radius: 24px; padding: 26px 24px;
+  box-shadow: 0 30px 80px -30px rgba(0,0,0,1); max-height: 92vh; overflow-y: auto }
+#overlay h2 { font-size: 22px; font-weight: 800; margin: 0 0 10px; letter-spacing: -.02em }
+#overlay p { font-size: 14px; line-height: 1.75; color: var(--muted); margin: 0 0 12px }
+#overlay p b, #overlay li b { color: var(--paper) }
+#overlay ul { margin: 0 0 14px; padding-left: 20px }
+#overlay li { font-size: 13.5px; line-height: 1.8; color: var(--muted) }
+#overlay .btns { justify-content: center }
+#overlay .btns button { flex: 1 1 auto; min-width: 130px; padding: 14px 18px; font-size: 15px }

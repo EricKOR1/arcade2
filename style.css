@@ -15,6 +15,9 @@ html, body {
 .num { font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
 .hidden { display: none !important; }
 
+/* 자체 화면 학습 게임이 올라가는 자리 — 스크롤과 여백을 게임에 맡깁니다 */
+#screen-dom { position: relative; flex: 1; min-height: 0; padding: 0 }
+
 /* ══════ 학생 화면 ══════ */
 .app { position: fixed; inset: 0; display: flex; flex-direction: column;
        padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom); }
@@ -121,8 +124,12 @@ html, body {
 .item-name { font-size: 12px; font-weight: 700; color: #FFD166;
              text-shadow: 0 2px 6px rgba(0,0,0,.9) }
 
+.hud-badges { flex-wrap: wrap; justify-content: center; max-width: 88% }
 .hud-badge { padding: 5px 12px; border-radius: 999px; font-size: 12px; font-weight: 700;
-             background: rgba(10,13,20,.82); color: #06D6A0 }
+             background: rgba(10,13,20,.82); color: #06D6A0; white-space: nowrap }
+.hud-badge:nth-child(n) { animation: badgeIn .2s ease-out }
+@keyframes badgeIn { from { transform: translateY(-6px); opacity: 0 } to { transform: none; opacity: 1 } }
+@media (prefers-reduced-motion: reduce) { .hud-badge { animation: none } }
 
 .topbar.kart-mode { display: none }
 #game-canvas { border-radius: 14px; touch-action: none; display: block;
@@ -192,6 +199,27 @@ html, body {
                white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 .player-card canvas { width: 100%; height: auto; border-radius: 8px; background: #0B0D12; display: block }
 .player-score { font-size: 15px; font-weight: 700; color: var(--game-hex); margin-top: 8px }
+
+/* 학습 게임: 학생별 점수 목록 */
+#score-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px }
+#score-list li { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 12px;
+                 background: hsl(var(--b2, 0 0% 12%)); font-size: 14px }
+#score-list li.top { box-shadow: inset 0 0 0 1px var(--game-hex) }
+#score-list li .r { width: 26px; font-weight: 700; font-size: 13px; opacity: .6 }
+#score-list li .nm { flex: 1; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+#score-list li .lp { font-size: 12px; opacity: .55; white-space: nowrap }
+#score-list li .sc { font-weight: 700; color: var(--game-hex); font-variant-numeric: tabular-nums;
+                     min-width: 62px; text-align: right }
+
+/* 모드별 대결 출발 패널 */
+#room-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 13px;
+             margin-bottom: 28px }
+.room-card { background: hsl(var(--b2, 0 0% 12%)); border: 1px solid hsl(var(--bc, 0 0% 100%) / .08);
+             border-radius: 16px; padding: 16px }
+.room-card .rm-top { display: flex; align-items: center; gap: 9px; margin-bottom: 8px }
+.room-card .rm-name { flex: 1; font-size: 15px; font-weight: 600 }
+.room-card .rm-cnt { font-size: 12.5px; opacity: .6; margin: 0 0 12px; font-variant-numeric: tabular-nums }
+.room-card .rm-btns { display: flex; gap: 8px }
 
 /* 카트: 관전 화면 */
 .spectate { display: grid; grid-template-columns: 1fr; gap: 20px }

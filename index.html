@@ -9,6 +9,7 @@
 <meta name="theme-color" content="#1B2027">
 <title>아케이드</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@4.12.24/dist/full.min.css">
+<link rel="stylesheet" href="platform.css">
 <link rel="stylesheet" href="style.css">
 </head>
 <body class="bg-base-100 text-base-content">
@@ -87,6 +88,21 @@
     </div>
   </section>
 
+  <!-- 자체 화면을 가진 학습 게임 -->
+  <section id="screen-dom" class="screen">
+    <div class="dom-host" id="dom-host"></div>
+  </section>
+
+  <!-- 게임을 나왔을 때 -->
+  <section id="screen-exit" class="screen centered">
+    <div class="badge badge-primary badge-lg mb-3" id="exit-chip"></div>
+    <h1 class="title-lg">게임을 나왔습니다</h1>
+    <p class="muted">다시 시작하거나 선생님을 기다려주세요</p>
+    <div class="stack mt-5">
+      <button id="exit-again" class="btn btn-primary btn-lg btn-block">다시 시작</button>
+    </div>
+  </section>
+
   <!-- 종료 -->
   <section id="screen-ended" class="screen centered">
     <h1 class="title-lg">수업이 끝났습니다</h1>
@@ -94,6 +110,8 @@
   </section>
 
 </div>
+
+<div id="overlay" hidden></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
@@ -103,11 +121,13 @@
 <script src="tetris-engine.js"></script>
 <script src="racing-engine.js"></script>
 <script src="games.js"></script>
+<script src="app.js"></script>
 <script>
 (function () {
 
   const gameId = getGameId();
   const def = GAMES[gameId];
+  const isHtml = (def.type === 'html');      // 자체 화면을 가진 학습 게임
   const isTetris = (gameId === 'tetris');
   const isKart = (gameId === 'kart');
 
@@ -115,6 +135,7 @@
   document.getElementById('join-chip').textContent = def.name;
   document.getElementById('over-chip').textContent = def.name;
 
+  document.getElementById('exit-chip').textContent = def.name;
   if (!def.hasNext) document.getElementById('next-box').classList.add('hidden');
   if (def.fullBleed) document.getElementById('canvas-wrap').classList.add('bleed');
   if (isKart) {
@@ -195,7 +216,11 @@
     const s = snap.val() || {};
     if (s.track) trackId = s.track;
     if (s.status === 'playing' && !started) startGame();
-    else if (s.status === 'ended') { stopGame(); show('screen-ended'); }
+    else if (s.status === 'ended') {
+      stopGame();
+      if (isHtml) { App._stop(); document.getElementById('dom-host').innerHTML = ''; }
+      show('screen-ended');
+    }
   });
 
   // ── 캔버스 크기 ──
@@ -220,6 +245,7 @@
       game.draw();
     }
   }
+  if (isHtml) { document.querySelector('.app').style.padding = '0'; }
   window.addEventListener('resize', () => { if (game) fitCanvas(); });
   window.addEventListener('orientationchange', () => setTimeout(() => { if (game) fitCanvas(); }, 350));
 
@@ -252,6 +278,7 @@
     started = true;
     Sound.resume();
     playerRef.update({ status: 'playing' });
+    if (isHtml) { startHtmlGame(); return; }
     show('screen-game');
     buildPad();
 
@@ -284,6 +311,46 @@
       });
     });
   }
+
+  // ══ 자체 화면 학습 게임 (광합성 · 힘 · 몸속 여행) ══
+  // 원본 파일을 그대로 불러와 App 어댑터 위에서 실행합니다.
+  function startHtmlGame() {
+    // 게임이 기대하는 사용자 정보 — 아케이드에서는 닉네임이 곧 이름입니다
+    App.user = { name: myNickname, grade: '아케이드', cls: '반', num: playerId };
+    App.meta = { id: gameId, name: def.name };
+
+    // 게임이 점수를 저장할 때 교사 화면에도 함께 반영합니다
+    App._onScore(function (p) {
+      playerRef.update({
+        score: p.score || 0,
+        level: p.level || 1,
+        cleared: p.cleared ? 1 : 0,
+        status: 'playing'
+      });
+    });
+    // 게임의 "나가기" 버튼
+    App._onHome(function () {
+      App._stop();
+      document.getElementById('dom-host').innerHTML = '';
+      playerRef.update({ status: 'left' });
+      show('screen-exit');
+    });
+
+    show('screen-dom');
+    const host = document.getElementById('dom-host');
+    host.innerHTML = '<p class="muted" style="padding:24px">게임을 불러오는 중…</p>';
+    App._mount(def.appId || gameId, def.src, host)["catch"](function (e) {
+      host.innerHTML = '<div style="padding:24px">' +
+        '<h1 class="title-lg">게임을 불러올 수 없어요</h1>' +
+        '<p class="muted">' + App.esc(e.message) + '</p>' +
+        '<p class="muted">' + App.esc(def.src) + ' 파일이 올라가 있는지 확인해주세요.</p></div>';
+    });
+  }
+
+  document.getElementById('exit-again').addEventListener('click', function () {
+    playerRef.update({ status: 'playing' });
+    startHtmlGame();
+  });
 
   function pushState() {
     if (!game) return;
@@ -422,6 +489,9 @@
     const want = [];
     if (h.shield) want.push('🛡 방어막');
     if (h.boost)  want.push('⚡ 부스터');
+    if (h.nearBoost && !h.boost) want.push('부스터 발판 →');
+    if (h.grade >  0.06) want.push('▲ 오르막');
+    if (h.grade < -0.06) want.push('▼ 내리막');
     const bsig = want.join('|');
     if (badges.dataset.sig !== bsig) {
       badges.dataset.sig = bsig;
