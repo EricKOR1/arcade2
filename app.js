@@ -11,6 +11,7 @@ var App = (function () {
 var games = {};          /* 게임이 스스로 등록합니다 */
 var loaded = {};         /* 이미 내려받은 게임 파일 */
 var info = {};           /* 게임 파일의 GAMEINFO 블록 */
+var routeSent = {};      /* 여정(기관 순서)을 이미 올린 방 */
 var current = null;      /* 지금 올라와 있는 게임 */
 var hooks = { home: null, score: null };
 
@@ -80,6 +81,7 @@ function mountGame(id, src, host) {
   });
 }
 function stopGame() {
+  routeSent = {};
   if (current && current.stop) { try { current.stop(); } catch (e) {} }
   current = null;
   closeOverlay();
@@ -124,6 +126,27 @@ function submitAndRank(gameId, p, svEl, rkEl, level) {
   })["catch"](function (e) {
     if (svEl) { svEl.textContent = "점수 저장 실패: " + e.message; svEl.className = "msg bad"; }
   });
+}
+
+/* 지금 올라와 있는 게임이 peek() 을 열어 두었다면
+   "어느 기관에 있는지"를 읽어 위치 신호에 함께 실어 보냅니다.
+   (몸속 여행이 검사용으로 제공하는 창구라 게임 파일은 손대지 않습니다) */
+function peekExtra() {
+  try {
+    var g = current;
+    if (!g || typeof g.peek !== "function") return null;
+    var st = g.peek();
+    if (!st || !st.steps || !st.steps.length) return null;
+    var route = [], last = null;
+    st.steps.forEach(function (x) { if (x.org !== last) { route.push(x.org); last = x.org; } });
+    var idx = Math.max(0, Math.min(st.i || 0, st.steps.length - 1));
+    var org = (st.steps[idx] || {}).org || "";
+    return {
+      org: org, oi: route.indexOf(org), on: route.length,
+      route: route, moving: st.moving ? 1 : 0,
+      combo: st.combo || 0, label: st.label || ""
+    };
+  } catch (e) { return null; }
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -206,11 +229,24 @@ function call(method, payload) {
     /* ── 대결: 내 위치 보내기 ── */
     if (method === "roomPing") {
       var rr2 = roomRef(game, level);
-      return rr2.child("players/" + key).update({
+      var ex = peekExtra();
+      var upd = {
         nm: lab.nm, cl: lab.cl, i: payload.i || 0, m: payload.m || 1,
         sc: payload.sc || 0, d: payload.done ? 1 : 0, r: 1, lb: payload.lb || "",
         first: payload.first || 0, wrong: payload.wrong || 0,
         time: payload.time || 0, seed: payload.seed || 0, t: Date.now()
+      };
+      if (ex) {                                   /* 교사 화면의 여정 지도에 쓰입니다 */
+        upd.org = ex.org; upd.oi = ex.oi; upd.on = ex.on;
+        upd.mv = ex.moving; upd.cb = ex.combo;
+        if (ex.label) upd.lb = ex.label;
+      }
+      var rk = game + "/L" + level;
+      var needRoute = !!(ex && ex.route && !routeSent[rk]);
+      if (needRoute) routeSent[rk] = 1;
+      return rr2.child("players/" + key).update(upd).then(function () {
+        /* 기관 순서는 한 번만 올려 두면 교사 화면이 지도를 그릴 수 있습니다 */
+        if (needRoute) return rr2.child("route").set(ex.route);
       }).then(function () {
         return once(rr2);
       }).then(function (v) {
@@ -284,6 +320,7 @@ return {
 
   /* 아케이드 쪽에서만 쓰는 부분 */
   _games: games,
+  _peek: peekExtra,
   _info: info,
   _mount: mountGame,
   _stop: stopGame,
