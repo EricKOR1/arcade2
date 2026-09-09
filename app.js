@@ -141,8 +141,17 @@ function peekExtra() {
     st.steps.forEach(function (x) { if (x.org !== last) { route.push(x.org); last = x.org; } });
     var idx = Math.max(0, Math.min(st.i || 0, st.steps.length - 1));
     var org = (st.steps[idx] || {}).org || "";
+
+    /* 같은 기관 안에서 몇 번째 문제까지 왔는지 → 0~1 로 환산.
+       교사 화면에서 학생 표시가 기관 사이를 부드럽게 옮겨 가게 합니다. */
+    var a = idx, b = idx;
+    while (a > 0 && st.steps[a - 1].org === org) a--;
+    while (b < st.steps.length - 1 && st.steps[b + 1].org === org) b++;
+    var frac = (b > a) ? (idx - a) / (b - a + 1) : 0;
+    if (st.moving) frac = Math.min(1, frac + (1 / (b - a + 1)) * 0.6);
+
     return {
-      org: org, oi: route.indexOf(org), on: route.length,
+      org: org, oi: route.indexOf(org), on: route.length, of: frac,
       route: route, moving: st.moving ? 1 : 0,
       combo: st.combo || 0, label: st.label || ""
     };
@@ -237,7 +246,7 @@ function call(method, payload) {
         time: payload.time || 0, seed: payload.seed || 0, t: Date.now()
       };
       if (ex) {                                   /* 교사 화면의 여정 지도에 쓰입니다 */
-        upd.org = ex.org; upd.oi = ex.oi; upd.on = ex.on;
+        upd.org = ex.org; upd.oi = ex.oi; upd.on = ex.on; upd.of = +ex.of.toFixed(2);
         upd.mv = ex.moving; upd.cb = ex.combo;
         if (ex.label) upd.lb = ex.label;
       }
