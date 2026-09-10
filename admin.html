@@ -55,7 +55,10 @@
 
   <!-- 3단계: 진행 중 -->
   <section id="live-panel" class="hidden">
-    <div class="controls"><button id="end-btn" class="btn btn-outline btn-error">게임 종료</button></div>
+    <div class="controls">
+      <button id="lobby-btn" class="btn btn-ghost">대기실로 되돌리기</button>
+      <button id="end-btn" class="btn btn-outline btn-error">게임 종료</button>
+    </div>
 
     <!-- 모드별 실시간 여정 현황 (몸속 여행) -->
     <section id="room-panel" class="hidden">
@@ -239,6 +242,7 @@
 
   $('start-btn').addEventListener('click', () => statusRef.set('playing'));
   $('end-btn').addEventListener('click', () => statusRef.set('ended'));
+  $('lobby-btn').addEventListener('click', () => statusRef.set('waiting'));
   $('back-btn').addEventListener('click', () => {
     stopRooms();
     sessionRef.set({ game: null, status: 'idle' });
@@ -263,7 +267,7 @@
     const subs = {
       idle: '플레이할 게임을 고르면 학생용 QR이 만들어집니다.',
       waiting: gname + ' — 학생들이 QR로 입장하는 중입니다.',
-      playing: gname + ' — 실시간으로 지켜보는 중입니다.',
+      playing: gname + ' — 실시간으로 지켜보는 중입니다. 새로 들어온 학생은 닉네임을 넣으면 바로 합류합니다.',
       ended: gname + ' — 종료됐습니다. 다시 시작하거나 게임을 바꿀 수 있습니다.'
     };
     const badge = $('status-badge');
@@ -310,7 +314,9 @@
     const list = $('waiting-list');
     const ids = Object.keys(players);
     list.innerHTML = '';
-    $('waiting-empty').classList.toggle('hidden', ids.length > 0);
+    const empty = $('waiting-empty');
+    empty.classList.toggle('hidden', ids.length > 0);
+    if (!ids.length) empty.textContent = '아직 입장한 학생이 없습니다 — 학생은 QR을 찍고 닉네임을 넣은 뒤 입장하기까지 눌러야 여기 나타납니다';
     ids.forEach(id => {
       const name = players[id].nickname || '?';
       const li = document.createElement('li');

@@ -157,6 +157,7 @@
     document.getElementById(id).classList.add('active');
   }
 
+  let joined = false;          // 닉네임을 넣고 입장하기를 눌렀는지
   let playerId = sessionStorage.getItem('playerId');
   if (!playerId) {
     playerId = 'p_' + Math.random().toString(36).slice(2, 10);
@@ -199,10 +200,23 @@
     playerRef.set({
       nickname: nickname, game: gameId, status: 'waiting',
       joinedAt: firebase.database.ServerValue.TIMESTAMP, score: 0
+    }).then(function () {
+      playerRef.onDisconnect().remove();
+      myPosRef.onDisconnect().remove();
+      joined = true;
+      // 이미 시작된 수업이면 곧바로 합류시킵니다
+      sessionRef.once('value').then(function (snap) {
+        const s = snap.val() || {};
+        if (s.track) trackId = s.track;
+        if (s.status === 'playing' && !started) startGame();
+        else show('screen-wait');
+      })["catch"](function () { show('screen-wait'); });
+    })["catch"](function (e) {
+      // 저장이 안 되면 대기 화면으로 넘기지 않고 이유를 보여 줍니다
+      err.textContent = '서버에 연결하지 못했습니다 — 선생님께 알려주세요 (' +
+                        (e && e.message ? e.message : '알 수 없는 오류') + ')';
+      err.classList.remove('hidden');
     });
-    playerRef.onDisconnect().remove();
-    myPosRef.onDisconnect().remove();
-    show('screen-wait');
   }
 
   // 대기실 인원
@@ -224,7 +238,9 @@
   sessionRef.on('value', snap => {
     const s = snap.val() || {};
     if (s.track) trackId = s.track;
-    if (s.status === 'playing' && !started) startGame();
+    // 입장한 학생만 게임으로 넘어갑니다.
+    // (이미 진행 중인 수업에 뒤늦게 QR로 들어와도 닉네임 화면을 먼저 거칩니다)
+    if (s.status === 'playing' && !started && joined) startGame();
     else if (s.status === 'ended') {
       stopGame();
       if (isHtml) { App._stop(); document.getElementById('dom-host').innerHTML = ''; }
