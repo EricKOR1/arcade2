@@ -10,8 +10,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1B2027">
 <title>아케이드</title>
-<link rel="stylesheet" href="platform.css?v=2026-09-10a">
-<link rel="stylesheet" href="style.css?v=2026-09-10a">
+<link rel="stylesheet" href="platform.css?v=2026-09-10b">
+<link rel="stylesheet" href="style.css?v=2026-09-10b">
 </head>
 <body>
 <div class="app">
@@ -109,6 +109,10 @@
   <section id="screen-ended" class="screen centered">
     <h1 class="title-lg">수업이 끝났습니다</h1>
     <p class="muted">함께해줘서 고마워요</p>
+    <div class="stack mt-5">
+      <button id="rejoin-btn" class="btn btn-primary btn-lg btn-block">다시 참여하기</button>
+      <p class="muted text-sm">선생님이 다시 시작하면 자동으로 넘어갑니다</p>
+    </div>
   </section>
 
 </div>
@@ -117,21 +121,21 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script src="firebase-config.js?v=2026-09-10a"></script>
-<script src="sound.js?v=2026-09-10a"></script>
-<script src="shared.js?v=2026-09-10a"></script>
-<script src="tetris-engine.js?v=2026-09-10a"></script>
-<script src="racing-engine.js?v=2026-09-10a"></script>
-<script src="snake-engine.js?v=2026-09-10a"></script>
-<script src="breakout-engine.js?v=2026-09-10a"></script>
-<script src="flappy-engine.js?v=2026-09-10a"></script>
-<script src="shooter-engine.js?v=2026-09-10a"></script>
-<script src="games.js?v=2026-09-10a"></script>
-<script src="app.js?v=2026-09-10a"></script>
+<script src="firebase-config.js?v=2026-09-10b"></script>
+<script src="sound.js?v=2026-09-10b"></script>
+<script src="shared.js?v=2026-09-10b"></script>
+<script src="tetris-engine.js?v=2026-09-10b"></script>
+<script src="racing-engine.js?v=2026-09-10b"></script>
+<script src="snake-engine.js?v=2026-09-10b"></script>
+<script src="breakout-engine.js?v=2026-09-10b"></script>
+<script src="flappy-engine.js?v=2026-09-10b"></script>
+<script src="shooter-engine.js?v=2026-09-10b"></script>
+<script src="games.js?v=2026-09-10b"></script>
+<script src="app.js?v=2026-09-10b"></script>
 <script>
 (function () {
 
-  const BUILD = '2026-09-10a';   // 화면 아래에 표시됩니다
+  const BUILD = '2026-09-10b';   // 화면 아래에 표시됩니다
 
   const gameId = getGameId();
   const def = GAMES[gameId];
@@ -157,6 +161,38 @@
     document.getElementById('kart-hud').classList.remove('hidden');
   }
 
+  // 내 자리를 서버에 (다시) 써 넣습니다.
+  // 접속이 끊기면 onDisconnect 로 지워지므로, 돌아왔을 때 되살려야 명단에 다시 뜹니다.
+  function rewritePlayer(status) {
+    if (!myNickname) return Promise.resolve();
+    return playerRef.set({
+      nickname: myNickname, game: gameId, status: status,
+      joinedAt: firebase.database.ServerValue.TIMESTAMP,
+      score: (game && typeof game.score === 'number') ? game.score : 0
+    }).then(function () {
+      playerRef.onDisconnect().remove();
+      myPosRef.onDisconnect().remove();
+    })["catch"](function () {});
+  }
+
+  // 끊겼다가 다시 연결되면 자동으로 복구합니다
+  db.ref('.info/connected').on('value', function (snap) {
+    if (snap.val() !== true || !joined) return;
+    rewritePlayer(started ? 'playing' : 'waiting');
+  });
+
+  // 종료 화면에서 다시 참여하기
+  document.getElementById('rejoin-btn').addEventListener('click', function () {
+    started = false;
+    if (joined && myNickname) {
+      // 이미 이름이 있으면 자리만 되살리고 대기실로
+      rewritePlayer('waiting');
+      show('screen-wait');
+    } else {
+      show('screen-join');
+    }
+  });
+
   // 게임 화면에서 나가기 — 아직 입장하지 않았다면 닉네임 화면으로 되돌립니다
   document.getElementById('leave-btn').addEventListener('click', function () {
     stopGame();
@@ -164,6 +200,17 @@
     started = false;
     show(joined ? 'screen-wait' : 'screen-join');
   });
+
+  // 새로고침·튕김 뒤에도 이름을 기억해 둡니다 (한 번만 누르면 다시 입장)
+  (function () {
+    var prev = '';
+    try { prev = sessionStorage.getItem('nickname') || ''; } catch (e) {}
+    if (!prev) return;
+    var input = document.getElementById('nickname-input');
+    if (input) input.value = prev;
+    var btn = document.getElementById('join-btn');
+    if (btn) btn.textContent = '다시 입장하기';
+  })();
 
   function show(id) {
     document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
@@ -219,6 +266,7 @@
     if (!nickname) { err.textContent = '닉네임을 입력해주세요'; err.classList.remove('hidden'); return; }
     err.classList.add('hidden');
     myNickname = nickname;
+    try { sessionStorage.setItem('nickname', nickname); } catch (e) {}
     playerRef.set({
       nickname: nickname, game: gameId, status: 'waiting',
       joinedAt: firebase.database.ServerValue.TIMESTAMP, score: 0
@@ -262,11 +310,25 @@
     if (s.track) trackId = s.track;
     // 입장한 학생만 게임으로 넘어갑니다.
     // (이미 진행 중인 수업에 뒤늦게 QR로 들어와도 닉네임 화면을 먼저 거칩니다)
-    if (s.status === 'playing' && !started && joined) startGame();
-    else if (s.status === 'ended') {
+    const st = s.status || 'idle';
+
+    if (st === 'playing') {
+      if (!started && joined) startGame();
+      return;
+    }
+
+    // 게임이 아닌 모든 상태에서는 진행 중이던 게임을 정리합니다
+    if (started) {
       stopGame();
-      if (isHtml) { App._stop(); document.getElementById('dom-host').innerHTML = ''; }
+      if (isHtml) { try { App._stop(); } catch (e) {} document.getElementById('dom-host').innerHTML = ''; }
+      started = false;
+    }
+
+    if (st === 'ended') {
       show('screen-ended');
+    } else {
+      // waiting · idle — 선생님이 대기실로 돌렸거나 게임을 고르는 중
+      show(joined ? 'screen-wait' : 'screen-join');
     }
   });
 
