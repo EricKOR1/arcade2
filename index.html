@@ -10,8 +10,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1B2027">
 <title>아케이드</title>
-<link rel="stylesheet" href="platform.css?v=2026-09-10c">
-<link rel="stylesheet" href="style.css?v=2026-09-10c">
+<link rel="stylesheet" href="platform.css?v=2026-09-11a">
+<link rel="stylesheet" href="style.css?v=2026-09-11a">
 </head>
 <body>
 <div class="app">
@@ -123,21 +123,21 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script src="firebase-config.js?v=2026-09-10c"></script>
-<script src="sound.js?v=2026-09-10c"></script>
-<script src="shared.js?v=2026-09-10c"></script>
-<script src="tetris-engine.js?v=2026-09-10c"></script>
-<script src="racing-engine.js?v=2026-09-10c"></script>
-<script src="snake-engine.js?v=2026-09-10c"></script>
-<script src="breakout-engine.js?v=2026-09-10c"></script>
-<script src="flappy-engine.js?v=2026-09-10c"></script>
-<script src="shooter-engine.js?v=2026-09-10c"></script>
-<script src="games.js?v=2026-09-10c"></script>
-<script src="app.js?v=2026-09-10c"></script>
+<script src="firebase-config.js?v=2026-09-11a"></script>
+<script src="sound.js?v=2026-09-11a"></script>
+<script src="shared.js?v=2026-09-11a"></script>
+<script src="tetris-engine.js?v=2026-09-11a"></script>
+<script src="racing-engine.js?v=2026-09-11a"></script>
+<script src="snake-engine.js?v=2026-09-11a"></script>
+<script src="breakout-engine.js?v=2026-09-11a"></script>
+<script src="flappy-engine.js?v=2026-09-11a"></script>
+<script src="shooter-engine.js?v=2026-09-11a"></script>
+<script src="games.js?v=2026-09-11a"></script>
+<script src="app.js?v=2026-09-11a"></script>
 <script>
 (function () {
 
-  const BUILD = '2026-09-10c';   // 화면 아래에 표시됩니다
+  const BUILD = '2026-09-11a';   // 화면 아래에 표시됩니다
 
   const gameId = getGameId();
   const def = GAMES[gameId];
@@ -165,11 +165,17 @@
 
   // 내 자리를 서버에 (다시) 써 넣습니다.
   // 접속이 끊기면 onDisconnect 로 지워지므로, 돌아왔을 때 되살려야 명단에 다시 뜹니다.
+  // 살아 있다는 신호 — 교사 화면이 끊긴 학생을 걸러 내는 데 씁니다
+  setInterval(function () {
+    if (joined) playerRef.update({ lastSeen: firebase.database.ServerValue.TIMESTAMP })["catch"](function () {});
+  }, 5000);
+
   function rewritePlayer(status) {
     if (!myNickname) return Promise.resolve();
     return playerRef.set({
       nickname: myNickname, game: gameId, status: status,
       joinedAt: firebase.database.ServerValue.TIMESTAMP,
+      lastSeen: firebase.database.ServerValue.TIMESTAMP,
       score: (game && typeof game.score === 'number') ? game.score : 0
     }).then(function () {
       playerRef.onDisconnect().remove();
@@ -314,9 +320,23 @@
     err.classList.add('hidden');
     myNickname = nickname;
     try { sessionStorage.setItem('nickname', nickname); } catch (e) {}
-    playerRef.set({
-      nickname: nickname, game: gameId, status: 'waiting',
-      joinedAt: firebase.database.ServerValue.TIMESTAMP, score: 0
+    // 같은 이름이 이미 있으면: 끊긴 지 오래된 것은 지우고, 살아 있는 것이면 막습니다
+    playersRef.once('value').then(function (snap) {
+      const ps = snap.val() || {}, now = Date.now(), dup = [];
+      let alive = false;
+      Object.keys(ps).forEach(function (id) {
+        if (id === playerId || !ps[id] || ps[id].nickname !== nickname) return;
+        const seen = ps[id].lastSeen || ps[id].joinedAt || 0;
+        if (now - seen < 30000) alive = true; else dup.push(id);
+      });
+      if (alive) throw new Error('DUP');
+      return Promise.all(dup.map(function (id) { return db.ref('players/' + id).remove(); }));
+    }).then(function () {
+      return playerRef.set({
+        nickname: nickname, game: gameId, status: 'waiting',
+        joinedAt: firebase.database.ServerValue.TIMESTAMP,
+        lastSeen: firebase.database.ServerValue.TIMESTAMP, score: 0
+      });
     }).then(function () {
       playerRef.onDisconnect().remove();
       myPosRef.onDisconnect().remove();
@@ -329,9 +349,13 @@
         else show('screen-wait');
       })["catch"](function () { show('screen-wait'); });
     })["catch"](function (e) {
-      // 저장이 안 되면 대기 화면으로 넘기지 않고 이유를 보여 줍니다
-      err.textContent = '서버에 연결하지 못했습니다 — 선생님께 알려주세요 (' +
-                        (e && e.message ? e.message : '알 수 없는 오류') + ')';
+      if (e && e.message === 'DUP') {
+        err.textContent = '이미 쓰고 있는 이름입니다 — 다른 이름을 넣어주세요';
+      } else {
+        // 저장이 안 되면 대기 화면으로 넘기지 않고 이유를 보여 줍니다
+        err.textContent = '서버에 연결하지 못했습니다 — 선생님께 알려주세요 (' +
+                          (e && e.message ? e.message : '알 수 없는 오류') + ')';
+      }
       err.classList.remove('hidden');
     });
   }
@@ -429,18 +453,35 @@
     item:  { label: '아이템 사용', cls: 'k-item btn btn-primary' },
     discard: { label: '✕ 아이템 버리기', cls: 'k-discard btn btn-ghost' }
   };
+  // 조작 패드 — 왼쪽에 방향키, 오른쪽에 특수키 (양손 잡기 편하게)
+  const DIR_KEYS = ['left', 'right', 'up', 'down'];
   function buildPad() {
     const pad = document.getElementById('pad');
     pad.innerHTML = '';
-    pad.className = 'pad' + (isKart ? ' pad-kart' : '') + (def.padLayout ? ' pad-' + def.padLayout : '');
-    def.controls.forEach(c => {
+    pad.className = 'pad' + (isKart ? ' pad-kart' : '');
+    const mk = c => {
       const b = document.createElement('button');
       b.id = 'btn-' + c;
       b.className = PAD[c].cls;
       b.textContent = (def.labels && def.labels[c]) || PAD[c].label;
       b.setAttribute('aria-label', b.textContent);
-      pad.appendChild(b);
-    });
+      return b;
+    };
+    const dirs = def.controls.filter(c => DIR_KEYS.indexOf(c) >= 0);
+    const acts = def.controls.filter(c => DIR_KEYS.indexOf(c) < 0);
+    if (dirs.length) {
+      const L = document.createElement('div');
+      L.className = 'pad-l' + (dirs.indexOf('up') >= 0 ? ' has-up' : '') + (dirs.indexOf('down') >= 0 ? ' has-down' : '');
+      dirs.forEach(c => L.appendChild(mk(c)));
+      pad.appendChild(L);
+    }
+    if (acts.length) {
+      const R = document.createElement('div');
+      R.className = 'pad-r';
+      acts.forEach(c => R.appendChild(mk(c)));
+      pad.appendChild(R);
+    }
+    pad.classList.toggle('pad-single', !dirs.length || !acts.length);
   }
 
   // ── 시작 ──
@@ -580,7 +621,9 @@
     game.setPeers(peerPos);
   }
 
-  function dropHazard(x, y) { hazardsRef.push({ x: Math.round(x), y: Math.round(y) }); }
+  function dropHazard(x, y, kind) {
+    hazardsRef.push({ x: Math.round(x), y: Math.round(y), kind: kind || 'banana', by: playerId, t: Date.now() });
+  }
   function hitHazard(hid)   { hazardsRef.child(hid).remove(); }
   // 아이템 공격 전송 (bolt는 전체, missile/swap은 특정 대상)
   function sendAttack(type, target, payload) {

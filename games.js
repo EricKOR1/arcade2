@@ -36,7 +36,6 @@ const GAMES = {
     stats: [{ key: 'length', label: '길이' }, { key: 'level', label: '속도' }],
     detail: function (g) { return '길이 ' + g.length + ' · 속도 단계 ' + g.level; },
     controls: ['up', 'left', 'down', 'right'],
-    padLayout: 'dpad',
     create: function (canvas, opts) { return new SnakeGame(canvas, opts.cellSize); },
     sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, length: g.length }; }
   },

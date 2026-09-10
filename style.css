@@ -250,39 +250,50 @@ p { margin: 0 }
 }
 .canvas-wrap.bleed #game-canvas { border-radius: 0; box-shadow: none }
 
-/* ── 조작 패드 ── */
-.pad { flex-shrink: 0; display: grid; gap: 10px; grid-template-columns: repeat(3, 1fr);
+/* ── 조작 패드 — 왼쪽 방향키 · 오른쪽 특수키 ── */
+.pad { flex-shrink: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: end;
        padding: 12px 14px calc(14px + env(safe-area-inset-bottom)) }
+.pad.pad-single { grid-template-columns: 1fr }
 .pad .btn, .pad button {
-  min-height: 64px; font-size: 26px; font-weight: 600; border-radius: 18px;
+  min-height: 62px; font-size: 26px; font-weight: 600; border-radius: 18px; padding: 0;
   background: var(--a-glass2); border: 1px solid var(--a-line2); color: var(--a-text);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 10px 24px -14px rgba(0,0,0,.9);
   transition: transform .1s var(--ease-spring), background .1s, box-shadow .1s;
 }
 .pad button:active { transform: scale(.93); background: rgba(255,255,255,.16);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.2), 0 0 0 3px var(--accent-soft) }
-.pad .k-rotate, .pad .k-up { color: var(--accent) }
-.pad .k-down { grid-column: 1 }
-.pad .k-drop { grid-column: 2 / 4 }
-.pad .k-drop, .pad .k-fire, .pad .k-jump, .pad .k-item {
+
+/* 왼쪽: 방향키 — 십자 배치. 위/아래가 없으면 ← → 만 나란히 */
+.pad-l { display: grid; grid-template-columns: 1fr 1fr; gap: 8px }
+.pad-l.has-down, .pad-l.has-up { grid-template-columns: 1fr 1fr 1fr }
+.pad-l .k-left  { grid-column: 1 } .pad-l .k-right { grid-column: 2 }
+.pad-l.has-down .k-left { grid-column: 1; grid-row: 2 }
+.pad-l.has-down .k-down { grid-column: 2; grid-row: 2 }
+.pad-l.has-down .k-right { grid-column: 3; grid-row: 2 }
+.pad-l.has-up .k-up { grid-column: 2; grid-row: 1 }
+.pad-l.has-down:not(.has-up) .k-left, .pad-l.has-down:not(.has-up) .k-down, .pad-l.has-down:not(.has-up) .k-right { grid-row: 1 }
+.pad-l .k-up { color: var(--accent) }
+.pad-single .pad-l { max-width: 380px; margin: 0 auto; width: 100% }
+
+/* 오른쪽: 특수키 — 세로로 쌓기, 주 버튼이 맨 아래 */
+.pad-r { display: flex; flex-direction: column; gap: 8px; justify-content: flex-end }
+.pad-r .k-rotate { color: var(--accent); font-size: 28px }
+.pad-r .k-drop, .pad-r .k-fire, .pad-r .k-jump, .pad-r .k-item {
   font-size: 16px; font-weight: 700; color: var(--accent-ink);
   background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 88%, #fff), var(--accent));
   border-color: transparent;
   box-shadow: inset 0 1px 0 rgba(255,255,255,.5), 0 14px 30px -12px var(--accent-glow);
 }
-.pad .k-drop:active, .pad .k-fire:active, .pad .k-jump:active, .pad .k-item:active {
+.pad-r .k-drop:active, .pad-r .k-fire:active, .pad-r .k-jump:active, .pad-r .k-item:active {
   filter: brightness(1.12); box-shadow: inset 0 1px 0 rgba(255,255,255,.5), 0 0 0 4px var(--accent-soft) }
-.pad .k-jump { grid-column: 1 / 4; min-height: 88px; font-size: 22px; border-radius: 22px }
-.pad .k-discard { grid-column: 1 / 4; min-height: 46px; font-size: 14px; font-weight: 600;
+.pad-r .k-fire, .pad-r .k-item { min-height: 88px; font-size: 18px }
+.pad-r .k-jump { min-height: 96px; font-size: 22px; border-radius: 22px }
+.pad-single .pad-r { max-width: 380px; margin: 0 auto; width: 100% }
+.pad-single .pad-r .k-jump { min-height: 110px }
+.pad-r .k-discard { min-height: 40px; font-size: 13px; font-weight: 600;
   background: transparent; border: 1px solid var(--a-line); color: var(--a-dim); box-shadow: none }
-.pad.pad-dpad { grid-template-rows: 1fr 1fr }
-.pad.pad-dpad .k-up { grid-column: 2; grid-row: 1 }
-.pad.pad-dpad .k-left { grid-column: 1; grid-row: 2 }
-.pad.pad-dpad .k-down { grid-column: 2; grid-row: 2; color: inherit }
-.pad.pad-dpad .k-right { grid-column: 3; grid-row: 2 }
-.pad.pad-dpad button { min-height: 60px }
-.pad.pad-kart { grid-template-columns: 1fr 1.25fr 1fr }
-.pad.pad-kart button { min-height: 70px; font-size: 28px }
+.pad.pad-kart .pad-l button { min-height: 92px; font-size: 30px }
+.pad.pad-kart .pad-r .k-item { min-height: 92px }
 
 /* ── 레이싱 HUD ── */
 .kart-hud { position: absolute; inset: 0; pointer-events: none; font-variant-numeric: tabular-nums }
@@ -476,12 +487,49 @@ body.jbig.jspec .admin { padding: 10px 12px } body.jbig.jspec .jhead, body.jbig.
 
 /* 가로 모드 */
 @media (orientation: landscape) and (max-height: 540px) {
+  .pad { gap: 10px; padding: 8px 12px calc(8px + env(safe-area-inset-bottom)) }
   .pad button { min-height: 46px; font-size: 20px }
-  .pad .k-drop, .pad .k-fire, .pad .k-jump, .pad .k-item { font-size: 14px }
-  .pad .k-jump { min-height: 56px } .pad.pad-kart button { min-height: 52px } .pad .k-discard { min-height: 36px; font-size: 12px }
+  .pad-r .k-drop, .pad-r .k-fire, .pad-r .k-jump, .pad-r .k-item { font-size: 14px; min-height: 52px }
+  .pad-r .k-jump { min-height: 60px } .pad.pad-kart .pad-l button, .pad.pad-kart .pad-r .k-item { min-height: 56px; font-size: 24px }
+  .pad-r .k-discard { min-height: 34px; font-size: 12px }
   .topbar { padding: 5px 12px 3px } .chip { padding: 4px 10px } .chip .v { font-size: 15px }
   .icon-btn { width: 36px; height: 36px; min-height: 36px }
   .item-slot { width: 58px; height: 58px; font-size: 30px; border-radius: 16px }
   .item-slot.small { width: 40px; height: 40px; font-size: 20px; border-radius: 12px }
   .pos-box b { font-size: 24px } .lap-box b { font-size: 17px } .speedo { width: 108px } .sp-num b { font-size: 20px }
 }
+
+/* ═══ 교사: 전체 화면(학생 화면 보기) ═══ */
+#full-bar { display: none }
+body.fullgrid { overflow: hidden }
+body.fullgrid .admin { max-width: none; padding: 62px 18px 18px }
+body.fullgrid .admin-top, body.fullgrid .admin-sub, body.fullgrid #live-panel .controls,
+body.fullgrid #live-panel .section-h, body.fullgrid #room-panel, body.fullgrid .live-sub { display: none !important }
+body.fullgrid #full-bar { display: flex; align-items: center; gap: 14px; position: fixed; left: 0; right: 0; top: 0; z-index: 70;
+  padding: 10px 18px; background: rgba(6,8,14,.85); backdrop-filter: blur(14px); border-bottom: 1px solid var(--a-line) }
+body.fullgrid #full-bar b { font-size: 18px; font-weight: 800; letter-spacing: -.02em }
+body.fullgrid #full-bar span { font-size: 14px; color: var(--a-dim) }
+body.fullgrid #live-grid { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 18px }
+body.fullgrid .player-card { padding: 14px } body.fullgrid .player-name { font-size: 17px }
+body.fullgrid .player-score { font-size: 22px } body.fullgrid .rank-badge { font-size: 13px; padding: 4px 13px }
+body.fullgrid #score-list li { font-size: 18px; padding: 16px 20px }
+body.fullgrid .spectate { grid-template-columns: 1fr 320px }
+
+/* 모두 이동 모달 */
+.modal { position: fixed; inset: 0; z-index: 80; display: flex; align-items: center; justify-content: center; padding: 20px;
+  background: rgba(4,6,12,.72); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px) }
+.modal.hidden { display: none }
+.modal-box { width: min(760px, 100%); max-height: 88vh; overflow-y: auto; border-radius: 24px; padding: 24px;
+  background: var(--a-bg2); border: 1px solid var(--a-line2); box-shadow: var(--shadow-panel) }
+.modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px }
+.modal-head h3 { font-size: 20px; font-weight: 800 }
+.modal-box .muted { margin-bottom: 18px }
+.move-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px }
+.move-card { position: relative; text-align: left; padding: 16px 18px; border-radius: 16px; font: inherit; color: var(--a-text);
+  background: var(--a-glass); border: 1px solid var(--a-line); cursor: pointer; display: flex; flex-direction: column; gap: 5px;
+  transition: transform .15s var(--ease-out), border-color .15s; overflow: hidden }
+.move-card::after { content: ''; position: absolute; left: 18px; right: 18px; top: 0; height: 2px; background: var(--gc, var(--accent)) }
+.move-card:hover { transform: translateY(-2px); border-color: var(--gc, var(--accent)) }
+.move-card:active { transform: scale(.98) }
+.move-card b { font-size: 16px; font-weight: 700 } .move-card span { font-size: 12.5px; color: var(--a-faint) }
+.move-card.now { opacity: .5 }

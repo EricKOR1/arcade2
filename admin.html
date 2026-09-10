@@ -7,8 +7,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1B2027">
 <title>교사용 대시보드</title>
-<link rel="stylesheet" href="platform.css?v=2026-09-10c">
-<link rel="stylesheet" href="style.css?v=2026-09-10c">
+<link rel="stylesheet" href="platform.css?v=2026-09-11a">
+<link rel="stylesheet" href="style.css?v=2026-09-11a">
 </head>
 <body>
 <div class="admin" id="admin-root">
@@ -17,7 +17,7 @@
     <h1>아케이드</h1>
     <span class="badge badge-lg" id="status-badge">게임 선택</span>
     <span class="badge badge-lg badge-ghost" id="count-badge">0명 접속</span>
-    <span class="badge badge-sm" style="opacity:.4">v2026-09-10c</span>
+    <span class="badge badge-sm" style="opacity:.4">v2026-09-11a</span>
   </div>
   <p class="admin-sub" id="admin-sub">플레이할 게임을 고르면 학생용 QR이 만들어집니다.</p>
 
@@ -47,6 +47,7 @@
         <div class="controls">
           <button id="start-btn" class="btn btn-primary">게임 시작</button>
           <button id="back-btn" class="btn btn-ghost">게임 바꾸기</button>
+          <button class="btn btn-ghost move-open">⇄ 모두 다른 게임으로 이동</button>
           <button id="reset-btn" class="btn btn-outline btn-error">명단 비우기</button>
         </div>
         <h2 class="section-h">입장한 학생</h2>
@@ -59,6 +60,8 @@
   <!-- 3단계: 진행 중 -->
   <section id="live-panel" class="hidden">
     <div class="controls">
+      <button id="full-btn" class="btn btn-primary">⛶ 전체 화면 (학생 화면 보기)</button>
+      <button class="btn btn-ghost move-open">⇄ 모두 다른 게임으로 이동</button>
       <button id="lobby-btn" class="btn btn-ghost">대기실로 되돌리기</button>
       <button id="end-btn" class="btn btn-outline btn-error">게임 종료</button>
       <button id="force-btn" class="btn btn-error">강제 종료</button>
@@ -118,19 +121,32 @@
 
 <div id="overlay" hidden></div>
 
+<!-- 모두 다른 게임으로 이동 -->
+<div id="move-modal" class="modal hidden">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>모두 다른 게임으로 이동</h3>
+      <button class="btn btn-square btn-sm btn-ghost" id="move-close">✕</button>
+    </div>
+    <p class="muted text-sm">고르는 즉시 <b>들어와 있는 모든 학생</b>의 화면이 그 게임으로 바뀌고 바로 시작됩니다. 명단과 닉네임은 그대로 유지됩니다.</p>
+    <div id="move-games" class="move-grid"></div>
+    <div id="move-tracks" class="move-grid hidden"></div>
+  </div>
+</div>
+
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="firebase-config.js?v=2026-09-10c"></script>
-<script src="shared.js?v=2026-09-10c"></script>
-<script src="tetris-engine.js?v=2026-09-10c"></script>
-<script src="racing-engine.js?v=2026-09-10c"></script>
-<script src="snake-engine.js?v=2026-09-10c"></script>
-<script src="breakout-engine.js?v=2026-09-10c"></script>
-<script src="flappy-engine.js?v=2026-09-10c"></script>
-<script src="shooter-engine.js?v=2026-09-10c"></script>
-<script src="games.js?v=2026-09-10c"></script>
-<script src="app.js?v=2026-09-10c"></script>
+<script src="firebase-config.js?v=2026-09-11a"></script>
+<script src="shared.js?v=2026-09-11a"></script>
+<script src="tetris-engine.js?v=2026-09-11a"></script>
+<script src="racing-engine.js?v=2026-09-11a"></script>
+<script src="snake-engine.js?v=2026-09-11a"></script>
+<script src="breakout-engine.js?v=2026-09-11a"></script>
+<script src="flappy-engine.js?v=2026-09-11a"></script>
+<script src="shooter-engine.js?v=2026-09-11a"></script>
+<script src="games.js?v=2026-09-11a"></script>
+<script src="app.js?v=2026-09-11a"></script>
 <script>
 (function () {
   const CELL = { tetris: 6, snake: 5, breakout: 8, flappy: 8, shooter: 8 };
@@ -207,18 +223,10 @@
     selectPanel.classList.remove('hidden');
   });
 
-  let pendingStartNow = false;      // 학생을 곧바로 새 게임에 들여보낼지
+  let pendingStartNow = false;      // (모두 이동 화면에서만 켜집니다)
 
   function chooseGame(id) {
-    // 이미 들어와 있는 학생이 있으면, 대기실을 거칠지 바로 시작할지 물어봅니다
-    const waiting = lastPlayerCount;
     pendingStartNow = false;
-    if (waiting > 0) {
-      pendingStartNow = confirm(
-        '지금 ' + waiting + '명이 들어와 있습니다.\n\n' +
-        '[확인]  바로 ' + GAMES[id].name + ' 을(를) 시작합니다 (학생 화면이 곧바로 넘어갑니다)\n' +
-        '[취소]  대기실에서 기다렸다가 직접 시작합니다');
-    }
     if (GAMES[id].hasTracks) {
       currentGameId = id;
       applyAccent(id);
@@ -273,6 +281,82 @@
   $('end-btn').addEventListener('click', () => statusRef.set('ended'));
   $('lobby-btn').addEventListener('click', () => statusRef.set('waiting'));
 
+  // ── 전체 화면: 학생 화면들만 크게 (교실 앞 화면용) ──
+  function setFull(on) {
+    document.body.classList.toggle('fullgrid', on);
+    clearCards();                                     // 칸 크기가 바뀌므로 카드를 새로 만듭니다
+    $('full-btn').textContent = on ? '⛶ 전체 화면 끝내기' : '⛶ 전체 화면 (학생 화면 보기)';
+    try {
+      if (on && !document.fullscreenElement && document.documentElement.requestFullscreen)
+        document.documentElement.requestFullscreen()["catch"](() => {});
+      if (!on && document.fullscreenElement && document.exitFullscreen) document.exitFullscreen()["catch"](() => {});
+    } catch (e) {}
+    playersRef.once('value').then(sn => {
+      const ps = sn.val() || {}; const live = {};
+      Object.keys(ps).forEach(id => { if (!isStale(ps[id])) live[id] = ps[id]; });
+      const g = GAMES[currentGameId], view = (g && g.adminView) || 'grid';
+      if (view === 'grid') renderGrid(live); else if (view === 'list') renderList(live);
+    })["catch"](() => {});
+  }
+  $('full-btn').addEventListener('click', () => setFull(!document.body.classList.contains('fullgrid')));
+  document.addEventListener('fullscreenchange', () => {
+    if (!document.fullscreenElement && document.body.classList.contains('fullgrid')) setFull(false);
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.body.classList.contains('fullgrid')) setFull(false); });
+
+  // 전체 화면용 상단 띠 (게임 이름 · 인원 · 끝내기)
+  const fullBar = document.createElement('div');
+  fullBar.id = 'full-bar';
+  fullBar.innerHTML = '<b id="full-title"></b><span id="full-count"></span><span class="spacer"></span>' +
+                      '<button class="btn btn-sm btn-ghost" id="full-exit">전체 화면 끝내기 (Esc)</button>';
+  document.body.appendChild(fullBar);
+  $('full-exit').addEventListener('click', () => setFull(false));
+
+  // ── 모두 다른 게임으로 이동 ──
+  const moveModal = $('move-modal');
+  function openMove() {
+    const gbox = $('move-games'), tbox = $('move-tracks');
+    gbox.innerHTML = ''; tbox.innerHTML = ''; tbox.classList.add('hidden'); gbox.classList.remove('hidden');
+    Object.keys(GAMES).forEach(id => {
+      const g = GAMES[id];
+      const b = document.createElement('button');
+      b.className = 'move-card' + (id === currentGameId ? ' now' : '');
+      b.style.setProperty('--gc', g.hex);
+      b.innerHTML = '<b></b><span></span>';
+      b.querySelector('b').textContent = g.name;
+      b.querySelector('span').textContent = id === currentGameId ? '지금 이 게임' : (g.meta || '');
+      b.addEventListener('click', () => {
+        if (g.hasTracks) {
+          // 카트는 트랙까지 고릅니다
+          gbox.classList.add('hidden'); tbox.classList.remove('hidden');
+          Object.keys(TRACKS).forEach(tid => {
+            const t = TRACKS[tid];
+            const tb = document.createElement('button');
+            tb.className = 'move-card';
+            tb.innerHTML = '<b></b><span></span>';
+            tb.querySelector('b').textContent = t.name;
+            tb.querySelector('span').textContent = t.desc || '';
+            tb.addEventListener('click', () => moveAll(id, tid));
+            tbox.appendChild(tb);
+          });
+        } else moveAll(id, null);
+      });
+      gbox.appendChild(b);
+    });
+    moveModal.classList.remove('hidden');
+  }
+  function moveAll(id, tid) {
+    moveModal.classList.add('hidden');
+    if (specOn) stopSpec();
+    stopRooms();
+    applyAccent(id);
+    selectPanel.classList.add('hidden'); trackPanel.classList.add('hidden');
+    openLobby(id, tid, true);            // 명단 유지 · 즉시 시작
+  }
+  document.querySelectorAll('.move-open').forEach(b => b.addEventListener('click', openMove));
+  $('move-close').addEventListener('click', () => moveModal.classList.add('hidden'));
+  moveModal.addEventListener('click', e => { if (e.target === moveModal) moveModal.classList.add('hidden'); });
+
   // 강제 종료 — 진행 중인 판을 즉시 끝내고 판 위의 흔적을 모두 지웁니다.
   // 학생 화면은 곧바로 종료 화면으로 넘어가고, 명단은 그대로 남습니다.
   $('force-btn').addEventListener('click', () => {
@@ -306,6 +390,7 @@
   // 게임 바꾸기 — 학생 명단은 그대로 두고 게임 선택 화면으로만 돌아갑니다.
   // (명단을 비우려면 [명단 비우기] 를 쓰세요)
   $('back-btn').addEventListener('click', () => {
+    if (document.body.classList.contains('fullgrid')) setFull(false);
     stopRooms();
     sessionRef.set({ game: null, status: 'idle' });
     posRef.remove(); hazardsRef.remove(); eventsRef.remove();
@@ -362,11 +447,33 @@
   });
 
   // ── 참가자 ──
+  // 서버 시계와의 차이 (끊긴 학생 판정에 씁니다)
+  let serverOffset = 0;
+  db.ref('.info/serverTimeOffset').on('value', s => { serverOffset = s.val() || 0; });
+  const STALE_MS = 30000;
+  function isStale(p) {
+    const seen = (p && (p.lastSeen || p.joinedAt)) || 0;
+    return seen && (Date.now() + serverOffset - seen) > STALE_MS;
+  }
+  // 30초 넘게 신호가 없는 학생은 명단에서 지웁니다 (이전 수업 찌꺼기 · 두 번 열린 탭)
+  setInterval(() => {
+    playersRef.once('value').then(snap => {
+      const ps = snap.val() || {};
+      Object.keys(ps).forEach(id => {
+        if (isStale(ps[id])) { db.ref('players/' + id).remove(); db.ref('pos/' + id).remove(); }
+      });
+    })["catch"](() => {});
+  }, 15000);
+
   playersRef.on('value', snap => {
-    const players = snap.val() || {};
+    const all = snap.val() || {};
+    const players = {};
+    Object.keys(all).forEach(id => { if (!isStale(all[id])) players[id] = all[id]; });
     Object.keys(players).forEach(id => { names[id] = players[id].nickname || ''; });
     lastPlayerCount = Object.keys(players).length;
     $('count-badge').textContent = lastPlayerCount + '명 접속';
+    $('full-count').textContent = lastPlayerCount + '명 · 진행 중';
+    $('full-title').textContent = (GAMES[currentGameId] || {}).name || '';
     renderWaiting(players);
     const g = GAMES[currentGameId];
     const view = (g && g.adminView) || 'grid';
@@ -397,7 +504,7 @@
   function renderGrid(players) {
     const ids = Object.keys(players);
     const g = GAMES[currentGameId] || GAMES.tetris;
-    const cs = CELL[currentGameId] || 6;
+    const cs = (CELL[currentGameId] || 6) * (document.body.classList.contains('fullgrid') ? 2 : 1);
     Object.keys(cardByPlayer).forEach(id => {
       if (ids.indexOf(id) === -1) { cardByPlayer[id].wrapper.remove(); delete cardByPlayer[id]; }
     });
@@ -1024,12 +1131,21 @@
     const sp = t.sprite;
     ctx.drawImage(sp.canvas, sp.x, sp.y, sp.w, sp.h);
 
-    // 바나나
+    // 장애물 (콘 · 드럼통 · 바위 · 웅덩이 · 얼음)
+    const OC = { cone: '#FF8A56', barrel: '#4CC9F0', rock: '#8A919E', puddle: 'rgba(59,130,246,.55)', ice: 'rgba(191,233,255,.6)' };
+    (t.obstacles || []).forEach(o => {
+      ctx.fillStyle = OC[o.kind] || '#FF8A56';
+      ctx.beginPath(); ctx.arc(o.x, o.y, (o.kind === 'puddle' || o.kind === 'ice' ? 16 : 11) * t.carScale, 0, Math.PI * 2); ctx.fill();
+    });
+
+    // 떨어진 위험물 — 바나나 · 기름 · 폭탄
     const hz = peerPos.__hz || {};
+    const HC = { banana: ['#FFD166', '#8A6D1F'], oil: ['#1A1D24', '#B15DFF'], bomb: ['#1A1D24', '#FF5C7A'] };
     Object.keys(hz).forEach(k => {
-      ctx.fillStyle = '#FFD166';
+      const c = HC[hz[k].kind || 'banana'] || HC.banana;
+      ctx.fillStyle = c[0];
       ctx.beginPath(); ctx.arc(hz[k].x, hz[k].y, 13 * t.carScale, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = '#8A6D1F'; ctx.lineWidth = 2.5 * t.carScale; ctx.stroke();
+      ctx.strokeStyle = c[1]; ctx.lineWidth = 2.5 * t.carScale; ctx.stroke();
     });
 
     // 카트 (뒤에서부터 그려 1등이 위로)

@@ -19,6 +19,7 @@ class SnakeGame {
     this.gameOver = false;
     this.lastStep = 0;
     this.eatFlash = 0;
+    this.started = false;          // 첫 방향키를 누르기 전에는 움직이지 않습니다
     this.placeFood();
   }
 
@@ -37,6 +38,7 @@ class SnakeGame {
   // 방향 바꾸기 — 반대 방향으로는 못 꺾습니다
   turn(dx, dy) {
     if (this.gameOver) return;
+    if (!this.started) { this.started = true; this.lastStep = 0; if (window.Sound) Sound.start(); }
     const last = this.queue.length ? this.queue[this.queue.length - 1] : this.dir;
     if (last[0] === -dx && last[1] === -dy) return;
     if (last[0] === dx && last[1] === dy) return;
@@ -53,9 +55,12 @@ class SnakeGame {
   tick(now) {
     if (this.gameOver) return;
     if (this.softDropping && this.dir[1] !== -1 && this.dir[1] !== 1) this.turn(0, 1);
-    if (now - this.lastStep >= this.stepMs) {
-      this.lastStep = now;
-      this.step();
+    if (this.started) {
+      if (!this.lastStep) this.lastStep = now;          // 시작 직후 첫 걸음까지 한 박자 여유
+      if (now - this.lastStep >= this.stepMs) {
+        this.lastStep = now;
+        this.step();
+      }
     }
     if (this.eatFlash > 0) this.eatFlash -= 0.08;
     this.draw();
@@ -154,6 +159,15 @@ class SnakeGame {
     if (this.eatFlash > 0) {
       ctx.fillStyle = 'rgba(6,214,160,' + (this.eatFlash * 0.18).toFixed(2) + ')';
       ctx.fillRect(0, 0, W, H);
+    }
+    if (!this.started && !this.gameOver) {
+      const pulse = 0.65 + Math.sin(performance.now() / 350) * 0.2;
+      ctx.fillStyle = 'rgba(11,13,18,0.5)'; ctx.fillRect(0, H * 0.4, W, H * 0.2);
+      ctx.fillStyle = 'rgba(255,255,255,' + pulse.toFixed(2) + ')';
+      ctx.font = '700 ' + Math.round(cs * 0.95) + 'px Pretendard, sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('방향키를 누르면 출발', W / 2, H / 2);
+      ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
     }
     if (this.gameOver) {
       ctx.fillStyle = 'rgba(11,13,18,0.55)'; ctx.fillRect(0, 0, W, H);

@@ -18,18 +18,21 @@ class FlappyGame {
     this.started = false;
     this.lastTime = 0;
     this.dist = 0;
-    this.nextPipe = 8;
+    this.nextPipe = 10;
     this.wing = 0;
     this.clouds = Array.from({ length: 6 }, (_, i) => ({ x: i * 4 + Math.random() * 3, y: 1 + Math.random() * 8, s: 0.6 + Math.random() * 0.8 }));
   }
 
-  get gap()   { return Math.max(4.2, 6.2 - this.passed * 0.06); }
-  get speed() { return Math.min(0.13, 0.085 + this.passed * 0.002); }
+  // 난이도 — 처음엔 넓고 느리게, 통과할수록 아주 서서히 좁고 빨라집니다
+  get gap()     { return Math.max(4.6, 7.8 - this.passed * 0.08); }        // 틈: 7.8칸 → 40개 통과 뒤 4.6칸
+  get speed()   { return Math.min(0.12, 0.065 + this.passed * 0.0014); }   // 속도: 느리게 시작
+  get gravity() { return Math.min(0.021, 0.014 + this.passed * 0.00025); } // 중력: 처음엔 살짝 가볍게
+  get spacing() { return Math.max(4.8, 6.4 - this.passed * 0.04); }        // 기둥 간격: 처음엔 멀리
 
   jump() {
     if (this.gameOver) return;
     this.started = true;
-    this.vy = -0.30;
+    this.vy = -0.27;
     this.wing = 1;
     if (window.Sound) Sound.rotate();
   }
@@ -46,15 +49,18 @@ class FlappyGame {
     const f = dt / 16.7;
 
     if (this.started) {
-      this.vy += 0.021 * f;                       // 중력
+      this.vy += this.gravity * f;                // 중력 (서서히 강해짐)
       this.vy = Math.min(this.vy, 0.42);
       this.y += this.vy * f;
       this.dist += this.speed * f;
 
       // 기둥 만들기
       if (this.dist >= this.nextPipe) {
-        this.nextPipe += 5.2;
-        const gapY = 2.5 + Math.random() * (FLAP_ROWS - this.gap - 5);
+        this.nextPipe += this.spacing;
+        // 처음 몇 개는 화면 가운데 근처에 두고, 익숙해지면 위아래로 퍼집니다
+        const range = Math.min(1, 0.35 + this.passed * 0.06);
+        const mid = (FLAP_ROWS - 1 - this.gap) / 2;
+        const gapY = 2.0 + mid * (1 - range) + Math.random() * (FLAP_ROWS - this.gap - 4.5) * range;
         this.pipes.push({ x: FLAP_COLS + 1, gapY: gapY, gapH: this.gap, passed: false });
       }
       this.pipes.forEach(p => { p.x -= this.speed * f; });

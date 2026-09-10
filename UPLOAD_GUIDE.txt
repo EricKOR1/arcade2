@@ -1,0 +1,21 @@
+아케이드 플랫폼 — 이번 교체 파일 (v2026-09-11a)
+==============================================
+
+교체할 파일 9개 (전부 저장소 최상위에 덮어쓰기)
+  index.html          조작 패드 재배열 · 하트비트 · 닉네임 중복 처리 · 게임 이동 따라가기
+  admin.html          모두 이동 · 전체 화면 · 끊긴 학생 정리 · 장애물 표시
+  style.css           패드 좌우 배치 · 전체 화면 · 이동 창
+  games.js
+  racing-engine.js    테마 · 카트 · 장애물 · 아이템 10종 · 충돌 · 순위 고정
+  snake-engine.js     첫 방향키까지 대기
+  breakout-engine.js  멀티볼 · 아이템 5종 · 속도 상한
+  flappy-engine.js    완만한 난이도
+  README.md
+
+건드리지 않는 파일
+  firebase-config.js  ← 본인 값이 든 파일 그대로 (이 폴더의 EXAMPLE 은 처음 설치용)
+  photo.html / force.html / body.html
+  shared.js / sound.js / tetris-engine.js / shooter-engine.js / app.js / platform.css
+  (같이 들어 있지만 내용이 같으니 덮어써도 무방)
+
+올린 뒤 화면에 v2026-09-11a 가 보이는지 확인하세요. 안 보이면 Ctrl+Shift+R.
