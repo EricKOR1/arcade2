@@ -42,8 +42,11 @@ class TetrisGame {
     this.spawnPiece();
   }
 
+  // 낙하 간격 — 줄을 못 지워도 30초마다 한 단계씩 빨라집니다 (줄 레벨과 시간 레벨 중 높은 쪽)
   get dropInterval() {
-    return Math.max(90, 800 - (this.level - 1) * 65);
+    const timeLevel = 1 + Math.floor((this.elapsed || 0) / 30000);
+    const lv = Math.max(this.level, timeLevel);
+    return Math.max(110, 800 - (lv - 1) * 60);
   }
 
   // 7종을 골고루 섞어 뽑기 (정식 테트리스 방식)
@@ -194,6 +197,11 @@ class TetrisGame {
 
   tick(now) {
     if (this.gameOver) return;
+    if (!this.startAt) this.startAt = now;
+    this.elapsed = now - this.startAt;
+    // 시간이 흘러 레벨이 오르면 표시도 함께 올립니다
+    const timeLevel = 1 + Math.floor(this.elapsed / 30000);
+    if (timeLevel > this.level) { this.level = timeLevel; if (window.Sound) Sound.levelUp(); }
     const interval = this.softDropping ? 45 : this.dropInterval;
     if (now - this.lastDrop > interval) {
       if (!this.collides(this.piece, 0, 1)) {
@@ -253,19 +261,8 @@ class TetrisGame {
     }
 
     if (!this.gameOver) {
-      // 착지 예상 위치(고스트)
-      const gy = this.ghostY();
+      // (착지 예상 위치 표시는 뺐습니다 — 어디에 떨어질지 스스로 판단하도록)
       const m = this.piece.matrix;
-      ctx.strokeStyle = 'rgba(255,255,255,0.26)';
-      ctx.lineWidth = 2;
-      for (let y = 0; y < m.length; y++) {
-        for (let x = 0; x < m[y].length; x++) {
-          if (m[y][x]) {
-            const px = (this.piece.x + x) * cs, py = (gy + y) * cs;
-            ctx.strokeRect(px + 2, py + 2, cs - 4, cs - 4);
-          }
-        }
-      }
       // 현재 블록
       for (let y = 0; y < m.length; y++) {
         for (let x = 0; x < m[y].length; x++) {

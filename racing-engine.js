@@ -39,7 +39,7 @@ const TRACKS = {
     sky: { top: '#1E3A5F', mid: '#4E8FC7', low: '#BFE0F5', sun: '#FFF3C4', stars: 0, haze: '#A9CDE8' },
     elev: [[0,0],[0.18,220],[0.36,60],[0.55,300],[0.74,-80],[0.9,90]], desc: '넓고 완만한 코스. 처음 하는 학생에게 좋아요',
     tag: '입문 · 10~20명',
-    scale: 3, width: 720, laps: 3, speed: 11.2,
+    scale: 6, width: 1440, laps: 3, speed: 16.8,
     bg: '#16261C', grass: '#1E3427', road: '#33383F',
     pts: [[400,900],[400,500],[700,260],[1200,220],[1700,300],
           [2000,600],[2050,1000],[1850,1350],[1400,1480],[900,1420],[520,1250]]
@@ -49,7 +49,7 @@ const TRACKS = {
     sky: { top: '#050816', mid: '#0F1B3A', low: '#2B3D6B', sun: '#DCE8FF', stars: 0.9, haze: '#3A4C7A', moon: true },
     elev: [[0,0],[0.14,-140],[0.3,380],[0.48,120],[0.62,-200],[0.8,260],[0.92,60]], desc: '8자로 크게 꼬인 코스. 코너가 많아 역전이 자주 나요',
     tag: '보통 · 20~30명',
-    scale: 3, width: 720, laps: 3, speed: 11.2,
+    scale: 6, width: 1440, laps: 3, speed: 16.8,
     bg: '#0B1020', grass: '#121A2E', road: '#2E3340',
     pts: [[1250,850],[1600,600],[2050,450],[2400,700],[2400,1150],[2050,1400],
           [1650,1300],[1350,950],[1000,600],[600,480],[250,750],[250,1200],
@@ -60,7 +60,7 @@ const TRACKS = {
     sky: { top: '#2A1439', mid: '#8B3A5E', low: '#F2A05A', sun: '#FFE3A8', stars: 0.15, haze: '#E6A070' },
     elev: [[0,0],[0.12,420],[0.26,180],[0.4,-320],[0.55,-120],[0.68,520],[0.82,200],[0.93,-60]], desc: '길게 이어지는 고난도 코스. 실력자용',
     tag: '어려움 · 20~30명',
-    scale: 3, width: 700, laps: 3, speed: 11.6,
+    scale: 6, width: 1400, laps: 3, speed: 17.4,
     bg: '#3A2417', grass: '#5A3A22', road: '#4A4048',
     pts: [[400,900],[500,450],[900,220],[1400,250],[1800,500],[2100,850],
           [2500,950],[2850,700],[3200,850],[3300,1300],[3000,1650],[2550,1750],
@@ -72,7 +72,7 @@ const TRACKS = {
     elev: [[0,0],[0.16,180],[0.33,-120],[0.5,340],[0.67,80],[0.84,-160]],
     desc: '가장 넓고 긴 코스. 30명이 6열로 나란히 출발합니다',
     tag: '보통 · 30명 권장',
-    scale: 3, width: 980, laps: 3, speed: 12,
+    scale: 6, width: 1960, laps: 3, speed: 18,
     bg: '#0F2A3A', grass: '#2E8F72', road: '#3A4048',
     pts: [[600,1200],[600,700],[900,350],[1400,250],[1900,300],[2350,500],
           [2700,850],[3050,1150],[3150,1600],[2900,2000],[2450,2200],[1950,2250],
@@ -84,7 +84,7 @@ const TRACKS = {
     elev: [[0,0],[0.1,300],[0.22,620],[0.36,240],[0.5,-280],[0.62,120],[0.75,560],[0.88,180]],
     desc: '가장 길고 코너가 많은 코스. S자 구간과 헤어핀이 이어집니다',
     tag: '어려움 · 30명 가능',
-    scale: 3, width: 840, laps: 3, speed: 11.8,
+    scale: 6, width: 1680, laps: 3, speed: 17.7,
     bg: '#1A1F2E', grass: '#E6ECF4', road: '#3A4050',
     pts: [[500,1300],[450,850],[700,450],[1150,300],[1600,420],[1850,780],
           [2200,950],[2600,780],[2950,900],[3100,1300],[2950,1750],[2550,1950],
@@ -123,10 +123,10 @@ class Track {
     const per = Math.max(14, Math.min(48, Math.round(avgSeg / 24)));
     this.center = densify(pts, per);
 
-    // 카트 크기와 충돌 반경을 트랙 폭에 비례시켜 비율을 유지
-    this.carLen = def.width * 0.135;      // 카트 길이 (기본 40)
+    // 카트 크기 — 도로 폭의 6.75% (도로가 카트보다 약 15배 넓게 느껴집니다)
+    this.carLen = def.width * 0.0675;
     this.carScale = this.carLen / 40;
-    this.pickR = def.width * 0.12;        // 아이템 상자 획득 반경
+    this.pickR = def.width * 0.07;        // 아이템 상자 획득 반경
     this.n = this.center.length;
     this.halfW = def.width / 2;
     this.laps = def.laps;
@@ -156,7 +156,7 @@ class Track {
     // 아이템 상자 — 넓으면 5줄, 좁으면 3줄. 코스가 길수록 더 자주 배치
     this.itemSpots = [];
     const cols = this.halfW >= 460 ? [-0.6,-0.3,0,0.3,0.6] : [-0.5,0,0.5];
-    const rows = Math.max(5, Math.round(this.length / 4000));   // 코스당 5~6줄 정도
+    const rows = Math.max(5, Math.round(this.length / 8000));   // 코스당 5~6줄 정도
     const gap = Math.max(12, Math.floor(this.n / rows));
     for (let i = 24; i < this.n; i += gap) {
       const [tx, ty] = this.tangent[i], nx = -ty, ny = tx;
@@ -264,7 +264,7 @@ class Track {
     // 장애물 — 트랙 위에 고정. 아이템 상자·출발선 근처는 피합니다
     this.obstacles = [];
     const okinds = this.theme.obstacles || ['cone', 'barrel'];
-    const oCount = Math.round(this.n / 36);
+    const oCount = Math.round(this.n / 72);
     const oGap = Math.floor(this.n / oCount);
     let rr = 0.37;
     const orand = () => { rr = (rr * 9301 + 49297) % 233280; return rr / 233280; };
@@ -608,7 +608,7 @@ class KartGame {
 
     } else if (it === 'turtle') {
       const target = this.nextBehind();
-      if (this.opts.onAttack) this.opts.onAttack('missile', target, null);   // 맞는 쪽은 미사일과 같은 처리
+      if (this.opts.onAttack) this.opts.onAttack('turtle', target, null);
       this.addFx('missile');
       if (window.Sound) Sound.hardDrop();
       this.showToast('등껍질을 뒤로!', '#06D6A0');
@@ -665,24 +665,26 @@ class KartGame {
   }
 
 
-  hitByMissile() {
-    if (this.finished || this.guarded()) return;
+  hitByMissile(byId, kind) {
+    if (this.finished) return;
+    if (this.guarded()) { this.showToast('방어막이 막았다', '#06D6A0'); return; }
     this.stunUntil = this.clock() + 1500;
     this.speed = 0;
     this.addFx('hit');
-    if (window.Sound) Sound.crash();
-    this.showToast('미사일 피격!', '#EF476F');
+    if (kind === 'turtle') this.showHit('🐢', byId, '의 거북 등껍질에 맞았다', '#06D6A0');
+    else this.showHit('🚀', byId, '의 미사일에 맞았다', '#EF476F');
   }
 
-  hitByBolt() {
-    if (this.finished || this.guarded()) return;
-    this.slowUntil = this.clock() + 1800;
-    if (window.Sound) Sound.crash();
-    this.showToast('번개에 맞았다', '#B15DFF');
-  }
-
-  teleportTo(s) {
+  hitByBolt(byId) {
     if (this.finished) return;
+    if (this.guarded()) { this.showToast('방어막이 막았다', '#06D6A0'); return; }
+    this.slowUntil = this.clock() + 1800;
+    this.showHit('🌩', byId, '의 번개에 맞았다', '#B15DFF');
+  }
+
+  teleportTo(s, byId) {
+    if (this.finished) return;
+    this.showHit('🌀', byId, '이(가) 자리를 바꿔 버렸다', '#B15DFF');
     this.x = s.x; this.y = s.y; this.angle = s.a;
     this.segIdx = s.i; this.lap = s.l;
     this.camX = this.x; this.camY = this.y;
@@ -731,6 +733,19 @@ class KartGame {
   }
 
   showToast(text, color) { this.toast = { text, color: color || '#fff', until: this.clock() + 1500 }; }
+
+  // 누구에게 당했는지 — 화면 가운데에 크게 (2초)
+  nameOf(id) {
+    if (!id) return '';
+    if (this.peers[id] && this.peers[id].name) return this.peers[id].name;
+    if (this.opts.nameOf) return this.opts.nameOf(id) || '';
+    return '';
+  }
+  showHit(icon, byId, what, color) {
+    const who = this.nameOf(byId);
+    this.hitBanner = { icon: icon, who: who ? who : '누군가', what: what, color: color, until: this.clock() + 2200 };
+    if (window.Sound) Sound.crash();
+  }
   addFx(type) { this.fx.push({ type, until: this.clock() + 500 }); }
 
   setPeers(map) {
@@ -759,6 +774,16 @@ class KartGame {
   // ── 프레임 ──
   clock() { return (this.now != null) ? this.now : performance.now(); }
 
+  // 교사 관전: 특정 학생 시점으로 봅니다. 그 학생은 peers 에 있어야 하며 '나'로 그려집니다.
+  spectate(followId) {
+    this.spectator = true;
+    this.followId = followId;
+    this.countdown = 0;
+    this.items = [];
+    const p = this.peers[followId];
+    if (p) { this.x = p.x; this.y = p.y; this.angle = p.angle; this.camX = p.x; this.camY = p.y; }
+  }
+
   tick(now) {
     this.now = now;                       // 엔진 안의 모든 타이머는 이 시계를 씁니다
     const dt = this.lastTime ? Math.min(50, now - this.lastTime) : 16.7;
@@ -781,6 +806,28 @@ class KartGame {
       this.pendingItem = null; this.itemRollUntil = 0;
       if (window.Sound) Sound.clear(1);
       this.showToast(ITEMS[got].name + ' 획득! (' + this.items.length + '/' + MAX_ITEMS + ')', '#FFD166');
+    }
+
+    // 관전 모드 — 물리는 돌리지 않고, 따라가는 학생의 위치로 카메라만 옮깁니다
+    if (this.spectator) {
+      const tgt = this.peers[this.followId];
+      if (tgt) {
+        // 부드럽게 따라감 (원격 위치는 0.16초마다 오므로 보간)
+        const k = Math.min(1, f * 0.5);
+        const gx = (tgt.tx != null ? tgt.tx : tgt.x), gy = (tgt.ty != null ? tgt.ty : tgt.y), ga = (tgt.tangle != null ? tgt.tangle : tgt.angle);
+        this.x += (gx - this.x) * k; this.y += (gy - this.y) * k;
+        let da = ga - this.angle; while (da > Math.PI) da -= Math.PI * 2; while (da < -Math.PI) da += Math.PI * 2;
+        this.angle += da * k;
+        this.speed = tgt.speed != null ? tgt.speed : this.maxSpeed * 0.8;
+        this.segIdx = this.track.nearestIndex(this.x, this.y, this.segIdx).index;
+        this.lap = Math.floor((tgt.progress || 0) / this.track.n);
+        this.progress = tgt.progress || 0;
+        this.finished = !!tgt.finished;
+        this.boostUntil = tgt.boost ? now + 100 : 0;
+        this.myName = tgt.name || ''; this.look = kartLook(this.myName || this.followId);
+      }
+      this.updateRank();
+      this.draw(); return;
     }
 
     if (this.countdown > 0) {
@@ -857,6 +904,20 @@ class KartGame {
       if (this.segIdx + delta < 0)  this.lap--;
       this.segIdx = cur.index;
     }
+    // 드리프트 연기 — 속도가 붙은 채 핸들을 꺾으면 뒷바퀴에서 흰 연기
+    if (this.steer !== 0 && this.speed > this.maxSpeed * 0.55 && !spinning && !stunned && !this.finished) {
+      this.driftT = (this.driftT || 0) + f;
+      if (this.driftT > 6) {
+        this.driftT = 0;
+        const cl = this.track.carLen;
+        [1, -1].forEach(sd => {
+          const bx = this.x - Math.cos(this.angle) * cl * 0.45 - Math.sin(this.angle) * sd * cl * 0.3;
+          const by = this.y - Math.sin(this.angle) * cl * 0.45 + Math.cos(this.angle) * sd * cl * 0.3;
+          this.spawn(1, bx, by, cl * 0.08, { speed: 0.6, up: 0.9, size: 7, colors: ['rgba(255,255,255,0.55)', 'rgba(220,225,235,0.4)'], decay: 1.1, gravity: -0.4 });
+        });
+      }
+    } else this.driftT = 0;
+
     if (this.finished) {
       // 완주하면 진행도를 고정합니다. 더 굴러가도 순위가 바뀌지 않도록
       // 결승 순서(finishRank)를 진행도에 얹습니다.
@@ -902,9 +963,15 @@ class KartGame {
       const reach = this.track.carLen * (kind === 'bomb' ? 1.5 : 0.8);
       if (Math.hypot(h.x - this.x, h.y - this.y) < reach) {
         if (this.opts.onHitHazard) this.opts.onHitHazard(hid);
+        const g = this.guarded();
         if (kind === 'oil') this.slide();
         else if (kind === 'bomb') this.explode(h.x, h.y);
         else this.spinOut();
+        if (!g && h.by && h.by !== this.myId) {
+          if (kind === 'oil') this.showHit('🛢', h.by, '이(가) 뿌린 기름을 밟았다', '#9AA3B2');
+          else if (kind === 'bomb') this.showHit('💣', h.by, '이(가) 놓은 폭탄이 터졌다', '#FF5C7A');
+          else this.showHit('🍌', h.by, '이(가) 놓은 바나나를 밟았다', '#FFD166');
+        }
       }
     });
 
@@ -978,7 +1045,7 @@ class KartGame {
 
   updateRank() {
     const all = [{ p: this.progress, me: true }];
-    Object.keys(this.peers).forEach(id => all.push({ p: this.peers[id].progress || 0 }));
+    Object.keys(this.peers).forEach(id => { if (this.spectator && id === this.followId) return; all.push({ p: this.peers[id].progress || 0 }); });
     all.sort((a, b) => b.p - a.p);
     this.total = all.length;
     const prev = this.rank;
@@ -1002,7 +1069,7 @@ class KartGame {
 
   // 앞쪽에 부스터 패드가 있으면 HUD에 알림
   nearBoostPad() {
-    const t = this.track, reach = t.stepLen * 26;
+    const t = this.track, reach = t.stepLen * 40;
     for (let k = 0; k < t.boostPads.length; k++) {
       const p = t.boostPads[k];
       const dx = p.x - this.x, dy = p.y - this.y;
@@ -1040,6 +1107,12 @@ class KartGame {
     const cam = this.setupCamera(W, H);
 
     ctx.save();
+    // 코너에서 화면이 살짝 기웁니다 (조작 방향과 속도에 비례, 부드럽게 따라감)
+    const bankTarget = (this.spectator ? 0 : this.steer) * Math.min(1, this.speed / this.maxSpeed) * 0.045;
+    this.bank = (this.bank || 0) + (bankTarget - (this.bank || 0)) * 0.08;
+    if (Math.abs(this.bank) > 0.0005) {
+      ctx.translate(W / 2, H * 0.62); ctx.rotate(-this.bank); ctx.scale(1.03, 1.03); ctx.translate(-W / 2, -H * 0.62);
+    }
     if (this.shakeT > 0) {
       const k = this.shakeT / 0.28 * 7;
       ctx.translate((Math.random() - .5) * k, (Math.random() - .5) * k);
@@ -1060,9 +1133,9 @@ class KartGame {
   setupCamera(W, H) {
     const t = this.track;
     const boosting = this.clock() < this.boostUntil;
-    const back = t.carLen * (boosting ? 3.2 : 2.8);
-    const f = (W * 0.62) * back / t.halfW;
-    const height = (H * 0.45) * back / f;
+    const back = t.carLen * (boosting ? 4.4 : 3.9);
+    const f = (W * 0.78) * back / t.halfW;
+    const height = (H * 0.50) * back / f;
 
     // 경사를 따라 시선이 부드럽게 따라감
     const g = this.track.gradeAt(this.segIdx, 8);
@@ -1317,7 +1390,7 @@ class KartGame {
   // ── 노면 ──
   drawRoad(ctx, W, H, cam, now) {
     const t = this.track, d = t.def, n = t.n;
-    const K = Math.min(120, Math.ceil(2800 / t.stepLen));
+    const K = Math.min(170, Math.ceil(5000 / t.stepLen));
     const DETAIL = 20;
 
     const segs = [];
@@ -1332,7 +1405,7 @@ class KartGame {
       if (!L || !R) { if (segs.length) break; k += 1; continue; }
       segs.push({ i: i, L: L, R: R, cx: c[0], cy: c[1], e: e,
                   nx: nx, ny: ny, tx: tx, ty: ty, k: k, detail: k < DETAIL });
-      k += (k < DETAIL) ? 1 : (k < DETAIL * 2 ? 2 : 4);
+      k += (k < DETAIL) ? 1 : (k < DETAIL * 2 ? 2 : (k < DETAIL * 4 ? 4 : 8));   // 멀수록 성기게
     }
     if (segs.length < 2) return;
     this.segsCache = segs;
@@ -1463,7 +1536,7 @@ class KartGame {
   // ── 부스터 패드: 멀리서도 확실히 보이게 ──
   drawBoostPads(ctx, cam, now) {
     const t = this.track;
-    const reach = t.stepLen * 110;
+    const reach = t.stepLen * 200;
     t.boostPads.forEach(p => {
       if (Math.hypot(p.x - this.x, p.y - this.y) > reach) return;
       const e = t.elevAt(p.i);
@@ -1528,7 +1601,7 @@ class KartGame {
   drawArch(ctx, cam, i, label, isStart) {
     const t = this.track;
     const c = t.center[i], e = t.elev[i];
-    if (Math.hypot(c[0] - this.x, c[1] - this.y) > t.stepLen * 90) return;
+    if (Math.hypot(c[0] - this.x, c[1] - this.y) > t.stepLen * 180) return;
     const [tx, ty] = t.tangent[i], nx = -ty, ny = tx;
     const topH = t.halfW * (isStart ? 0.62 : 0.56), postW = t.halfW * 0.07;
     const kerb = t.theme.kerb;
@@ -1591,7 +1664,7 @@ class KartGame {
     const list = [];
 
     // 노변 지물 (앞쪽 구간만)
-    const from = this.segIdx - 8, to = this.segIdx + Math.ceil(2400 / t.stepLen);
+    const from = this.segIdx - 8, to = this.segIdx + Math.ceil(4800 / t.stepLen);
     t.scenery.forEach(o => {
       let d = o.i - this.segIdx;
       if (d < -n/2) d += n;
@@ -1619,7 +1692,7 @@ class KartGame {
 
     // 장애물
     t.obstacles.forEach(o => {
-      if (Math.hypot(o.x - this.x, o.y - this.y) > t.stepLen * 80) return;
+      if (Math.hypot(o.x - this.x, o.y - this.y) > t.stepLen * 160) return;
       const p = this.project(cam, o.x, o.y, t.elevAt(o.i));
       if (!p) return;
       list.push({ z: p.z, kind: 'obst', o: Object.assign({ e: t.elevAt(o.i) }, o) });
@@ -1636,6 +1709,7 @@ class KartGame {
       pr.e = t.elevAt(Math.round(pr.progress || 0));
       const p = this.project(cam, pr.x, pr.y, pr.e);
       if (!p) return;
+      if (this.spectator && id === this.followId) return;
       list.push({ z: p.z, kind: 'kart', peer: pr });
     });
 
@@ -1643,16 +1717,16 @@ class KartGame {
     const me = this.project(cam, this.x, this.y, myE);
     if (me) list.push({ z: me.z, kind: 'me', e: myE });
 
-    list.sort((a, b) => a.z - b.z);
-    // 카트·아이템이 지물에 밀려 사라지지 않도록 따로 상한을 둡니다
-    const objs = list.filter(o => o.kind !== 'deco').slice(0, 20);
-    const decos = list.filter(o => o.kind === 'deco').slice(0, 10);
-    const shown = objs.concat(decos).sort((a, b) => a.z - b.z);
-    let fullLeft = 8;                                    // 정밀 모델은 가까운 8대까지만
-    shown.forEach(o => { if (o.kind === 'kart' || o.kind === 'me') { o.full = fullLeft > 0; fullLeft--; } });
+    // 보일지 말지를 "가까운 순서 N개" 로 자르면 순서가 바뀔 때마다 나타났다 사라졌다 깜박입니다.
+    // 대신 거리로 자릅니다 — 같은 거리면 항상 같은 결과라 화면이 안정적입니다.
+    const zDeco = t.stepLen * 150, zObj = t.stepLen * 200, zFull = t.stepLen * 26;
+    const shown = list.filter(o => o.z < (o.kind === 'deco' ? zDeco : zObj));
+    shown.sort((a, b) => a.z - b.z);
+    // 정밀 모델도 거리로 결정 (가까우면 정밀, 멀면 단순)
+    shown.forEach(o => { if (o.kind === 'kart' || o.kind === 'me') o.full = o.z < zFull; if (o.kind === 'deco') o.far = o.z > zDeco * 0.45; });
     shown.reverse();
     shown.forEach(o => {
-      if (o.kind === 'deco')        this.drawDeco(ctx, cam, o.o, now);
+      if (o.kind === 'deco')        this.drawDeco(ctx, cam, o.o, now, o.far);
       else if (o.kind === 'box')    this.drawBox3D(ctx, cam, o.sp.x, o.sp.y, t.elevAt(o.sp.i), now);
       else if (o.kind === 'banana') this.drawHazard3D(ctx, cam, o.h.x, o.h.y, o.h.e, o.h.kind || 'banana', now);
       else if (o.kind === 'obst')   this.drawObstacle3D(ctx, cam, o.o, now);
@@ -1668,11 +1742,32 @@ class KartGame {
   }
 
   // ── 노변 지물 그리기 (빌보드) ──
-  drawDeco(ctx, cam, o, now) {
+  drawDeco(ctx, cam, o, now, far) {
     const t = this.track;
     const base = this.project(cam, o.x, o.y, o.e);
     if (!base) return;
     const s = base.s, u = t.carLen;      // 화면 배율
+
+    // 멀리 있는 지물은 실루엣만 (한두 번의 채우기) — 개수가 많아도 가볍게, 그리고 갑자기 사라지지 않게
+    if (far) {
+      if (o.kind === 'rail') return;
+      const FAR = { tree: [2.6, 0.9, '#2C6B3F'], pine: [3.0, 0.7, '#245A3A'], palm: [3.0, 0.8, '#2F8F52'],
+                    cactus: [2.0, 0.35, '#2E8B57'], rock: [0.8, 1.2, null], flower: [0.3, 0.6, '#3C7A4B'],
+                    building: [5.0, 2.2, '#1B2238'], lamp: [2.0, 0.12, '#5B6474'], billboard: [3.0, 2.0, '#2B3140'],
+                    stand: [2.2, 3.2, '#3B4454'], balloon: [3.4, 0.6, '#FF5C7A'], umbrella: [1.5, 1.4, '#FF5C7A'],
+                    snowman: [1.3, 0.8, '#F4F6FA'], windmill: [3.2, 0.4, '#C9CFD8'], tire: [0.5, 0.6, '#2B3140'], sign: [1.4, 1.2, '#4B5566'] };
+      const f = FAR[o.kind]; if (!f) return;
+      const top = this.project(cam, o.x, o.y, o.e + u * f[0]);
+      if (!top) return;
+      ctx.fillStyle = f[2] || this.shade(t.def.grass, -0.35);
+      const w = Math.max(1.5, u * f[1] * s);
+      if (o.kind === 'tree' || o.kind === 'pine' || o.kind === 'palm' || o.kind === 'rock' || o.kind === 'balloon') {
+        ctx.beginPath(); ctx.ellipse(top.x, (top.y + base.y) / 2, w / 2, (base.y - top.y) / 2, 0, 0, Math.PI * 2); ctx.fill();
+      } else {
+        ctx.fillRect(base.x - w / 2, top.y, w, base.y - top.y);
+      }
+      return;
+    }
 
     if (o.kind === 'rail') {
       const h = u * 0.55;
@@ -1990,6 +2085,17 @@ class KartGame {
         if (rc) { ctx.fillStyle = '#8A919E'; ctx.beginPath();
           ctx.ellipse(rc.x, rc.y, ww * 0.35 * rc.s, wl * 0.22 * rc.s, angle - cam.angle0, 0, Math.PI * 2); ctx.fill(); }
       });
+
+    // 헤드라이트 — 밤 테마에서는 앞에 빛 웅덩이
+    if (full && t.def.sky && t.def.sky.stars >= 0.5) {
+      const hl = fwd(L * 0.62, 0);
+      const hp = this.project(cam, hl.x, hl.y, e + Hh * 0.5);
+      if (hp) {
+        const g = ctx.createRadialGradient(hp.x, hp.y, 0, hp.x, hp.y, L * 0.9 * hp.s);
+        g.addColorStop(0, 'rgba(255,240,200,0.35)'); g.addColorStop(1, 'rgba(255,240,200,0)');
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(hp.x, hp.y, L * 0.9 * hp.s, 0, Math.PI * 2); ctx.fill();
+      }
+    }
 
     // 부스터 불꽃 (차체 뒤)
     if (boosting) {
@@ -2392,6 +2498,77 @@ class KartGame {
       ctx.fillStyle = '#FFD166'; ctx.fillText('FINAL LAP', 0, -8);
       ctx.font = '600 12px Pretendard, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.75)';
       ctx.fillText('마지막 바퀴입니다', 0, 14);
+      ctx.restore();
+    }
+
+    // 관전 표시
+    if (this.spectator) {
+      ctx.save();
+      ctx.font = '700 13px Pretendard, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const label = '👁 ' + (this.myName || '') + ' 의 화면';
+      const tw = ctx.measureText(label).width + 28;
+      ctx.fillStyle = 'rgba(8,10,16,0.75)';
+      if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(W/2 - tw/2, 12, tw, 30, 15); ctx.fill(); }
+      ctx.fillStyle = '#FFD166'; ctx.fillText(label, W/2, 27);
+      ctx.restore();
+    }
+
+    // 아날로그 속도계 — 왼쪽 아래
+    if (this.countdown <= 0 && !this.finished && !this.spectator) {
+      const R = Math.min(64, W * 0.17), cx = 16 + R, cy = H - 18;
+      const pct = Math.min(1, this.speed / (this.maxSpeed * 1.9));
+      const a0 = Math.PI * 1.0, a1 = Math.PI * 2.0;
+      ctx.save();
+      ctx.fillStyle = 'rgba(8,10,16,0.72)';
+      ctx.beginPath(); ctx.arc(cx, cy, R + 8, a0, a1); ctx.lineTo(cx + R + 8, cy + 6); ctx.lineTo(cx - R - 8, cy + 6); ctx.closePath(); ctx.fill();
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ctx.lineWidth = 9;
+      ctx.beginPath(); ctx.arc(cx, cy, R, a0, a1); ctx.stroke();
+      const grad = ctx.createLinearGradient(cx - R, cy, cx + R, cy);
+      grad.addColorStop(0, '#4CC9F0'); grad.addColorStop(0.65, '#FFD166'); grad.addColorStop(1, '#FF5C7A');
+      ctx.strokeStyle = grad;
+      ctx.beginPath(); ctx.arc(cx, cy, R, a0, a0 + (a1 - a0) * pct); ctx.stroke();
+      // 눈금
+      ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 2;
+      for (let k = 0; k <= 8; k++) {
+        const a = a0 + (a1 - a0) * k / 8, r1 = R - 9, r2 = R - (k % 2 ? 13 : 17);
+        ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1); ctx.lineTo(cx + Math.cos(a) * r2, cy + Math.sin(a) * r2); ctx.stroke();
+      }
+      // 바늘
+      const na = a0 + (a1 - a0) * pct;
+      ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(na) * (R - 12), cy + Math.sin(na) * (R - 12)); ctx.stroke();
+      ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.arc(cx, cy, 4, 0, Math.PI * 2); ctx.fill();
+      // 숫자
+      ctx.fillStyle = '#FFFFFF'; ctx.font = '800 ' + Math.round(R * 0.42) + 'px Pretendard, sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+      ctx.fillText(String(Math.round(this.speed * 34)), cx, cy - R * 0.22);
+      ctx.font = '700 10px Pretendard, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      ctx.fillText('km/h', cx, cy - R * 0.22 + 13);
+      if (now < this.boostUntil) { ctx.fillStyle = '#4CC9F0'; ctx.font = '800 11px Pretendard, sans-serif'; ctx.fillText('BOOST', cx, cy - R * 0.62); }
+      ctx.textAlign = 'left';
+      ctx.restore();
+    }
+
+    // 누구에게 당했는지 — 가운데 큰 배너
+    if (this.hitBanner && now < this.hitBanner.until) {
+      const hb = this.hitBanner, life = (hb.until - now) / 2200;
+      const k = life > 0.88 ? (1 - (life - 0.88) / 0.12) : (life < 0.15 ? life / 0.15 : 1);
+      ctx.save();
+      ctx.globalAlpha = k;
+      ctx.translate(W/2, H*0.4);
+      ctx.scale(0.9 + k * 0.1, 0.9 + k * 0.1);
+      ctx.font = '800 15px Pretendard, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const line = hb.who + hb.what;
+      const bw = Math.min(W * 0.9, Math.max(220, ctx.measureText(line).width + 96)), bh = 78;
+      ctx.fillStyle = 'rgba(8,10,16,0.88)';
+      if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(-bw/2, -bh/2, bw, bh, 20); ctx.fill(); }
+      else ctx.fillRect(-bw/2, -bh/2, bw, bh);
+      ctx.strokeStyle = hb.color; ctx.lineWidth = 2;
+      if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(-bw/2, -bh/2, bw, bh, 20); ctx.stroke(); }
+      ctx.font = '800 30px sans-serif'; ctx.fillStyle = '#fff'; ctx.fillText(hb.icon, -bw/2 + 34, 0);
+      ctx.font = '800 20px Pretendard, sans-serif'; ctx.fillStyle = hb.color; ctx.fillText(hb.who, 18, -13);
+      ctx.font = '600 13px Pretendard, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.fillText(hb.what, 18, 14);
       ctx.restore();
     }
 

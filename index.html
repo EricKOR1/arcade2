@@ -10,8 +10,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1B2027">
 <title>아케이드</title>
-<link rel="stylesheet" href="platform.css?v=2026-09-11a">
-<link rel="stylesheet" href="style.css?v=2026-09-11a">
+<link rel="stylesheet" href="platform.css?v=2026-09-12a">
+<link rel="stylesheet" href="style.css?v=2026-09-12a">
 </head>
 <body>
 <div class="app">
@@ -58,7 +58,7 @@
           <div class="pos-box"><b class="num" id="hud-rank">1</b><span id="hud-total">/1</span></div>
           <div class="lap-box">LAP <b class="num" id="hud-lap">1</b><span id="hud-laps">/3</span></div>
         </div>
-        <div class="hud-bl">
+        <div class="hud-bl hidden">
           <div class="speedo">
             <div class="sp-bar"><i id="hud-speed-bar"></i></div>
             <div class="sp-num"><b class="num" id="hud-speed">0</b><span>km/h</span></div>
@@ -123,27 +123,32 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script src="firebase-config.js?v=2026-09-11a"></script>
-<script src="sound.js?v=2026-09-11a"></script>
-<script src="shared.js?v=2026-09-11a"></script>
-<script src="tetris-engine.js?v=2026-09-11a"></script>
-<script src="racing-engine.js?v=2026-09-11a"></script>
-<script src="snake-engine.js?v=2026-09-11a"></script>
-<script src="breakout-engine.js?v=2026-09-11a"></script>
-<script src="flappy-engine.js?v=2026-09-11a"></script>
-<script src="shooter-engine.js?v=2026-09-11a"></script>
-<script src="games.js?v=2026-09-11a"></script>
-<script src="app.js?v=2026-09-11a"></script>
+<script src="firebase-config.js?v=2026-09-12a"></script>
+<script src="sound.js?v=2026-09-12a"></script>
+<script src="shared.js?v=2026-09-12a"></script>
+<script src="tetris-engine.js?v=2026-09-12a"></script>
+<script src="racing-engine.js?v=2026-09-12a"></script>
+<script src="snake-engine.js?v=2026-09-12a"></script>
+<script src="breakout-engine.js?v=2026-09-12a"></script>
+<script src="flappy-engine.js?v=2026-09-12a"></script>
+<script src="shooter-engine.js?v=2026-09-12a"></script>
+<script src="fps-engine.js?v=2026-09-12a"></script>
+<script src="game2048-engine.js?v=2026-09-12a"></script>
+<script src="frogger-engine.js?v=2026-09-12a"></script>
+<script src="asteroids-engine.js?v=2026-09-12a"></script>
+<script src="games.js?v=2026-09-12a"></script>
+<script src="app.js?v=2026-09-12a"></script>
 <script>
 (function () {
 
-  const BUILD = '2026-09-11a';   // 화면 아래에 표시됩니다
+  const BUILD = '2026-09-12a';   // 화면 아래에 표시됩니다
 
   const gameId = getGameId();
   const def = GAMES[gameId];
   const isHtml = (def.type === 'html');      // 자체 화면을 가진 학습 게임
   const isTetris = (gameId === 'tetris');
   const isKart = (gameId === 'kart');
+  const isRealtime = isKart || !!(GAMES[gameId] && GAMES[gameId].realtime);   // 위치를 실시간으로 주고받는 게임
 
   applyAccent(gameId);
   document.getElementById('join-chip').textContent = def.name;
@@ -508,7 +513,7 @@
         game = def.create(canvas, {
           cellSize: cellSize, trackId: trackId, slot: slot,
           myId: playerId, myName: myNickname,
-          onDropHazard: dropHazard, onHitHazard: hitHazard,
+          onDropHazard: dropHazard, onHitHazard: hitHazard, nameOf: id => names[id] || '',
           onAttack: sendAttack, onFinish: reportFinish
         });
         if (def.hasNext) { game.onNextChange = drawNextPreview; drawNextPreview(); }
@@ -517,7 +522,7 @@
         if (def.needsPeers) attachPeerSync();
         Sound.start();
 
-        syncTimer = setInterval(pushState, isKart ? 165 : 200);
+        syncTimer = setInterval(pushState, isRealtime ? 165 : 200);
         requestAnimationFrame(loop);
       });
     });
@@ -563,10 +568,22 @@
     startHtmlGame();
   });
 
+  let lastScoreSync = 0;
   function pushState() {
     if (!game) return;
-    if (isKart) {
+    if (isRealtime) {
       myPosRef.set(game.serialize());
+      if (!isKart) {
+        // 점수·통계는 1초에 한 번만 (교사 화면 목록용)
+        if (Date.now() - lastScoreSync > 1000) {
+          lastScoreSync = Date.now();
+          playerRef.update(Object.assign({ status: 'playing' }, def.sync ? def.sync(game) : { score: game.score }));
+        }
+        const scoreEl = document.getElementById('game-score');
+        if (String(game.score) !== scoreEl.textContent) scoreEl.textContent = game.score;
+        if (stats[0]) document.getElementById('val-a').textContent = game[stats[0].key];
+        if (stats[1]) document.getElementById('val-b').textContent = game[stats[1].key];
+      }
     } else {
       playerRef.update(Object.assign({ status: game.gameOver ? 'gameover' : 'playing' }, def.sync(game)));
       const scoreEl = document.getElementById('game-score');
@@ -584,7 +601,7 @@
   function attachPeerSync() {
     posRef.on('child_added',   s => applyPeer(s.key, s.val()));
     posRef.on('child_changed', s => applyPeer(s.key, s.val()));
-    posRef.on('child_removed', s => { delete peerPos[s.key]; pushPeers(); });
+    posRef.on('child_removed', s => { delete peerPos[s.key]; if (game && game.removePeer) game.removePeer(s.key); pushPeers(); });
 
     hazardsRef.on('child_added',   s => { hazards[s.key] = s.val(); if (game) game.setHazards(hazards); });
     hazardsRef.on('child_removed', s => { delete hazards[s.key]; if (game) game.setHazards(hazards); });
@@ -592,12 +609,13 @@
     eventsRef.on('child_added', s => {
       const e = s.val();
       if (!e || e.by === playerId || !game) return;
+      if (!isKart) { if (game.onEvent) game.onEvent(e); return; }
       if (e.type === 'bolt') {
-        if (game.progress > e.p) game.hitByBolt();
-      } else if (e.type === 'missile' && e.target === playerId) {
-        game.hitByMissile();
+        if (game.progress > e.p) game.hitByBolt(e.by);
+      } else if ((e.type === 'missile' || e.type === 'turtle') && e.target === playerId) {
+        game.hitByMissile(e.by, e.type);
       } else if (e.type === 'swap' && e.target === playerId) {
-        game.teleportTo(e.state);
+        game.teleportTo(e.state, e.by);
       }
     });
 
@@ -606,6 +624,11 @@
 
   function applyPeer(id, raw) {
     if (id === playerId || !raw) return;
+    if (!isKart) {                                     // 카트 외 실시간 게임: 엔진이 직접 해석
+      peerPos[id] = { raw: raw, name: names[id] || '' };
+      if (game && game.applyPeerRaw) game.applyPeerRaw(id, raw, names[id] || '');
+      return;
+    }
     const a = String(raw).split(',');
     const fl = +a[5] || 0;
     peerPos[id] = {
@@ -631,6 +654,7 @@
     if (target) msg.target = target;
     if (type === 'bolt') msg.p = payload.p;
     if (type === 'swap') msg.state = payload;
+    if (!isKart && payload) Object.assign(msg, payload);
     const ref = eventsRef.push(msg);
     setTimeout(() => ref.remove(), 3000);
   }
@@ -671,6 +695,8 @@
     document.getElementById('hud-total').textContent = '/' + h.total;
     document.getElementById('hud-lap').textContent = h.lap;
     document.getElementById('hud-laps').textContent = '/' + h.laps;
+    const pb = document.querySelector('.pos-box');
+    if (pb) pb.className = 'pos-box' + (h.rank === 1 ? ' gold' : h.rank === 2 ? ' silver' : h.rank === 3 ? ' bronze' : '');
     document.getElementById('hud-speed').textContent = h.speed;
     document.getElementById('hud-speed-bar').style.width = h.speedPct.toFixed(0) + '%';
 
@@ -733,7 +759,9 @@
     if (byId('btn-down')) press('btn-down',
       () => { if (game) { game.softDropping = true; game.softDrop(); } },
       () => { if (game) game.softDropping = false; });
-    if (byId('btn-up'))   tap('btn-up',   () => game && (game.up ? game.up() : game.rotate()));
+    if (byId('btn-up'))   press('btn-up',
+      () => { if (game) { game.upHeld = true; (game.up ? game.up() : game.rotate()); } },
+      () => { if (game) game.upHeld = false; });
     if (byId('btn-jump')) tap('btn-jump', () => game && (game.jump ? game.jump() : game.rotate()));
     if (byId('btn-fire')) press('btn-fire',
       () => { if (game) { game.firing = true; if (game.fire) game.fire(); } },
@@ -800,8 +828,8 @@
     if (e.key === 'ArrowLeft') game.move(-1);
     else if (e.key === 'ArrowRight') game.move(1);
     else if (e.key === 'ArrowDown') { game.softDropping = true; }
-    else if (e.key === 'ArrowUp') game.rotate();
-    else if (e.key === ' ') { e.preventDefault(); isKart ? game.useItem() : game.hardDrop(); }
+    else if (e.key === 'ArrowUp') { if (game.up) { game.upHeld = true; game.up(); } else game.rotate(); }
+    else if (e.key === ' ') { e.preventDefault(); if (isKart) game.useItem(); else if (game.fire) { game.firing = true; game.fire(); } else game.hardDrop(); }
     else if (isKart && (e.key === 'd' || e.key === 'D' || e.key === 'Backspace')) {
       e.preventDefault(); game.dropItem();
     }
@@ -811,6 +839,8 @@
     if (e.key === 'ArrowLeft'  && game.releaseSteer) game.releaseSteer(-1);
     if (e.key === 'ArrowRight' && game.releaseSteer) game.releaseSteer(1);
     if (e.key === 'ArrowDown') game.softDropping = false;
+    if (e.key === 'ArrowUp') game.upHeld = false;
+    if (e.key === ' ') game.firing = false;
   }
 
   // ── 결과 ──

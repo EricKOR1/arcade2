@@ -305,6 +305,9 @@ p { margin: 0 }
 .pos-box { display: flex; align-items: baseline; gap: 2px; padding: 8px 16px 9px; border-radius: 16px;
   color: var(--accent-ink); background: linear-gradient(160deg, color-mix(in srgb, var(--accent) 85%, #fff), var(--accent));
   box-shadow: inset 0 1px 0 rgba(255,255,255,.45), 0 12px 28px -12px var(--accent-glow) }
+.pos-box.gold   { background: linear-gradient(160deg, #FFF2B0, #FFD166 55%, #E0A800); color: #3A2A00 }
+.pos-box.silver { background: linear-gradient(160deg, #FFFFFF, #D9DEE8 55%, #A9B2C2); color: #1E2430 }
+.pos-box.bronze { background: linear-gradient(160deg, #FFD3A8, #F5A524 55%, #C2761A); color: #3A2200 }
 .pos-box b { font-size: 32px; font-weight: 800; line-height: 1 }
 .pos-box span { font-size: 14px; font-weight: 700; opacity: .65 }
 .lap-box { display: flex; align-items: baseline; gap: 3px; padding: 7px 14px; border-radius: 13px;
@@ -322,7 +325,8 @@ p { margin: 0 }
   font-size: 38px; background: rgba(8,10,16,.7); border: 2px dashed rgba(255,255,255,.2);
   backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); transition: transform .15s var(--ease-spring), border-color .15s }
 .item-slot.small { width: 52px; height: 52px; border-radius: 16px; font-size: 26px; opacity: .8 }
-.item-slot.has { border-style: solid; border-color: rgba(255,255,255,.3); background: rgba(8,10,16,.85) }
+.item-slot.has { border-style: solid; border-color: rgba(255,255,255,.3);
+  background: radial-gradient(120% 90% at 30% 20%, rgba(255,255,255,.18), rgba(8,10,16,.9) 60%) }
 .item-slot.ready { border-color: var(--accent); box-shadow: 0 0 30px -6px var(--accent-glow) }
 .item-slot.rolling { border-color: var(--a-warn); animation: rollspin .28s linear infinite }
 .item-slot.pop { transform: scale(1.18) }
@@ -533,3 +537,18 @@ body.fullgrid .spectate { grid-template-columns: 1fr 320px }
 .move-card:active { transform: scale(.98) }
 .move-card b { font-size: 16px; font-weight: 700 } .move-card span { font-size: 12.5px; color: var(--a-faint) }
 .move-card.now { opacity: .5 }
+
+/* ═══ 교사: 학생 개별 화면 보기 ═══ */
+.focus { position: fixed; inset: 0; z-index: 90; display: flex; flex-direction: column; background: rgba(4,6,12,.94);
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px) }
+.focus.hidden { display: none }
+.focus-top { display: flex; align-items: center; gap: 12px; padding: 12px 18px; border-bottom: 1px solid var(--a-line) }
+.focus-title { flex: 1; display: flex; align-items: baseline; gap: 12px; justify-content: center }
+.focus-title b { font-size: 22px; font-weight: 800; letter-spacing: -.02em }
+.focus-title span { font-size: 14px; color: var(--a-dim) }
+.focus-stage { flex: 1; display: flex; align-items: center; justify-content: center; padding: 12px; min-height: 0; position: relative }
+#focus-canvas { display: block; border-radius: 16px; box-shadow: 0 0 0 1px var(--a-line2), 0 40px 90px -40px rgba(0,0,0,.95) }
+.focus-note { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); max-width: 460px; text-align: center;
+  padding: 18px 22px; border-radius: 16px; background: rgba(8,10,16,.85); border: 1px solid var(--a-line2); color: var(--a-dim); font-size: 14px }
+.player-card, #standings li, #score-list li { cursor: pointer }
+.player-card:hover { border-color: var(--a-line2) }

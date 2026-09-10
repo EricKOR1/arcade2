@@ -74,6 +74,89 @@ const GAMES = {
     sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, passed: g.passed }; }
   },
 
+  fps: {
+    type: 'canvas',
+    name: '레이저 태그 (개인전)',
+    desc: '1인칭 시점 미로에서 레이저로 서로를 맞히세요. 3발이면 다운, 3초 뒤 다시 등장',
+    meta: '실시간 대전 · 개인전 · 킬 경쟁',
+    primary: '75% 0.18 25', primaryContent: '100% 0 0', hex: '#FF8A56',
+    fullBleed: true, grid: { cols: 24, rows: 24 },
+    adminView: 'arena', realtime: true,
+    needsPeers: true, hasNext: false,
+    stats: [{ key: 'kills', label: 'KILLS' }, { key: 'hp', label: 'HP' }],
+    detail: function (g) { return g.kills + '킬 · ' + g.deaths + '데스'; },
+    controls: ['up', 'left', 'down', 'right', 'fire'],
+    labels: { up: '▲ 전진', down: '▼ 후진', left: '↶', right: '↷', fire: '발사 (꾹)' },
+    create: function (canvas, opts) { return new FpsGame(canvas, opts); },
+    sync: function (g) { return { score: g.score, kills: g.kills, deaths: g.deaths, hp: g.hp }; }
+  },
+
+  fpsteam: {
+    type: 'canvas',
+    name: '레이저 태그 (팀전)',
+    desc: '레드 팀과 블루 팀으로 나뉘어 대결. 미니맵에는 우리 편만 보입니다',
+    meta: '실시간 대전 · 팀전 · 레드 vs 블루',
+    primary: '70% 0.2 350', primaryContent: '100% 0 0', hex: '#FF5C7A',
+    fullBleed: true, grid: { cols: 24, rows: 24 },
+    adminView: 'arena', realtime: true,
+    needsPeers: true, hasNext: false,
+    stats: [{ key: 'kills', label: 'KILLS' }, { key: 'hp', label: 'HP' }],
+    detail: function (g) { return (g.team === 'red' ? '레드 팀' : '블루 팀') + ' · ' + g.kills + '킬 ' + g.deaths + '데스'; },
+    controls: ['up', 'left', 'down', 'right', 'fire'],
+    labels: { up: '▲ 전진', down: '▼ 후진', left: '↶', right: '↷', fire: '발사 (꾹)' },
+    create: function (canvas, opts) { return new FpsGame(canvas, Object.assign({ teamMode: true }, opts)); },
+    sync: function (g) { return { score: g.score, kills: g.kills, deaths: g.deaths, hp: g.hp, team: g.team }; }
+  },
+
+  g2048: {
+    type: 'canvas',
+    name: '2048',
+    desc: '밀어서 같은 숫자를 합치세요. 2048 을 만들면 승리, 더 못 움직이면 끝',
+    meta: '개인전 · 퍼즐 · 점수 경쟁',
+    primary: '80% 0.12 70', primaryContent: '25% 0.04 70', hex: '#EDC22E',
+    grid: { cols: 4, rows: 4 },
+    adminView: 'grid',
+    needsPeers: false, hasNext: false,
+    stats: [{ key: 'best', label: '최고 타일' }, { key: 'moves', label: '이동' }],
+    detail: function (g) { return '최고 타일 ' + g.best + ' · ' + g.moves + '번 이동'; },
+    controls: ['up', 'left', 'down', 'right'],
+    create: function (canvas, opts) { return new Game2048(canvas, opts.cellSize); },
+    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, best: g.best }; }
+  },
+
+  frogger: {
+    type: 'canvas',
+    name: '길 건너기',
+    desc: '차와 강을 피해 위쪽 집까지. 다섯 집을 다 채우면 다음 단계',
+    meta: '개인전 · 점수 경쟁',
+    primary: '82% 0.16 165', primaryContent: '18% 0.05 165', hex: '#2E7D46',
+    grid: { cols: 13, rows: 15 },
+    adminView: 'grid',
+    needsPeers: false, hasNext: false,
+    stats: [{ key: 'crossed', label: '도착' }, { key: 'lives', label: '목숨' }],
+    detail: function (g) { return g.crossed + '번 도착 · ' + g.level + '단계'; },
+    controls: ['up', 'left', 'down', 'right'],
+    create: function (canvas, opts) { return new FroggerGame(canvas, opts.cellSize); },
+    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, crossed: g.crossed }; }
+  },
+
+  asteroids: {
+    type: 'canvas',
+    name: '소행성',
+    desc: '좌우로 돌고 ▲ 로 나아가며 소행성을 쏘세요. 큰 것은 둘로 쪼개집니다',
+    meta: '개인전 · 점수 경쟁',
+    primary: '75% 0.05 260', primaryContent: '20% 0.02 260', hex: '#C9D1DC',
+    grid: { cols: 16, rows: 20 },
+    adminView: 'grid',
+    needsPeers: false, hasNext: false,
+    stats: [{ key: 'wave', label: 'WAVE' }, { key: 'lives', label: '목숨' }],
+    detail: function (g) { return g.wave + '번째 파도까지'; },
+    controls: ['up', 'left', 'right', 'fire'],
+    labels: { up: '▲ 추진', left: '↶', right: '↷', fire: '발사 (꾹)' },
+    create: function (canvas, opts) { return new AsteroidsGame(canvas, opts.cellSize); },
+    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, wave: g.wave }; }
+  },
+
   shooter: {
     type: 'canvas',
     name: '우주 방어',
