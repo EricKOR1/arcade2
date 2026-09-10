@@ -218,6 +218,28 @@ p { margin: 0 }
 .icon-btn { width: 42px; height: 42px; min-height: 42px; padding: 0; border-radius: 13px;
   background: var(--a-glass); border: 1px solid var(--a-line); color: var(--a-dim); font-size: 16px }
 
+/* 화면 왼쪽 위 고정 뒤로가기 */
+.nav-back {
+  position: fixed; left: calc(10px + env(safe-area-inset-left)); top: calc(10px + env(safe-area-inset-top));
+  z-index: 60; width: 42px; height: 42px; border-radius: 14px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  font: 600 20px/1 Pretendard, sans-serif; color: var(--a-text);
+  background: var(--a-glass2); border: 1px solid var(--a-line2);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.16), var(--shadow-float);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  cursor: pointer; transition: transform .14s var(--ease-spring), background .14s;
+}
+.nav-back:active { transform: scale(.92); background: rgba(255,255,255,.16) }
+.nav-back.hidden { display: none !important }
+/* 게임 화면에서는 점수 칩과 겹치지 않도록 상단 바를 밀어 줍니다 */
+#screen-game.active ~ .nav-back, .app .nav-back { }
+#screen-game .topbar { padding-left: 60px }
+#screen-dom .dom-host { padding-top: 4px }
+@media (orientation: landscape) and (max-height: 540px) {
+  .nav-back { width: 36px; height: 36px; border-radius: 11px; font-size: 17px }
+  #screen-game .topbar { padding-left: 52px }
+}
+
 .canvas-wrap { flex: 1; display: flex; justify-content: center; align-items: center;
                min-height: 0; padding: 6px 12px; position: relative }
 .canvas-wrap.bleed { padding: 0 }

@@ -10,11 +10,14 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1B2027">
 <title>아케이드</title>
-<link rel="stylesheet" href="platform.css?v=2026-09-10b">
-<link rel="stylesheet" href="style.css?v=2026-09-10b">
+<link rel="stylesheet" href="platform.css?v=2026-09-10c">
+<link rel="stylesheet" href="style.css?v=2026-09-10c">
 </head>
 <body>
 <div class="app">
+
+  <button id="nav-back" class="nav-back hidden" aria-label="뒤로">←</button>
+
 
   <!-- 입장 -->
   <section id="screen-join" class="screen centered active">
@@ -47,7 +50,6 @@
       <div class="spacer"></div>
       <div class="chip next-box" id="next-box"><span class="k">NEXT</span><canvas id="next-canvas"></canvas></div>
       <button id="mute-btn" class="btn btn-square btn-sm btn-ghost" aria-label="소리 끄기">♪</button>
-      <button id="leave-btn" class="btn btn-square btn-sm btn-ghost" aria-label="나가기">✕</button>
     </div>
     <div class="canvas-wrap" id="canvas-wrap">
       <canvas id="game-canvas"></canvas>
@@ -121,21 +123,21 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script src="firebase-config.js?v=2026-09-10b"></script>
-<script src="sound.js?v=2026-09-10b"></script>
-<script src="shared.js?v=2026-09-10b"></script>
-<script src="tetris-engine.js?v=2026-09-10b"></script>
-<script src="racing-engine.js?v=2026-09-10b"></script>
-<script src="snake-engine.js?v=2026-09-10b"></script>
-<script src="breakout-engine.js?v=2026-09-10b"></script>
-<script src="flappy-engine.js?v=2026-09-10b"></script>
-<script src="shooter-engine.js?v=2026-09-10b"></script>
-<script src="games.js?v=2026-09-10b"></script>
-<script src="app.js?v=2026-09-10b"></script>
+<script src="firebase-config.js?v=2026-09-10c"></script>
+<script src="sound.js?v=2026-09-10c"></script>
+<script src="shared.js?v=2026-09-10c"></script>
+<script src="tetris-engine.js?v=2026-09-10c"></script>
+<script src="racing-engine.js?v=2026-09-10c"></script>
+<script src="snake-engine.js?v=2026-09-10c"></script>
+<script src="breakout-engine.js?v=2026-09-10c"></script>
+<script src="flappy-engine.js?v=2026-09-10c"></script>
+<script src="shooter-engine.js?v=2026-09-10c"></script>
+<script src="games.js?v=2026-09-10c"></script>
+<script src="app.js?v=2026-09-10c"></script>
 <script>
 (function () {
 
-  const BUILD = '2026-09-10b';   // 화면 아래에 표시됩니다
+  const BUILD = '2026-09-10c';   // 화면 아래에 표시됩니다
 
   const gameId = getGameId();
   const def = GAMES[gameId];
@@ -193,29 +195,73 @@
     }
   });
 
-  // 게임 화면에서 나가기 — 아직 입장하지 않았다면 닉네임 화면으로 되돌립니다
-  document.getElementById('leave-btn').addEventListener('click', function () {
-    stopGame();
-    if (isHtml) { try { App._stop(); } catch (e) {} document.getElementById('dom-host').innerHTML = ''; }
-    started = false;
-    show(joined ? 'screen-wait' : 'screen-join');
-  });
-
-  // 새로고침·튕김 뒤에도 이름을 기억해 둡니다 (한 번만 누르면 다시 입장)
+  // 새로고침·튕김·게임 이동 뒤에도 이름을 기억해 둡니다
   (function () {
-    var prev = '';
-    try { prev = sessionStorage.getItem('nickname') || ''; } catch (e) {}
+    var prev = '', auto = '0';
+    try {
+      prev = sessionStorage.getItem('nickname') || '';
+      auto = sessionStorage.getItem('autoJoin') || '0';
+      sessionStorage.removeItem('autoJoin');
+    } catch (e) {}
     if (!prev) return;
     var input = document.getElementById('nickname-input');
     if (input) input.value = prev;
     var btn = document.getElementById('join-btn');
     if (btn) btn.textContent = '다시 입장하기';
+    // 선생님이 게임을 옮긴 경우엔 누르지 않아도 알아서 들어갑니다
+    if (auto === '1') setTimeout(function () { join(); }, 120);
   })();
+
+  /* 화면 이동을 기록해 두고, 휴대폰의 뒤로가기로 페이지가 통째로 닫히지 않게 합니다.
+     화면마다 "뒤로 가면 어디로 갈지" 를 정해 둡니다. (null 이면 뒤로가기 버튼을 숨김) */
+  const BACK_TO = {
+    'screen-join': null,          // 첫 화면
+    'screen-wait': 'screen-join', // 대기 → 닉네임
+    'screen-game': 'screen-wait',
+    'screen-dom':  'screen-wait',
+    'screen-over': 'screen-wait',
+    'screen-exit': 'screen-wait',
+    'screen-ended': null
+  };
+  let curScreen = 'screen-join';
 
   function show(id) {
     document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
     document.getElementById(id).classList.add('active');
+    curScreen = id;
+    const back = BACK_TO[id];
+    document.getElementById('nav-back').classList.toggle('hidden', !back);
+    // 뒤로 갈 곳이 있으면 기록을 하나 쌓아 둡니다 (휴대폰 뒤로가기가 여기서 잡힙니다)
+    if (back) { try { history.pushState({ screen: id }, ''); } catch (e) {} }
   }
+
+  // 뒤로 가기 — 게임 중이면 멈추고 이전 화면으로
+  function goBack() {
+    const back = BACK_TO[curScreen];
+    if (!back) return;
+    if (curScreen === 'screen-game' || curScreen === 'screen-dom') {
+      stopGame();
+      if (isHtml) { try { App._stop(); } catch (e) {} document.getElementById('dom-host').innerHTML = ''; }
+      started = false;
+    }
+    show(joined ? back : 'screen-join');
+  }
+
+  document.getElementById('nav-back').addEventListener('click', goBack);
+
+  // 휴대폰·브라우저의 뒤로가기
+  try { history.replaceState({ screen: 'screen-join' }, ''); } catch (e) {}
+  window.addEventListener('popstate', function () {
+    if (BACK_TO[curScreen]) goBack();
+    else { try { history.pushState({ screen: curScreen }, ''); } catch (e) {} }  // 첫 화면에선 나가지 않게
+  });
+
+  // 실수로 탭을 닫을 때 확인 (게임 중일 때만)
+  window.addEventListener('beforeunload', function (e) {
+    if (!started || switching) return;
+    e.preventDefault();
+    e.returnValue = '';
+  });
 
   // 지금 기기가 어떤 버전을 쓰는지 입장 화면에 작게 표시합니다
   (function () {
@@ -227,6 +273,7 @@
   })();
 
   let joined = false;          // 닉네임을 넣고 입장하기를 눌렀는지
+  let switching = false;       // 다른 게임으로 옮겨 가는 중
   let playerId = sessionStorage.getItem('playerId');
   if (!playerId) {
     playerId = 'p_' + Math.random().toString(36).slice(2, 10);
@@ -311,6 +358,17 @@
     // 입장한 학생만 게임으로 넘어갑니다.
     // (이미 진행 중인 수업에 뒤늦게 QR로 들어와도 닉네임 화면을 먼저 거칩니다)
     const st = s.status || 'idle';
+
+    // 선생님이 다른 게임을 골랐으면 그 게임으로 옮겨 갑니다.
+    // 게임마다 엔진이 달라 주소를 바꿔 다시 여는 방식이며, 닉네임은 그대로 유지됩니다.
+    if (s.game && s.game !== gameId && GAMES[s.game]) {
+      if (switching) return;
+      switching = true;
+      try { sessionStorage.setItem('autoJoin', joined ? '1' : '0'); } catch (e) {}
+      const url = location.pathname + '?game=' + encodeURIComponent(s.game);
+      location.replace(url);
+      return;
+    }
 
     if (st === 'playing') {
       if (!started && joined) startGame();
