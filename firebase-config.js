@@ -3,13 +3,13 @@
 // 에서 아래 값들을 복사해서 그대로 바꿔넣으세요.
 
 const firebaseConfig = {
-  apiKey: "여기에_API_KEY",
-  authDomain: "여기에_PROJECT_ID.firebaseapp.com",
-  databaseURL: "https://여기에_PROJECT_ID-default-rtdb.firebaseio.com",
-  projectId: "여기에_PROJECT_ID",
-  storageBucket: "여기에_PROJECT_ID.appspot.com",
-  messagingSenderId: "여기에_SENDER_ID",
-  appId: "여기에_APP_ID"
+  apiKey: "AIzaSyA95pJwc-X2AyXq3XU_1CAPyu755U5AERk",
+  authDomain: "arcadegame-25262.firebaseapp.com",
+  databaseURL: "https://arcadegame-25262-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "arcadegame-25262",
+  storageBucket: "arcadegame-25262.firebasestorage.app",
+  messagingSenderId: "171893226218",
+  appId: "1:171893226218:web:75c3daf40a8be1078cf593"
 };
 
 firebase.initializeApp(firebaseConfig);
