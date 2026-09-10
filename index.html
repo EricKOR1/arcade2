@@ -2,14 +2,16 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1B2027">
 <title>아케이드</title>
-<link rel="stylesheet" href="platform.css">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="platform.css?v=2026-09-10a">
+<link rel="stylesheet" href="style.css?v=2026-09-10a">
 </head>
 <body>
 <div class="app">
@@ -45,6 +47,7 @@
       <div class="spacer"></div>
       <div class="chip next-box" id="next-box"><span class="k">NEXT</span><canvas id="next-canvas"></canvas></div>
       <button id="mute-btn" class="btn btn-square btn-sm btn-ghost" aria-label="소리 끄기">♪</button>
+      <button id="leave-btn" class="btn btn-square btn-sm btn-ghost" aria-label="나가기">✕</button>
     </div>
     <div class="canvas-wrap" id="canvas-wrap">
       <canvas id="game-canvas"></canvas>
@@ -114,19 +117,21 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script src="firebase-config.js"></script>
-<script src="sound.js"></script>
-<script src="shared.js"></script>
-<script src="tetris-engine.js"></script>
-<script src="racing-engine.js"></script>
-<script src="snake-engine.js"></script>
-<script src="breakout-engine.js"></script>
-<script src="flappy-engine.js"></script>
-<script src="shooter-engine.js"></script>
-<script src="games.js"></script>
-<script src="app.js"></script>
+<script src="firebase-config.js?v=2026-09-10a"></script>
+<script src="sound.js?v=2026-09-10a"></script>
+<script src="shared.js?v=2026-09-10a"></script>
+<script src="tetris-engine.js?v=2026-09-10a"></script>
+<script src="racing-engine.js?v=2026-09-10a"></script>
+<script src="snake-engine.js?v=2026-09-10a"></script>
+<script src="breakout-engine.js?v=2026-09-10a"></script>
+<script src="flappy-engine.js?v=2026-09-10a"></script>
+<script src="shooter-engine.js?v=2026-09-10a"></script>
+<script src="games.js?v=2026-09-10a"></script>
+<script src="app.js?v=2026-09-10a"></script>
 <script>
 (function () {
+
+  const BUILD = '2026-09-10a';   // 화면 아래에 표시됩니다
 
   const gameId = getGameId();
   const def = GAMES[gameId];
@@ -152,10 +157,27 @@
     document.getElementById('kart-hud').classList.remove('hidden');
   }
 
+  // 게임 화면에서 나가기 — 아직 입장하지 않았다면 닉네임 화면으로 되돌립니다
+  document.getElementById('leave-btn').addEventListener('click', function () {
+    stopGame();
+    if (isHtml) { try { App._stop(); } catch (e) {} document.getElementById('dom-host').innerHTML = ''; }
+    started = false;
+    show(joined ? 'screen-wait' : 'screen-join');
+  });
+
   function show(id) {
     document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
     document.getElementById(id).classList.add('active');
   }
+
+  // 지금 기기가 어떤 버전을 쓰는지 입장 화면에 작게 표시합니다
+  (function () {
+    const tag = document.createElement('div');
+    tag.style.cssText = 'position:fixed;left:0;right:0;bottom:6px;text-align:center;' +
+      'font:500 10px Pretendard,sans-serif;color:rgba(255,255,255,.28);pointer-events:none;z-index:50';
+    tag.textContent = 'v' + BUILD;
+    document.body.appendChild(tag);
+  })();
 
   let joined = false;          // 닉네임을 넣고 입장하기를 눌렀는지
   let playerId = sessionStorage.getItem('playerId');
