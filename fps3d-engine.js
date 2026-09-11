@@ -255,10 +255,15 @@ class Fps3DGame {
       const t = rx * dx + ry * dy; if (t <= 0 || t > 30) return;
       const px = this.x + dx * t, py = this.y + dy * t, pz = F3_EYE + dz * t;
       const lateral = Math.hypot(px - p.x, py - p.y);
-      if (lateral > 0.32 || pz < 0 || pz > 1.85) return;             // 몸통 반지름 · 키
+      // 터치 조준을 감안해 판정을 넉넉하게: 몸통 반지름 0.5 + 거리 비례 (10칸에서 약 3.5도)
+      const tol = Math.max(0.5, t * 0.06);
+      if (lateral > tol || pz < -0.2 || pz > 2.1) return;
       if (this.blocked(this.x, this.y, p.x, p.y)) return;
-      if (t < bestD) { bestD = t; best = id; hitZ = pz; }
+      // 여러 명이 겹치면 조준선에 가장 가까운 쪽 (같으면 가까운 쪽)
+      const score = lateral / tol + t * 0.01;
+      if (score < bestD) { bestD = score; best = id; hitZ = pz; this._bestT = t; }
     });
+    if (best) bestD = this._bestT;
     let ex = this.x, ey = this.y, ez = F3_EYE, n = 0;
     while (!this.wall(ex, ey) && ez > 0 && ez < 2.2 && n++ < 400) { ex += dx * 0.08; ey += dy * 0.08; ez += dz * 0.08; }
     if (best) { const p = this.peers[best]; ex = p.x; ey = p.y; ez = hitZ; }
@@ -273,6 +278,25 @@ class Fps3DGame {
       if (window.Sound) Sound.lock();
     }
   }
+  // 원(반지름 R) 이 주변 벽 칸과 겹치면 가장 가까운 면으로 밀어냅니다
+  pushOut() {
+    const R = 0.3, cx = Math.floor(this.x), cy = Math.floor(this.y);
+    for (let gy = cy - 1; gy <= cy + 1; gy++) for (let gx = cx - 1; gx <= cx + 1; gx++) {
+      if (!this.wall(gx + 0.5, gy + 0.5)) continue;
+      const nx = Math.max(gx, Math.min(gx + 1, this.x)), ny = Math.max(gy, Math.min(gy + 1, this.y));   // 칸에서 가장 가까운 점
+      let dx = this.x - nx, dy = this.y - ny, d = Math.hypot(dx, dy);
+      if (d >= R) continue;
+      if (d < 1e-6) {                                     // 정확히 면 위: 이동 방향 반대로
+        const ex = Math.abs(this.x - (gx + 0.5)), ey = Math.abs(this.y - (gy + 0.5));
+        if (ex > ey) { dx = Math.sign(this.x - (gx + 0.5)) || 1; dy = 0; } else { dy = Math.sign(this.y - (gy + 0.5)) || 1; dx = 0; }
+        d = 1;
+      }
+      this.x += dx / d * (R - d); this.y += dy / d * (R - d);
+    }
+    // 맵 밖으로는 절대 못 나가게
+    const N = this.map.length; this.x = Math.max(1 + R, Math.min(N - 1 - R, this.x)); this.y = Math.max(1 + R, Math.min(N - 1 - R, this.y));
+  }
+
   blocked(x0, y0, x1, y1) {
     const d = Math.hypot(x1 - x0, y1 - y0), n = Math.ceil(d * 8);
     for (let i = 1; i < n; i++) { const t = i / n; const c = this.cell(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t); if (c === '#' || c === '=' || c === 'B' || c === 'H') return true; }
@@ -353,9 +377,9 @@ class Fps3DGame {
     if (this.moving) {
       const sp = 0.095 * f * Math.min(1, len);
       const ux = (Math.cos(this.yaw) * sy - Math.sin(this.yaw) * sx) / (len || 1), uy = (Math.sin(this.yaw) * sy + Math.cos(this.yaw) * sx) / (len || 1);
-      const nx = this.x + ux * sp, ny = this.y + uy * sp, R = 0.28;
-      if (!this.wall(nx + Math.sign(ux) * R, this.y)) this.x = nx;
-      if (!this.wall(this.x, ny + Math.sign(uy) * R)) this.y = ny;
+      // 한 프레임에 너무 멀리 가지 않게 잘게 나눠 움직이고, 매번 벽에서 밀어냅니다
+      const steps = Math.max(1, Math.ceil(sp / 0.12));
+      for (let k = 0; k < steps; k++) { this.x += ux * sp / steps; this.y += uy * sp / steps; this.pushOut(); }
       this.bob += 0.2 * f;
     }
     if (this.firing) this.shoot();
@@ -402,7 +426,8 @@ class Fps3DGame {
       const p = this.peers[id];
       let m = this.models[id];
       if (!m || m.userData.team !== p.team) { if (m) this.scene.remove(m); m = this.buildSoldier(p.team, p.name); m.userData.team = p.team; this.models[id] = m; this.scene.add(m); }
-      m.visible = true;
+      const far = Math.hypot(p.x - this.x, p.y - this.y) > 45;
+      m.visible = !far; if (far) return;
       m.position.set(p.x, 0, p.y); m.rotation.y = -p.angle - Math.PI / 2;
       const u = m.userData;
       const sw = p.moving ? Math.sin(p.walk) * 0.5 : 0;
@@ -410,7 +435,7 @@ class Fps3DGame {
       // 다운: 쓰러짐
       const fall = p.dead ? 1 : 0; m.rotation.x += (fall * -Math.PI / 2 - m.rotation.x) * 0.2;
       // 이름표 체력 갱신 (바뀔 때만)
-      if (u.tag.userData.hp !== p.hp || u.tag.userData.name !== p.name) { const nt = this.makeTag(p.name || '', p.team, p.hp); nt.position.copy(u.tag.position); m.remove(u.tag); if (u.tag.material.map) u.tag.material.map.dispose(); u.tag = nt; m.add(nt); }
+      if (Math.round((u.tag.userData.hp || 0) / 10) !== Math.round((p.hp || 0) / 10) || u.tag.userData.name !== p.name) { const nt = this.makeTag(p.name || '', p.team, p.hp); nt.position.copy(u.tag.position); m.remove(u.tag); if (u.tag.material.map) u.tag.material.map.dispose(); u.tag = nt; m.add(nt); }
       u.tag.visible = !p.dead;
       // 피격 번쩍임
       const fl = u.flash && now < u.flash;

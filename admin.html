@@ -7,8 +7,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1B2027">
 <title>교사용 대시보드</title>
-<link rel="stylesheet" href="platform.css?v=2026-09-13b">
-<link rel="stylesheet" href="style.css?v=2026-09-13b">
+<link rel="stylesheet" href="platform.css?v=2026-09-14a">
+<link rel="stylesheet" href="style.css?v=2026-09-14a">
 </head>
 <body>
 <div class="admin" id="admin-root">
@@ -17,7 +17,7 @@
     <h1>아케이드</h1>
     <span class="badge badge-lg" id="status-badge">게임 선택</span>
     <span class="badge badge-lg badge-ghost" id="count-badge">0명 접속</span>
-    <span class="badge badge-sm" style="opacity:.4">v2026-09-13b</span>
+    <span class="badge badge-sm" style="opacity:.4">v2026-09-14a</span>
   </div>
   <p class="admin-sub" id="admin-sub">플레이할 게임을 고르면 학생용 QR이 만들어집니다.</p>
 
@@ -148,22 +148,22 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="firebase-config.js?v=2026-09-13b"></script>
-<script src="shared.js?v=2026-09-13b"></script>
-<script src="tetris-engine.js?v=2026-09-13b"></script>
-<script src="racing-engine.js?v=2026-09-13b"></script>
-<script src="snake-engine.js?v=2026-09-13b"></script>
-<script src="breakout-engine.js?v=2026-09-13b"></script>
-<script src="flappy-engine.js?v=2026-09-13b"></script>
-<script src="shooter-engine.js?v=2026-09-13b"></script>
+<script src="firebase-config.js?v=2026-09-14a"></script>
+<script src="shared.js?v=2026-09-14a"></script>
+<script src="tetris-engine.js?v=2026-09-14a"></script>
+<script src="racing-engine.js?v=2026-09-14a"></script>
+<script src="snake-engine.js?v=2026-09-14a"></script>
+<script src="breakout-engine.js?v=2026-09-14a"></script>
+<script src="flappy-engine.js?v=2026-09-14a"></script>
+<script src="shooter-engine.js?v=2026-09-14a"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="fps-engine.js?v=2026-09-13b"></script>
-<script src="fps3d-engine.js?v=2026-09-13b"></script>
-<script src="game2048-engine.js?v=2026-09-13b"></script>
-<script src="frogger-engine.js?v=2026-09-13b"></script>
-<script src="asteroids-engine.js?v=2026-09-13b"></script>
-<script src="games.js?v=2026-09-13b"></script>
-<script src="app.js?v=2026-09-13b"></script>
+<script src="fps-engine.js?v=2026-09-14a"></script>
+<script src="fps3d-engine.js?v=2026-09-14a"></script>
+<script src="game2048-engine.js?v=2026-09-14a"></script>
+<script src="frogger-engine.js?v=2026-09-14a"></script>
+<script src="asteroids-engine.js?v=2026-09-14a"></script>
+<script src="games.js?v=2026-09-14a"></script>
+<script src="app.js?v=2026-09-14a"></script>
 <script>
 (function () {
   const CELL = { tetris: 6, snake: 5, breakout: 8, flappy: 8, shooter: 8, g2048: 26, frogger: 8, asteroids: 6 };
@@ -185,6 +185,17 @@
   const cardByPlayer = {};
   const names = {}, peerPos = {};
   let currentGameId = null, currentTrack = null;
+  // (아래 기능들의 상태 — 리스너가 먼저 호출돼도 안전하도록 여기서 선언)
+  const roomRefs = {};      // 모드별 Firebase 구독
+  const roomData = {};      // 모드별 최신 상태
+  const dots = {};          // 학생 표시의 현재 위치 (부드럽게 따라갑니다)
+  let roomGame = null, roomSel = null, jRaf = null, jLast = 0;
+  let pendingStartNow = false;      // (모두 이동 화면에서만 켜집니다)
+  let serverOffset = 0;
+  const STALE_MS = 30000;
+  let specOn = false, specTimer = null, specAuto = null, followKey = 'lead';
+  let focusId = null, focusRaf = null, focusKart = null, focusPlayers = {};
+  let focusFps = null;
   let specTrack = null, specTrackId = null, specRaf = null;
 
   // 학생이 달리는 트랙을 별도로 구독 — 다른 상태 갱신 순서와 무관하게 항상 일치시킴
@@ -240,7 +251,6 @@
     selectPanel.classList.remove('hidden');
   });
 
-  let pendingStartNow = false;      // (모두 이동 화면에서만 켜집니다)
 
   function chooseGame(id) {
     pendingStartNow = false;
@@ -294,14 +304,21 @@
     $('qr-url').textContent = url;
   }
 
-  $('start-btn').addEventListener('click', () => statusRef.set('playing'));
+  // 게임 시작 — 지난 판의 완주 순위 카운터·위치·아이템·이벤트를 비우고 시작합니다
+  $('start-btn').addEventListener('click', () => {
+    finishRef.set(0); posRef.remove(); hazardsRef.remove(); eventsRef.remove();
+    playersRef.once('value').then(snap => {
+      const ps = snap.val() || {}, up = {};
+      Object.keys(ps).forEach(id => { up[id + '/status'] = 'waiting'; up[id + '/score'] = 0; up[id + '/rank'] = null; });
+      return Object.keys(up).length ? playersRef.update(up) : null;
+    })["catch"](() => {}).then(() => statusRef.set('playing'));
+  });
   $('end-btn').addEventListener('click', () => statusRef.set('ended'));
   $('lobby-btn').addEventListener('click', () => statusRef.set('waiting'));
 
   // ══ 학생 개별 화면 보기 ══
   //  · 캔버스 게임: 그 학생의 보드를 크게 그림 (0.2초마다 오는 스냅샷)
   //  · 카트: 엔진을 관전 모드로 띄워 그 학생 시점의 3D 화면을 그대로 보여 줌
-  let focusId = null, focusRaf = null, focusKart = null, focusPlayers = {};
   const focusEl = $('focus'); let focusCv = $('focus-canvas');
 
   function focusOrder() {
@@ -350,7 +367,6 @@
     if (e.key === 'ArrowRight') stepFocus(1);
   });
 
-  let focusFps = null;
   function startFocusFps(id) {
     const Eng = GAMES[currentGameId].engine3d ? Fps3DGame : FpsGame;
     focusFps = new Eng(focusCv, { myId: id, myName: names[id] || '', teamMode: (GAMES[currentGameId].name.indexOf('팀') >= 0), nameOf: k => names[k] || '' });
@@ -617,9 +633,7 @@
 
   // ── 참가자 ──
   // 서버 시계와의 차이 (끊긴 학생 판정에 씁니다)
-  let serverOffset = 0;
   db.ref('.info/serverTimeOffset').on('value', s => { serverOffset = s.val() || 0; });
-  const STALE_MS = 30000;
   function isStale(p) {
     const seen = (p && (p.lastSeen || p.joinedAt)) || 0;
     return seen && (Date.now() + serverOffset - seen) > STALE_MS;
@@ -743,10 +757,6 @@
   }
 
   // ══ 몸속 여행: 인체 지도 위 실시간 관전 ══
-  const roomRefs = {};      // 모드별 Firebase 구독
-  const roomData = {};      // 모드별 최신 상태
-  const dots = {};          // 학생 표시의 현재 위치 (부드럽게 따라갑니다)
-  let roomGame = null, roomSel = null, jRaf = null, jLast = 0;
 
   function stopRooms() {
     if (specOn) stopSpec();
@@ -910,7 +920,6 @@
      교사 화면에 그대로 띄우고, 카메라만 학생을 따라가게 합니다.
      게임 파일은 손대지 않고, 게임이 열어 둔 peek() 으로 조종합니다.
      ══════════════════════════════════════════════════════════ */
-  let specOn = false, specTimer = null, specAuto = null, followKey = 'lead';
 
   $('spec-btn').addEventListener('click', () => (specOn ? stopSpec() : startSpec()));
   $('j-follow').addEventListener('change', e => { followKey = e.target.value; });

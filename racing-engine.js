@@ -1390,7 +1390,7 @@ class KartGame {
   // ── 노면 ──
   drawRoad(ctx, W, H, cam, now) {
     const t = this.track, d = t.def, n = t.n;
-    const K = Math.min(170, Math.ceil(5000 / t.stepLen));
+    const K = Math.min(140, Math.ceil(4600 / t.stepLen));
     const DETAIL = 20;
 
     const segs = [];
