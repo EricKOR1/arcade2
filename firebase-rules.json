@@ -1,0 +1,19 @@
+{
+  "rules": {
+    ".read": true,
+    ".write": false,
+
+    "session":     { ".write": true },
+    "finishCount": { ".write": true, ".validate": "newData.isNumber()" },
+    "roster":      { "$id": { ".write": true, ".validate": "newData.isString() && newData.val().length <= 12" } },
+    "players":     { "$id": { ".write": true,
+                       "nickname": { ".validate": "newData.isString() && newData.val().length <= 12" },
+                       "score":    { ".validate": "newData.isNumber()" },
+                       "board":    { ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 4000)" } } },
+    "pos":         { "$id": { ".write": true, ".validate": "newData.isString() && newData.val().length <= 200" } },
+    "hazards":     { ".write": true },
+    "events":      { ".write": true },
+    "rooms":       { ".write": true },
+    "scores":      { ".write": true }
+  }
+}

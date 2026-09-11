@@ -95,7 +95,7 @@ class Fps3DGame {
     const T = THREE;
     this.scene = new T.Scene();
     this.scene.background = new T.Color(0x9ED4FF);
-    this.scene.fog = new T.Fog(0xBFE3FF, 30, 90);
+    this.scene.fog = new T.Fog(0xCFE6FF, 28, 95);
     this.camera = new T.PerspectiveCamera(72, 1, 0.05, 140);
 
     // 조명: 하늘빛 + 태양
@@ -126,6 +126,31 @@ class Fps3DGame {
       cells.forEach(([x, y], i) => { m.makeTranslation(x + 0.5, h / 2, y + 0.5); mesh.setMatrixAt(i, m); });
       this.scene.add(mesh);
     });
+
+    // 하늘 돔 (그라데이션) + 태양
+    const skyTex = new T.CanvasTexture(Fps3DGame.texCanvas('sky')); skyTex.encoding = T.sRGBEncoding;
+    const dome = new T.Mesh(new T.SphereGeometry(180, 24, 12), new T.MeshBasicMaterial({ map: skyTex, side: T.BackSide, fog: false }));
+    dome.position.set(N / 2, 0, N / 2); this.scene.add(dome);
+    const sunTex = new T.CanvasTexture(Fps3DGame.texCanvas('flash')); sunTex.encoding = T.sRGBEncoding;
+    const sunSp = new T.Sprite(new T.SpriteMaterial({ map: sunTex, transparent: true, fog: false, depthWrite: false })); sunSp.scale.set(40, 40, 1); sunSp.position.set(N / 2 + 90, 70, N / 2 - 60); this.scene.add(sunSp);
+
+    // 벽 위 어두운 트림 · 바닥 접지 그림자 띠 (입체감)
+    const trimMat = new T.MeshLambertMaterial({ color: 0x3A4256 });
+    const trimCells = []; for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { const k = this.map[y][x]; if (k === '#' || k === '=' || k === 'B' || k === 'H') trimCells.push([x, y, F3_HEIGHT[k]]); }
+    const trim = new T.InstancedMesh(new T.BoxGeometry(1.04, 0.08, 1.04), trimMat, trimCells.length);
+    const shadowMat = new T.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.22, depthWrite: false });
+    const shadow = new T.InstancedMesh(new T.PlaneGeometry(1.6, 1.6), shadowMat, trimCells.length);
+    { const m = new T.Matrix4(), q = new T.Quaternion().setFromEuler(new T.Euler(-Math.PI / 2, 0, 0)), one = new T.Vector3(1, 1, 1);
+      trimCells.forEach(([x, y, h], i) => { m.makeTranslation(x + 0.5, h + 0.04, y + 0.5); trim.setMatrixAt(i, m);
+        m.compose(new T.Vector3(x + 0.5, 0.012, y + 0.5), q, one); shadow.setMatrixAt(i, m); }); }
+    this.scene.add(trim); this.scene.add(shadow);
+    // 바닥 얼룩 (타이어 자국·먼지)
+    const decMat = new T.MeshBasicMaterial({ color: 0x5A4A36, transparent: true, opacity: 0.18, depthWrite: false });
+    for (let i = 0; i < 40; i++) {
+      let x, y; do { x = 2 + Math.random() * (N - 4); y = 2 + Math.random() * (N - 4); } while (this.wall(x, y));
+      const dec = new T.Mesh(new T.PlaneGeometry(1.2 + Math.random() * 2, 0.5 + Math.random() * 1.5), decMat);
+      dec.rotation.x = -Math.PI / 2; dec.rotation.z = Math.random() * Math.PI; dec.position.set(x, 0.008, y); this.scene.add(dec);
+    }
 
     // 멀리 보이는 언덕 · 건물 실루엣
     const hillMat = new T.MeshLambertMaterial({ color: 0x9CBF7A });
@@ -172,6 +197,8 @@ class Fps3DGame {
       g.fillStyle = '#2B2F3A'; for (let x = -16; x < S + 32; x += 32) { g.beginPath(); g.moveTo(x, S - 26); g.lineTo(x + 16, S - 26); g.lineTo(x, S - 8); g.lineTo(x - 16, S - 8); g.closePath(); g.fill(); } }
     else if (kind === 'X') { g.fillStyle = '#B98A55'; g.fillRect(0, 0, S, S); noise(0.07); g.strokeStyle = '#7A552F'; g.lineWidth = 8; g.strokeRect(6, 6, S - 12, S - 12); g.beginPath(); g.moveTo(8, 8); g.lineTo(S - 8, S - 8); g.moveTo(S - 8, 8); g.lineTo(8, S - 8); g.stroke(); g.fillStyle = 'rgba(255,255,255,0.15)'; g.fillRect(12, 12, S - 24, 4); }
     else if (kind === 'B') { g.fillStyle = '#9A5A50'; g.fillRect(0, 0, S, S); for (let y = 0; y < S; y += 32) for (let x = ((y / 32) % 2) * 32 - 32; x < S; x += 64) { g.fillStyle = (x + y) % 3 ? '#C27A6C' : '#B36E61'; g.fillRect(x + 3, y + 3, 58, 26); } noise(0.05); }
+    else if (kind === 'sky') { const r = g.createLinearGradient(0, 0, 0, S); r.addColorStop(0, '#5FA8FF'); r.addColorStop(0.55, '#A9D6FF'); r.addColorStop(1, '#E6F1FF'); g.fillStyle = r; g.fillRect(0, 0, S, S);
+      g.fillStyle = 'rgba(255,255,255,0.55)'; for (let i = 0; i < 8; i++) { const cx = Math.random() * S, cy = S * (0.35 + Math.random() * 0.25); [0, 10, -8, 6].forEach(o => { g.beginPath(); g.ellipse(cx + o, cy + (o % 3), 14, 6, 0, 0, Math.PI * 2); g.fill(); }); } }
     else if (kind === 'flash') { const r = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2); r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.3, 'rgba(160,235,255,0.9)'); r.addColorStop(1, 'rgba(160,235,255,0)'); g.fillStyle = r; g.fillRect(0, 0, S, S); }
     return cv;
   }
@@ -383,6 +410,14 @@ class Fps3DGame {
       this.bob += 0.2 * f;
     }
     if (this.firing) this.shoot();
+    else if (this.autoFire && !this.reloading && this.ammo > 0) {
+      // 자동 발사: 조준선에서 5도 안에 적이 보이면 쏩니다
+      const dx = Math.cos(this.yaw) * Math.cos(this.pitch), dy = Math.sin(this.yaw) * Math.cos(this.pitch);
+      const found = Object.keys(this.peers).some(id => { const p = this.peers[id]; if (p.dead || (this.teamMode && p.team === this.team)) return false;
+        const rx = p.x - this.x, ry = p.y - this.y, t = rx * dx + ry * dy; if (t <= 0.5 || t > 26) return false;
+        const lateral = Math.hypot(this.x + dx * t - p.x, this.y + dy * t - p.y); return lateral < Math.max(0.5, t * 0.09) && !this.blocked(this.x, this.y, p.x, p.y); });
+      if (found) this.shoot();
+    }
     this.draw();
   }
 
@@ -398,9 +433,12 @@ class Fps3DGame {
       const dpr = Math.min(1.5, window.devicePixelRatio || 1); this.hud.width = Math.round(W * dpr); this.hud.height = Math.round(H * dpr); this.hctx.setTransform(dpr, 0, 0, dpr, 0, 0); }
     // 카메라
     const bobY = this.moving ? Math.sin(this.bob) * 0.03 : 0;
-    this.camera.position.set(this.x, F3_EYE + bobY, this.y);
+    const shake = this.hurt > 0.5 ? (this.hurt - 0.5) * 0.06 : 0;
+    this.camera.position.set(this.x + (Math.random() - 0.5) * shake, F3_EYE + bobY + (Math.random() - 0.5) * shake, this.y + (Math.random() - 0.5) * shake);
+    const fov = 72 + this.recoil * 2.5 + (this.moving ? 1.5 : 0);
+    if (Math.abs(this.camera.fov - fov) > 0.05) { this.camera.fov += (fov - this.camera.fov) * 0.3; this.camera.updateProjectionMatrix(); }
     this.camera.rotation.order = 'YXZ';
-    this.camera.rotation.y = -this.yaw - Math.PI / 2; this.camera.rotation.x = this.pitch;   // 카메라 시선 = (cos yaw, sin yaw) — 이동 방향과 일치
+    this.camera.rotation.y = -this.yaw - Math.PI / 2; this.camera.rotation.x = this.pitch; this.camera.rotation.z = (this.mx || 0) * -0.02;   // 시선 = 이동 방향 · 옆걸음 때 살짝 기울기
     // 총 흔들림 · 반동 · 재장전
     const rel = this.reloading ? Math.sin(((this.reloadUntil - now) / 1400) * Math.PI) * 0.25 : 0;
     this.weapon.position.set(0.28 + (this.moving ? Math.sin(this.bob * 0.5) * 0.01 : 0), -0.26 - rel + (this.moving ? Math.abs(Math.cos(this.bob * 0.5)) * 0.01 : 0), -0.55 + this.recoil * 0.06);
@@ -512,7 +550,7 @@ class Fps3DGame {
       rr(W / 2 - 84, 10, 168, 40, 14, 'rgba(8,10,16,0.72)'); ctx.textAlign = 'center'; ctx.font = '800 22px Pretendard, sans-serif';
       ctx.fillStyle = F3_TEAM_CSS.red; ctx.fillText(String(red), W / 2 - 40, 39); ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.font = '700 14px Pretendard, sans-serif'; ctx.fillText('RED   BLUE', W / 2, 38);
       ctx.fillStyle = F3_TEAM_CSS.blue; ctx.font = '800 22px Pretendard, sans-serif'; ctx.fillText(String(blue), W / 2 + 40, 39); ctx.textAlign = 'left';
-      ctx.fillStyle = teamC; ctx.font = '800 12px Pretendard, sans-serif'; ctx.fillText(this.team === 'red' ? '🔴 RED' : '🔵 BLUE', 14, 24);
+      ctx.fillStyle = teamC; ctx.font = '800 12px Pretendard, sans-serif'; ctx.fillText(this.team === 'red' ? '🔴 RED' : '🔵 BLUE', 62, 28);
     } else { rr(W / 2 - 64, 10, 128, 36, 14, 'rgba(8,10,16,0.72)'); ctx.textAlign = 'center'; ctx.font = '800 16px Pretendard, sans-serif'; ctx.fillStyle = '#FFD166'; ctx.fillText('K ' + this.kills + '   D ' + this.deaths, W / 2, 34); ctx.textAlign = 'left'; }
     // 킬 피드
     this.feed = this.feed.filter(x => x.until > now); ctx.font = '700 12px Pretendard, sans-serif'; ctx.textAlign = 'right';
@@ -532,7 +570,7 @@ class Fps3DGame {
   }
 
   drawMinimap(ctx, W, H) {
-    const n = this.map.length, size = Math.min(104, W * 0.28), cs = size / n, x0 = 14, y0 = this.teamMode ? 34 : 14;
+    const n = this.map.length, size = Math.min(104, W * 0.28), cs = size / n, x0 = 14, y0 = 62;   // 왼쪽 위 뒤로가기 버튼 아래
     if (!this._mm || this._mmSize !== size) {
       this._mm = document.createElement('canvas'); this._mm.width = Math.ceil(size + 8); this._mm.height = Math.ceil(size + 8); this._mmSize = size;
       const g = this._mm.getContext('2d'); g.fillStyle = 'rgba(8,10,16,0.72)'; g.beginPath(); if (g.roundRect) g.roundRect(0, 0, size + 8, size + 8, 10); else g.rect(0, 0, size + 8, size + 8); g.fill();

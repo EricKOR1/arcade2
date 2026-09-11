@@ -1,19 +1,22 @@
-아케이드 플랫폼 — 이번 교체 파일 (v2026-09-12a)
+아케이드 플랫폼 — 이번 교체 파일 (v2026-09-16a)
 ==============================================
 
-새로 올릴 파일 4개 (신규 게임 엔진)
-  fps-engine.js        레이저 태그 (개인전 · 팀전)
-  game2048-engine.js   2048
-  frogger-engine.js    길 건너기
-  asteroids-engine.js  소행성
+교체할 파일 4개
+  index.html         3D 게임 상단 칩 숨김(화면 넓게)
+  admin.html         교사 화면 비밀번호 잠금 · 개별 화면 엔진 정리 · roster 정리
+  style.css          잠금 화면
+  fps3d-engine.js    미니맵 위치(뒤로가기와 안 겹치게)
+  (+ README.md)
 
-교체할 파일 8개
-  index.html   admin.html   style.css   games.js   shared.js   README.md
-  racing-engine.js   tetris-engine.js
+새 파일 1개 (올리지 않아도 됨 — Firebase 콘솔용)
+  firebase-rules.json   콘솔 > Realtime Database > 규칙 에 붙여 넣기
+
+교사 화면 비밀번호를 쓰려면
+  firebase-config.js 에 한 줄 추가:  const ADMIN_PASS_SHA256 = "해시";
+  (해시는 admin.html 잠금 창의 "비밀번호 정하기" 에서 만듭니다. 이 줄이 없으면 잠금 없음)
 
 건드리지 않는 파일
-  firebase-config.js  ← 본인 값 그대로 (이 폴더의 EXAMPLE 은 처음 설치용, 올리지 마세요)
+  firebase-config.js  ← 본인 값 그대로 (EXAMPLE 은 올리지 마세요)
   photo.html / force.html / body.html
-  (나머지 파일은 같이 들어 있지만 내용이 같으니 덮어써도 무방)
 
-올린 뒤 화면에 v2026-09-12a 가 보이는지 확인하세요. 안 보이면 Ctrl+Shift+R.
+올린 뒤 화면에 v2026-09-16a 가 보이는지 확인. 안 보이면 Ctrl+Shift+R.

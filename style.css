@@ -589,3 +589,48 @@ body.fullgrid .spectate { grid-template-columns: 1fr 320px }
   .pad-split .pad-mid button { min-height: 40px; font-size: 16px } .pad-split .pad-mid .k-fire, .pad-split .pad-mid .k-item { min-height: 46px }
   .pad.pad-kart.pad-split .pad-edge button { min-height: 86px }
 }
+
+/* ═══ 3D 레이저 태그 — 화면 위 조작 ═══ */
+.pad.pad-none { display: none }
+#fps-ctl { position: absolute; inset: 0; z-index: 5; touch-action: none; user-select: none }
+.fjoy { position: absolute; width: 140px; height: 140px; left: 24px; bottom: 26px; pointer-events: none; opacity: .35; transition: opacity .15s }
+.fjoy.on { opacity: 1 }
+.fjoy-base { width: 100%; height: 100%; border-radius: 50%; border: 2px solid rgba(255,255,255,.45);
+  background: radial-gradient(circle at 50% 45%, rgba(255,255,255,.12), rgba(0,0,0,.25) 72%); position: relative }
+.fjoy-knob { position: absolute; left: 50%; top: 50%; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #fff, #cfd6e0 70%); box-shadow: 0 6px 18px rgba(0,0,0,.45) }
+.ffire { position: absolute; right: 26px; bottom: 34px; width: 96px; height: 96px; border-radius: 50%; border: 2px solid rgba(255,255,255,.5);
+  background: radial-gradient(circle at 50% 35%, rgba(255,120,110,.95), rgba(220,50,70,.95) 70%); color: #fff; font: 800 30px/1 Pretendard, sans-serif;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; box-shadow: 0 10px 30px rgba(0,0,0,.45); touch-action: none }
+.ffire small { font-size: 11px; font-weight: 700; opacity: .85 } .ffire span { line-height: 1 }
+.ffire.on, .ffire:active { transform: scale(.94); filter: brightness(1.15) }
+.freload { position: absolute; right: 30px; bottom: 146px; padding: 8px 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,.35);
+  background: rgba(8,10,16,.55); color: #fff; font: 700 12px Pretendard, sans-serif }
+.fopts { position: absolute; right: 12px; top: 96px; display: flex; flex-direction: column; gap: 6px }
+.fopt { padding: 6px 10px; border-radius: 10px; border: 1px solid rgba(255,255,255,.25); background: rgba(8,10,16,.5); color: rgba(255,255,255,.75); font: 700 11px Pretendard, sans-serif }
+.fopt.on { background: rgba(255,209,102,.9); color: #1a1500; border-color: transparent }
+.fhint { position: absolute; left: 50%; bottom: 150px; transform: translateX(-50%); padding: 8px 14px; border-radius: 12px;
+  background: rgba(8,10,16,.6); color: #fff; font: 600 12px Pretendard, sans-serif; white-space: nowrap; pointer-events: none; transition: opacity .6s }
+.fhint.fade { opacity: 0 }
+@media (orientation: landscape) and (max-height: 540px) {
+  .fjoy { width: 110px; height: 110px; left: 18px; bottom: 16px } .fjoy-knob { width: 44px; height: 44px; margin: -22px 0 0 -22px }
+  .ffire { width: 76px; height: 76px; right: 18px; bottom: 18px; font-size: 24px } .freload { bottom: 106px; right: 22px } .fopts { top: 60px }
+}
+
+/* 대기 화면: 게임 설명 · 조작 요약 */
+.howto { width: 100%; max-width: 420px; margin-top: 18px; padding: 16px 18px; text-align: left; border-radius: 18px;
+  background: rgba(255,255,255,.06); border: 1px solid var(--a-line); border-left: 4px solid var(--accent) }
+.howto-name { font-size: 12px; font-weight: 800; letter-spacing: .08em; color: var(--accent); margin-bottom: 6px }
+.howto-desc { font-size: 14px; line-height: 1.55; color: var(--a-text); margin-bottom: 8px }
+.howto-keys { font-size: 13px; line-height: 1.6; color: var(--a-dim) }
+
+/* 교사 화면 잠금 */
+.gate { position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center; padding: 24px; background: var(--a-bg) }
+.gate.hidden { display: none }
+.gate-box { width: min(380px, 100%); display: flex; flex-direction: column; gap: 12px; padding: 28px; border-radius: 24px;
+  background: var(--a-glass); border: 1px solid var(--a-line2); box-shadow: var(--shadow-panel) }
+.gate-box h2 { font-size: 22px; font-weight: 800 }
+.gate-err { font-size: 13px; color: var(--a-danger) }
+.gate-help { font-size: 12.5px; color: var(--a-dim); margin-top: 6px } .gate-help summary { cursor: pointer; font-weight: 600 }
+.gate-help p { margin: 8px 0 } .gate-help .input { min-height: 42px; font-size: 14px; margin-bottom: 8px }
+.gate-out { display: block; word-break: break-all; font-size: 11px; color: var(--a-text); user-select: all; margin-top: 8px }
