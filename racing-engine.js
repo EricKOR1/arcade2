@@ -1394,7 +1394,7 @@ class KartGame {
     const DETAIL = 20;
 
     const segs = [];
-    let k = -8;
+    let k = -24;                                   // 카메라(카트 뒤 약 4대 길이)보다 더 뒤에서 시작
     while (k < K) {
       const i = ((this.segIdx + k) % n + n) % n;
       const c = t.center[i], e = t.elev[i];
@@ -1421,6 +1421,27 @@ class KartGame {
     const roadLight = this.lighten(d.road, 0.055);
     const grassLight = this.lighten(d.grass, 0.07);
     const grassDark = this.shade(d.grass, -0.06);
+
+    // 카메라 바로 앞: 가장 가까운 두 조각의 가장자리를 화면 아래(H+40)까지 연장해 빈틈을 없앱니다.
+    // (이 틈이 지면색으로 깜박이던 원인)
+    {
+      const n0 = segs[0], n1 = segs[1];
+      const ext = (a, b) => {                        // b→a 방향으로 y = H+40 까지 연장
+        const dy = a.y - b.y; if (dy <= 0.01) return { x: a.x, y: H + 40 };
+        const tt = (H + 40 - a.y) / dy; return { x: a.x + (a.x - b.x) * tt, y: H + 40 };
+      };
+      const band0 = Math.floor(n1.i / 5) % 2 === 0;
+      const gL1 = this.edge(cam, n1, 3.2), gL0 = this.edge(cam, n0, 3.2), gR1 = this.edge(cam, n1, -3.2), gR0 = this.edge(cam, n0, -3.2);
+      if (gL0 && gL1 && gR0 && gR1) quad(gL0, gR0, ext(gR0, gR1), ext(gL0, gL1), band0 ? grassLight : grassDark);
+      else quad({ x: -W, y: n0.L.y }, { x: 2 * W, y: n0.R.y }, { x: 2 * W, y: H + 40 }, { x: -W, y: H + 40 }, grassDark);
+      const kw = 0.058;
+      const kL1 = this.edge(cam, n1, 1 + kw), kL0 = this.edge(cam, n0, 1 + kw), kR1 = this.edge(cam, n1, -1 - kw), kR0 = this.edge(cam, n0, -1 - kw);
+      const glow = (d.sky && d.sky.stars >= 0.3);
+      const kc0 = band0 ? (glow ? '#F4F7FF' : '#E8ECF2') : (glow ? '#FF5A6A' : '#D94A4A');
+      if (kL0 && kL1) quad(n0.L, kL0, ext(kL0, kL1), ext(n0.L, n1.L), kc0);
+      if (kR0 && kR1) quad(n0.R, kR0, ext(kR0, kR1), ext(n0.R, n1.R), kc0);
+      quad(n0.L, n0.R, ext(n0.R, n1.R), ext(n0.L, n1.L), band0 ? roadLight : d.road);
+    }
 
     for (let s2 = segs.length - 1; s2 > 0; s2--) {
       const far = segs[s2], near = segs[s2 - 1];
@@ -2388,33 +2409,46 @@ class KartGame {
 
   drawMinimap(ctx, W, H) {
     const t = this.track, c = t.center, b = t.bounds;
-    const size = Math.min(112, W*0.29), pad = 12;
-    const sc = (size-18) / Math.max(b.maxX-b.minX, b.maxY-b.minY);
+    const size = Math.min(118, W*0.3), pad = 12;
+    const sc = (size-22) / Math.max(b.maxX-b.minX, b.maxY-b.minY);
     const ox = W - size - pad, oy = pad + 46;
-    const mx = v => ox + 9 + (v - b.minX)*sc;
-    const my = v => oy + 9 + (v - b.minY)*sc;
+    const mx = v => ox + 11 + (v - b.minX)*sc;
+    const my = v => oy + 11 + (v - b.minY)*sc;
+    const now = this.clock();
 
     ctx.save();
-    ctx.fillStyle = 'rgba(10,13,20,0.78)';
-    ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(ox, oy, size, size, 14); else ctx.rect(ox, oy, size, size);
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.28)'; ctx.lineWidth = 4.5; ctx.lineJoin = 'round';
-    ctx.beginPath();
-    ctx.moveTo(mx(c[0][0]), my(c[0][1]));
+    // 유리 카드
+    ctx.fillStyle = 'rgba(10,13,20,0.62)';
+    ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(ox, oy, size, size, 16); else ctx.rect(ox, oy, size, size); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 1; ctx.stroke();
+    // 트랙: 어두운 바탕선 + 테마 연석색 가는 선
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = 6;
+    ctx.beginPath(); ctx.moveTo(mx(c[0][0]), my(c[0][1]));
     for (let i = 4; i < c.length; i += 4) ctx.lineTo(mx(c[i][0]), my(c[i][1]));
     ctx.closePath(); ctx.stroke();
+    ctx.strokeStyle = this.rgba(t.theme.kerb[1], 0.55); ctx.lineWidth = 1.5; ctx.stroke();
     // 결승선
-    ctx.strokeStyle = '#F4F6FA'; ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.arc(mx(c[0][0]), my(c[0][1]), 4, 0, Math.PI*2); ctx.stroke();
-
+    ctx.fillStyle = '#F4F6FA';
+    ctx.beginPath(); ctx.arc(mx(c[0][0]), my(c[0][1]), 3.5, 0, Math.PI*2); ctx.fill();
+    // 상대 (카트 색)
     Object.keys(this.peers).forEach(id => {
       const p = this.peers[id];
-      ctx.fillStyle = p.finished ? '#565D6E' : '#EF476F';
-      ctx.beginPath(); ctx.arc(mx(p.x), my(p.y), 3.4, 0, Math.PI*2); ctx.fill();
+      if (!p.look) p.look = kartLook(p.name || id);
+      ctx.fillStyle = p.finished ? 'rgba(86,93,110,0.8)' : p.look.color;
+      ctx.beginPath(); ctx.arc(mx(p.x), my(p.y), 3, 0, Math.PI*2); ctx.fill();
     });
-    ctx.fillStyle = '#4CC9F0';
-    ctx.beginPath(); ctx.arc(mx(this.x), my(this.y), 4.8, 0, Math.PI*2); ctx.fill();
+    // 나: 흰 테두리 + 맥박 링
+    const px = mx(this.x), py = my(this.y);
+    ctx.strokeStyle = 'rgba(255,255,255,' + (0.35 + Math.sin(now / 300) * 0.2).toFixed(2) + ')'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(px, py, 8 + Math.sin(now / 300) * 1.5, 0, Math.PI*2); ctx.stroke();
+    ctx.fillStyle = this.look ? this.look.color : '#4CC9F0';
+    ctx.beginPath(); ctx.arc(px, py, 4.5, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
+    // 랩 진행 막대 (카드 아래)
+    const lapPct = Math.max(0, Math.min(1, (this.segIdx / t.n)));
+    ctx.fillStyle = 'rgba(255,255,255,0.14)'; ctx.fillRect(ox + 10, oy + size - 9, size - 20, 4);
+    ctx.fillStyle = t.theme.kerb[1]; ctx.fillRect(ox + 10, oy + size - 9, (size - 20) * lapPct, 4);
     ctx.restore();
   }
 
