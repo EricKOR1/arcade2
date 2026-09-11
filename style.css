@@ -552,3 +552,25 @@ body.fullgrid .spectate { grid-template-columns: 1fr 320px }
   padding: 18px 22px; border-radius: 16px; background: rgba(8,10,16,.85); border: 1px solid var(--a-line2); color: var(--a-dim); font-size: 14px }
 .player-card, #standings li, #score-list li { cursor: pointer }
 .player-card:hover { border-color: var(--a-line2) }
+
+/* ═══ 조이스틱 패드 (3D 레이저 태그) ═══ */
+.pad.pad-joy { grid-template-columns: 1fr 1fr; align-items: center; min-height: 170px }
+.joy-zone { display: flex; align-items: center; justify-content: center }
+.joy-base { position: relative; width: 140px; height: 140px; border-radius: 50%; touch-action: none;
+  background: radial-gradient(circle at 50% 45%, rgba(255,255,255,.10), rgba(255,255,255,.04) 70%);
+  border: 1.5px solid var(--a-line2); box-shadow: inset 0 2px 0 rgba(255,255,255,.12), var(--shadow-float) }
+.joy-base.on { border-color: var(--accent); box-shadow: inset 0 2px 0 rgba(255,255,255,.12), 0 0 0 4px var(--accent-soft) }
+.joy-knob { position: absolute; left: 50%; top: 50%; width: 58px; height: 58px; margin: -29px 0 0 -29px; border-radius: 50%;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 85%, #fff), var(--accent));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.5), 0 10px 24px -8px var(--accent-glow); transition: transform .05s }
+.joy-hint { position: absolute; left: 0; right: 0; bottom: -22px; text-align: center; font-size: 11px; color: var(--a-faint); font-weight: 700 }
+.pad-joy .pad-r { align-items: flex-end; gap: 12px }
+.pad-joy .k-fire-round { width: 108px; height: 108px; min-height: 108px; border-radius: 50%; font-size: 18px; font-weight: 800;
+  background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--accent) 80%, #fff), var(--accent) 70%);
+  color: var(--accent-ink); border: none; box-shadow: inset 0 2px 0 rgba(255,255,255,.5), 0 14px 34px -10px var(--accent-glow) }
+.pad-joy .k-fire-round:active { transform: scale(.94); filter: brightness(1.12) }
+.pad-joy .k-reload { width: 108px; min-height: 40px; font-size: 13px; font-weight: 700; border-radius: 14px }
+@media (orientation: landscape) and (max-height: 540px) {
+  .pad.pad-joy { min-height: 120px } .joy-base { width: 100px; height: 100px } .joy-knob { width: 42px; height: 42px; margin: -21px 0 0 -21px }
+  .pad-joy .k-fire-round { width: 80px; height: 80px; min-height: 80px; font-size: 15px } .pad-joy .k-reload { width: 80px; min-height: 34px; font-size: 12px }
+}

@@ -7,8 +7,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1B2027">
 <title>교사용 대시보드</title>
-<link rel="stylesheet" href="platform.css?v=2026-09-12b">
-<link rel="stylesheet" href="style.css?v=2026-09-12b">
+<link rel="stylesheet" href="platform.css?v=2026-09-13a">
+<link rel="stylesheet" href="style.css?v=2026-09-13a">
 </head>
 <body>
 <div class="admin" id="admin-root">
@@ -17,7 +17,7 @@
     <h1>아케이드</h1>
     <span class="badge badge-lg" id="status-badge">게임 선택</span>
     <span class="badge badge-lg badge-ghost" id="count-badge">0명 접속</span>
-    <span class="badge badge-sm" style="opacity:.4">v2026-09-12b</span>
+    <span class="badge badge-sm" style="opacity:.4">v2026-09-13a</span>
   </div>
   <p class="admin-sub" id="admin-sub">플레이할 게임을 고르면 학생용 QR이 만들어집니다.</p>
 
@@ -148,20 +148,22 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="firebase-config.js?v=2026-09-12b"></script>
-<script src="shared.js?v=2026-09-12b"></script>
-<script src="tetris-engine.js?v=2026-09-12b"></script>
-<script src="racing-engine.js?v=2026-09-12b"></script>
-<script src="snake-engine.js?v=2026-09-12b"></script>
-<script src="breakout-engine.js?v=2026-09-12b"></script>
-<script src="flappy-engine.js?v=2026-09-12b"></script>
-<script src="shooter-engine.js?v=2026-09-12b"></script>
-<script src="fps-engine.js?v=2026-09-12b"></script>
-<script src="game2048-engine.js?v=2026-09-12b"></script>
-<script src="frogger-engine.js?v=2026-09-12b"></script>
-<script src="asteroids-engine.js?v=2026-09-12b"></script>
-<script src="games.js?v=2026-09-12b"></script>
-<script src="app.js?v=2026-09-12b"></script>
+<script src="firebase-config.js?v=2026-09-13a"></script>
+<script src="shared.js?v=2026-09-13a"></script>
+<script src="tetris-engine.js?v=2026-09-13a"></script>
+<script src="racing-engine.js?v=2026-09-13a"></script>
+<script src="snake-engine.js?v=2026-09-13a"></script>
+<script src="breakout-engine.js?v=2026-09-13a"></script>
+<script src="flappy-engine.js?v=2026-09-13a"></script>
+<script src="shooter-engine.js?v=2026-09-13a"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="fps-engine.js?v=2026-09-13a"></script>
+<script src="fps3d-engine.js?v=2026-09-13a"></script>
+<script src="game2048-engine.js?v=2026-09-13a"></script>
+<script src="frogger-engine.js?v=2026-09-13a"></script>
+<script src="asteroids-engine.js?v=2026-09-13a"></script>
+<script src="games.js?v=2026-09-13a"></script>
+<script src="app.js?v=2026-09-13a"></script>
 <script>
 (function () {
   const CELL = { tetris: 6, snake: 5, breakout: 8, flappy: 8, shooter: 8, g2048: 26, frogger: 8, asteroids: 6 };
@@ -300,7 +302,7 @@
   //  · 캔버스 게임: 그 학생의 보드를 크게 그림 (0.2초마다 오는 스냅샷)
   //  · 카트: 엔진을 관전 모드로 띄워 그 학생 시점의 3D 화면을 그대로 보여 줌
   let focusId = null, focusRaf = null, focusKart = null, focusPlayers = {};
-  const focusEl = $('focus'), focusCv = $('focus-canvas');
+  const focusEl = $('focus'); let focusCv = $('focus-canvas');
 
   function focusOrder() {
     const g = GAMES[currentGameId] || {};
@@ -310,8 +312,16 @@
     return Object.keys(focusPlayers).sort((a, b) => (focusPlayers[b].score || 0) - (focusPlayers[a].score || 0));
   }
 
+  let focusCvKind = '2d';
+  // 캔버스는 한 종류 컨텍스트만 가질 수 있어서, 2D ↔ WebGL 이 바뀌면 캔버스를 새로 만듭니다
+  function ensureFocusCanvas(kind) {
+    if (focusCvKind === kind && focusCv) return;
+    const fresh = document.createElement('canvas'); fresh.id = 'focus-canvas';
+    focusCv.parentElement.replaceChild(fresh, focusCv); focusCv = fresh; focusCvKind = kind;
+  }
   function openFocus(id) {
     const g = GAMES[currentGameId] || {};
+    ensureFocusCanvas(g.engine3d ? 'webgl' : '2d');
     focusId = id;
     focusEl.classList.remove('hidden');
     $('focus-note').classList.add('hidden');
@@ -322,6 +332,7 @@
   function closeFocus() {
     focusId = null; focusEl.classList.add('hidden');
     if (focusRaf) { cancelAnimationFrame(focusRaf); focusRaf = null; }
+    if (focusFps && focusFps.destroy) { try { focusFps.destroy(); } catch (e) {} }
     focusKart = null; focusFps = null;
   }
   function stepFocus(d) {
@@ -341,7 +352,8 @@
 
   let focusFps = null;
   function startFocusFps(id) {
-    focusFps = new FpsGame(focusCv, { myId: id, myName: names[id] || '', teamMode: (GAMES[currentGameId].name.indexOf('팀') >= 0), nameOf: k => names[k] || '' });
+    const Eng = GAMES[currentGameId].engine3d ? Fps3DGame : FpsGame;
+    focusFps = new Eng(focusCv, { myId: id, myName: names[id] || '', teamMode: (GAMES[currentGameId].name.indexOf('팀') >= 0), nameOf: k => names[k] || '' });
     focusFps.spectate(id);
   }
   function startFocusKart(id) {
@@ -374,8 +386,7 @@
       const w = Math.min(availW, Math.round(availH * 0.62)), h = Math.round(w / 0.62);
       if (focusCv.style.width !== w + 'px') {
         focusCv.style.width = w + 'px'; focusCv.style.height = h + 'px';
-        focusCv.width = Math.round(w * dpr); focusCv.height = Math.round(h * dpr);
-        focusCv.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
+        if (!g.engine3d) { focusCv.width = Math.round(w * dpr); focusCv.height = Math.round(h * dpr); focusCv.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0); }
       }
       const ps = {}; Object.keys(peerPos).forEach(k => { if (k !== '__hz' && peerPos[k].raw) ps[k] = { raw: peerPos[k].raw, name: names[k] || '' }; });
       focusFps.setPeers(ps);
@@ -1233,7 +1244,7 @@
     if (!raw) return;
     const gv = GAMES[currentGameId] || {};
     if (gv.adminView === 'arena') {                       // 레이저 태그: 엔진 파서 사용
-      const d = FpsGame.parse(raw);
+      const d = (gv.engine3d ? Fps3DGame : FpsGame).parse(raw);
       peerPos[id] = Object.assign(d, { raw: raw, progress: (d.kills || 0) * 1000 - (d.deaths || 0) });
       renderStandings();
       return;

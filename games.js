@@ -76,10 +76,44 @@ const GAMES = {
 
   fps: {
     type: 'canvas',
-    name: '레이저 태그 (개인전)',
-    desc: '1인칭 시점. 30발 탄창, 3발이면 다운, 3초 뒤 다시 등장. 벽 뒤는 못 맞힙니다',
-    meta: '실시간 대전 · 개인전 · 킬 경쟁',
+    name: '레이저 태그 3D (개인전)',
+    desc: '낮의 야외 훈련장에서 1인칭 3D 대전. 조이스틱 이동, 화면을 끌어 조준(상하 포함), 헤드샷은 2발',
+    meta: '실시간 대전 · 개인전 · 3D',
     primary: '75% 0.18 25', primaryContent: '100% 0 0', hex: '#FF8A56',
+    fullBleed: true, grid: { cols: 24, rows: 24 },
+    adminView: 'arena', realtime: true, engine3d: true,
+    needsPeers: true, hasNext: false,
+    stats: [{ key: 'kills', label: 'KILLS' }, { key: 'hp', label: 'HP' }],
+    detail: function (g) { return g.kills + '킬 · ' + g.deaths + '데스'; },
+    controls: ['fire'], padLayout: 'joystick',
+    labels: { fire: '발사' },
+    create: function (canvas, opts) { return new Fps3DGame(canvas, opts); },
+    sync: function (g) { return { score: g.score, kills: g.kills, deaths: g.deaths, hp: g.hp }; }
+  },
+
+  fpsteam: {
+    type: 'canvas',
+    name: '레이저 태그 3D (팀전)',
+    desc: '레드 팀과 블루 팀. 같은 팀은 못 맞히고, 미니맵에는 우리 편만 보입니다',
+    meta: '실시간 대전 · 팀전 · 3D',
+    primary: '70% 0.2 350', primaryContent: '100% 0 0', hex: '#FF5C7A',
+    fullBleed: true, grid: { cols: 24, rows: 24 },
+    adminView: 'arena', realtime: true, engine3d: true,
+    needsPeers: true, hasNext: false,
+    stats: [{ key: 'kills', label: 'KILLS' }, { key: 'hp', label: 'HP' }],
+    detail: function (g) { return (g.team === 'red' ? '레드 팀' : '블루 팀') + ' · ' + g.kills + '킬 ' + g.deaths + '데스'; },
+    controls: ['fire'], padLayout: 'joystick',
+    labels: { fire: '발사' },
+    create: function (canvas, opts) { return new Fps3DGame(canvas, Object.assign({ teamMode: true }, opts)); },
+    sync: function (g) { return { score: g.score, kills: g.kills, deaths: g.deaths, hp: g.hp, team: g.team }; }
+  },
+
+  fpsclassic: {
+    type: 'canvas',
+    name: '레이저 태그 클래식',
+    desc: '옛날 아케이드 감성의 2D 레이캐스팅 버전. 3D 가 느린 기기용',
+    meta: '실시간 대전 · 개인전 · 저사양',
+    primary: '65% 0.12 25', primaryContent: '100% 0 0', hex: '#C97A4A',
     fullBleed: true, grid: { cols: 24, rows: 24 },
     adminView: 'arena', realtime: true,
     needsPeers: true, hasNext: false,
@@ -89,23 +123,6 @@ const GAMES = {
     labels: { up: '▲ 전진', down: '▼ 후진', left: '↶', right: '↷', fire: '발사 (꾹)' },
     create: function (canvas, opts) { return new FpsGame(canvas, opts); },
     sync: function (g) { return { score: g.score, kills: g.kills, deaths: g.deaths, hp: g.hp }; }
-  },
-
-  fpsteam: {
-    type: 'canvas',
-    name: '레이저 태그 (팀전)',
-    desc: '레드 팀과 블루 팀으로 나뉘어 대결. 미니맵에는 우리 편만 보입니다',
-    meta: '실시간 대전 · 팀전 · 레드 vs 블루',
-    primary: '70% 0.2 350', primaryContent: '100% 0 0', hex: '#FF5C7A',
-    fullBleed: true, grid: { cols: 24, rows: 24 },
-    adminView: 'arena', realtime: true,
-    needsPeers: true, hasNext: false,
-    stats: [{ key: 'kills', label: 'KILLS' }, { key: 'hp', label: 'HP' }],
-    detail: function (g) { return (g.team === 'red' ? '레드 팀' : '블루 팀') + ' · ' + g.kills + '킬 ' + g.deaths + '데스'; },
-    controls: ['up', 'left', 'down', 'right', 'fire'],
-    labels: { up: '▲ 전진', down: '▼ 후진', left: '↶', right: '↷', fire: '발사 (꾹)' },
-    create: function (canvas, opts) { return new FpsGame(canvas, Object.assign({ teamMode: true }, opts)); },
-    sync: function (g) { return { score: g.score, kills: g.kills, deaths: g.deaths, hp: g.hp, team: g.team }; }
   },
 
   g2048: {

@@ -10,8 +10,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1B2027">
 <title>아케이드</title>
-<link rel="stylesheet" href="platform.css?v=2026-09-12b">
-<link rel="stylesheet" href="style.css?v=2026-09-12b">
+<link rel="stylesheet" href="platform.css?v=2026-09-13a">
+<link rel="stylesheet" href="style.css?v=2026-09-13a">
 </head>
 <body>
 <div class="app">
@@ -123,25 +123,27 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script src="firebase-config.js?v=2026-09-12b"></script>
-<script src="sound.js?v=2026-09-12b"></script>
-<script src="shared.js?v=2026-09-12b"></script>
-<script src="tetris-engine.js?v=2026-09-12b"></script>
-<script src="racing-engine.js?v=2026-09-12b"></script>
-<script src="snake-engine.js?v=2026-09-12b"></script>
-<script src="breakout-engine.js?v=2026-09-12b"></script>
-<script src="flappy-engine.js?v=2026-09-12b"></script>
-<script src="shooter-engine.js?v=2026-09-12b"></script>
-<script src="fps-engine.js?v=2026-09-12b"></script>
-<script src="game2048-engine.js?v=2026-09-12b"></script>
-<script src="frogger-engine.js?v=2026-09-12b"></script>
-<script src="asteroids-engine.js?v=2026-09-12b"></script>
-<script src="games.js?v=2026-09-12b"></script>
-<script src="app.js?v=2026-09-12b"></script>
+<script src="firebase-config.js?v=2026-09-13a"></script>
+<script src="sound.js?v=2026-09-13a"></script>
+<script src="shared.js?v=2026-09-13a"></script>
+<script src="tetris-engine.js?v=2026-09-13a"></script>
+<script src="racing-engine.js?v=2026-09-13a"></script>
+<script src="snake-engine.js?v=2026-09-13a"></script>
+<script src="breakout-engine.js?v=2026-09-13a"></script>
+<script src="flappy-engine.js?v=2026-09-13a"></script>
+<script src="shooter-engine.js?v=2026-09-13a"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="fps-engine.js?v=2026-09-13a"></script>
+<script src="fps3d-engine.js?v=2026-09-13a"></script>
+<script src="game2048-engine.js?v=2026-09-13a"></script>
+<script src="frogger-engine.js?v=2026-09-13a"></script>
+<script src="asteroids-engine.js?v=2026-09-13a"></script>
+<script src="games.js?v=2026-09-13a"></script>
+<script src="app.js?v=2026-09-13a"></script>
 <script>
 (function () {
 
-  const BUILD = '2026-09-12b';   // 화면 아래에 표시됩니다
+  const BUILD = '2026-09-13a';   // 화면 아래에 표시됩니다
 
   const gameId = getGameId();
   const def = GAMES[gameId];
@@ -434,8 +436,12 @@
       w = cellSize * def.grid.cols; h = cellSize * def.grid.rows;
     }
     canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
-    canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
-    canvas.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (def.engine3d) {
+      // WebGL 게임: 캔버스는 한 종류 컨텍스트만 가질 수 있으므로 2D 를 잡지 않습니다 (크기는 엔진이 맞춤)
+    } else {
+      canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+      canvas.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
     if (game) {
       if (game.resize) game.resize(cellSize); else game.cellSize = cellSize;
       game.draw();
@@ -458,6 +464,27 @@
     item:  { label: '아이템 사용', cls: 'k-item btn btn-primary' },
     discard: { label: '✕ 아이템 버리기', cls: 'k-discard btn btn-ghost' }
   };
+  // 둥근 조이스틱 — 손가락 위치를 -1~1 벡터로 게임에 넘깁니다
+  function bindJoystick(base, knob) {
+    let id = null, cx = 0, cy = 0, R = 44;
+    const set = (dx, dy) => {
+      const d = Math.hypot(dx, dy), k = d > R ? R / d : 1;
+      knob.style.transform = 'translate(' + (dx * k) + 'px,' + (dy * k) + 'px)';
+      if (game && game.setMove) game.setMove(dx * k / R, -dy * k / R);
+    };
+    base.addEventListener('touchstart', e => {
+      if (id !== null) return;
+      const t = e.changedTouches[0]; id = t.identifier;
+      const r = base.getBoundingClientRect(); cx = r.left + r.width / 2; cy = r.top + r.height / 2; R = r.width * 0.34;
+      base.classList.add('on'); set(t.clientX - cx, t.clientY - cy); e.preventDefault();
+    }, { passive: false });
+    base.addEventListener('touchmove', e => {
+      for (const t of e.changedTouches) if (t.identifier === id) { set(t.clientX - cx, t.clientY - cy); e.preventDefault(); }
+    }, { passive: false });
+    const end = e => { for (const t of e.changedTouches) if (t.identifier === id) { id = null; base.classList.remove('on'); knob.style.transform = ''; if (game && game.setMove) game.setMove(0, 0); } };
+    base.addEventListener('touchend', end); base.addEventListener('touchcancel', end);
+  }
+
   // 조작 패드 — 왼쪽에 방향키, 오른쪽에 특수키 (양손 잡기 편하게)
   const DIR_KEYS = ['left', 'right', 'up', 'down'];
   function buildPad() {
@@ -472,6 +499,19 @@
       b.setAttribute('aria-label', b.textContent);
       return b;
     };
+    if (def.padLayout === 'joystick') {
+      // 왼쪽: 둥근 조이스틱 (이동) · 오른쪽: 발사 · 재장전
+      pad.classList.add('pad-joy');
+      const L = document.createElement('div'); L.className = 'pad-l joy-zone';
+      L.innerHTML = '<div class="joy-base"><div class="joy-knob"></div><span class="joy-hint">이동</span></div>';
+      const R = document.createElement('div'); R.className = 'pad-r';
+      const fire = mk('fire'); fire.classList.add('k-fire-round');
+      const rl = document.createElement('button'); rl.id = 'btn-reload'; rl.className = 'k-reload btn btn-neutral'; rl.textContent = '↻ 재장전';
+      R.append(rl, fire);
+      pad.append(L, R);
+      bindJoystick(L.querySelector('.joy-base'), L.querySelector('.joy-knob'));
+      return;
+    }
     const dirs = def.controls.filter(c => DIR_KEYS.indexOf(c) >= 0);
     const acts = def.controls.filter(c => DIR_KEYS.indexOf(c) < 0);
     if (dirs.length) {
@@ -763,6 +803,7 @@
       () => { if (game) { game.upHeld = true; (game.up ? game.up() : game.rotate()); } },
       () => { if (game) game.upHeld = false; });
     if (byId('btn-jump')) tap('btn-jump', () => game && (game.jump ? game.jump() : game.rotate()));
+    if (byId('btn-reload')) tap('btn-reload', () => game && game.reload && game.reload());
     if (byId('btn-fire')) press('btn-fire',
       () => { if (game) { game.firing = true; if (game.fire) game.fire(); } },
       () => { if (game) game.firing = false; });
@@ -795,6 +836,27 @@
 
   function bindSwipe() {
     const canvas = byId('game-canvas');
+    if (def.padLayout === 'joystick') {
+      // 화면을 끌어서 조준 (손가락 여러 개: 왼쪽 조이스틱 손가락은 무시)
+      let lookId = null, lx = 0, ly = 0;
+      canvas.addEventListener('touchstart', e => {
+        for (const t of e.changedTouches) { if (lookId === null) { lookId = t.identifier; lx = t.clientX; ly = t.clientY; } }
+      }, { passive: true });
+      canvas.addEventListener('touchmove', e => {
+        if (!game) return;
+        for (const t of e.changedTouches) if (t.identifier === lookId) { game.look(t.clientX - lx, t.clientY - ly); lx = t.clientX; ly = t.clientY; }
+        e.preventDefault();
+      }, { passive: false });
+      const endLook = e => { for (const t of e.changedTouches) if (t.identifier === lookId) lookId = null; };
+      canvas.addEventListener('touchend', endLook); canvas.addEventListener('touchcancel', endLook);
+      // PC: 클릭하면 마우스로 조준 (Esc 로 해제), 클릭 = 발사
+      canvas.addEventListener('mousedown', e => { if (!game) return;
+        if (document.pointerLockElement !== canvas) { canvas.requestPointerLock && canvas.requestPointerLock(); }
+        else { game.firing = true; game.fire(); } });
+      canvas.addEventListener('mouseup', () => { if (game) game.firing = false; });
+      canvas.addEventListener('mousemove', e => { if (game && document.pointerLockElement === canvas) game.look(e.movementX, e.movementY); });
+      return;
+    }
     if (isKart) {
       // 카트: 화면 좌/우 절반을 눌러도 조향
       let dir = 0;
@@ -823,8 +885,13 @@
     canvas.addEventListener('touchend', () => { if (!moved && game) game.rotate(); });
   }
 
+  const wasd = { w: false, a: false, s: false, d: false };
+  function pushWasd() { if (game && game.setMove) game.setMove((wasd.d ? 1 : 0) - (wasd.a ? 1 : 0), (wasd.w ? 1 : 0) - (wasd.s ? 1 : 0)); }
   function onKeyDown(e) {
     if (!game || game.gameOver) return;
+    const k = e.key.toLowerCase();
+    if (game.setMove && (k === 'w' || k === 'a' || k === 's' || k === 'd')) { wasd[k] = true; pushWasd(); return; }
+    if (k === 'r' && game.reload) { game.reload(); return; }
     if (e.key === 'ArrowLeft') game.move(-1);
     else if (e.key === 'ArrowRight') game.move(1);
     else if (e.key === 'ArrowDown') { game.softDropping = true; }
@@ -836,6 +903,8 @@
   }
   function onKeyUp(e) {
     if (!game) return;
+    const k = e.key.toLowerCase();
+    if (game.setMove && (k === 'w' || k === 'a' || k === 's' || k === 'd')) { wasd[k] = false; pushWasd(); return; }
     if (e.key === 'ArrowLeft'  && game.releaseSteer) game.releaseSteer(-1);
     if (e.key === 'ArrowRight' && game.releaseSteer) game.releaseSteer(1);
     if (e.key === 'ArrowDown') game.softDropping = false;
@@ -876,6 +945,7 @@
   }
 
   function stopGame() {
+    if (game && game.destroy) { try { game.destroy(); } catch (e) {} }
     clearInterval(syncTimer);
     document.removeEventListener('keydown', onKeyDown);
     document.removeEventListener('keyup', onKeyUp);
