@@ -77,7 +77,7 @@ const GAMES = {
   fps: {
     type: 'canvas',
     name: '레이저 태그 (개인전)',
-    desc: '1인칭 시점 미로에서 레이저로 서로를 맞히세요. 3발이면 다운, 3초 뒤 다시 등장',
+    desc: '1인칭 시점. 30발 탄창, 3발이면 다운, 3초 뒤 다시 등장. 벽 뒤는 못 맞힙니다',
     meta: '실시간 대전 · 개인전 · 킬 경쟁',
     primary: '75% 0.18 25', primaryContent: '100% 0 0', hex: '#FF8A56',
     fullBleed: true, grid: { cols: 24, rows: 24 },

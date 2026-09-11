@@ -7,8 +7,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1B2027">
 <title>교사용 대시보드</title>
-<link rel="stylesheet" href="platform.css?v=2026-09-12a">
-<link rel="stylesheet" href="style.css?v=2026-09-12a">
+<link rel="stylesheet" href="platform.css?v=2026-09-12b">
+<link rel="stylesheet" href="style.css?v=2026-09-12b">
 </head>
 <body>
 <div class="admin" id="admin-root">
@@ -17,7 +17,7 @@
     <h1>아케이드</h1>
     <span class="badge badge-lg" id="status-badge">게임 선택</span>
     <span class="badge badge-lg badge-ghost" id="count-badge">0명 접속</span>
-    <span class="badge badge-sm" style="opacity:.4">v2026-09-12a</span>
+    <span class="badge badge-sm" style="opacity:.4">v2026-09-12b</span>
   </div>
   <p class="admin-sub" id="admin-sub">플레이할 게임을 고르면 학생용 QR이 만들어집니다.</p>
 
@@ -148,20 +148,20 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="firebase-config.js?v=2026-09-12a"></script>
-<script src="shared.js?v=2026-09-12a"></script>
-<script src="tetris-engine.js?v=2026-09-12a"></script>
-<script src="racing-engine.js?v=2026-09-12a"></script>
-<script src="snake-engine.js?v=2026-09-12a"></script>
-<script src="breakout-engine.js?v=2026-09-12a"></script>
-<script src="flappy-engine.js?v=2026-09-12a"></script>
-<script src="shooter-engine.js?v=2026-09-12a"></script>
-<script src="fps-engine.js?v=2026-09-12a"></script>
-<script src="game2048-engine.js?v=2026-09-12a"></script>
-<script src="frogger-engine.js?v=2026-09-12a"></script>
-<script src="asteroids-engine.js?v=2026-09-12a"></script>
-<script src="games.js?v=2026-09-12a"></script>
-<script src="app.js?v=2026-09-12a"></script>
+<script src="firebase-config.js?v=2026-09-12b"></script>
+<script src="shared.js?v=2026-09-12b"></script>
+<script src="tetris-engine.js?v=2026-09-12b"></script>
+<script src="racing-engine.js?v=2026-09-12b"></script>
+<script src="snake-engine.js?v=2026-09-12b"></script>
+<script src="breakout-engine.js?v=2026-09-12b"></script>
+<script src="flappy-engine.js?v=2026-09-12b"></script>
+<script src="shooter-engine.js?v=2026-09-12b"></script>
+<script src="fps-engine.js?v=2026-09-12b"></script>
+<script src="game2048-engine.js?v=2026-09-12b"></script>
+<script src="frogger-engine.js?v=2026-09-12b"></script>
+<script src="asteroids-engine.js?v=2026-09-12b"></script>
+<script src="games.js?v=2026-09-12b"></script>
+<script src="app.js?v=2026-09-12b"></script>
 <script>
 (function () {
   const CELL = { tetris: 6, snake: 5, breakout: 8, flappy: 8, shooter: 8, g2048: 26, frogger: 8, asteroids: 6 };
@@ -1291,9 +1291,10 @@
     const ctx = canvas.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const cs = size / n;
     ctx.fillStyle = '#12141b'; ctx.fillRect(0, 0, size, size);
+    const WALLC = { '#': '#5B6C8C', '=': '#8C94A8', 'X': '#8A6238', 'B': '#8A4E46' };
     for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if (map[y][x] !== '.') {
-      ctx.fillStyle = ((x + y) % 3 === 0) ? '#5B6C8C' : '#465470'; ctx.fillRect(x * cs, y * cs, cs + 0.5, cs + 0.5);
-      ctx.fillStyle = 'rgba(76,201,240,0.35)'; ctx.fillRect(x * cs, y * cs, cs + 0.5, Math.max(1, cs * 0.12));
+      ctx.fillStyle = WALLC[map[y][x]] || '#465470'; ctx.fillRect(x * cs, y * cs, cs + 0.5, cs + 0.5);
+      ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.fillRect(x * cs, y * cs, cs + 0.5, Math.max(1, cs * 0.14));
     }
     const ids = Object.keys(peerPos).filter(k => k !== '__hz');
     const teamMode = !!(GAMES[currentGameId] && GAMES[currentGameId].name.indexOf('팀') >= 0);
