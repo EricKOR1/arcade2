@@ -1436,22 +1436,25 @@ class KartGame {
         const dy = a.y - b.y; if (dy <= 0.01) return { x: a.x, y: H + 40 };
         const tt = (H + 40 - a.y) / dy; return { x: a.x + (a.x - b.x) * tt, y: H + 40 };
       };
-      const band0 = Math.floor(n1.i / 5) % 2 === 0;
+      const band0 = false;
       const gL1 = this.edge(cam, n1, 3.2), gL0 = this.edge(cam, n0, 3.2), gR1 = this.edge(cam, n1, -3.2), gR0 = this.edge(cam, n0, -3.2);
       if (gL0 && gL1 && gR0 && gR1) quad(gL0, gR0, ext(gR0, gR1), ext(gL0, gL1), band0 ? grassLight : grassDark);
       else quad({ x: -W, y: n0.L.y }, { x: 2 * W, y: n0.R.y }, { x: 2 * W, y: H + 40 }, { x: -W, y: H + 40 }, grassDark);
       const kw = 0.058;
       const kL1 = this.edge(cam, n1, 1 + kw), kL0 = this.edge(cam, n0, 1 + kw), kR1 = this.edge(cam, n1, -1 - kw), kR0 = this.edge(cam, n0, -1 - kw);
-      const glow = (d.sky && d.sky.stars >= 0.3);
-      const kc0 = band0 ? (glow ? '#F4F7FF' : '#E8ECF2') : (glow ? '#FF5A6A' : '#D94A4A');
+      const kc0 = t.theme.kerb[1];
       if (kL0 && kL1) quad(n0.L, kL0, ext(kL0, kL1), ext(n0.L, n1.L), kc0);
       if (kR0 && kR1) quad(n0.R, kR0, ext(kR0, kR1), ext(n0.R, n1.R), kc0);
-      quad(n0.L, n0.R, ext(n0.R, n1.R), ext(n0.L, n1.L), band0 ? roadLight : d.road);
+      quad(n0.L, n0.R, ext(n0.R, n1.R), ext(n0.L, n1.L), d.road);
+      [0.42, -0.42].forEach(o => {
+        const a1 = this.edge(cam, n0, o + 0.09), a2 = this.edge(cam, n0, o - 0.09), b1 = this.edge(cam, n1, o + 0.09), b2 = this.edge(cam, n1, o - 0.09);
+        if (a1 && a2 && b1 && b2) quad(a1, a2, ext(a2, b2), ext(a1, b1), 'rgba(0,0,0,0.10)');
+      });
     }
 
     for (let s2 = segs.length - 1; s2 > 0; s2--) {
       const far = segs[s2], near = segs[s2 - 1];
-      const band = Math.floor(far.i / 5) % 2 === 0;
+      const band = false;                                   // 번갈아 칠하기 없음 (고속에서 번쩍이던 원인)
 
       // 갓길 — 모든 구간에 그립니다. 멀수록 더 넓게 덮어 언덕 너머 도로가 하늘 위에 뜨지 않게 합니다.
       {
@@ -1467,8 +1470,7 @@ class KartGame {
         const kw = 0.058;
         const kL1 = this.edge(cam, far, 1 + kw), kL2 = this.edge(cam, near, 1 + kw);
         const kR1 = this.edge(cam, far, -1 - kw), kR2 = this.edge(cam, near, -1 - kw);
-        const glow = (d.sky && d.sky.stars >= 0.3);
-        const kc = band ? (glow ? '#F4F7FF' : '#E8ECF2') : (glow ? '#FF5A6A' : '#D94A4A');
+        const kc = t.theme.kerb[1];                         // 테마 연석색 단색
         if (kL1 && kL2) quad(far.L, kL1, kL2, near.L, kc);
         if (kR1 && kR2) quad(far.R, kR1, kR2, near.R, kc);
       }
@@ -1488,12 +1490,12 @@ class KartGame {
         }
       }
 
-      if (near.detail && near.k < 10) {
-        // 흰 차선 (도로 가장자리 안쪽)
-        [0.9, -0.9].forEach(o => {
-          const a1 = this.edge(cam, far, o + 0.02), a2 = this.edge(cam, far, o - 0.02);
-          const b1 = this.edge(cam, near, o + 0.02), b2 = this.edge(cam, near, o - 0.02);
-          if (a1 && a2 && b1 && b2) quad(a1, a2, b2, b1, 'rgba(255,255,255,0.30)');
+      if (near.detail && near.k < 14) {
+        // 타이어 자국 — 가운데 두 줄이 살짝 어두움 (서킷 느낌, 번쩍임 없음)
+        [0.42, -0.42].forEach(o => {
+          const a1 = this.edge(cam, far, o + 0.09), a2 = this.edge(cam, far, o - 0.09);
+          const b1 = this.edge(cam, near, o + 0.09), b2 = this.edge(cam, near, o - 0.09);
+          if (a1 && a2 && b1 && b2) quad(a1, a2, b2, b1, 'rgba(0,0,0,0.10)');
         });
       }
 
@@ -1532,7 +1534,7 @@ class KartGame {
       const br  = this.project(cam, sg.cx - sg.tx*len*0.5 - sg.nx*len*0.55,
                                     sg.cy - sg.ty*len*0.5 - sg.ny*len*0.55, sg.e);
       if (!tip || !bl || !br) continue;
-      ctx.fillStyle = 'rgba(255,255,255,0.24)';
+      ctx.fillStyle = 'rgba(0,0,0,0.14)';                   // 진행 방향 화살표는 은은한 어두운 색 (흰색이면 고속에서 번쩍임)
       ctx.beginPath();
       ctx.moveTo(tip.x, tip.y); ctx.lineTo(bl.x, bl.y); ctx.lineTo(br.x, br.y);
       ctx.closePath(); ctx.fill();

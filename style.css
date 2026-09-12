@@ -4,41 +4,37 @@
    ═══════════════════════════════════════════════════════════════ */
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css');
 
-/* ─────────── 토큰 ─────────── */
+/* ─────────── 토큰 — shadcn/ui 다크(zinc) 팔레트 ───────────
+   background #09090b · card #18181b · border #27272a · muted #a1a1aa · foreground #fafafa
+   게임 강조색(--game-hex)은 primary 로 씁니다. */
 :root {
-  --game-hex: #8B7CF6;                                  /* 게임별로 JS 가 바꿉니다 */
-  --a-bg:      #06080E;
-  --a-bg2:     #0B0F18;
-  --a-text:    #F2F4F8;
-  --a-dim:     rgba(242,244,248,.62);
-  --a-faint:   rgba(242,244,248,.38);
-  --a-line:    rgba(255,255,255,.10);
-  --a-line2:   rgba(255,255,255,.18);
-  --a-glass:   linear-gradient(180deg, rgba(255,255,255,.085), rgba(255,255,255,.035));
-  --a-glass2:  linear-gradient(180deg, rgba(255,255,255,.13), rgba(255,255,255,.06));
-  --a-danger:  #FF5C7A;
-  --a-ok:      #2DE2A6;
-  --a-warn:    #FFD166;
+  --game-hex: #8B7CF6;
+  --a-bg:      #09090b;          /* background */
+  --a-bg2:     #0f0f12;
+  --a-card:    #18181b;          /* card */
+  --a-card2:   #1f1f24;          /* card hover / secondary */
+  --a-text:    #fafafa;          /* foreground */
+  --a-dim:     #a1a1aa;          /* muted-foreground */
+  --a-faint:   #71717a;
+  --a-line:    #27272a;          /* border */
+  --a-line2:   #3f3f46;          /* input border */
+  --a-glass:   #18181b;          /* (이전 이름 호환) */
+  --a-glass2:  #27272a;
+  --a-danger:  #f87171;
+  --a-ok:      #34d399;
+  --a-warn:    #fbbf24;
 
   --accent:       var(--game-hex);
-  --accent-soft:  color-mix(in srgb, var(--game-hex) 16%, transparent);
-  --accent-glow:  color-mix(in srgb, var(--game-hex) 55%, transparent);
-  --accent-ink:   #0A0C12;
+  --accent-soft:  color-mix(in srgb, var(--game-hex) 18%, transparent);
+  --accent-glow:  color-mix(in srgb, var(--game-hex) 35%, transparent);
+  --accent-ink:   #09090b;
 
-  --r-xl: 26px; --r-lg: 20px; --r-md: 16px; --r-sm: 12px;
-  --shadow-panel: 0 24px 60px -36px rgba(0,0,0,.95), inset 0 1px 0 rgba(255,255,255,.14);
-  --shadow-float: 0 12px 30px -16px rgba(0,0,0,.9);
+  --r-xl: 16px; --r-lg: 12px; --r-md: 8px; --r-sm: 6px;
+  --shadow-panel: 0 1px 2px rgba(0,0,0,.4);
+  --shadow-float: 0 1px 3px rgba(0,0,0,.5);
+  --ring: 0 0 0 2px var(--a-bg), 0 0 0 4px var(--accent);
   --ease-spring: cubic-bezier(.2,.9,.25,1.25);
   --ease-out:    cubic-bezier(.2,.8,.2,1);
-}
-
-/* color-mix 를 모르는 오래된 브라우저에서는 단색으로 대신합니다 */
-@supports not (color: color-mix(in srgb, red, blue)) {
-  :root { --accent-soft: rgba(255,255,255,.12); --accent-glow: rgba(255,255,255,.25) }
-  body::before { background: radial-gradient(60% 50% at 18% 12%, rgba(255,255,255,.06), transparent 70%), var(--a-bg) }
-  .btn-primary, .badge-primary, .pos-box, .mtab.on, .jchip.on,
-  .pad .k-drop, .pad .k-fire, .pad .k-jump, .pad .k-item { background: var(--accent) }
-  .game-card::before { background: none }
 }
 
 /* ─────────── 기본 ─────────── */
@@ -52,14 +48,10 @@ body {
   -webkit-user-select: none; user-select: none;
   -webkit-font-smoothing: antialiased;
 }
-/* 게임 강조색이 은은하게 번지는 메시 배경 */
+/* 배경: 거의 단색 + 위쪽에 아주 은은한 강조색 */
 body::before {
-  content: ''; position: fixed; inset: -20%; z-index: -1; pointer-events: none;
-  background:
-    radial-gradient(60% 50% at 18% 12%, color-mix(in srgb, var(--game-hex) 26%, transparent), transparent 70%),
-    radial-gradient(55% 45% at 85% 88%, color-mix(in srgb, var(--game-hex) 12%, #2FA9E6 0%), transparent 70%),
-    radial-gradient(40% 35% at 70% 20%, rgba(255,255,255,.035), transparent 70%),
-    var(--a-bg);
+  content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background: radial-gradient(70% 40% at 50% -10%, color-mix(in srgb, var(--game-hex) 14%, transparent), transparent 70%), var(--a-bg);
 }
 
 h1, h2, h3, h4 { margin: 0; font-weight: 700; letter-spacing: -.025em }
@@ -87,80 +79,75 @@ p { margin: 0 }
 .shadow { box-shadow: var(--shadow-panel) }
 .spacer { flex: 1 }
 
-/* ─────────── 컴포넌트 ─────────── */
-/* 버튼 */
+/* ─────────── 컴포넌트 (shadcn/ui 규격) ─────────── */
+/* 버튼: 높이 40 · 반경 8 · 14px 500 · 변형 default/secondary/outline/ghost/destructive */
 .btn {
-  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  font: inherit; font-size: 15px; font-weight: 600; color: var(--a-text);
-  padding: 0 20px; min-height: 48px; border-radius: var(--r-md);
-  background: var(--a-glass2); border: 1px solid var(--a-line2);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.16), var(--shadow-float);
-  cursor: pointer; transition: transform .14s var(--ease-spring), filter .14s, box-shadow .14s, background .14s;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap;
+  font: inherit; font-size: 14px; font-weight: 500; line-height: 1; color: var(--a-text);
+  padding: 0 16px; min-height: 40px; border-radius: var(--r-md);
+  background: var(--a-card2); border: 1px solid transparent; box-shadow: var(--shadow-panel);
+  cursor: pointer; transition: background .15s, transform .12s, box-shadow .15s, opacity .15s;
 }
-.btn:active { transform: scale(.96); filter: brightness(1.12) }
-.btn:disabled { opacity: .45; pointer-events: none }
-.btn-primary {
-  color: var(--accent-ink);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 88%, #fff), var(--accent));
-  border-color: transparent;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.45), 0 10px 26px -10px var(--accent-glow);
-}
-.btn-ghost { background: rgba(255,255,255,.05); border-color: var(--a-line); box-shadow: none }
-.btn-neutral { background: var(--a-glass2) }
-.btn-outline { background: transparent; box-shadow: none }
-.btn-error { color: var(--a-danger); border-color: color-mix(in srgb, var(--a-danger) 45%, transparent);
-  background: color-mix(in srgb, var(--a-danger) 10%, transparent) }
+.btn:hover { background: #303036 }
+.btn:active { transform: scale(.98) }
+.btn:focus-visible { outline: none; box-shadow: var(--ring) }
+.btn:disabled { opacity: .5; pointer-events: none }
+.btn-primary { color: var(--accent-ink); background: var(--accent); }
+.btn-primary:hover { background: color-mix(in srgb, var(--accent) 90%, #fff) }
+.btn-neutral { background: var(--a-card2) }
+.btn-ghost { background: transparent; box-shadow: none }
+.btn-ghost:hover { background: var(--a-card2) }
+.btn-outline { background: transparent; border-color: var(--a-line2); box-shadow: none }
+.btn-outline:hover { background: var(--a-card2) }
+.btn-error { color: #fff; background: #dc2626; border-color: transparent }
+.btn-error:hover { background: #ef4444 }
+.btn-outline.btn-error { color: var(--a-danger); background: transparent; border-color: color-mix(in srgb, var(--a-danger) 40%, transparent) }
+.btn-outline.btn-error:hover { background: color-mix(in srgb, var(--a-danger) 12%, transparent) }
 .btn-block { width: 100%; max-width: 380px }
-.btn-lg { min-height: 58px; font-size: 17px; padding: 0 28px; border-radius: 18px }
-.btn-sm { min-height: 38px; font-size: 13.5px; padding: 0 14px; border-radius: var(--r-sm) }
-.btn-square { width: 42px; min-height: 42px; padding: 0; border-radius: var(--r-sm) }
+.btn-lg { min-height: 44px; font-size: 15px; padding: 0 24px; border-radius: 10px }
+.btn-sm { min-height: 36px; font-size: 13px; padding: 0 12px }
+.btn-square { width: 40px; min-height: 40px; padding: 0 }
 
-/* 배지 */
+/* 배지: 둥근 알약 · 12px 600 · 테두리 */
 .badge {
-  display: inline-flex; align-items: center; gap: 7px; padding: 5px 12px; border-radius: 999px;
-  font-size: 12.5px; font-weight: 600; line-height: 1;
-  background: rgba(255,255,255,.07); border: 1px solid var(--a-line); color: var(--a-dim);
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px;
+  font-size: 12px; font-weight: 600; line-height: 1.4; white-space: nowrap;
+  background: var(--a-card2); border: 1px solid var(--a-line); color: var(--a-text);
 }
-.badge-lg { padding: 8px 15px; font-size: 13.5px }
-.badge-sm { padding: 4px 10px; font-size: 11.5px }
-.badge-primary { color: var(--accent-ink); border-color: transparent;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 85%, #fff), var(--accent)) }
-.badge-ghost { background: rgba(255,255,255,.05) }
-.badge-outline { background: transparent; border-color: var(--a-line2) }
+.badge-lg { padding: 5px 12px; font-size: 13px }
+.badge-sm { padding: 2px 8px; font-size: 11px }
+.badge-primary { color: var(--accent-ink); background: var(--accent); border-color: transparent }
+.badge-ghost { background: transparent; color: var(--a-dim) }
+.badge-outline { background: transparent; border-color: var(--a-line2); color: var(--a-dim) }
 
-/* 카드 */
-.card { background: var(--a-glass); border: 1px solid var(--a-line); border-radius: var(--r-lg);
-  box-shadow: var(--shadow-panel); overflow: hidden }
-.card-body { display: flex; flex-direction: column; gap: 8px; padding: 22px }
-.card-title { font-size: 18px; font-weight: 700 }
+/* 카드: 반경 12 · 1px 테두리 · 은은한 그림자 */
+.card { background: var(--a-card); border: 1px solid var(--a-line); border-radius: var(--r-lg); box-shadow: var(--shadow-panel); overflow: hidden }
+.card-body { display: flex; flex-direction: column; gap: 6px; padding: 20px }
+.card-title { font-size: 16px; font-weight: 600; letter-spacing: -.01em }
 .card-actions { display: flex; gap: 8px; flex-wrap: wrap }
 
-/* 입력 */
+/* 입력: 높이 40 · 반경 8 · 포커스 링 */
 .input {
-  width: 100%; font: inherit; color: var(--a-text); background: rgba(255,255,255,.06);
-  border: 1.5px solid var(--a-line2); border-radius: 18px; padding: 0 20px; min-height: 58px;
+  width: 100%; font: inherit; font-size: 15px; color: var(--a-text); background: transparent;
+  border: 1px solid var(--a-line2); border-radius: var(--r-md); padding: 0 12px; min-height: 40px;
   transition: border-color .15s, box-shadow .15s;
 }
-.input::placeholder { color: var(--a-faint); font-weight: 400 }
-.input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft) }
-.input-lg { min-height: 62px; font-size: 20px }
+.input::placeholder { color: var(--a-faint) }
+.input:focus { outline: none; border-color: var(--accent); box-shadow: var(--ring) }
+.input-lg { min-height: 48px; font-size: 18px }
 .input-bordered { border-color: var(--a-line2) }
-.select { font: inherit; font-size: 13.5px; color: var(--a-text); background: rgba(255,255,255,.07);
-  border: 1px solid var(--a-line2); border-radius: var(--r-sm); padding: 8px 12px; min-height: 38px }
-.select option { color: #111; }
-.select-sm { min-height: 34px; font-size: 13px }
+.select { font: inherit; font-size: 13px; color: var(--a-text); background: var(--a-card); border: 1px solid var(--a-line2); border-radius: var(--r-md); padding: 6px 10px; min-height: 36px }
+.select option { color: #111 }
+.select-sm { min-height: 32px; font-size: 12.5px }
 .select-bordered { border-color: var(--a-line2) }
 
-/* 통계 카드 (결과 화면) */
-.stats { display: inline-grid; background: var(--a-glass); border: 1px solid var(--a-line);
-  border-radius: var(--r-lg); box-shadow: var(--shadow-panel); min-width: 220px }
-.stat { display: grid; gap: 4px; padding: 18px 26px }
-.stat-title { font-size: 11px; font-weight: 700; letter-spacing: .1em; color: var(--a-faint); text-transform: uppercase }
-.stat-value { font-size: 34px; font-weight: 800; letter-spacing: -.03em; line-height: 1.05 }
+/* 통계 카드 */
+.stats { display: inline-grid; background: var(--a-card); border: 1px solid var(--a-line); border-radius: var(--r-lg); box-shadow: var(--shadow-panel); min-width: 200px }
+.stat { display: grid; gap: 2px; padding: 16px 24px }
+.stat-title { font-size: 11px; font-weight: 600; letter-spacing: .08em; color: var(--a-dim); text-transform: uppercase }
+.stat-value { font-size: 30px; font-weight: 700; letter-spacing: -.02em; line-height: 1.1 }
 .stat-desc { font-size: 13px; color: var(--a-dim) }
-
-/* 아바타 */
-.avatar.placeholder > div { display: flex; align-items: center; justify-content: center; font-weight: 800 }
+.avatar.placeholder > div { display: flex; align-items: center; justify-content: center; font-weight: 700 }
 
 /* ═══════════════ 학생 화면 ═══════════════ */
 .app { position: fixed; inset: 0; display: flex; flex-direction: column;
@@ -172,15 +159,14 @@ p { margin: 0 }
 .screen.centered { justify-content: center; align-items: center; text-align: center; padding: 32px 24px; gap: 8px }
 .stack { display: flex; flex-direction: column; align-items: center; gap: 12px; width: 100%; max-width: 380px }
 
-.title-lg { font-size: 30px; font-weight: 800; letter-spacing: -.035em; line-height: 1.15 }
+.title-lg { font-size: 28px; font-weight: 700; letter-spacing: -.03em; line-height: 1.2 }
 .muted { font-size: 15px; color: var(--a-dim); line-height: 1.6 }
 
 /* 대기 링 */
 .pulse-ring {
   width: 96px; height: 96px; border-radius: 50%; margin-bottom: 10px; position: relative;
   display: flex; align-items: center; justify-content: center;
-  background: var(--a-glass2); border: 1px solid var(--a-line2);
-  box-shadow: 0 0 0 1px rgba(255,255,255,.04), 0 0 60px -12px var(--accent-glow);
+  background: var(--a-card); border: 1px solid var(--a-line2);
 }
 .pulse-ring::before, .pulse-ring::after {
   content: ''; position: absolute; inset: -2px; border-radius: 50%;
@@ -196,21 +182,20 @@ p { margin: 0 }
 #screen-game { padding: 0 }
 .topbar { display: flex; align-items: center; gap: 8px; padding: 10px 14px 6px; flex-shrink: 0 }
 .chip {
-  display: flex; flex-direction: column; gap: 2px; line-height: 1.05; padding: 8px 14px;
-  border-radius: 14px; background: var(--a-glass); border: 1px solid var(--a-line);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.12);
+  display: flex; flex-direction: column; gap: 2px; line-height: 1.05; padding: 8px 12px;
+  border-radius: var(--r-md); background: var(--a-card); border: 1px solid var(--a-line);
 }
-.chip .k { font-size: 10px; font-weight: 700; letter-spacing: .1em; color: var(--a-faint) }
+.chip .k { font-size: 10px; font-weight: 600; letter-spacing: .08em; color: var(--a-dim) }
 .chip .v { font-size: 20px; font-weight: 800; letter-spacing: -.03em }
-.chip.hot { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 40%, transparent) }
+.chip.hot { border-color: color-mix(in srgb, var(--accent) 50%, transparent) }
 .chip.hot .v { color: var(--accent) }
 .chip .v.bump { animation: bump .32s var(--ease-spring) }
 @keyframes bump { 0% { transform: scale(1) } 40% { transform: scale(1.22) } 100% { transform: scale(1) } }
 @media (prefers-reduced-motion: reduce) { .chip .v.bump { animation: none } }
 .next-box { flex-direction: row; align-items: center; gap: 9px; padding: 6px 11px 6px 13px }
 #next-canvas { display: block; border-radius: 6px }
-.icon-btn { width: 42px; height: 42px; min-height: 42px; padding: 0; border-radius: 13px;
-  background: var(--a-glass); border: 1px solid var(--a-line); color: var(--a-dim); font-size: 16px }
+.icon-btn { width: 40px; height: 40px; min-height: 40px; padding: 0; border-radius: var(--r-md);
+  background: var(--a-card); border: 1px solid var(--a-line); color: var(--a-dim); font-size: 16px; box-shadow: none }
 
 /* 화면 왼쪽 위 고정 뒤로가기 */
 .nav-back {
@@ -246,13 +231,11 @@ p { margin: 0 }
        padding: 12px 14px calc(14px + env(safe-area-inset-bottom)) }
 .pad.pad-single { grid-template-columns: 1fr }
 .pad .btn, .pad button {
-  min-height: 62px; font-size: 26px; font-weight: 600; border-radius: 18px; padding: 0;
-  background: var(--a-glass2); border: 1px solid var(--a-line2); color: var(--a-text);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 10px 24px -14px rgba(0,0,0,.9);
-  transition: transform .1s var(--ease-spring), background .1s, box-shadow .1s;
+  min-height: 62px; font-size: 26px; font-weight: 600; border-radius: 12px; padding: 0;
+  background: var(--a-card); border: 1px solid var(--a-line2); color: var(--a-text); box-shadow: var(--shadow-panel);
+  transition: transform .08s, background .08s;
 }
-.pad button:active { transform: scale(.93); background: rgba(255,255,255,.16);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.2), 0 0 0 3px var(--accent-soft) }
+.pad button:active { transform: scale(.95); background: #303036; border-color: var(--accent) }
 
 /* 왼쪽: 방향키 — 십자 배치. 위/아래가 없으면 ← → 만 나란히 */
 .pad-l { display: grid; grid-template-columns: 1fr 1fr; gap: 8px }
@@ -271,12 +254,9 @@ p { margin: 0 }
 .pad-r .k-rotate { color: var(--accent); font-size: 28px }
 .pad-r .k-drop, .pad-r .k-fire, .pad-r .k-jump, .pad-r .k-item {
   font-size: 16px; font-weight: 700; color: var(--accent-ink);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 88%, #fff), var(--accent));
-  border-color: transparent;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.5), 0 14px 30px -12px var(--accent-glow);
+  background: var(--accent); border-color: transparent; box-shadow: var(--shadow-panel);
 }
-.pad-r .k-drop:active, .pad-r .k-fire:active, .pad-r .k-jump:active, .pad-r .k-item:active {
-  filter: brightness(1.12); box-shadow: inset 0 1px 0 rgba(255,255,255,.5), 0 0 0 4px var(--accent-soft) }
+.pad-r .k-drop:active, .pad-r .k-fire:active, .pad-r .k-jump:active, .pad-r .k-item:active { filter: brightness(1.1) }
 .pad-r .k-fire, .pad-r .k-item { min-height: 88px; font-size: 18px }
 .pad-r .k-jump { min-height: 96px; font-size: 22px; border-radius: 22px }
 .pad-single .pad-r { max-width: 380px; margin: 0 auto; width: 100% }
@@ -330,8 +310,7 @@ p { margin: 0 }
 .topbar.kart-mode { display: none }
 
 /* ── 결과 ── */
-.result-score { font-size: 72px; font-weight: 800; letter-spacing: -.05em; line-height: 1; margin: 4px 0;
-  color: var(--accent); text-shadow: 0 0 60px var(--accent-glow) }
+.result-score { font-size: 64px; font-weight: 700; letter-spacing: -.04em; line-height: 1; margin: 4px 0; color: var(--accent) }
 
 /* 자체 화면 학습 게임 자리 */
 #screen-dom { position: relative; flex: 1; min-height: 0; padding: 0 }
@@ -340,7 +319,7 @@ p { margin: 0 }
 .admin { position: absolute; inset: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
          padding: 30px 26px calc(44px + env(safe-area-inset-bottom)); max-width: 1440px; margin: 0 auto }
 .admin-top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 8px }
-.admin-top h1 { font-size: 30px; font-weight: 800; letter-spacing: -.04em; margin-right: 6px }
+.admin-top h1 { font-size: 26px; font-weight: 700; letter-spacing: -.03em; margin-right: 6px }
 .admin-top .badge-primary .dot, .badge.live::before { content: ''; width: 7px; height: 7px; border-radius: 50%;
   background: currentColor; animation: livepulse 1.4s ease-in-out infinite }
 @keyframes livepulse { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
@@ -351,13 +330,10 @@ p { margin: 0 }
 /* 게임 선택 — 벤토 카드 */
 #game-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 16px }
 .game-card { position: relative; cursor: pointer; text-align: left; transition: transform .2s var(--ease-out), box-shadow .2s, border-color .2s }
-.game-card::before { content: ''; position: absolute; top: -40%; right: -25%; width: 70%; aspect-ratio: 1; border-radius: 50%;
-  background: radial-gradient(circle, color-mix(in srgb, var(--gc, var(--accent)) 38%, transparent), transparent 68%);
-  filter: blur(6px); pointer-events: none; transition: transform .3s var(--ease-out) }
+.game-card::before { content: none }
 .game-card::after { content: ''; position: absolute; left: 22px; right: 22px; top: 0; height: 2px; border-radius: 2px;
   background: var(--gc, var(--accent)); opacity: .9 }
-.game-card:hover { transform: translateY(-4px); border-color: color-mix(in srgb, var(--gc, var(--accent)) 50%, transparent) }
-.game-card:hover::before { transform: scale(1.15) }
+.game-card:hover { transform: translateY(-2px); background: var(--a-card2); border-color: color-mix(in srgb, var(--gc, var(--accent)) 50%, var(--a-line)) }
 .game-card:active { transform: scale(.985) }
 .game-card .card-body { position: relative }
 .game-card .badge-outline { align-self: flex-start; margin-top: 6px;
@@ -430,7 +406,7 @@ p { margin: 0 }
 .mtab:active { transform: scale(.96) }
 .mtab b { font-weight: 600 } .mtab i { font-style: normal; font-size: 11.5px; opacity: .5; font-variant-numeric: tabular-nums }
 .mtab.on { color: var(--accent-ink); border-color: transparent;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 85%, #fff), var(--accent)) }
+  background: var(--accent) }
 .mtab.on i { opacity: .65 }
 .mtab.running:not(.on) { border-color: var(--accent); color: var(--accent) }
 .jstats { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px }
@@ -438,7 +414,7 @@ p { margin: 0 }
   background: var(--a-glass); border: 1px solid var(--a-line) }
 .jchip b { font-weight: 800; font-variant-numeric: tabular-nums }
 .jchip.on { color: var(--accent-ink); border-color: transparent; font-weight: 700;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 85%, #fff), var(--accent)) }
+  background: var(--accent) }
 .jchip.dim { opacity: .5 }
 .specbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px }
 .follow-wrap { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--a-dim) }
@@ -514,8 +490,8 @@ body.fullgrid .spectate { grid-template-columns: 1fr 320px }
 .modal { position: fixed; inset: 0; z-index: 80; display: flex; align-items: center; justify-content: center; padding: 20px;
   background: rgba(4,6,12,.72);}
 .modal.hidden { display: none }
-.modal-box { width: min(760px, 100%); max-height: 88vh; overflow-y: auto; border-radius: 24px; padding: 24px;
-  background: var(--a-bg2); border: 1px solid var(--a-line2); box-shadow: var(--shadow-panel) }
+.modal-box { width: min(760px, 100%); max-height: 88vh; overflow-y: auto; border-radius: var(--r-lg); padding: 24px;
+  background: var(--a-card); border: 1px solid var(--a-line); box-shadow: 0 10px 40px rgba(0,0,0,.6) }
 .modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px }
 .modal-head h3 { font-size: 20px; font-weight: 800 }
 .modal-box .muted { margin-bottom: 18px }
@@ -551,12 +527,12 @@ body.fullgrid .spectate { grid-template-columns: 1fr 320px }
   border: 1.5px solid var(--a-line2); box-shadow: inset 0 2px 0 rgba(255,255,255,.12), var(--shadow-float) }
 .joy-base.on { border-color: var(--accent); box-shadow: inset 0 2px 0 rgba(255,255,255,.12), 0 0 0 4px var(--accent-soft) }
 .joy-knob { position: absolute; left: 50%; top: 50%; width: 58px; height: 58px; margin: -29px 0 0 -29px; border-radius: 50%;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 85%, #fff), var(--accent));
+  background: var(--accent);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.5), 0 10px 24px -8px var(--accent-glow); transition: transform .05s }
 .joy-hint { position: absolute; left: 0; right: 0; bottom: -22px; text-align: center; font-size: 11px; color: var(--a-faint); font-weight: 700 }
 .pad-joy .pad-r { align-items: flex-end; gap: 12px }
 .pad-joy .k-fire-round { width: 108px; height: 108px; min-height: 108px; border-radius: 50%; font-size: 18px; font-weight: 800;
-  background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--accent) 80%, #fff), var(--accent) 70%);
+  background: var(--accent);
   color: var(--accent-ink); border: none; box-shadow: inset 0 2px 0 rgba(255,255,255,.5), 0 14px 34px -10px var(--accent-glow) }
 .pad-joy .k-fire-round:active { transform: scale(.94); filter: brightness(1.12) }
 .pad-joy .k-reload { width: 108px; min-height: 40px; font-size: 13px; font-weight: 700; border-radius: 14px }
@@ -578,8 +554,7 @@ body.fullgrid .spectate { grid-template-columns: 1fr 320px }
 .pad-split .pad-mid .k-rotate { color: var(--accent); font-size: 26px }
 .pad-split .pad-mid .k-drop, .pad-split .pad-mid .k-fire, .pad-split .pad-mid .k-item {
   font-size: 15px; font-weight: 700; color: var(--accent-ink);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 88%, #fff), var(--accent)); border-color: transparent;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.5), 0 14px 30px -12px var(--accent-glow) }
+  background: var(--accent); border-color: transparent; box-shadow: var(--shadow-panel) }
 .pad-split .pad-mid .k-fire, .pad-split .pad-mid .k-item { min-height: 64px }
 .pad-split .pad-mid .k-discard { min-height: 36px; font-size: 12px; background: transparent; border: 1px solid var(--a-line); color: var(--a-dim); box-shadow: none }
 .pad.pad-kart.pad-split .pad-edge button { min-height: 132px }
@@ -626,8 +601,8 @@ body.fullgrid .spectate { grid-template-columns: 1fr 320px }
 /* 교사 화면 잠금 */
 .gate { position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center; padding: 24px; background: var(--a-bg) }
 .gate.hidden { display: none }
-.gate-box { width: min(380px, 100%); display: flex; flex-direction: column; gap: 12px; padding: 28px; border-radius: 24px;
-  background: var(--a-glass); border: 1px solid var(--a-line2); box-shadow: var(--shadow-panel) }
+.gate-box { width: min(380px, 100%); display: flex; flex-direction: column; gap: 12px; padding: 28px; border-radius: var(--r-lg);
+  background: var(--a-card); border: 1px solid var(--a-line); box-shadow: 0 10px 40px rgba(0,0,0,.6) }
 .gate-box h2 { font-size: 22px; font-weight: 800 }
 .gate-err { font-size: 13px; color: var(--a-danger) }
 .gate-help { font-size: 12.5px; color: var(--a-dim); margin-top: 6px } .gate-help summary { cursor: pointer; font-weight: 600 }
@@ -643,3 +618,29 @@ body.fullgrid .spectate { grid-template-columns: 1fr 320px }
   background: rgba(8,10,16,.5); color: #fff; font-size: 16px; touch-action: none }
 .fboard.on { background: rgba(255,255,255,.85); color: #111 }
 .fopts { top: 100px }
+
+/* ═══ 십자 D-패드 (상하좌우 게임) ═══ */
+.pad.pad-cross { grid-template-columns: 1.2fr 1fr; align-items: center; gap: 12px }
+.pad.pad-cross.pad-single { grid-template-columns: 1fr }
+.dpad { display: grid; grid-template-columns: 1fr 1fr 1fr; grid-template-rows: 1fr 1fr 1fr; gap: 6px; width: min(100%, 210px); aspect-ratio: 1; margin: 0 auto }
+.dpad button { min-height: 0; font-size: 26px; border-radius: 16px; padding: 0 }
+.dpad .k-up    { grid-column: 2; grid-row: 1 }
+.dpad .k-left  { grid-column: 1; grid-row: 2 }
+.dpad .k-right { grid-column: 3; grid-row: 2 }
+.dpad .k-down  { grid-column: 2; grid-row: 3 }
+.dpad .k-up, .dpad .k-down { color: var(--accent) }
+.pad-cross .pad-r { display: flex; flex-direction: column; gap: 10px; justify-content: center }
+.pad-cross .pad-r .k-jump { min-height: 96px; font-size: 22px; border-radius: 50%; width: 110px; margin: 0 auto }
+.pad-cross .pad-r .k-jump, .pad-cross .pad-r .k-fire { color: var(--accent-ink);
+  background: var(--accent); border-color: transparent; box-shadow: var(--shadow-panel) }
+@media (orientation: landscape) and (max-height: 540px) {
+  .dpad { width: min(100%, 150px) } .dpad button { font-size: 20px; border-radius: 12px }
+  .pad-cross .pad-r .k-jump { min-height: 70px; width: 84px; font-size: 17px }
+}
+
+/* 주요 CTA — MagicUI 식 은은한 반짝임 (한 번만, GPU 부담 없음) */
+.btn-primary.btn-lg { position: relative; overflow: hidden }
+.btn-primary.btn-lg::after { content: ''; position: absolute; top: 0; left: -60%; width: 40%; height: 100%; transform: skewX(-20deg);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent); animation: shimmer 2.4s ease-in-out 1s 1 }
+@keyframes shimmer { from { left: -60% } to { left: 130% } }
+@media (prefers-reduced-motion: reduce) { .btn-primary.btn-lg::after { animation: none } }

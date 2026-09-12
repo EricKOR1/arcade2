@@ -1,14 +1,14 @@
-아케이드 플랫폼 — 이번 교체 파일 (v2026-09-17b)
+아케이드 플랫폼 — 이번 교체 파일 (v2026-09-18a)
 ==============================================
 
 교체할 파일 3개
-  index.html         불투명 캔버스 · HUD DOM 절제 · 터치 기기 기본 화질 · 기준 48fps
-  style.css          캔버스 그림자·둥근 모서리 제거
-  racing-engine.js   이름표 이미지 캐시
+  style.css          shadcn/ui 규격 디자인 · 십자 D-패드
+  index.html         십자 D-패드 구성
+  racing-engine.js   도로: 번쩍이던 띠·차선 제거, 서킷 스타일
   (+ README.md)
 
 건드리지 않는 파일
   firebase-config.js  ← 본인 값 그대로 (EXAMPLE 은 올리지 마세요)
   photo.html / force.html / body.html
 
-올린 뒤 화면에 v2026-09-17b 가 보이는지 확인. 안 보이면 Ctrl+Shift+R. 학생 기기도 새로고침.
+올린 뒤 화면에 v2026-09-18a 가 보이는지 확인. 안 보이면 Ctrl+Shift+R. 학생 기기도 새로고침.

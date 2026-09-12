@@ -10,8 +10,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1B2027">
 <title>아케이드</title>
-<link rel="stylesheet" href="platform.css?v=2026-09-17b">
-<link rel="stylesheet" href="style.css?v=2026-09-17b">
+<link rel="stylesheet" href="platform.css?v=2026-09-18a">
+<link rel="stylesheet" href="style.css?v=2026-09-18a">
 </head>
 <body>
 <div class="app">
@@ -128,31 +128,31 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script src="firebase-config.js?v=2026-09-17b"></script>
-<script src="sound.js?v=2026-09-17b"></script>
-<script src="shared.js?v=2026-09-17b"></script>
-<script src="tetris-engine.js?v=2026-09-17b"></script>
-<script src="racing-engine.js?v=2026-09-17b"></script>
-<script src="snake-engine.js?v=2026-09-17b"></script>
-<script src="breakout-engine.js?v=2026-09-17b"></script>
-<script src="flappy-engine.js?v=2026-09-17b"></script>
-<script src="shooter-engine.js?v=2026-09-17b"></script>
+<script src="firebase-config.js?v=2026-09-18a"></script>
+<script src="sound.js?v=2026-09-18a"></script>
+<script src="shared.js?v=2026-09-18a"></script>
+<script src="tetris-engine.js?v=2026-09-18a"></script>
+<script src="racing-engine.js?v=2026-09-18a"></script>
+<script src="snake-engine.js?v=2026-09-18a"></script>
+<script src="breakout-engine.js?v=2026-09-18a"></script>
+<script src="flappy-engine.js?v=2026-09-18a"></script>
+<script src="shooter-engine.js?v=2026-09-18a"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="fps-engine.js?v=2026-09-17b"></script>
-<script src="fps3d-engine.js?v=2026-09-17b"></script>
-<script src="game2048-engine.js?v=2026-09-17b"></script>
-<script src="frogger-engine.js?v=2026-09-17b"></script>
-<script src="asteroids-engine.js?v=2026-09-17b"></script>
-<script src="maze-engine.js?v=2026-09-17b"></script>
-<script src="tower-engine.js?v=2026-09-17b"></script>
-<script src="missile-engine.js?v=2026-09-17b"></script>
-<script src="centipede-engine.js?v=2026-09-17b"></script>
-<script src="games.js?v=2026-09-17b"></script>
-<script src="app.js?v=2026-09-17b"></script>
+<script src="fps-engine.js?v=2026-09-18a"></script>
+<script src="fps3d-engine.js?v=2026-09-18a"></script>
+<script src="game2048-engine.js?v=2026-09-18a"></script>
+<script src="frogger-engine.js?v=2026-09-18a"></script>
+<script src="asteroids-engine.js?v=2026-09-18a"></script>
+<script src="maze-engine.js?v=2026-09-18a"></script>
+<script src="tower-engine.js?v=2026-09-18a"></script>
+<script src="missile-engine.js?v=2026-09-18a"></script>
+<script src="centipede-engine.js?v=2026-09-18a"></script>
+<script src="games.js?v=2026-09-18a"></script>
+<script src="app.js?v=2026-09-18a"></script>
 <script>
 (function () {
 
-  const BUILD = '2026-09-17b';   // 화면 아래에 표시됩니다
+  const BUILD = '2026-09-18a';   // 화면 아래에 표시됩니다
 
   const gameId = getGameId();
   const def = GAMES[gameId];
@@ -655,6 +655,17 @@
     if (def.padLayout === 'tap') { pad.classList.add('pad-none'); return; }   // 화면을 직접 누르는 게임
     const dirs = def.controls.filter(c => DIR_KEYS.indexOf(c) >= 0);
     const acts = def.controls.filter(c => DIR_KEYS.indexOf(c) < 0);
+    // 상하좌우가 다 있는 게임(미로·타워·스네이크·2048·길 건너기): 왼쪽에 십자 D-패드, 오른쪽에 특수키
+    // — 네 방향이 같은 크기·같은 거리에 있어 엄지 하나로 균형 있게 누를 수 있습니다
+    if (dirs.indexOf('up') >= 0 && dirs.indexOf('down') >= 0 && dirs.indexOf('left') >= 0 && dirs.indexOf('right') >= 0) {
+      pad.classList.add('pad-cross');
+      const D = document.createElement('div'); D.className = 'dpad';
+      D.appendChild(mk('up')); D.appendChild(mk('left')); D.appendChild(mk('right')); D.appendChild(mk('down'));
+      pad.appendChild(D);
+      if (acts.length) { const R = document.createElement('div'); R.className = 'pad-r'; acts.forEach(c => R.appendChild(mk(c))); pad.appendChild(R); }
+      else pad.classList.add('pad-single');
+      return;
+    }
     // 좌우 이동키가 있는 게임: ← 는 맨 왼쪽, → 는 맨 오른쪽, 나머지는 가운데 (양손 엄지)
     if (dirs.indexOf('left') >= 0 && dirs.indexOf('right') >= 0) {
       pad.classList.add('pad-split');
