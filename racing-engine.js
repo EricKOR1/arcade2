@@ -774,6 +774,9 @@ class KartGame {
   // ── 프레임 ──
   clock() { return (this.now != null) ? this.now : performance.now(); }
 
+  // 화질 단계 (2 최고 · 0 최저) — 시야 거리 · 지물 · 입자 · 정밀 모델 범위를 줄입니다
+  setQuality(q) { this.q = Math.max(0, Math.min(2, q | 0)); this.pts = null; }
+
   // 교사 관전: 특정 학생 시점으로 봅니다. 그 학생은 peers 에 있어야 하며 '나'로 그려집니다.
   spectate(followId) {
     this.spectator = true;
@@ -1350,7 +1353,9 @@ class KartGame {
     const kind = this.track.theme.particles;
     if (!kind) return;
     if (!this.pts || this.pts.kind !== kind) {
-      this.pts = { kind: kind, list: Array.from({ length: kind === 'spark' ? 18 : 34 }, (_, i) => ({
+      const Q = (this.q == null ? 2 : this.q);
+      if (Q === 0) { this.pts = { kind: kind, list: [] }; return; }
+      this.pts = { kind: kind, list: Array.from({ length: (kind === 'spark' ? 18 : 34) >> (2 - Q) }, (_, i) => ({
         x: Math.random() * W, y: Math.random() * H, s: 0.5 + Math.random(), ph: Math.random() * 6.28 })) };
     }
     const spd = this.speed / this.maxSpeed;
@@ -1390,8 +1395,9 @@ class KartGame {
   // ── 노면 ──
   drawRoad(ctx, W, H, cam, now) {
     const t = this.track, d = t.def, n = t.n;
-    const K = Math.min(140, Math.ceil(4600 / t.stepLen));
-    const DETAIL = 20;
+    const Q = (this.q == null ? 2 : this.q);
+    const K = Math.min([70, 100, 140][Q], Math.ceil([2400, 3400, 4600][Q] / t.stepLen));
+    const DETAIL = [10, 14, 20][Q];
 
     const segs = [];
     let k = -24;                                   // 카메라(카트 뒤 약 4대 길이)보다 더 뒤에서 시작
@@ -1740,14 +1746,24 @@ class KartGame {
 
     // 보일지 말지를 "가까운 순서 N개" 로 자르면 순서가 바뀔 때마다 나타났다 사라졌다 깜박입니다.
     // 대신 거리로 자릅니다 — 같은 거리면 항상 같은 결과라 화면이 안정적입니다.
-    const zDeco = t.stepLen * 150, zObj = t.stepLen * 200, zFull = t.stepLen * 26;
+    const Q = (this.q == null ? 2 : this.q);
+    const zDeco = t.stepLen * [60, 100, 150][Q], zObj = t.stepLen * [120, 160, 200][Q], zFull = t.stepLen * [10, 18, 26][Q];
     const shown = list.filter(o => o.z < (o.kind === 'deco' ? zDeco : zObj));
     shown.sort((a, b) => a.z - b.z);
     // 정밀 모델도 거리로 결정 (가까우면 정밀, 멀면 단순)
-    shown.forEach(o => { if (o.kind === 'kart' || o.kind === 'me') o.full = o.z < zFull; if (o.kind === 'deco') o.far = o.z > zDeco * 0.45; });
+    shown.forEach(o => {
+      if (o.kind === 'kart' || o.kind === 'me') o.full = o.z < zFull;
+      if (o.kind === 'deco') { const r = o.z / zDeco; o.far = r > 0.45; o.mix = (r > 0.36 && r < 0.54) ? (r - 0.36) / 0.18 : (r >= 0.54 ? 1 : 0); }
+    });
     shown.reverse();
     shown.forEach(o => {
-      if (o.kind === 'deco')        this.drawDeco(ctx, cam, o.o, now, o.far);
+      if (o.kind === 'deco') {
+        if (o.mix > 0 && o.mix < 1) {                    // 경계 구간: 실루엣과 실물을 겹쳐 서서히 바꿈 (툭 바뀌지 않게)
+          ctx.globalAlpha = o.mix; this.drawDeco(ctx, cam, o.o, now, true);
+          ctx.globalAlpha = 1 - o.mix; this.drawDeco(ctx, cam, o.o, now, false);
+          ctx.globalAlpha = 1;
+        } else this.drawDeco(ctx, cam, o.o, now, o.far);
+      }
       else if (o.kind === 'box')    this.drawBox3D(ctx, cam, o.sp.x, o.sp.y, t.elevAt(o.sp.i), now);
       else if (o.kind === 'banana') this.drawHazard3D(ctx, cam, o.h.x, o.h.y, o.h.e, o.h.kind || 'banana', now);
       else if (o.kind === 'obst')   this.drawObstacle3D(ctx, cam, o.o, now);
@@ -2241,21 +2257,29 @@ class KartGame {
     }
 
     if (name) {
-      const fs = Math.max(9, Math.min(15, 3200 * c.s / 100));
+      // 이름표는 한 번 그려 둔 이미지를 붙입니다 (매 프레임 글자 측정·그리기를 하지 않음)
       const top = this.project(cam, x, y, e + Hh * 3.6);
       if (!top) return;
-      ctx.font = '700 ' + fs.toFixed(1) + 'px Pretendard, sans-serif';
-      ctx.textAlign = 'center';
-      const tw = ctx.measureText(name).width + fs;
-      ctx.fillStyle = isMe ? 'rgba(76,201,240,0.92)' : 'rgba(12,15,22,0.8)';
-      if (ctx.roundRect) {
-        ctx.beginPath();
-        ctx.roundRect(top.x - tw / 2, top.y - fs * 1.35, tw, fs * 1.5, fs * 0.35);
-        ctx.fill();
-      }
-      ctx.fillStyle = isMe ? '#06121A' : '#EAECF2';
-      ctx.fillText(name, top.x, top.y - fs * 0.2);
+      const sc = Math.max(0.6, Math.min(1, 3200 * c.s / 100 / 15));
+      const sp = this.nameSprite(name, isMe);
+      ctx.drawImage(sp, top.x - sp.width * sc / 2, top.y - sp.height * sc, sp.width * sc, sp.height * sc);
     }
+  }
+
+  // 이름표 이미지 캐시 (이름 · 내 것 여부)
+  nameSprite(name, isMe) {
+    this._names = this._names || {};
+    const key = (isMe ? '*' : '') + name;
+    if (this._names[key]) return this._names[key];
+    const fs = 15, cv = document.createElement('canvas'), g = cv.getContext('2d');
+    g.font = '700 ' + fs + 'px Pretendard, sans-serif';
+    const tw = Math.ceil(g.measureText(name).width + fs);
+    cv.width = tw + 2; cv.height = Math.ceil(fs * 1.5) + 2;
+    g.font = '700 ' + fs + 'px Pretendard, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillStyle = isMe ? 'rgba(76,201,240,0.92)' : 'rgba(12,15,22,0.8)';
+    g.beginPath(); if (g.roundRect) g.roundRect(1, 1, tw, fs * 1.5, fs * 0.35); else g.rect(1, 1, tw, fs * 1.5); g.fill();
+    g.fillStyle = isMe ? '#06121A' : '#EAECF2'; g.fillText(name, 1 + tw / 2, 1 + fs * 0.78);
+    this._names[key] = cv; return cv;
   }
 
   drawBox3D(ctx, cam, x, y, e, now) {
@@ -2641,6 +2665,44 @@ class KartGame {
       ctx.font = '600 14px Pretendard, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.75)';
       ctx.fillText(this.track.def.name + ' · ' + this.track.laps + '바퀴 완주', 0, ch/2 - 32);
       ctx.restore();
+
+      // 전체 결과판 — 완주한 순서대로 (상대의 순위는 진행도에 실린 값에서 읽음)
+      {
+        const laps = this.track.laps, n = this.track.n;
+        const rows = [];
+        if (rk) rows.push({ rank: rk, name: this.myName || '나', me: true });
+        Object.keys(this.peers).forEach(id => {
+          const p = this.peers[id]; if (!p.finished) return;
+          const r = 1000 - ((p.progress || 0) - laps * n);
+          if (r >= 1 && r <= 999) rows.push({ rank: r, name: p.name || '학생', me: false });
+        });
+        rows.sort((a, b) => a.rank - b.rank);
+        const racing = Object.keys(this.peers).filter(id => !this.peers[id].finished).length;
+        const rowH = 26, top = H/2 + ch/2 + 18, maxRows = Math.min(rows.length, Math.max(3, Math.floor((H - top - 40) / rowH)));
+        if (rows.length) {
+          const bw = Math.min(W * 0.82, 340), bh = 40 + maxRows * rowH + (racing ? 22 : 0);
+          ctx.save(); ctx.globalAlpha = k;
+          ctx.fillStyle = 'rgba(8,10,16,0.82)';
+          if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(W/2 - bw/2, top, bw, bh, 18); ctx.fill(); }
+          ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 1;
+          if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(W/2 - bw/2, top, bw, bh, 18); ctx.stroke(); }
+          ctx.font = '700 11px Pretendard, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+          ctx.fillText('결과', W/2 - bw/2 + 18, top + 20);
+          rows.slice(0, maxRows).forEach((r, i) => {
+            const y = top + 40 + i * rowH + rowH / 2;
+            if (r.me) { ctx.fillStyle = 'rgba(255,255,255,0.10)'; if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(W/2 - bw/2 + 8, y - rowH/2 + 2, bw - 16, rowH - 4, 8); ctx.fill(); } }
+            const medal = r.rank === 1 ? '🥇' : r.rank === 2 ? '🥈' : r.rank === 3 ? '🥉' : '';
+            ctx.font = '800 14px Pretendard, sans-serif'; ctx.fillStyle = r.rank <= 3 ? '#FFD166' : 'rgba(255,255,255,0.7)'; ctx.textAlign = 'left';
+            ctx.fillText(medal || (r.rank + '위'), W/2 - bw/2 + 18, y);
+            ctx.font = (r.me ? '800' : '600') + ' 14px Pretendard, sans-serif'; ctx.fillStyle = r.me ? '#FFFFFF' : 'rgba(255,255,255,0.85)';
+            ctx.fillText(r.name, W/2 - bw/2 + 56, y);
+            if (medal) { ctx.font = '700 12px Pretendard, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.45)'; ctx.textAlign = 'right'; ctx.fillText(r.rank + '위', W/2 + bw/2 - 18, y); }
+          });
+          if (racing) { ctx.font = '600 12px Pretendard, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.textAlign = 'center';
+            ctx.fillText('아직 ' + racing + '명이 달리는 중…', W/2, top + bh - 12); }
+          ctx.restore(); ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+        }
+      }
       // 1위 축하 — 색종이
       if (rk === 1 && now - (this.finishedAt || now) < 3000) {
         if (!this.confetti) this.confetti = Array.from({ length: 60 }, () => ({

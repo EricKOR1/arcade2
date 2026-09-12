@@ -184,6 +184,76 @@ const GAMES = {
     sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, wave: g.wave }; }
   },
 
+  maze: {
+    type: 'canvas',
+    name: '미로 추격',
+    desc: '청소 로봇으로 미로의 에너지 셀을 모두 모으세요. 순찰 드론 넷이 쫓아옵니다',
+    howto: '← → ↑ ↓ 로 방향 예약(갈림길에서 꺾임) · 파란 파워 셀을 먹으면 잠깐 드론을 잡을 수 있음 · 양옆 끝은 터널',
+    meta: '개인전 · 역대 인기 1위 장르',
+    primary: '82% 0.16 165', primaryContent: '18% 0.05 165', hex: '#06D6A0',
+    grid: { cols: 19, rows: 21 },
+    adminView: 'grid',
+    needsPeers: false, hasNext: false,
+    stats: [{ key: 'dotsLeft', label: '남은 셀' }, { key: 'lives', label: '목숨' }],
+    detail: function (g) { return g.level + '단계 · 셀 ' + g.dotsLeft + '개 남음'; },
+    controls: ['up', 'left', 'down', 'right'],
+    create: function (canvas, opts) { return new MazeGame(canvas, opts.cellSize); },
+    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, level: g.level }; }
+  },
+
+  tower: {
+    type: 'canvas',
+    name: '타워 오르기',
+    desc: '굴러오는 통을 뛰어넘고 사다리를 타고 꼭대기까지. 올라갈수록 통이 빨라집니다',
+    howto: '← → 이동 · ▲ 사다리 타기(내려올 땐 ▼) · 점프로 통 넘기(+50) · 꼭대기 GOAL 에 닿으면 다음 층',
+    meta: '개인전 · 역대 인기 2위 장르',
+    primary: '75% 0.18 350', primaryContent: '100% 0 0', hex: '#FF5C7A',
+    grid: { cols: 14, rows: 22 },
+    adminView: 'grid',
+    needsPeers: false, hasNext: false,
+    stats: [{ key: 'climbed', label: '등반' }, { key: 'lives', label: '목숨' }],
+    detail: function (g) { return g.climbed + '번 등반 · ' + g.level + '층'; },
+    controls: ['up', 'left', 'down', 'right', 'jump'],
+    labels: { up: '▲ 오르기', down: '▼', jump: '점프' },
+    create: function (canvas, opts) { return new TowerGame(canvas, opts.cellSize); },
+    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, climbed: g.climbed }; }
+  },
+
+  missile: {
+    type: 'canvas',
+    name: '미사일 방어',
+    desc: '화면을 톡 누르면 그 자리에 요격탄이 터집니다. 떨어지는 미사일에서 도시 여섯을 지키세요',
+    howto: '미사일이 지나갈 자리를 톡 누르기 · 탄은 파도마다 정해져 있으니 아껴 쓰기 · 3파도마다 도시 하나 복구',
+    meta: '개인전 · 역대 인기 6위 · 손가락으로 조준',
+    primary: '75% 0.16 290', primaryContent: '100% 0 0', hex: '#7C6AF6',
+    grid: { cols: 16, rows: 20 },
+    adminView: 'grid',
+    needsPeers: false, hasNext: false,
+    stats: [{ key: 'wave', label: 'WAVE' }, { key: 'citiesLeft', label: '도시' }],
+    detail: function (g) { return g.wave + '번째 파도까지 · 도시 ' + g.saved + '개 지킴'; },
+    controls: [], padLayout: 'tap',
+    create: function (canvas, opts) { return new MissileGame(canvas, opts.cellSize); },
+    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, wave: g.wave }; }
+  },
+
+  centipede: {
+    type: 'canvas',
+    name: '지네 사냥',
+    desc: '버섯밭 사이로 내려오는 지네를 쏘세요. 맞은 마디는 버섯이 되고 지네는 둘로 갈라집니다',
+    howto: '← → 이동 · 발사(꾹) · 머리를 맞히면 100점 · 버섯은 3발에 사라짐 · 지네가 닿으면 목숨 -1',
+    meta: '개인전 · 역대 인기 12위',
+    primary: '75% 0.2 300', primaryContent: '100% 0 0', hex: '#A78BFA',
+    grid: { cols: 16, rows: 24 },
+    adminView: 'grid',
+    needsPeers: false, hasNext: false,
+    stats: [{ key: 'wave', label: 'WAVE' }, { key: 'lives', label: '목숨' }],
+    detail: function (g) { return g.wave + '번째 지네까지'; },
+    controls: ['left', 'fire', 'right'],
+    labels: { fire: '발사 (꾹)' },
+    create: function (canvas, opts) { return new CentipedeGame(canvas, opts.cellSize); },
+    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, wave: g.wave }; }
+  },
+
   shooter: {
     type: 'canvas',
     name: '우주 방어',

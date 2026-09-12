@@ -7,8 +7,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1B2027">
 <title>교사용 대시보드</title>
-<link rel="stylesheet" href="platform.css?v=2026-09-16a">
-<link rel="stylesheet" href="style.css?v=2026-09-16a">
+<link rel="stylesheet" href="platform.css?v=2026-09-17b">
+<link rel="stylesheet" href="style.css?v=2026-09-17b">
 </head>
 <body>
 <div class="admin" id="admin-root">
@@ -17,7 +17,7 @@
     <h1>아케이드</h1>
     <span class="badge badge-lg" id="status-badge">게임 선택</span>
     <span class="badge badge-lg badge-ghost" id="count-badge">0명 접속</span>
-    <span class="badge badge-sm" style="opacity:.4">v2026-09-16a</span>
+    <span class="badge badge-sm" style="opacity:.4">v2026-09-17b</span>
   </div>
   <p class="admin-sub" id="admin-sub">플레이할 게임을 고르면 학생용 QR이 만들어집니다.</p>
 
@@ -47,7 +47,7 @@
         <div class="controls">
           <button id="start-btn" class="btn btn-primary">게임 시작</button>
           <button id="back-btn" class="btn btn-ghost">게임 바꾸기</button>
-          <button class="btn btn-ghost move-open">⇄ 모두 다른 게임으로 이동</button>
+          <button class="btn btn-ghost move-open">⇄ 모두 다른 게임 대기실로 이동</button>
           <button id="reset-btn" class="btn btn-outline btn-error">명단 비우기</button>
         </div>
         <h2 class="section-h">입장한 학생</h2>
@@ -61,7 +61,7 @@
   <section id="live-panel" class="hidden">
     <div class="controls">
       <button id="full-btn" class="btn btn-primary">⛶ 전체 화면 (학생 화면 보기)</button>
-      <button class="btn btn-ghost move-open">⇄ 모두 다른 게임으로 이동</button>
+      <button class="btn btn-ghost move-open">⇄ 모두 다른 게임 대기실로 이동</button>
       <button id="lobby-btn" class="btn btn-ghost">대기실로 되돌리기</button>
       <button id="end-btn" class="btn btn-outline btn-error">게임 종료</button>
       <button id="force-btn" class="btn btn-error">강제 종료</button>
@@ -156,7 +156,7 @@
       <h3>모두 다른 게임으로 이동</h3>
       <button class="btn btn-square btn-sm btn-ghost" id="move-close">✕</button>
     </div>
-    <p class="muted text-sm">고르는 즉시 <b>들어와 있는 모든 학생</b>의 화면이 그 게임으로 바뀌고 바로 시작됩니다. 명단과 닉네임은 그대로 유지됩니다.</p>
+    <p class="muted text-sm">고르면 <b>들어와 있는 모든 학생</b>의 화면이 그 게임의 <b>대기실</b>로 옮겨집니다. 조작법을 읽을 시간을 준 뒤 <b>[게임 시작]</b>을 누르세요. 명단과 닉네임은 그대로 유지됩니다.</p>
     <div id="move-games" class="move-grid"></div>
     <div id="move-tracks" class="move-grid hidden"></div>
   </div>
@@ -165,25 +165,29 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="firebase-config.js?v=2026-09-16a"></script>
-<script src="shared.js?v=2026-09-16a"></script>
-<script src="tetris-engine.js?v=2026-09-16a"></script>
-<script src="racing-engine.js?v=2026-09-16a"></script>
-<script src="snake-engine.js?v=2026-09-16a"></script>
-<script src="breakout-engine.js?v=2026-09-16a"></script>
-<script src="flappy-engine.js?v=2026-09-16a"></script>
-<script src="shooter-engine.js?v=2026-09-16a"></script>
+<script src="firebase-config.js?v=2026-09-17b"></script>
+<script src="shared.js?v=2026-09-17b"></script>
+<script src="tetris-engine.js?v=2026-09-17b"></script>
+<script src="racing-engine.js?v=2026-09-17b"></script>
+<script src="snake-engine.js?v=2026-09-17b"></script>
+<script src="breakout-engine.js?v=2026-09-17b"></script>
+<script src="flappy-engine.js?v=2026-09-17b"></script>
+<script src="shooter-engine.js?v=2026-09-17b"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="fps-engine.js?v=2026-09-16a"></script>
-<script src="fps3d-engine.js?v=2026-09-16a"></script>
-<script src="game2048-engine.js?v=2026-09-16a"></script>
-<script src="frogger-engine.js?v=2026-09-16a"></script>
-<script src="asteroids-engine.js?v=2026-09-16a"></script>
-<script src="games.js?v=2026-09-16a"></script>
-<script src="app.js?v=2026-09-16a"></script>
+<script src="fps-engine.js?v=2026-09-17b"></script>
+<script src="fps3d-engine.js?v=2026-09-17b"></script>
+<script src="game2048-engine.js?v=2026-09-17b"></script>
+<script src="frogger-engine.js?v=2026-09-17b"></script>
+<script src="asteroids-engine.js?v=2026-09-17b"></script>
+<script src="maze-engine.js?v=2026-09-17b"></script>
+<script src="tower-engine.js?v=2026-09-17b"></script>
+<script src="missile-engine.js?v=2026-09-17b"></script>
+<script src="centipede-engine.js?v=2026-09-17b"></script>
+<script src="games.js?v=2026-09-17b"></script>
+<script src="app.js?v=2026-09-17b"></script>
 <script>
 (function () {
-  const CELL = { tetris: 6, snake: 5, breakout: 8, flappy: 8, shooter: 8, g2048: 26, frogger: 8, asteroids: 6 };
+  const CELL = { tetris: 6, snake: 5, breakout: 8, flappy: 8, shooter: 8, g2048: 26, frogger: 8, asteroids: 6, maze: 5, tower: 7, missile: 6, centipede: 5 };
 
   const sessionRef  = db.ref('session');
   const statusRef   = db.ref('session/status');
@@ -578,7 +582,7 @@
     stopRooms();
     applyAccent(id);
     selectPanel.classList.add('hidden'); trackPanel.classList.add('hidden');
-    openLobby(id, tid, true);            // 명단 유지 · 즉시 시작
+    openLobby(id, tid, false);           // 명단 유지 · 새 게임 대기실에서 선생님이 [게임 시작] 을 눌러야 시작
   }
   document.querySelectorAll('.move-open').forEach(b => b.addEventListener('click', openMove));
   $('move-close').addEventListener('click', () => moveModal.classList.add('hidden'));

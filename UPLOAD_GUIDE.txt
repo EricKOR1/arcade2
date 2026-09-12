@@ -1,22 +1,14 @@
-아케이드 플랫폼 — 이번 교체 파일 (v2026-09-16a)
+아케이드 플랫폼 — 이번 교체 파일 (v2026-09-17b)
 ==============================================
 
-교체할 파일 4개
-  index.html         3D 게임 상단 칩 숨김(화면 넓게)
-  admin.html         교사 화면 비밀번호 잠금 · 개별 화면 엔진 정리 · roster 정리
-  style.css          잠금 화면
-  fps3d-engine.js    미니맵 위치(뒤로가기와 안 겹치게)
+교체할 파일 3개
+  index.html         불투명 캔버스 · HUD DOM 절제 · 터치 기기 기본 화질 · 기준 48fps
+  style.css          캔버스 그림자·둥근 모서리 제거
+  racing-engine.js   이름표 이미지 캐시
   (+ README.md)
-
-새 파일 1개 (올리지 않아도 됨 — Firebase 콘솔용)
-  firebase-rules.json   콘솔 > Realtime Database > 규칙 에 붙여 넣기
-
-교사 화면 비밀번호를 쓰려면
-  firebase-config.js 에 한 줄 추가:  const ADMIN_PASS_SHA256 = "해시";
-  (해시는 admin.html 잠금 창의 "비밀번호 정하기" 에서 만듭니다. 이 줄이 없으면 잠금 없음)
 
 건드리지 않는 파일
   firebase-config.js  ← 본인 값 그대로 (EXAMPLE 은 올리지 마세요)
   photo.html / force.html / body.html
 
-올린 뒤 화면에 v2026-09-16a 가 보이는지 확인. 안 보이면 Ctrl+Shift+R.
+올린 뒤 화면에 v2026-09-17b 가 보이는지 확인. 안 보이면 Ctrl+Shift+R. 학생 기기도 새로고침.

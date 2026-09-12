@@ -236,12 +236,10 @@ p { margin: 0 }
 .canvas-wrap { flex: 1; display: flex; justify-content: center; align-items: center;
                min-height: 0; padding: 6px 12px; position: relative }
 .canvas-wrap.bleed { padding: 0 }
-#game-canvas {
-  display: block; touch-action: none; border-radius: 18px;
-  box-shadow: 0 0 0 1px var(--a-line2), 0 0 0 5px rgba(255,255,255,.03),
-              0 30px 70px -30px rgba(0,0,0,.95), 0 0 80px -28px var(--accent-glow);
-}
-.canvas-wrap.bleed #game-canvas { border-radius: 0; box-shadow: none }
+/* 캔버스에는 그림자·둥근 모서리를 걸지 않습니다 — 매 프레임 바뀌는 레이어라 합성 비용이 큽니다.
+   대신 테두리 느낌은 부모 요소의 가는 선으로만. */
+#game-canvas { display: block; touch-action: none; outline: 1px solid var(--a-line2); outline-offset: -1px }
+.canvas-wrap.bleed #game-canvas { outline: none }
 
 /* ── 조작 패드 — 왼쪽 방향키 · 오른쪽 특수키 ── */
 .pad { flex-shrink: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: end;
@@ -290,7 +288,7 @@ p { margin: 0 }
 
 /* ── 레이싱 HUD ── */
 .kart-hud { position: absolute; inset: 0; pointer-events: none; font-variant-numeric: tabular-nums }
-.hud-tl { position: absolute; top: 12px; left: 12px; display: flex; flex-direction: column; gap: 8px }
+.hud-tl { position: absolute; top: 12px; left: 60px; display: flex; flex-direction: column; gap: 8px }   /* ← 버튼 오른쪽 */
 .hud-bl { position: absolute; bottom: 14px; left: 14px }
 .hud-br { position: absolute; bottom: 14px; right: 14px; display: flex; flex-direction: column; align-items: center; gap: 6px }
 .hud-badges { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px;
@@ -493,6 +491,7 @@ body.jbig.jspec .admin { padding: 10px 12px } body.jbig.jspec .jhead, body.jbig.
   .item-slot { width: 58px; height: 58px; font-size: 30px; border-radius: 16px }
   .item-slot.small { width: 40px; height: 40px; font-size: 20px; border-radius: 12px }
   .pos-box b { font-size: 24px } .lap-box b { font-size: 17px } .speedo { width: 108px } .sp-num b { font-size: 20px }
+  .hud-tl { left: 52px; top: 8px }
 }
 
 /* ═══ 교사: 전체 화면(학생 화면 보기) ═══ */
@@ -634,3 +633,13 @@ body.fullgrid .spectate { grid-template-columns: 1fr 320px }
 .gate-help { font-size: 12.5px; color: var(--a-dim); margin-top: 6px } .gate-help summary { cursor: pointer; font-weight: 600 }
 .gate-help p { margin: 8px 0 } .gate-help .input { min-height: 42px; font-size: 14px; margin-bottom: 8px }
 .gate-out { display: block; word-break: break-all; font-size: 11px; color: var(--a-text); user-select: all; margin-top: 8px }
+
+/* 화질 낮춤 알림 */
+.qtoast { position: fixed; left: 50%; top: 70px; transform: translateX(-50%); z-index: 80; padding: 9px 16px; border-radius: 12px;
+  background: rgba(8,10,16,.85); color: #fff; font: 600 13px Pretendard, sans-serif; border: 1px solid var(--a-line2); pointer-events: none }
+
+/* 점수판 버튼 (3D 레이저 태그) */
+.fboard { position: absolute; right: 12px; top: 56px; width: 40px; height: 34px; border-radius: 10px; border: 1px solid rgba(255,255,255,.25);
+  background: rgba(8,10,16,.5); color: #fff; font-size: 16px; touch-action: none }
+.fboard.on { background: rgba(255,255,255,.85); color: #111 }
+.fopts { top: 100px }

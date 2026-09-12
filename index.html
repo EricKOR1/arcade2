@@ -10,8 +10,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1B2027">
 <title>아케이드</title>
-<link rel="stylesheet" href="platform.css?v=2026-09-16a">
-<link rel="stylesheet" href="style.css?v=2026-09-16a">
+<link rel="stylesheet" href="platform.css?v=2026-09-17b">
+<link rel="stylesheet" href="style.css?v=2026-09-17b">
 </head>
 <body>
 <div class="app">
@@ -128,27 +128,31 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script src="firebase-config.js?v=2026-09-16a"></script>
-<script src="sound.js?v=2026-09-16a"></script>
-<script src="shared.js?v=2026-09-16a"></script>
-<script src="tetris-engine.js?v=2026-09-16a"></script>
-<script src="racing-engine.js?v=2026-09-16a"></script>
-<script src="snake-engine.js?v=2026-09-16a"></script>
-<script src="breakout-engine.js?v=2026-09-16a"></script>
-<script src="flappy-engine.js?v=2026-09-16a"></script>
-<script src="shooter-engine.js?v=2026-09-16a"></script>
+<script src="firebase-config.js?v=2026-09-17b"></script>
+<script src="sound.js?v=2026-09-17b"></script>
+<script src="shared.js?v=2026-09-17b"></script>
+<script src="tetris-engine.js?v=2026-09-17b"></script>
+<script src="racing-engine.js?v=2026-09-17b"></script>
+<script src="snake-engine.js?v=2026-09-17b"></script>
+<script src="breakout-engine.js?v=2026-09-17b"></script>
+<script src="flappy-engine.js?v=2026-09-17b"></script>
+<script src="shooter-engine.js?v=2026-09-17b"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="fps-engine.js?v=2026-09-16a"></script>
-<script src="fps3d-engine.js?v=2026-09-16a"></script>
-<script src="game2048-engine.js?v=2026-09-16a"></script>
-<script src="frogger-engine.js?v=2026-09-16a"></script>
-<script src="asteroids-engine.js?v=2026-09-16a"></script>
-<script src="games.js?v=2026-09-16a"></script>
-<script src="app.js?v=2026-09-16a"></script>
+<script src="fps-engine.js?v=2026-09-17b"></script>
+<script src="fps3d-engine.js?v=2026-09-17b"></script>
+<script src="game2048-engine.js?v=2026-09-17b"></script>
+<script src="frogger-engine.js?v=2026-09-17b"></script>
+<script src="asteroids-engine.js?v=2026-09-17b"></script>
+<script src="maze-engine.js?v=2026-09-17b"></script>
+<script src="tower-engine.js?v=2026-09-17b"></script>
+<script src="missile-engine.js?v=2026-09-17b"></script>
+<script src="centipede-engine.js?v=2026-09-17b"></script>
+<script src="games.js?v=2026-09-17b"></script>
+<script src="app.js?v=2026-09-17b"></script>
 <script>
 (function () {
 
-  const BUILD = '2026-09-16a';   // 화면 아래에 표시됩니다
+  const BUILD = '2026-09-17b';   // 화면 아래에 표시됩니다
 
   const gameId = getGameId();
   const def = GAMES[gameId];
@@ -445,7 +449,7 @@
     const availW = wrap.clientWidth, availH = wrap.clientHeight;
     if (availW <= 0 || availH <= 0) return;
     // 해상도 배율 상한 — 태블릿(2~3배)에서 그리기 면적이 4~9배가 되는 것을 막습니다
-    const dpr = Math.min(isKart ? 1.25 : 1.5, window.devicePixelRatio || 1);
+    const dpr = Math.min(DPR_BY_Q[quality], window.devicePixelRatio || 1);
     let w, h;
     if (def.fullBleed) {
       w = availW; h = availH;
@@ -458,7 +462,7 @@
       // WebGL 게임: 캔버스는 한 종류 컨텍스트만 가질 수 있으므로 2D 를 잡지 않습니다 (크기는 엔진이 맞춤)
     } else {
       canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
-      canvas.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
+      canvas.getContext('2d', { alpha: false }).setTransform(dpr, 0, 0, dpr, 0, 0);   // 불투명: 배경과 합성하지 않아 빠름
     }
     if (game) {
       if (game.resize) game.resize(cellSize); else game.cellSize = cellSize;
@@ -498,6 +502,7 @@
       '<div class="fjoy" id="fjoy"><div class="fjoy-base"><div class="fjoy-knob"></div></div></div>' +
       '<button class="ffire" id="ffire" aria-label="발사"><span>●</span><small>발사</small></button>' +
       '<button class="freload" id="freload">↻ 재장전</button>' +
+      '<button class="fboard" id="fboard">📊</button>' +
       '<div class="fopts">' +
         '<button class="fopt" id="fopt-auto">자동발사</button>' +
         '<button class="fopt" id="fopt-gyro">자이로</button>' +
@@ -511,17 +516,27 @@
     // 터치 배분: 왼쪽 절반 = 조이스틱, 오른쪽 = 조준 (버튼 위는 버튼)
     let joyId = null, jcx = 0, jcy = 0, R = 46, lookId = null, lx = 0, ly = 0;
     const setJoy = (dx, dy) => { const d = Math.hypot(dx, dy), k = d > R ? R / d : 1; knob.style.transform = 'translate(' + (dx * k) + 'px,' + (dy * k) + 'px)'; if (game && game.setMove) game.setMove(dx * k / R, -dy * k / R); };
+    // 버튼 위 터치는 버튼에 맡깁니다 (여기서 preventDefault 하면 버튼의 click 이 안 생깁니다)
     const onStart = e => {
       const rect = wrap.getBoundingClientRect();
+      let used = false;
       for (const t of e.changedTouches) {
         if (t.target.closest && t.target.closest('button')) continue;
+        used = true;
         const rx = t.clientX - rect.left, ry = t.clientY - rect.top;
         if (rx < rect.width * 0.45 && joyId === null) {
           joyId = t.identifier; jcx = t.clientX; jcy = t.clientY; R = Math.min(56, rect.width * 0.12);
           joy.style.left = (rx - 70) + 'px'; joy.style.top = (ry - 70) + 'px'; joy.classList.add('on'); setJoy(0, 0);
         } else if (lookId === null) { lookId = t.identifier; lx = t.clientX; ly = t.clientY; }
       }
-      e.preventDefault();
+      if (used) e.preventDefault();
+    };
+    // 버튼: 터치는 touchend 에서 바로 실행(브라우저 click 지연·누락 없이), 마우스는 click
+    const tapBtn = (el, fn) => {
+      let touched = 0;
+      el.addEventListener('touchstart', e => { e.stopPropagation(); }, { passive: true });
+      el.addEventListener('touchend', e => { e.preventDefault(); e.stopPropagation(); touched = Date.now(); fn(); }, { passive: false });
+      el.addEventListener('click', () => { if (Date.now() - touched > 500) fn(); });
     };
     const onMove = e => {
       for (const t of e.changedTouches) {
@@ -542,11 +557,17 @@
 
     // 발사 (꾹) · 재장전
     const fire = byId('ffire');
-    const fireOn = e => { e.preventDefault(); if (game) { game.firing = true; if (game.fire) game.fire(); } fire.classList.add('on'); };
+    const fireOn = e => { e.preventDefault(); e.stopPropagation(); if (game) { game.firing = true; if (game.fire) game.fire(); } fire.classList.add('on'); };
     const fireOff = () => { if (game) game.firing = false; fire.classList.remove('on'); };
     fire.addEventListener('touchstart', fireOn, { passive: false }); fire.addEventListener('touchend', fireOff); fire.addEventListener('touchcancel', fireOff);
     fire.addEventListener('mousedown', fireOn); fire.addEventListener('mouseup', fireOff);
-    byId('freload').addEventListener('click', () => game && game.reload && game.reload());
+    tapBtn(byId('freload'), () => game && game.reload && game.reload());
+    // 점수판: 누르고 있는 동안 표시 (PC 는 Tab)
+    const fb = byId('fboard');
+    const bOn = e => { e.preventDefault(); e.stopPropagation(); if (game) game.showBoard = true; fb.classList.add('on'); };
+    const bOff = () => { if (game) game.showBoard = false; fb.classList.remove('on'); };
+    fb.addEventListener('touchstart', bOn, { passive: false }); fb.addEventListener('touchend', bOff); fb.addEventListener('touchcancel', bOff);
+    fb.addEventListener('mousedown', bOn); fb.addEventListener('mouseup', bOff); fb.addEventListener('mouseleave', bOff);
 
     // PC: 마우스 조준 (클릭하면 잠금, Esc 해제)
     const canvas = byId('game-canvas');
@@ -561,9 +582,9 @@
       byId('fopt-sens').textContent = '감도 ×' + fpsOpt.sens;
       if (game) game.autoFire = fpsOpt.auto;
     };
-    byId('fopt-auto').addEventListener('click', () => { fpsOpt.auto = !fpsOpt.auto; saveOpt(); paint(); });
-    byId('fopt-sens').addEventListener('click', () => { fpsOpt.sens = fpsOpt.sens === 1 ? 1.5 : (fpsOpt.sens === 1.5 ? 0.7 : 1); saveOpt(); paint(); });
-    byId('fopt-gyro').addEventListener('click', () => { fpsOpt.gyro = !fpsOpt.gyro; saveOpt(); paint(); if (fpsOpt.gyro) startGyro(); else stopGyro(); });
+    tapBtn(byId('fopt-auto'), () => { fpsOpt.auto = !fpsOpt.auto; saveOpt(); paint(); });
+    tapBtn(byId('fopt-sens'), () => { fpsOpt.sens = fpsOpt.sens === 1 ? 1.5 : (fpsOpt.sens === 1.5 ? 0.7 : 1); saveOpt(); paint(); });
+    tapBtn(byId('fopt-gyro'), () => { fpsOpt.gyro = !fpsOpt.gyro; saveOpt(); paint(); if (fpsOpt.gyro) startGyro(); else stopGyro(); });
     paint(); if (fpsOpt.gyro) startGyro();
   }
 
@@ -631,6 +652,7 @@
       buildFloatingControls();
       return;
     }
+    if (def.padLayout === 'tap') { pad.classList.add('pad-none'); return; }   // 화면을 직접 누르는 게임
     const dirs = def.controls.filter(c => DIR_KEYS.indexOf(c) >= 0);
     const acts = def.controls.filter(c => DIR_KEYS.indexOf(c) < 0);
     // 좌우 이동키가 있는 게임: ← 는 맨 왼쪽, → 는 맨 오른쪽, 나머지는 가운데 (양손 엄지)
@@ -688,6 +710,9 @@
           onAttack: sendAttack, onFinish: reportFinish
         });
         if (def.padLayout === 'joystick') game.autoFire = fpsOpt.auto;
+        if (game.setQuality) game.setQuality(quality);
+        qFrames = 0; qSum = 0; qLast = 0;
+        window.__game = game;                               // 검사·디버깅용
         if (def.hasNext) { game.onNextChange = drawNextPreview; drawNextPreview(); }
         game.draw();
         bindControls();
@@ -868,10 +893,27 @@
     if (game && game.drawNext) game.drawNext(ctx, size);
   }
 
+  // ── 적응형 화질: 프레임이 밀리면 자동으로 한 단계 낮춥니다 (2 최고 · 1 · 0 최저) ──
+  const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+  let quality = isTouchDevice ? 1 : 2, qFrames = 0, qSum = 0, qLast = 0;   // 태블릿·폰은 중간 화질부터
+  const DPR_BY_Q = isKart ? [0.85, 1.0, 1.25] : [0.9, 1.0, 1.5];
+  function lowerQuality() {
+    if (quality <= 0) return;
+    quality--;
+    fitCanvas();
+    if (game && game.setQuality) game.setQuality(quality);
+    const t = document.createElement('div');
+    t.className = 'qtoast'; t.textContent = quality === 1 ? '화면을 조금 가볍게 했어요' : '화면을 가장 가볍게 했어요';
+    document.body.appendChild(t); setTimeout(() => t.remove(), 2200);
+  }
   function loop(ts) {
     flushPeers();
     if (!game) return;
     if (game.gameOver) { game.draw(); return; }
+    // 프레임 시간 측정 — 120프레임 평균이 26ms 를 넘으면 낮춤
+    if (qLast) { const dt = ts - qLast; if (dt < 200) { qSum += dt; qFrames++; } }
+    qLast = ts;
+    if (qFrames >= 120) { if (qSum / qFrames > 21) lowerQuality(); qFrames = 0; qSum = 0; }   // 평균 48fps 밑이면 낮춤
     game.tick(ts);
     if (isKart) renderKartHud(game.hud());
     requestAnimationFrame(loop);
@@ -880,7 +922,12 @@
   // ── 레이싱 HUD (매 프레임 갱신) ──
   const ROLL_ICONS = ['🍌','⚡','🚀','🌀','🛡','🌩'];
   let lastItemSig = '';
+  let hudLast = 0, hudPrev = '';
   function renderKartHud(h) {
+    // DOM 은 값이 바뀔 때만, 그리고 초당 15번까지만 만집니다 (매 프레임 레이아웃 재계산 방지)
+    const t = performance.now(); if (t - hudLast < 66) return; hudLast = t;
+    const hsig = [h.rank, h.total, h.lap, h.laps, h.speed, h.speedPct | 0, h.items.join(','), h.rolling, h.shield, h.boost, h.wrongWay, h.corner, h.nearBoost, h.finished].join('|');
+    if (hsig === hudPrev) return; hudPrev = hsig;
     document.getElementById('hud-rank').textContent = h.rank;
     document.getElementById('hud-total').textContent = '/' + h.total;
     document.getElementById('hud-lap').textContent = h.lap;
@@ -987,6 +1034,13 @@
   function bindSwipe() {
     const canvas = byId('game-canvas');
     if (def.padLayout === 'joystick') return;        // 조작은 buildFloatingControls 가 맡습니다
+    if (def.padLayout === 'tap') {
+      // 톡 누르는 자리(칸 단위)를 게임에 넘깁니다 (미사일 방어)
+      const at = (cx, cy) => { const r = canvas.getBoundingClientRect(); if (game && game.tapAt) game.tapAt((cx - r.left) / r.width * def.grid.cols, (cy - r.top) / r.height * def.grid.rows); };
+      canvas.addEventListener('touchstart', e => { for (const t of e.changedTouches) at(t.clientX, t.clientY); e.preventDefault(); }, { passive: false });
+      canvas.addEventListener('mousedown', e => at(e.clientX, e.clientY));
+      return;
+    }
     if (isKart) {
       // 카트: 화면 좌/우 절반을 눌러도 조향
       let dir = 0;
@@ -1022,6 +1076,7 @@
     const k = e.key.toLowerCase();
     if (game.setMove && (k === 'w' || k === 'a' || k === 's' || k === 'd')) { wasd[k] = true; pushWasd(); return; }
     if (k === 'r' && game.reload) { game.reload(); return; }
+    if (e.key === 'Tab' && game.drawScoreboard) { e.preventDefault(); game.showBoard = true; return; }
     if (e.key === 'ArrowLeft') game.move(-1);
     else if (e.key === 'ArrowRight') game.move(1);
     else if (e.key === 'ArrowDown') { game.softDropping = true; }
@@ -1040,6 +1095,7 @@
     if (e.key === 'ArrowDown') game.softDropping = false;
     if (e.key === 'ArrowUp') game.upHeld = false;
     if (e.key === ' ') game.firing = false;
+    if (e.key === 'Tab') game.showBoard = false;
   }
 
   // ── 결과 ──
