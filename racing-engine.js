@@ -239,10 +239,14 @@ class Track {
     for (let i = 0; i < this.n; i += railStep) {
       const [tx, ty] = this.tangent[i], nx = -ty, ny = tx;
       const c = this.center[i], e = this.elev[i];
-      // 도로 양쪽 가드레일 기둥
+      // 도로 양쪽 가드레일 — 기둥과 다음 기둥을 잇는 레일을 함께 보관
+      const j = (i + railStep) % this.n;
+      const [tx2, ty2] = this.tangent[j], nx2 = -ty2, ny2 = tx2;
+      const c2 = this.center[j], e2 = this.elev[j];
       [-1, 1].forEach(side => {
         this.scenery.push({ kind: 'rail', i: i,
           x: c[0] + nx * this.halfW * 1.09 * side, y: c[1] + ny * this.halfW * 1.09 * side,
+          x2: c2[0] + nx2 * this.halfW * 1.09 * side, y2: c2[1] + ny2 * this.halfW * 1.09 * side, e2: e2,
           e: e, side: side, r: rnd() });
       });
 
@@ -485,7 +489,7 @@ class KartGame {
     this.look = kartLook(this.myName || this.myId);
 
     const st = this.track.startPos(this.opts.slot || 0);
-    this.x = st.x; this.y = st.y; this.angle = st.angle;
+    this.x = st.x; this.y = st.y; this.angle = st.angle; this.camAngle = undefined;
     this.segIdx = st.index; this.lap = 0; this.progress = st.index;   // 출발선 바로 뒤에서 시작
     this.speed = 0; this.steer = 0;
 
@@ -685,7 +689,7 @@ class KartGame {
   teleportTo(s, byId) {
     if (this.finished) return;
     this.showHit('🌀', byId, '이(가) 자리를 바꿔 버렸다', '#B15DFF');
-    this.x = s.x; this.y = s.y; this.angle = s.a;
+    this.x = s.x; this.y = s.y; this.angle = s.a; this.camAngle = undefined;
     this.segIdx = s.i; this.lap = s.l;
     this.camX = this.x; this.camY = this.y;
     this.speed *= 0.6;
@@ -1145,7 +1149,10 @@ class KartGame {
   setupCamera(W, H) {
     const t = this.track;
     const boosting = this.clock() < this.boostUntil;
-    const back = t.carLen * (boosting ? 4.4 : 3.9);
+    const offNow = (() => { const [ax, ay] = t.tangent[this.segIdx]; let o = this.angle - Math.atan2(ay, ax);
+      while (o > Math.PI) o -= Math.PI * 2; while (o < -Math.PI) o += Math.PI * 2; return Math.abs(o); })();
+    const wide = Math.min(1, Math.max(0, (offNow - 0.5) / 1.2));       // 옆·뒤를 볼수록 카메라를 물림
+    const back = t.carLen * (boosting ? 4.4 : 3.9) * (1 + wide * 0.9);
     const f = (W * 0.78) * back / t.halfW;
     const height = (H * 0.50) * back / f;
 
@@ -1156,10 +1163,26 @@ class KartGame {
                        H * 0.33 + f * this.viewGrade * 1.35));
 
     const myElev = t.elevAt(this.segIdx);
+
+    // 카메라 방향: 카트가 옆·뒤로 돌아도 트랙 진행 방향을 크게 벗어나지 않게 제한합니다.
+    // (제한이 없으면 옆을 본 순간 앞쪽 도로가 전부 카메라 뒤로 밀려나 화면에서 사라졌습니다)
+    const [ttx, tty] = t.tangent[this.segIdx];
+    const road = Math.atan2(tty, ttx);
+    let off = this.angle - road;
+    while (off > Math.PI) off -= Math.PI * 2;
+    while (off < -Math.PI) off += Math.PI * 2;
+    const LIMIT = 0.5;                                   // 트랙 방향에서 최대 ±29° — 도로가 늘 화면 안에 남습니다
+    const camAngle = road + Math.max(-LIMIT, Math.min(LIMIT, off));
+    // 부드럽게 따라가도록 (툭 꺾이지 않게)
+    let da = camAngle - (this.camAngle === undefined ? camAngle : this.camAngle);
+    while (da > Math.PI) da -= Math.PI * 2;
+    while (da < -Math.PI) da += Math.PI * 2;
+    this.camAngle = (this.camAngle === undefined) ? camAngle : this.camAngle + da * 0.25;
+
     return {
-      x: this.x - Math.cos(this.angle) * back,
-      y: this.y - Math.sin(this.angle) * back,
-      cos: Math.cos(this.angle), sin: Math.sin(this.angle),
+      x: this.x - Math.cos(this.camAngle) * back,
+      y: this.y - Math.sin(this.camAngle) * back,
+      cos: Math.cos(this.camAngle), sin: Math.sin(this.camAngle),
       f: f, absH: myElev + height, horizonY: horizonY,
       near: t.carLen * 0.35, W: W, H: H, grade: this.viewGrade, angle0: this.angle
     };
@@ -1417,7 +1440,9 @@ class KartGame {
       const nx = -ty, ny = tx;
       const L = this.project(cam, c[0] + nx * t.halfW, c[1] + ny * t.halfW, e);
       const R = this.project(cam, c[0] - nx * t.halfW, c[1] - ny * t.halfW, e);
-      if (!L || !R) { if (segs.length) break; k += 1; continue; }
+      // 카메라 뒤로 넘어간 구간은 건너뜁니다.
+      // (예전에는 여기서 루프를 끊어서, 옆을 보고 있으면 앞쪽 도로를 통째로 빼먹었습니다)
+      if (!L || !R) { k += (k < DETAIL) ? 1 : 2; continue; }
       segs.push({ i: i, L: L, R: R, cx: c[0], cy: c[1], e: e,
                   nx: nx, ny: ny, tx: tx, ty: ty, k: k, detail: k < DETAIL });
       k += (k < DETAIL) ? 1 : (k < DETAIL * 2 ? 2 : (k < DETAIL * 4 ? 4 : 8));   // 멀수록 성기게
@@ -1437,9 +1462,14 @@ class KartGame {
     const grassLight = this.lighten(d.grass, 0.07);
     const grassDark = this.shade(d.grass, -0.06);
 
+    // 안전망: 지평선 아래를 먼저 지면색으로 덮습니다.
+    // 어떤 각도·위치에서도 화면 아래가 비어 보이지 않습니다 (사각형 하나라 비용도 거의 없음).
+    ctx.fillStyle = grassDark;
+    ctx.fillRect(0, Math.max(0, cam.horizonY - 1), W, H - Math.max(0, cam.horizonY - 1));
+
     // 카메라 바로 앞: 가장 가까운 두 조각의 가장자리를 화면 아래(H+40)까지 연장해 빈틈을 없앱니다.
     // (이 틈이 지면색으로 깜박이던 원인)
-    {
+    if (segs.length > 1 && segs[1].k - segs[0].k <= 4) {
       const n0 = segs[0], n1 = segs[1];
       const ext = (a, b) => {                        // b→a 방향으로 y = H+40 까지 연장
         const dy = a.y - b.y; if (dy <= 0.01) return { x: a.x, y: H + 40 };
@@ -1463,6 +1493,7 @@ class KartGame {
 
     for (let s2 = segs.length - 1; s2 > 0; s2--) {
       const far = segs[s2], near = segs[s2 - 1];
+      if (far.k - near.k > 12) continue;                    // 사이가 끊긴(카메라 뒤를 지난) 구간은 잇지 않음
       const band = false;                                   // 번갈아 칠하기 없음 (고속에서 번쩍이던 원인)
 
       // 갓길 — 모든 구간에 그립니다. 멀수록 더 넓게 덮어 언덕 너머 도로가 하늘 위에 뜨지 않게 합니다.
@@ -1508,14 +1539,6 @@ class KartGame {
         });
       }
 
-      if (near.detail) {
-        // 중앙 점선
-        if (Math.floor(far.i / 3) % 2 === 0) {
-          const a1 = this.edge(cam, far, 0.035), a2 = this.edge(cam, far, -0.035);
-          const b1 = this.edge(cam, near, 0.035), b2 = this.edge(cam, near, -0.035);
-          if (a1 && a2 && b1 && b2) quad(a1, a2, b2, b1, 'rgba(255,255,255,0.16)');
-        }
-      }
     }
 
     this.drawRoadMarks(ctx, cam, segs, now);
@@ -1800,12 +1823,12 @@ class KartGame {
 
     // 멀리 있는 지물은 실루엣만 (한두 번의 채우기) — 개수가 많아도 가볍게, 그리고 갑자기 사라지지 않게
     if (far) {
-      if (o.kind === 'rail') return;
       const FAR = { tree: [2.6, 0.9, '#2C6B3F'], pine: [3.0, 0.7, '#245A3A'], palm: [3.0, 0.8, '#2F8F52'],
                     cactus: [2.0, 0.35, '#2E8B57'], rock: [0.8, 1.2, null], flower: [0.3, 0.6, '#3C7A4B'],
                     building: [5.0, 2.2, '#1B2238'], lamp: [2.0, 0.12, '#5B6474'], billboard: [3.0, 2.0, '#2B3140'],
                     stand: [2.2, 3.2, '#3B4454'], balloon: [3.4, 0.6, '#FF5C7A'], umbrella: [1.5, 1.4, '#FF5C7A'],
-                    snowman: [1.3, 0.8, '#F4F6FA'], windmill: [3.2, 0.4, '#C9CFD8'], tire: [0.5, 0.6, '#2B3140'], sign: [1.4, 1.2, '#4B5566'] };
+                    snowman: [1.3, 0.8, '#F4F6FA'], windmill: [3.2, 0.4, '#C9CFD8'], tire: [0.5, 0.6, '#2B3140'], sign: [1.4, 1.2, '#4B5566'],
+                    rail: [0.5, 0.12, '#8A93A3'] };
       const f = FAR[o.kind]; if (!f) return;
       const top = this.project(cam, o.x, o.y, o.e + u * f[0]);
       if (!top) return;
@@ -1820,14 +1843,21 @@ class KartGame {
     }
 
     if (o.kind === 'rail') {
-      const h = u * 0.55;
+      // 기둥 + 다음 기둥까지 이어지는 레일 (끊긴 말뚝처럼 보이지 않게)
+      const h = u * 0.55, hRail = u * 0.42;
       const top = this.project(cam, o.x, o.y, o.e + h);
       if (!top) return;
       const w = Math.max(1.2, u * 0.09 * s);
       ctx.fillStyle = '#6B7484';
-      ctx.fillRect(base.x - w/2, top.y, w, base.y - top.y);
-      ctx.fillStyle = o.r < 0.5 ? '#C9D1DC' : '#D94A4A';
-      ctx.fillRect(base.x - w*1.9, top.y, w*3.8, Math.max(1.2, u*0.13*s));
+      ctx.fillRect(base.x - w / 2, top.y, w, base.y - top.y);
+      if (o.x2 != null) {
+        const a1 = this.project(cam, o.x, o.y, o.e + hRail), a2 = this.project(cam, o.x, o.y, o.e + hRail * 0.55);
+        const b1 = this.project(cam, o.x2, o.y2, o.e2 + hRail), b2 = this.project(cam, o.x2, o.y2, o.e2 + hRail * 0.55);
+        if (a1 && a2 && b1 && b2) {
+          ctx.fillStyle = '#C9D1DC';
+          ctx.beginPath(); ctx.moveTo(a1.x, a1.y); ctx.lineTo(b1.x, b1.y); ctx.lineTo(b2.x, b2.y); ctx.lineTo(a2.x, a2.y); ctx.closePath(); ctx.fill();
+        }
+      }
 
     } else if (o.kind === 'tree') {
       const th = u * (2.0 + o.r * 1.6);
