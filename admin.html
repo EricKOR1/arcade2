@@ -7,8 +7,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1B2027">
 <title>교사용 대시보드</title>
-<link rel="stylesheet" href="platform.css?v=2026-09-18a">
-<link rel="stylesheet" href="style.css?v=2026-09-18a">
+<link rel="stylesheet" href="platform.css?v=2026-09-18b">
+<link rel="stylesheet" href="style.css?v=2026-09-18b">
 </head>
 <body>
 <div class="admin" id="admin-root">
@@ -17,7 +17,7 @@
     <h1>아케이드</h1>
     <span class="badge badge-lg" id="status-badge">게임 선택</span>
     <span class="badge badge-lg badge-ghost" id="count-badge">0명 접속</span>
-    <span class="badge badge-sm" style="opacity:.4">v2026-09-18a</span>
+    <span class="badge badge-sm" style="opacity:.4">v2026-09-18b</span>
   </div>
   <p class="admin-sub" id="admin-sub">플레이할 게임을 고르면 학생용 QR이 만들어집니다.</p>
 
@@ -165,26 +165,26 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="firebase-config.js?v=2026-09-18a"></script>
-<script src="shared.js?v=2026-09-18a"></script>
-<script src="tetris-engine.js?v=2026-09-18a"></script>
-<script src="racing-engine.js?v=2026-09-18a"></script>
-<script src="snake-engine.js?v=2026-09-18a"></script>
-<script src="breakout-engine.js?v=2026-09-18a"></script>
-<script src="flappy-engine.js?v=2026-09-18a"></script>
-<script src="shooter-engine.js?v=2026-09-18a"></script>
+<script src="firebase-config.js?v=2026-09-18b"></script>
+<script src="shared.js?v=2026-09-18b"></script>
+<script src="tetris-engine.js?v=2026-09-18b"></script>
+<script src="racing-engine.js?v=2026-09-18b"></script>
+<script src="snake-engine.js?v=2026-09-18b"></script>
+<script src="breakout-engine.js?v=2026-09-18b"></script>
+<script src="flappy-engine.js?v=2026-09-18b"></script>
+<script src="shooter-engine.js?v=2026-09-18b"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="fps-engine.js?v=2026-09-18a"></script>
-<script src="fps3d-engine.js?v=2026-09-18a"></script>
-<script src="game2048-engine.js?v=2026-09-18a"></script>
-<script src="frogger-engine.js?v=2026-09-18a"></script>
-<script src="asteroids-engine.js?v=2026-09-18a"></script>
-<script src="maze-engine.js?v=2026-09-18a"></script>
-<script src="tower-engine.js?v=2026-09-18a"></script>
-<script src="missile-engine.js?v=2026-09-18a"></script>
-<script src="centipede-engine.js?v=2026-09-18a"></script>
-<script src="games.js?v=2026-09-18a"></script>
-<script src="app.js?v=2026-09-18a"></script>
+<script src="fps-engine.js?v=2026-09-18b"></script>
+<script src="fps3d-engine.js?v=2026-09-18b"></script>
+<script src="game2048-engine.js?v=2026-09-18b"></script>
+<script src="frogger-engine.js?v=2026-09-18b"></script>
+<script src="asteroids-engine.js?v=2026-09-18b"></script>
+<script src="maze-engine.js?v=2026-09-18b"></script>
+<script src="tower-engine.js?v=2026-09-18b"></script>
+<script src="missile-engine.js?v=2026-09-18b"></script>
+<script src="centipede-engine.js?v=2026-09-18b"></script>
+<script src="games.js?v=2026-09-18b"></script>
+<script src="app.js?v=2026-09-18b"></script>
 <script>
 (function () {
   const CELL = { tetris: 6, snake: 5, breakout: 8, flappy: 8, shooter: 8, g2048: 26, frogger: 8, asteroids: 6, maze: 5, tower: 7, missile: 6, centipede: 5 };
@@ -379,10 +379,24 @@
     const fresh = document.createElement('canvas'); fresh.id = 'focus-canvas';
     focusCv.parentElement.replaceChild(fresh, focusCv); focusCv = fresh; focusCvKind = kind;
   }
+  let screenImg = null, screenRefOn = null, screenOk = false;
+  function watchScreen(id) {
+    unwatchScreen();
+    sessionRef.child('watch').set(id);
+    screenImg = new Image(); screenOk = false;
+    screenRefOn = db.ref('screens/' + id);
+    screenRefOn.on('value', s => { const v = s.val(); if (typeof v === 'string' && v.length > 100) { screenImg.onload = () => { screenOk = true; }; screenImg.src = v; } });
+  }
+  function unwatchScreen() {
+    if (screenRefOn) { screenRefOn.off(); screenRefOn = null; }
+    sessionRef.child('watch').set(null);
+    screenImg = null; screenOk = false;
+  }
   function openFocus(id) {
     const g = GAMES[currentGameId] || {};
     ensureFocusCanvas(g.engine3d ? 'webgl' : '2d');
     focusId = id;
+    if (g.adminView === 'grid') watchScreen(id); else unwatchScreen();
     focusEl.classList.remove('hidden');
     $('focus-note').classList.add('hidden');
     if (g.adminView === 'shared') startFocusKart(id);
@@ -390,6 +404,7 @@
     if (!focusRaf) focusRaf = requestAnimationFrame(focusFrame);
   }
   function closeFocus() {
+    unwatchScreen();
     focusId = null; focusEl.classList.add('hidden');
     if (focusRaf) { cancelAnimationFrame(focusRaf); focusRaf = null; }
     if (focusFps && focusFps.destroy) { try { focusFps.destroy(); } catch (e) {} }
@@ -492,7 +507,14 @@
       const ctx = focusCv.getContext('2d');
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.fillStyle = '#0B0D12'; ctx.fillRect(0, 0, w, h);
-      if (p.board) drawBoardGrid(ctx, rowsToBoard(p.board), cs);
+      if (screenOk && screenImg && screenImg.naturalWidth) {
+        // 학생 기기의 실제 화면 (초당 약 7장)
+        ctx.imageSmoothingEnabled = true; ctx.drawImage(screenImg, 0, 0, w, h);
+        $('focus-note').classList.add('hidden');
+      } else {
+        if (p.board) drawBoardGrid(ctx, rowsToBoard(p.board), cs);
+        $('focus-note').textContent = '실제 화면을 받는 중… (잠시 도식으로 표시)'; $('focus-note').classList.remove('hidden');
+      }
       if (p.status === 'gameover') {
         ctx.fillStyle = 'rgba(11,13,18,0.6)'; ctx.fillRect(0, 0, w, h);
         ctx.fillStyle = '#fff'; ctx.font = '800 ' + Math.round(cs * 1.6) + 'px Pretendard, sans-serif';
@@ -1288,7 +1310,7 @@
     posRef.on('child_removed', s => { delete peerPos[s.key]; renderStandings(); });
     hazardsRef.on('value', s => { peerPos.__hz = s.val() || {}; });
     const canvas = $('spectate-canvas');
-    const draw = () => { drawSpectate(canvas); specRaf = requestAnimationFrame(draw); };
+    const draw = () => { if (focusId == null) drawSpectate(canvas); specRaf = requestAnimationFrame(draw); };   // 개별 화면이 열려 있으면 뒤 지도는 쉼
     specRaf = requestAnimationFrame(draw);
   }
 

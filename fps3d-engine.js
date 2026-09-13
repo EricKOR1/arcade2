@@ -365,8 +365,16 @@ class Fps3DGame {
   }
   applyPeerRaw(id, raw, name) {
     const d = Fps3DGame.parse(raw);
-    if (!this.peers[id]) this.peers[id] = { x: d.x, y: d.y, angle: d.angle, walk: 0 };
+    if (!this.peers[id]) this.peers[id] = { x: d.x, y: d.y, angle: d.angle, walk: 0, vx: 0, vy: 0, at: 0 };
     const p = this.peers[id];
+    const now = this.clock();
+    // 같은 값이 다시 오면(변화 없음) 무시 — 속도 추정이 0 으로 흐트러지지 않게
+    if (p.tx != null && Math.abs(p.tx - d.x) < 1e-4 && Math.abs(p.ty - d.y) < 1e-4 && Math.abs((p.tangle || 0) - d.angle) < 1e-4 && p.hp === d.hp && p.dead === d.dead) { p.fire = d.fire; return; }
+    // 마지막 두 신호로 속도 추정 (다음 신호까지 예측 이동에 씀)
+    if (p.at && p.tx != null) { const dt = Math.min(600, Math.max(50, now - p.at)) / 1000;
+      const nvx = (d.x - p.tx) / dt, nvy = (d.y - p.ty) / dt;
+      if (Math.hypot(nvx, nvy) < 12) { p.vx = nvx; p.vy = nvy; } else { p.vx = 0; p.vy = 0; } }   // 순간이동(리스폰)은 예측 안 함
+    p.at = now;
     Object.assign(p, { tx: d.x, ty: d.y, tangle: d.angle, hp: d.hp, kills: d.kills, deaths: d.deaths, team: d.team, fire: d.fire, dead: d.dead, moving: d.moving, pitch: d.pitch });
     if (name) p.name = name;
   }
@@ -388,8 +396,12 @@ class Fps3DGame {
     this.now = now;
     const dt = this.lastTime ? Math.min(50, now - this.lastTime) : 16.7; this.lastTime = now; const f = dt / 16.7;
     Object.keys(this.peers).forEach(id => { const p = this.peers[id]; if (p.tx == null) return;
-      p.x += (p.tx - p.x) * 0.3; p.y += (p.ty - p.y) * 0.3;
-      let da = p.tangle - p.angle; while (da > Math.PI) da -= Math.PI * 2; while (da < -Math.PI) da += Math.PI * 2; p.angle += da * 0.3;
+      // 예측 이동: 마지막 신호 이후 최대 0.25초까지는 추정 속도로 목표점을 앞당김
+      const since = Math.min(250, now - (p.at || now)) / 1000;
+      const gx = p.tx + (p.vx || 0) * since, gy = p.ty + (p.vy || 0) * since;
+      if (!p.dead && !this.wall(gx, gy)) { p.x += (gx - p.x) * Math.min(1, 0.45 * f); p.y += (gy - p.y) * Math.min(1, 0.45 * f); }
+      else { p.x += (p.tx - p.x) * Math.min(1, 0.45 * f); p.y += (p.ty - p.y) * Math.min(1, 0.45 * f); }
+      let da = p.tangle - p.angle; while (da > Math.PI) da -= Math.PI * 2; while (da < -Math.PI) da += Math.PI * 2; p.angle += da * Math.min(1, 0.4 * f);
       p.walk = (p.walk || 0) + (p.moving ? 0.22 * f : 0); });
     this.tracers = this.tracers.filter(t => t.until > now);
     this.muzzle = Math.max(0, this.muzzle - 0.2 * f); this.recoil = Math.max(0, this.recoil - 0.06 * f);
@@ -485,8 +497,8 @@ class Fps3DGame {
       // 다운: 쓰러짐
       const fall = p.dead ? 1 : 0; m.rotation.x += (fall * -Math.PI / 2 - m.rotation.x) * 0.2;
       // 이름표 체력 갱신 (바뀔 때만)
-      if (Math.round((u.tag.userData.hp || 0) / 10) !== Math.round((p.hp || 0) / 10) || u.tag.userData.name !== p.name) { const nt = this.makeTag(p.name || '', p.team, p.hp); nt.position.copy(u.tag.position); m.remove(u.tag); if (u.tag.material.map) u.tag.material.map.dispose(); u.tag = nt; m.add(nt); }
-      u.tag.visible = !p.dead;
+      if (this.teamMode && p.team === this.team && (Math.round((u.tag.userData.hp || 0) / 10) !== Math.round((p.hp || 0) / 10) || u.tag.userData.name !== p.name)) { const nt = this.makeTag(p.name || '', p.team, p.hp); nt.position.copy(u.tag.position); m.remove(u.tag); if (u.tag.material.map) u.tag.material.map.dispose(); u.tag = nt; m.add(nt); }
+      u.tag.visible = !p.dead && this.teamMode && p.team === this.team;      // 이름표·체력은 같은 팀만 (적은 보이지 않음)
       // 피격 번쩍임
       const fl = !!(u.flash && now < u.flash);
       if (fl !== !!u.flashOn) { u.flashOn = fl; m.traverse(o => { if (o.isMesh && o.material && o.material.emissive) o.material.emissive.setHex(fl ? 0xFFFFFF : 0x000000); }); }
@@ -616,17 +628,39 @@ class Fps3DGame {
   }
 
   drawMinimap(ctx, W, H) {
-    const n = this.map.length, size = Math.min(104, W * 0.28), cs = size / n, x0 = 14, y0 = 62;   // 왼쪽 위 뒤로가기 버튼 아래
-    if (!this._mm || this._mmSize !== size) {
-      this._mm = document.createElement('canvas'); this._mm.width = Math.ceil(size + 8); this._mm.height = Math.ceil(size + 8); this._mmSize = size;
-      const g = this._mm.getContext('2d'); g.fillStyle = 'rgba(8,10,16,0.72)'; g.beginPath(); if (g.roundRect) g.roundRect(0, 0, size + 8, size + 8, 10); else g.rect(0, 0, size + 8, size + 8); g.fill();
-      g.fillStyle = 'rgba(255,255,255,0.3)'; for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if (this.map[y][x] !== '.') g.fillRect(4 + x * cs, 4 + y * cs, cs, cs);
+    const n = this.map.length, R = Math.min(58, W * 0.16), cx = 14 + R, cy = 62 + R, cs = 4.6;   // 1칸 = 4.6px (반지름 58 → 약 12칸 시야)
+    // 벽 이미지는 한 번만 (맵 전체)
+    if (!this._mm) {
+      const px = 6; this._mm = document.createElement('canvas'); this._mm.width = n * px; this._mm.height = n * px;
+      const g = this._mm.getContext('2d'); g.fillStyle = 'rgba(255,255,255,0.32)';
+      for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if (this.map[y][x] !== '.') g.fillRect(x * px, y * px, px, px);
+      this._mmPx = px;
     }
-    ctx.drawImage(this._mm, x0 - 4, y0 - 4);
-    Object.keys(this.peers).forEach(id => { const p = this.peers[id]; if (this.spectator && id === this.followId) return; if (this.teamMode && p.team !== this.team && !this.spectator) return;
-      ctx.fillStyle = p.dead ? '#6B7280' : (p.team ? F3_TEAM_CSS[p.team] : '#FFD166'); ctx.beginPath(); ctx.arc(x0 + p.x * cs, y0 + p.y * cs, 2.4, 0, Math.PI * 2); ctx.fill(); });
-    ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.beginPath(); ctx.moveTo(x0 + this.x * cs, y0 + this.y * cs); ctx.arc(x0 + this.x * cs, y0 + this.y * cs, cs * 5, this.yaw - Math.PI / 6, this.yaw + Math.PI / 6); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x0 + this.x * cs, y0 + this.y * cs, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.save();
+    // 둥근 창 + 바탕
+    ctx.beginPath(); ctx.arc(cx, cy, R + 4, 0, Math.PI * 2); ctx.fillStyle = 'rgba(8,10,16,0.72)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.clip();
+    // 내 시선이 위쪽(12시)이 되도록 맵을 회전해서 붙임
+    ctx.translate(cx, cy); ctx.rotate(-this.yaw - Math.PI / 2);
+    const k = cs / this._mmPx;
+    ctx.drawImage(this._mm, -this.x * cs, -this.y * cs, this._mm.width * k, this._mm.height * k);
+    // 다른 플레이어: 적은 빨강 · 같은 팀은 팀색 · 다운은 회색
+    Object.keys(this.peers).forEach(id => { const p = this.peers[id]; if (this.spectator && id === this.followId) return;
+      const ally = this.teamMode && p.team === this.team;
+      ctx.fillStyle = p.dead ? '#6B7280' : (ally ? F3_TEAM_CSS[p.team] : '#FF4D6D');
+      ctx.beginPath(); ctx.arc((p.x - this.x) * cs, (p.y - this.y) * cs, ally ? 3 : 3.4, 0, Math.PI * 2); ctx.fill();
+      if (!ally && !p.dead) { ctx.strokeStyle = 'rgba(255,77,109,0.5)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc((p.x - this.x) * cs, (p.y - this.y) * cs, 6, 0, Math.PI * 2); ctx.stroke(); } });
+    ctx.restore();
+    // 나 (중심, 항상 위를 봄) + 시야 부채꼴
+    ctx.save(); ctx.translate(cx, cy);
+    ctx.fillStyle = 'rgba(255,255,255,0.10)'; ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, R, -Math.PI / 2 - Math.PI / 6, -Math.PI / 2 + Math.PI / 6); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.moveTo(0, -6); ctx.lineTo(4.5, 4); ctx.lineTo(0, 2); ctx.lineTo(-4.5, 4); ctx.closePath(); ctx.fill();
+    ctx.restore();
+    // 북쪽 표시 (원 테두리 위)
+    const na = -this.yaw - Math.PI / 2 + (-Math.PI / 2);   // 북(-y 방향)이 화면에서 가리키는 각
+    ctx.fillStyle = '#FFD166'; ctx.font = '800 10px Pretendard, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('N', cx + Math.cos(na) * (R + 4), cy + Math.sin(na) * (R + 4)); ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
   }
 
   destroy() {

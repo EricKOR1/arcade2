@@ -753,6 +753,14 @@ class KartGame {
       const d = map[id];
       if (!this.peers[id]) this.peers[id] = { x: d.x, y: d.y, angle: d.angle };
       const p = this.peers[id];
+      // 속도 추정 → 다음 신호까지 예측 이동 (상대 카트·관전 카메라가 뚝뚝 끊기지 않게)
+      const nowMs = this.clock();
+      if (p.at && p.tx != null && (Math.abs(p.tx - d.x) > 1e-6 || Math.abs(p.ty - d.y) > 1e-6)) {
+        const dtS = Math.min(600, Math.max(50, nowMs - p.at)) / 1000;
+        const nvx = (d.x - p.tx) / dtS, nvy = (d.y - p.ty) / dtS;
+        if (Math.hypot(nvx, nvy) < this.maxSpeed * 2.5 * 60) { p.vx = nvx; p.vy = nvy; } else { p.vx = 0; p.vy = 0; }
+      }
+      p.at = nowMs;
       p.tx = d.x; p.ty = d.y; p.tangle = d.angle;
       if (p.name !== d.name) p.look = null;
       p.name = d.name; p.id = id; p.lap = d.lap; p.progress = d.progress;
@@ -817,7 +825,8 @@ class KartGame {
       if (tgt) {
         // 부드럽게 따라감 (원격 위치는 0.16초마다 오므로 보간)
         const k = Math.min(1, f * 0.5);
-        const gx = (tgt.tx != null ? tgt.tx : tgt.x), gy = (tgt.ty != null ? tgt.ty : tgt.y), ga = (tgt.tangle != null ? tgt.tangle : tgt.angle);
+        const sinceS = Math.min(250, now - (tgt.at || now)) / 1000;
+        const gx = (tgt.tx != null ? tgt.tx : tgt.x) + (tgt.vx || 0) * sinceS, gy = (tgt.ty != null ? tgt.ty : tgt.y) + (tgt.vy || 0) * sinceS, ga = (tgt.tangle != null ? tgt.tangle : tgt.angle);
         this.x += (gx - this.x) * k; this.y += (gy - this.y) * k;
         let da = ga - this.angle; while (da > Math.PI) da -= Math.PI * 2; while (da < -Math.PI) da += Math.PI * 2;
         this.angle += da * k;
@@ -1729,8 +1738,10 @@ class KartGame {
 
     Object.keys(this.peers).forEach(id => {
       const pr = this.peers[id];
-      pr.x += ((pr.tx !== undefined ? pr.tx : pr.x) - pr.x) * 0.25;
-      pr.y += ((pr.ty !== undefined ? pr.ty : pr.y) - pr.y) * 0.25;
+      const since = Math.min(250, this.clock() - (pr.at || this.clock())) / 1000;
+      const gx = (pr.tx !== undefined ? pr.tx : pr.x) + (pr.vx || 0) * since, gy = (pr.ty !== undefined ? pr.ty : pr.y) + (pr.vy || 0) * since;
+      pr.x += (gx - pr.x) * 0.35;
+      pr.y += (gy - pr.y) * 0.35;
       let da = (pr.tangle !== undefined ? pr.tangle : pr.angle) - pr.angle;
       while (da >  Math.PI) da -= Math.PI*2;
       while (da < -Math.PI) da += Math.PI*2;

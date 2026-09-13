@@ -10,8 +10,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1B2027">
 <title>아케이드</title>
-<link rel="stylesheet" href="platform.css?v=2026-09-18a">
-<link rel="stylesheet" href="style.css?v=2026-09-18a">
+<link rel="stylesheet" href="platform.css?v=2026-09-18b">
+<link rel="stylesheet" href="style.css?v=2026-09-18b">
 </head>
 <body>
 <div class="app">
@@ -128,31 +128,31 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script src="firebase-config.js?v=2026-09-18a"></script>
-<script src="sound.js?v=2026-09-18a"></script>
-<script src="shared.js?v=2026-09-18a"></script>
-<script src="tetris-engine.js?v=2026-09-18a"></script>
-<script src="racing-engine.js?v=2026-09-18a"></script>
-<script src="snake-engine.js?v=2026-09-18a"></script>
-<script src="breakout-engine.js?v=2026-09-18a"></script>
-<script src="flappy-engine.js?v=2026-09-18a"></script>
-<script src="shooter-engine.js?v=2026-09-18a"></script>
+<script src="firebase-config.js?v=2026-09-18b"></script>
+<script src="sound.js?v=2026-09-18b"></script>
+<script src="shared.js?v=2026-09-18b"></script>
+<script src="tetris-engine.js?v=2026-09-18b"></script>
+<script src="racing-engine.js?v=2026-09-18b"></script>
+<script src="snake-engine.js?v=2026-09-18b"></script>
+<script src="breakout-engine.js?v=2026-09-18b"></script>
+<script src="flappy-engine.js?v=2026-09-18b"></script>
+<script src="shooter-engine.js?v=2026-09-18b"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="fps-engine.js?v=2026-09-18a"></script>
-<script src="fps3d-engine.js?v=2026-09-18a"></script>
-<script src="game2048-engine.js?v=2026-09-18a"></script>
-<script src="frogger-engine.js?v=2026-09-18a"></script>
-<script src="asteroids-engine.js?v=2026-09-18a"></script>
-<script src="maze-engine.js?v=2026-09-18a"></script>
-<script src="tower-engine.js?v=2026-09-18a"></script>
-<script src="missile-engine.js?v=2026-09-18a"></script>
-<script src="centipede-engine.js?v=2026-09-18a"></script>
-<script src="games.js?v=2026-09-18a"></script>
-<script src="app.js?v=2026-09-18a"></script>
+<script src="fps-engine.js?v=2026-09-18b"></script>
+<script src="fps3d-engine.js?v=2026-09-18b"></script>
+<script src="game2048-engine.js?v=2026-09-18b"></script>
+<script src="frogger-engine.js?v=2026-09-18b"></script>
+<script src="asteroids-engine.js?v=2026-09-18b"></script>
+<script src="maze-engine.js?v=2026-09-18b"></script>
+<script src="tower-engine.js?v=2026-09-18b"></script>
+<script src="missile-engine.js?v=2026-09-18b"></script>
+<script src="centipede-engine.js?v=2026-09-18b"></script>
+<script src="games.js?v=2026-09-18b"></script>
+<script src="app.js?v=2026-09-18b"></script>
 <script>
 (function () {
 
-  const BUILD = '2026-09-18a';   // 화면 아래에 표시됩니다
+  const BUILD = '2026-09-18b';   // 화면 아래에 표시됩니다
 
   const gameId = getGameId();
   const def = GAMES[gameId];
@@ -188,6 +188,25 @@
 
   // 내 자리를 서버에 (다시) 써 넣습니다.
   // 접속이 끊기면 onDisconnect 로 지워지므로, 돌아왔을 때 되살려야 명단에 다시 뜹니다.
+  // ── 실제 화면 전송: 선생님이 내 화면을 열어 보는 동안만, 240px JPEG 을 초당 약 7장 ──
+  //    (2D 캔버스 게임만. 카트·3D 는 교사 화면이 같은 엔진으로 관전하고, 과학 게임은 DOM 이라 전송 불가)
+  let watchTimer = null, shotCv = null, screenRef = null;
+  function setWatched(on) {
+    if (!screenRef) screenRef = db.ref('screens/' + playerId);
+    const can = on && started && !isRealtime && def.type === 'canvas';
+    if (can && !watchTimer) {
+      watchTimer = setInterval(() => {
+        const cv = byId('game-canvas'); if (!cv || !cv.width) return;
+        const w = 240, h = Math.round(cv.height * w / cv.width);
+        if (!shotCv) shotCv = document.createElement('canvas');
+        if (shotCv.width !== w || shotCv.height !== h) { shotCv.width = w; shotCv.height = h; }
+        const g = shotCv.getContext('2d', { alpha: false });
+        try { g.drawImage(cv, 0, 0, w, h); screenRef.set(shotCv.toDataURL('image/jpeg', 0.55)); } catch (e) {}
+      }, 150);
+      screenRef.onDisconnect().remove();
+    } else if (!can && watchTimer) { clearInterval(watchTimer); watchTimer = null; screenRef.remove(); }
+  }
+
   // 살아 있다는 신호 — 교사 화면이 끊긴 학생을 걸러 내는 데 씁니다
   setInterval(function () {
     if (joined) playerRef.update({ lastSeen: firebase.database.ServerValue.TIMESTAMP })["catch"](function () {});
@@ -410,6 +429,7 @@
     // 입장한 학생만 게임으로 넘어갑니다.
     // (이미 진행 중인 수업에 뒤늦게 QR로 들어와도 닉네임 화면을 먼저 거칩니다)
     const st = s.status || 'idle';
+    setWatched(s.watch === playerId);
 
     // 선생님이 다른 게임을 골랐으면 그 게임으로 옮겨 갑니다.
     // 게임마다 엔진이 달라 주소를 바꿔 다시 여는 방식이며, 닉네임은 그대로 유지됩니다.
@@ -1143,6 +1163,7 @@
 
   function stopGame() {
     if (game && game.destroy) { try { game.destroy(); } catch (e) {} }
+    if (watchTimer) { clearInterval(watchTimer); watchTimer = null; if (screenRef) screenRef.remove(); }
     const fc = byId('fps-ctl'); if (fc) fc.remove();
     stopGyro();
     detachPeerSync();
