@@ -1458,88 +1458,76 @@ class KartGame {
       ctx.closePath(); ctx.fill();
     };
 
-    const roadLight = this.lighten(d.road, 0.055);
     const grassLight = this.lighten(d.grass, 0.07);
     const grassDark = this.shade(d.grass, -0.06);
 
     // 안전망: 지평선 아래를 먼저 지면색으로 덮습니다.
-    // 어떤 각도·위치에서도 화면 아래가 비어 보이지 않습니다 (사각형 하나라 비용도 거의 없음).
     ctx.fillStyle = grassDark;
     ctx.fillRect(0, Math.max(0, cam.horizonY - 1), W, H - Math.max(0, cam.horizonY - 1));
 
-    // 카메라 바로 앞: 가장 가까운 두 조각의 가장자리를 화면 아래(H+40)까지 연장해 빈틈을 없앱니다.
-    // (이 틈이 지면색으로 깜박이던 원인)
-    if (segs.length > 1 && segs[1].k - segs[0].k <= 4) {
-      const n0 = segs[0], n1 = segs[1];
-      const ext = (a, b) => {                        // b→a 방향으로 y = H+40 까지 연장
-        const dy = a.y - b.y; if (dy <= 0.01) return { x: a.x, y: H + 40 };
-        const tt = (H + 40 - a.y) / dy; return { x: a.x + (a.x - b.x) * tt, y: H + 40 };
-      };
-      const band0 = false;
-      const gL1 = this.edge(cam, n1, 3.2), gL0 = this.edge(cam, n0, 3.2), gR1 = this.edge(cam, n1, -3.2), gR0 = this.edge(cam, n0, -3.2);
-      if (gL0 && gL1 && gR0 && gR1) quad(gL0, gR0, ext(gR0, gR1), ext(gL0, gL1), band0 ? grassLight : grassDark);
-      else quad({ x: -W, y: n0.L.y }, { x: 2 * W, y: n0.R.y }, { x: 2 * W, y: H + 40 }, { x: -W, y: H + 40 }, grassDark);
-      const kw = 0.058;
-      const kL1 = this.edge(cam, n1, 1 + kw), kL0 = this.edge(cam, n0, 1 + kw), kR1 = this.edge(cam, n1, -1 - kw), kR0 = this.edge(cam, n0, -1 - kw);
-      const kc0 = t.theme.kerb[1];
-      if (kL0 && kL1) quad(n0.L, kL0, ext(kL0, kL1), ext(n0.L, n1.L), kc0);
-      if (kR0 && kR1) quad(n0.R, kR0, ext(kR0, kR1), ext(n0.R, n1.R), kc0);
-      quad(n0.L, n0.R, ext(n0.R, n1.R), ext(n0.L, n1.L), d.road);
-      [0.42, -0.42].forEach(o => {
-        const a1 = this.edge(cam, n0, o + 0.09), a2 = this.edge(cam, n0, o - 0.09), b1 = this.edge(cam, n1, o + 0.09), b2 = this.edge(cam, n1, o - 0.09);
-        if (a1 && a2 && b1 && b2) quad(a1, a2, ext(a2, b2), ext(a1, b1), 'rgba(0,0,0,0.10)');
-      });
+    // ── 도로는 '이어진 띠' 하나로 그립니다 ──
+    // 구간마다 사각형을 따로 채우면 경계에 머리카락 같은 틈이 생기고, 그 사이로 지면색이 비칩니다.
+    // (알파인처럼 지면이 흰색이면 도로 위 흰 가로 점선처럼 보였습니다)
+    // 연속된 구간들을 한 덩어리로 묶어 path 하나로 채우면 내부 경계가 아예 없습니다.
+    const runs = [];
+    let cur = segs.length ? [segs[0]] : [];
+    for (let i = 1; i < segs.length; i++) {
+      if (segs[i].k - segs[i - 1].k > 12) { if (cur.length > 1) runs.push(cur); cur = [segs[i]]; }
+      else cur.push(segs[i]);
     }
+    if (cur.length > 1) runs.push(cur);
 
-    for (let s2 = segs.length - 1; s2 > 0; s2--) {
-      const far = segs[s2], near = segs[s2 - 1];
-      if (far.k - near.k > 12) continue;                    // 사이가 끊긴(카메라 뒤를 지난) 구간은 잇지 않음
-      const band = false;                                   // 번갈아 칠하기 없음 (고속에서 번쩍이던 원인)
+    // 가장 가까운 조각을 화면 아래까지 늘려 카메라 앞 빈틈을 없앱니다
+    const extend = (a, b) => {
+      const dy = a.y - b.y;
+      if (dy <= 0.01) return { x: a.x, y: H + 40 };
+      const tt = (H + 40 - a.y) / dy;
+      return { x: a.x + (a.x - b.x) * tt, y: H + 40 };
+    };
 
-      // 갓길 — 모든 구간에 그립니다. 멀수록 더 넓게 덮어 언덕 너머 도로가 하늘 위에 뜨지 않게 합니다.
-      {
-        const wdt = near.detail ? 3.2 : (near.k < DETAIL * 2 ? 7 : 14);
-        const sL1 = this.edge(cam, far, wdt),  sL2 = this.edge(cam, near, wdt);
-        const sR1 = this.edge(cam, far, -wdt), sR2 = this.edge(cam, near, -wdt);
-        if (sL1 && sL2 && sR1 && sR2) quad(sL1, sR1, sR2, sL2, band ? grassLight : grassDark);
-        else quad(far.L, far.R, near.R, near.L, grassDark);   // 투영이 안 되면 최소한 도로 밑은 채움
+    // run 하나를 좌우 오프셋으로 잘라 띠 하나로 채웁니다
+    const stripe = (run, offL, offR, color, toBottom) => {
+      const L = [], R = [];
+      for (let i = 0; i < run.length; i++) {
+        const a = this.edge(cam, run[i], offL), b = this.edge(cam, run[i], offR);
+        if (!a || !b) { if (L.length > 1) break; L.length = 0; R.length = 0; continue; }
+        L.push(a); R.push(b);
       }
+      if (L.length < 2) return;
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      // 먼 쪽 → 가까운 쪽 (왼쪽 가장자리)
+      for (let i = L.length - 1; i >= 0; i--) (i === L.length - 1 ? ctx.moveTo : ctx.lineTo).call(ctx, L[i].x, L[i].y);
+      if (toBottom) { const e1 = extend(L[0], L[1]); ctx.lineTo(e1.x, e1.y); const e2 = extend(R[0], R[1]); ctx.lineTo(e2.x, e2.y); }
+      // 가까운 쪽 → 먼 쪽 (오른쪽 가장자리)
+      for (let i = 0; i < R.length; i++) ctx.lineTo(R[i].x, R[i].y);
+      ctx.closePath(); ctx.fill();
+    };
 
-      if (near.detail) {
-        // 연석
-        const kw = 0.058;
-        const kL1 = this.edge(cam, far, 1 + kw), kL2 = this.edge(cam, near, 1 + kw);
-        const kR1 = this.edge(cam, far, -1 - kw), kR2 = this.edge(cam, near, -1 - kw);
-        const kc = t.theme.kerb[1];                         // 테마 연석색 단색
-        if (kL1 && kL2) quad(far.L, kL1, kL2, near.L, kc);
-        if (kR1 && kR2) quad(far.R, kR1, kR2, near.R, kc);
+    const kw = 0.058, kerb = t.theme.kerb[1];
+    runs.forEach((run, ri) => {
+      const toBottom = ri === 0;                       // 카메라에 가장 가까운 덩어리만 아래로 연장
+      stripe(run, 3.2, -3.2, grassDark, toBottom);     // 갓길
+      stripe(run, 1 + kw, 1, kerb, toBottom);          // 왼쪽 연석
+      stripe(run, -1, -1 - kw, kerb, toBottom);        // 오른쪽 연석
+      stripe(run, 1, -1, d.road, toBottom);            // 도로
+      // 타이어 자국 (가까운 구간만)
+      const near = run.filter(sg => sg.k < 14);
+      if (near.length > 1) { stripe(near, 0.51, 0.33, 'rgba(0,0,0,0.10)', toBottom); stripe(near, -0.33, -0.51, 'rgba(0,0,0,0.10)', toBottom); }
+    });
+
+    // 아스팔트 얼룩 — 가까운 구간에만
+    ctx.fillStyle = 'rgba(0,0,0,0.10)';
+    segs.forEach(sg => {
+      if (!sg.detail || sg.k >= 8 || sg.k < -2) return;
+      for (let q2 = 0; q2 < 3; q2++) {
+        const u = ((sg.i * 31 + q2 * 17) % 100) / 100;
+        const pt = this.edge(cam, sg, -0.85 + u * 1.7);
+        if (!pt) continue;
+        const rr = Math.max(0.8, t.halfW * 0.02 * pt.s);
+        ctx.beginPath(); ctx.ellipse(pt.x, pt.y, rr * 1.6, rr * 0.7, 0, 0, Math.PI * 2); ctx.fill();
       }
-
-      quad(far.L, far.R, near.R, near.L, band ? roadLight : d.road);
-
-      // 아스팔트 질감 — 가까운 구간에만 작은 얼룩
-      if (near.detail && near.k < 8 && near.k >= -2) {
-        ctx.fillStyle = 'rgba(0,0,0,0.10)';
-        for (let q2 = 0; q2 < 3; q2++) {
-          const u = ((far.i * 31 + q2 * 17) % 100) / 100;
-          const off = -0.85 + u * 1.7;
-          const pt = this.edge(cam, near, off);
-          if (!pt) continue;
-          const rr = Math.max(0.8, t.halfW * 0.02 * pt.s);
-          ctx.beginPath(); ctx.ellipse(pt.x, pt.y, rr * 1.6, rr * 0.7, 0, 0, Math.PI * 2); ctx.fill();
-        }
-      }
-
-      if (near.detail && near.k < 14) {
-        // 타이어 자국 — 가운데 두 줄이 살짝 어두움 (서킷 느낌, 번쩍임 없음)
-        [0.42, -0.42].forEach(o => {
-          const a1 = this.edge(cam, far, o + 0.09), a2 = this.edge(cam, far, o - 0.09);
-          const b1 = this.edge(cam, near, o + 0.09), b2 = this.edge(cam, near, o - 0.09);
-          if (a1 && a2 && b1 && b2) quad(a1, a2, b2, b1, 'rgba(0,0,0,0.10)');
-        });
-      }
-
-    }
+    });
 
     this.drawRoadMarks(ctx, cam, segs, now);
   }
