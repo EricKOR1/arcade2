@@ -220,11 +220,32 @@ class Track {
   }
 
   elevAt(i) { return this.elev[((i % this.n) + this.n) % this.n]; }
+  // 소수점 인덱스(예: 12.4)의 높이 — 구간 사이를 선형 보간 (카메라·카트가 계단처럼 튀지 않게)
+  elevAtF(fi) {
+    const i0 = Math.floor(fi), t = fi - i0;
+    return this.elevAt(i0) * (1 - t) + this.elevAt(i0 + 1) * t;
+  }
+  // 소수점 인덱스의 진행 방향(각도) — 커브에서 구간마다 몇 도씩 툭툭 바뀌지 않게 보간
+  headingAtF(fi) {
+    const i0 = Math.floor(fi), t = fi - i0;
+    const [ax, ay] = this.tangent[((i0 % this.n) + this.n) % this.n], [bx, by] = this.tangent[(((i0 + 1) % this.n) + this.n) % this.n];
+    const a = Math.atan2(ay, ax); let d = Math.atan2(by, bx) - a;
+    while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2;
+    return a + d * t;
+  }
+  // 점 (x,y) 가 구간 i 의 중심점에서 진행 방향으로 얼마나 앞/뒤에 있는지 (-0.6 ~ +0.6, 구간 길이 단위).
+  // 구간 번호는 두 중심점의 '중간'에서 바뀌므로, 뒤쪽(음수)도 재야 번호가 바뀌는 순간 값이 이어집니다.
+  fracAt(i, x, y) {
+    const ii = ((i % this.n) + this.n) % this.n;
+    const c = this.center[ii], [tx, ty] = this.tangent[ii];
+    const along = ((x - c[0]) * tx + (y - c[1]) * ty) / (this.stepLen || 1);
+    return Math.max(-0.6, Math.min(0.6, along));
+  }
   get theme() { return THEMES[this.def.theme] || THEMES.meadow; }
 
   // 앞쪽 구간의 평균 경사 (오르막 +, 내리막 -)
   gradeAt(i, look) {
-    const a = this.elevAt(i), b = this.elevAt(i + (look || 8));
+    const a = this.elevAtF(i), b = this.elevAtF(i + (look || 8));   // 소수점 인덱스도 받음
     return (b - a) / ((look || 8) * this.stepLen);
   }
 
@@ -1164,25 +1185,31 @@ class KartGame {
   setupCamera(W, H) {
     const t = this.track;
     const boosting = this.clock() < this.boostUntil;
-    const offNow = (() => { const [ax, ay] = t.tangent[this.segIdx]; let o = this.angle - Math.atan2(ay, ax);
+    const fi0 = this.segIdx + t.fracAt(this.segIdx, this.x, this.y);
+    const roadDir = t.headingAtF(fi0);                     // 보간된 트랙 방향
+    const offNow = (() => { let o = this.angle - roadDir;
       while (o > Math.PI) o -= Math.PI * 2; while (o < -Math.PI) o += Math.PI * 2; return Math.abs(o); })();
     const wide = Math.min(1, Math.max(0, (offNow - 0.5) / 1.2));       // 옆·뒤를 볼수록 카메라를 물림
-    const back = t.carLen * (boosting ? 4.4 : 3.9) * (1 + wide * 0.9);
+    // 카메라 거리는 목표값으로 '서서히' — 부스터를 밟는 순간 화면이 즉시 줌되어 튀던 원인
+    const backTarget = t.carLen * (boosting ? 4.4 : 3.9) * (1 + wide * 0.9);
+    this.camBack = (this.camBack == null) ? backTarget : this.camBack + (backTarget - this.camBack) * this.smooth(0.10, this.lastF);
+    const back = this.camBack;
     const f = (W * 0.78) * back / t.halfW;
     const height = (H * 0.50) * back / f;
 
-    // 경사를 따라 시선이 부드럽게 따라감
-    const g = this.track.gradeAt(this.segIdx, 8);
+    // 경사를 따라 시선이 부드럽게 따라감 (구간 사이 위치까지 반영)
+    const fi = fi0;
+    this.segF = fi;
+    const g = this.track.gradeAt(fi, 8);
     this.viewGrade = (this.viewGrade === undefined) ? g : this.viewGrade + (g - this.viewGrade) * this.smooth(0.08, this.lastF);
     const horizonY = Math.max(H * 0.14, Math.min(H * 0.56,
                        H * 0.33 + f * this.viewGrade * 1.35));
 
-    const myElev = t.elevAt(this.segIdx);
+    const myElev = t.elevAtF(fi);                          // 정수 구간이 아니라 실제 위치의 높이
 
     // 카메라 방향: 카트가 옆·뒤로 돌아도 트랙 진행 방향을 크게 벗어나지 않게 제한합니다.
     // (제한이 없으면 옆을 본 순간 앞쪽 도로가 전부 카메라 뒤로 밀려나 화면에서 사라졌습니다)
-    const [ttx, tty] = t.tangent[this.segIdx];
-    const road = Math.atan2(tty, ttx);
+    const road = roadDir;
     let off = this.angle - road;
     while (off > Math.PI) off -= Math.PI * 2;
     while (off < -Math.PI) off += Math.PI * 2;
@@ -1816,14 +1843,16 @@ class KartGame {
       while (da >  Math.PI) da -= Math.PI*2;
       while (da < -Math.PI) da += Math.PI*2;
       pr.angle += da * this.smooth(0.25, this.lastF);
-      pr.e = t.elevAt(Math.round(pr.progress || 0));
+      // 상대 카트 높이도 실제 위치로 보간 (반올림하면 언덕에서 계단처럼 튐)
+      const pi = ((Math.floor(pr.progress || 0) % t.n) + t.n) % t.n;
+      pr.e = t.elevAtF(pi + t.fracAt(pi, pr.x, pr.y));
       const p = this.project(cam, pr.x, pr.y, pr.e);
       if (!p) return;
       if (this.spectator && id === this.followId) return;
       list.push(push(p.z, 'kart', pr));
     });
 
-    const myE = t.elevAt(this.segIdx);
+    const myE = t.elevAtF(this.segF != null ? this.segF : this.segIdx);
     const me = this.project(cam, this.x, this.y, myE);
     if (me) list.push(push(me.z, 'me', myE));
 
