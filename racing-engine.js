@@ -1504,10 +1504,13 @@ class KartGame {
       ctx.closePath(); ctx.fill();
     };
 
-    const kw = 0.058, kerb = t.theme.kerb[1];
+    const kw = 0.058, kerb = t.theme.kerb[1], roadBed = this.shade(d.road, -0.28);
     runs.forEach((run, ri) => {
       const toBottom = ri === 0;                       // 카메라에 가장 가까운 덩어리만 아래로 연장
       stripe(run, 3.2, -3.2, grassDark, toBottom);     // 갓길
+      // 노반 — 도로보다 아주 조금 넓은 어두운 바탕.
+      // 혹시 경계에 머리카락 같은 틈이 남더라도 흰 지면 대신 이 어두운 색이 비칩니다.
+      stripe(run, 1.10, -1.10, roadBed, toBottom);
       stripe(run, 1 + kw, 1, kerb, toBottom);          // 왼쪽 연석
       stripe(run, -1, -1 - kw, kerb, toBottom);        // 오른쪽 연석
       stripe(run, 1, -1, d.road, toBottom);            // 도로
