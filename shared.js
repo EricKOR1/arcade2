@@ -48,7 +48,11 @@ const CELL_COLORS = {
   54: '#A78BFA', // 지네 - 몸
   55: '#FF5C7A', // 타워 - 발판
   56: '#4CC9F0', // 타워 - 사다리
-  57: '#B98A55'  // 타워 - 통
+  57: '#B98A55', // 타워 - 통
+  58: '#134B73', // 태화강 - 강물
+  59: '#1E2A3A', // 태화강 - 취수장
+  60: '#B15DFF', // 태화강 - 오염물
+  61: '#FF8A80'  // 태화강 - 물고기
 };
 
 // 숫자 2차원 배열을 캔버스에 그림 (교사 화면 미니 보드용)
@@ -89,3 +93,12 @@ function boardToRows(board) {
 function rowsToBoard(rows) {
   return rows.map(r => r.split(',').map(Number));
 }
+
+// ── 진동 피드백 (지원 기기만 · 아주 짧게) ──
+const Haptic = {
+  on: true,
+  tap()  { if (this.on && navigator.vibrate) navigator.vibrate(12); },
+  hit()  { if (this.on && navigator.vibrate) navigator.vibrate([30, 30, 30]); },
+  good() { if (this.on && navigator.vibrate) navigator.vibrate(20); },
+  big()  { if (this.on && navigator.vibrate) navigator.vibrate([60, 40, 80]); }
+};

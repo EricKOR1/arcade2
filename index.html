@@ -10,8 +10,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1B2027">
 <title>아케이드</title>
-<link rel="stylesheet" href="platform.css?v=2026-09-21a">
-<link rel="stylesheet" href="style.css?v=2026-09-21a">
+<link rel="stylesheet" href="platform.css?v=2026-09-22d">
+<link rel="stylesheet" href="style.css?v=2026-09-22d">
 </head>
 <body>
 <div class="app">
@@ -128,31 +128,32 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script src="firebase-config.js?v=2026-09-21a"></script>
-<script src="sound.js?v=2026-09-21a"></script>
-<script src="shared.js?v=2026-09-21a"></script>
-<script src="tetris-engine.js?v=2026-09-21a"></script>
-<script src="racing-engine.js?v=2026-09-21a"></script>
-<script src="snake-engine.js?v=2026-09-21a"></script>
-<script src="breakout-engine.js?v=2026-09-21a"></script>
-<script src="flappy-engine.js?v=2026-09-21a"></script>
-<script src="shooter-engine.js?v=2026-09-21a"></script>
+<script src="firebase-config.js?v=2026-09-22d"></script>
+<script src="sound.js?v=2026-09-22d"></script>
+<script src="shared.js?v=2026-09-22d"></script>
+<script src="tetris-engine.js?v=2026-09-22d"></script>
+<script src="racing-engine.js?v=2026-09-22d"></script>
+<script src="snake-engine.js?v=2026-09-22d"></script>
+<script src="breakout-engine.js?v=2026-09-22d"></script>
+<script src="flappy-engine.js?v=2026-09-22d"></script>
+<script src="shooter-engine.js?v=2026-09-22d"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="fps-engine.js?v=2026-09-21a"></script>
-<script src="fps3d-engine.js?v=2026-09-21a"></script>
-<script src="game2048-engine.js?v=2026-09-21a"></script>
-<script src="frogger-engine.js?v=2026-09-21a"></script>
-<script src="asteroids-engine.js?v=2026-09-21a"></script>
-<script src="maze-engine.js?v=2026-09-21a"></script>
-<script src="tower-engine.js?v=2026-09-21a"></script>
-<script src="missile-engine.js?v=2026-09-21a"></script>
-<script src="centipede-engine.js?v=2026-09-21a"></script>
-<script src="games.js?v=2026-09-21a"></script>
-<script src="app.js?v=2026-09-21a"></script>
+<script src="fps-engine.js?v=2026-09-22d"></script>
+<script src="fps3d-engine.js?v=2026-09-22d"></script>
+<script src="game2048-engine.js?v=2026-09-22d"></script>
+<script src="frogger-engine.js?v=2026-09-22d"></script>
+<script src="asteroids-engine.js?v=2026-09-22d"></script>
+<script src="maze-engine.js?v=2026-09-22d"></script>
+<script src="tower-engine.js?v=2026-09-22d"></script>
+<script src="missile-engine.js?v=2026-09-22d"></script>
+<script src="centipede-engine.js?v=2026-09-22d"></script>
+<script src="river-engine.js?v=2026-09-22d"></script>
+<script src="games.js?v=2026-09-22d"></script>
+<script src="app.js?v=2026-09-22d"></script>
 <script>
 (function () {
 
-  const BUILD = '2026-09-21a';   // 화면 아래에 표시됩니다
+  const BUILD = '2026-09-22d';   // 화면 아래에 표시됩니다
 
   const gameId = getGameId();
   const def = GAMES[gameId];
@@ -351,6 +352,7 @@
   muteBtn.addEventListener('click', () => {
     const on = !Sound.isEnabled();
     Sound.setEnabled(on);
+    if (window.Haptic) Haptic.on = on;                   // 소리를 끄면 진동도 끕니다
     muteBtn.textContent = on ? '♪' : '✕';
   });
 
@@ -1184,7 +1186,7 @@
   function showResult(rank) {
     document.getElementById('over-label').textContent = '완주 순위';
     document.getElementById('final-score').textContent = rank ? rank + '등' : '완주';
-    document.getElementById('final-detail').textContent = '3바퀴를 모두 돌았습니다';
+    document.getElementById('final-detail').textContent = (game && def.detail) ? def.detail(game) : '완주했습니다';
     show('screen-over');
     clearInterval(syncTimer);
     playersRef.once('value').then(s => showRank(rank, Object.keys(s.val() || {}).length));

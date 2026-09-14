@@ -341,6 +341,7 @@ class Fps3DGame {
     if (e.type === 'hit' && e.target === this.myId) {
       if (this.isDead) return;
       this.hp = Math.max(0, this.hp - (e.dmg || 26)); this.hurt = 1;
+      if (window.Haptic) Haptic.hit();
       const p = this.peers[e.by];
       if (p) { let da = Math.atan2(p.y - this.y, p.x - this.x) - this.yaw; while (da > Math.PI) da -= Math.PI * 2; while (da < -Math.PI) da += Math.PI * 2; this.dmgDir = { a: da, until: this.clock() + 900 }; }
       if (window.Sound) Sound.crash();
@@ -353,6 +354,7 @@ class Fps3DGame {
       }
     } else if (e.type === 'kill' && e.target === this.myId) {
       this.kills++; this.streak++; this.score += 100 + (e.head ? 50 : 0) + (this.streak >= 3 ? 50 : 0);
+      if (window.Haptic) Haptic.good();
       this.pushFeed(this.myName, this.nameOf(e.victim), '#06D6A0', !!e.head);
       this.showToast(e.head ? '🎯 헤드샷!  +150' : (this.streak >= 3 ? this.streak + '연속 킬  +150' : this.nameOf(e.victim) + ' 처치  +100'), e.head || this.streak >= 3 ? '#FFD166' : '#06D6A0');
       if (window.Sound) Sound.levelUp();

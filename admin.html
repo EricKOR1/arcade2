@@ -7,8 +7,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1B2027">
 <title>교사용 대시보드</title>
-<link rel="stylesheet" href="platform.css?v=2026-09-19a">
-<link rel="stylesheet" href="style.css?v=2026-09-19a">
+<link rel="stylesheet" href="platform.css?v=2026-09-22d">
+<link rel="stylesheet" href="style.css?v=2026-09-22d">
 </head>
 <body>
 <div class="admin" id="admin-root">
@@ -17,12 +17,18 @@
     <h1>아케이드</h1>
     <span class="badge badge-lg" id="status-badge">게임 선택</span>
     <span class="badge badge-lg badge-ghost" id="count-badge">0명 접속</span>
-    <span class="badge badge-sm" style="opacity:.4">v2026-09-19a</span>
+    <span class="badge badge-sm" style="opacity:.4">v2026-09-22d</span>
   </div>
   <p class="admin-sub" id="admin-sub">플레이할 게임을 고르면 학생용 QR이 만들어집니다.</p>
 
   <!-- 1단계: 게임 선택 -->
   <section id="select-panel">
+    <div class="game-filter" id="game-filter">
+      <button class="fchip on" data-cat="all">전체</button>
+      <button class="fchip" data-cat="versus">실시간 대전</button>
+      <button class="fchip" data-cat="solo">개인전 아케이드</button>
+      <button class="fchip" data-cat="learn">학습 · 교육</button>
+    </div>
     <div id="game-list"></div>
   </section>
 
@@ -64,6 +70,7 @@
       <button class="btn btn-ghost move-open">⇄ 모두 다른 게임 대기실로 이동</button>
       <button id="lobby-btn" class="btn btn-ghost">대기실로 되돌리기</button>
       <button id="end-btn" class="btn btn-outline btn-error">게임 종료</button>
+      <button id="csv-btn" class="btn btn-ghost" title="현재 명단의 점수·순위를 CSV 로 저장">⬇ 결과 CSV</button>
       <button id="force-btn" class="btn btn-error">강제 종료</button>
       <span class="spec-note" id="force-note"></span>
     </div>
@@ -165,29 +172,30 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="firebase-config.js?v=2026-09-19a"></script>
-<script src="shared.js?v=2026-09-19a"></script>
-<script src="tetris-engine.js?v=2026-09-19a"></script>
-<script src="racing-engine.js?v=2026-09-19a"></script>
-<script src="snake-engine.js?v=2026-09-19a"></script>
-<script src="breakout-engine.js?v=2026-09-19a"></script>
-<script src="flappy-engine.js?v=2026-09-19a"></script>
-<script src="shooter-engine.js?v=2026-09-19a"></script>
+<script src="firebase-config.js?v=2026-09-22d"></script>
+<script src="shared.js?v=2026-09-22d"></script>
+<script src="tetris-engine.js?v=2026-09-22d"></script>
+<script src="racing-engine.js?v=2026-09-22d"></script>
+<script src="snake-engine.js?v=2026-09-22d"></script>
+<script src="breakout-engine.js?v=2026-09-22d"></script>
+<script src="flappy-engine.js?v=2026-09-22d"></script>
+<script src="shooter-engine.js?v=2026-09-22d"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="fps-engine.js?v=2026-09-19a"></script>
-<script src="fps3d-engine.js?v=2026-09-19a"></script>
-<script src="game2048-engine.js?v=2026-09-19a"></script>
-<script src="frogger-engine.js?v=2026-09-19a"></script>
-<script src="asteroids-engine.js?v=2026-09-19a"></script>
-<script src="maze-engine.js?v=2026-09-19a"></script>
-<script src="tower-engine.js?v=2026-09-19a"></script>
-<script src="missile-engine.js?v=2026-09-19a"></script>
-<script src="centipede-engine.js?v=2026-09-19a"></script>
-<script src="games.js?v=2026-09-19a"></script>
-<script src="app.js?v=2026-09-19a"></script>
+<script src="fps-engine.js?v=2026-09-22d"></script>
+<script src="fps3d-engine.js?v=2026-09-22d"></script>
+<script src="game2048-engine.js?v=2026-09-22d"></script>
+<script src="frogger-engine.js?v=2026-09-22d"></script>
+<script src="asteroids-engine.js?v=2026-09-22d"></script>
+<script src="maze-engine.js?v=2026-09-22d"></script>
+<script src="tower-engine.js?v=2026-09-22d"></script>
+<script src="missile-engine.js?v=2026-09-22d"></script>
+<script src="centipede-engine.js?v=2026-09-22d"></script>
+<script src="river-engine.js?v=2026-09-22d"></script>
+<script src="games.js?v=2026-09-22d"></script>
+<script src="app.js?v=2026-09-22d"></script>
 <script>
 (function () {
-  const CELL = { tetris: 6, snake: 5, breakout: 8, flappy: 8, shooter: 8, g2048: 26, frogger: 8, asteroids: 6, maze: 5, tower: 7, missile: 6, centipede: 5 };
+  const CELL = { tetris: 6, snake: 5, breakout: 8, flappy: 8, shooter: 8, g2048: 26, frogger: 8, asteroids: 6, maze: 5, tower: 7, missile: 6, centipede: 5, river: 7 };
 
   const sessionRef  = db.ref('session');
   const statusRef   = db.ref('session/status');
@@ -253,11 +261,20 @@
     specTrack = new Track(TRACKS[currentTrack]);
   }
 
+  // ── 게임 분류 칩 ──
+  $('game-filter').addEventListener('click', e => {
+    const b = e.target.closest('.fchip'); if (!b) return;
+    document.querySelectorAll('#game-filter .fchip').forEach(x => x.classList.toggle('on', x === b));
+    const cat = b.dataset.cat;
+    document.querySelectorAll('#game-list .game-card').forEach(c => { c.classList.toggle('hidden', cat !== 'all' && c.dataset.cat !== cat); });
+  });
+
   // ── 게임 선택 카드 ──
   Object.keys(GAMES).forEach(id => {
     const g = GAMES[id];
     const el = document.createElement('div');
     el.className = 'card bg-base-200 shadow game-card';
+    el.dataset.cat = g.type === 'html' || id === 'river' ? 'learn' : (g.needsPeers ? 'versus' : 'solo');
     el.style.setProperty('--gc', g.hex);
     el.innerHTML = '<div class="card-body p-6">' +
       '<h3 class="card-title text-lg"></h3>' +
@@ -271,7 +288,7 @@
   });
 
   // ── 트랙 선택 카드 ──
-  Object.keys(TRACKS).forEach(id => {
+  Object.keys(TRACKS).sort((a, b) => (TRACKS[a].difficulty || 0) - (TRACKS[b].difficulty || 0)).forEach(id => {   // 쉬운 트랙부터
     const t = TRACKS[id];
     const el = document.createElement('div');
     el.className = 'card bg-base-200 shadow track-card';
@@ -489,7 +506,7 @@
       focusKart.tick(now);
       const p = peerPos[focusId] || {};
       $('focus-name').textContent = names[focusId] || '';
-      $('focus-meta').textContent = (p.finished ? '완주' : ('랩 ' + (Math.min((p.lap || 0) + 1, focusKart.track.laps)) + '/' + focusKart.track.laps)) +
+      $('focus-meta').textContent = (p.finished ? '완주' : ('랩 ' + (Math.max(1, Math.min((p.lap || 0) + 1, focusKart.track.laps))) + '/' + focusKart.track.laps)) +
                                     ' · ' + focusKart.rank + '위 / ' + focusKart.total + '명';
       return;
     }
@@ -582,7 +599,7 @@
         if (g.hasTracks) {
           // 카트는 트랙까지 고릅니다
           gbox.classList.add('hidden'); tbox.classList.remove('hidden');
-          Object.keys(TRACKS).forEach(tid => {
+          Object.keys(TRACKS).sort((a, b) => (TRACKS[a].difficulty || 0) - (TRACKS[b].difficulty || 0)).forEach(tid => {
             const t = TRACKS[tid];
             const tb = document.createElement('button');
             tb.className = 'move-card';
@@ -650,6 +667,23 @@
     posRef.remove(); hazardsRef.remove(); eventsRef.remove();
     db.ref('finishCount').remove();
   });
+  // 결과 CSV — 이름 · 점수 · 순위 · 상세 (엑셀에서 바로 열립니다)
+  $('csv-btn').addEventListener('click', () => {
+    playersRef.once('value').then(snap => {
+      const ps = snap.val() || {}; const g = GAMES[currentGameId] || {};
+      const rows = Object.keys(ps).map(id => ps[id]).filter(p => p && !isStale(p));
+      rows.sort((a, b) => (b.score || 0) - (a.score || 0));
+      const esc = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+      const lines = [['순위', '이름', '점수', '상태', '게임'].map(esc).join(',')];
+      rows.forEach((p, i) => lines.push([i + 1, p.nickname, p.score || 0, p.status || '', g.name || currentGameId].map(esc).join(',')));
+      const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+      const d = new Date(), pad = n => String(n).padStart(2, '0');
+      a.download = (g.name || '결과') + '_' + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + '_' + pad(d.getHours()) + pad(d.getMinutes()) + '.csv';
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    });
+  });
+
   $('reset-btn').addEventListener('click', () => {
     if (!confirm('입장한 학생 명단을 비울까요?')) return;
     rosterRef.remove();
@@ -1358,7 +1392,7 @@
       }
       const totalLaps = specTrack ? specTrack.laps : 3;
       lp.textContent = p.finished ? '완주'
-        : (Math.min((p.lap || 0) + 1, totalLaps) + '/' + totalLaps + '바퀴'
+        : (Math.max(1, Math.min((p.lap || 0) + 1, totalLaps)) + '/' + totalLaps + '바퀴'
            + (p.shield ? ' 🛡' : '') + (p.boost ? ' ⚡' : ''));
       li.append(r, nm, lp);
       ul.appendChild(li);

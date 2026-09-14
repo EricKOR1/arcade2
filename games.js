@@ -254,6 +254,24 @@ const GAMES = {
     sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, wave: g.wave }; }
   },
 
+  river: {
+    type: 'canvas',
+    name: '태화강 AI 안전망',
+    desc: '바이오센서 드론으로 강을 감시하세요. 오염물만 분석해 잡고, 연어·은어를 잡으면 오경보로 신뢰도가 떨어집니다',
+    howto: '← → 차선 이동 · 발사 = 분석 펄스 · 폐수·기름·벤젠·쓰레기만 잡기 · 연어·은어·나뭇잎은 오경보 · 악취가 나면 바람 반대쪽 공장을 분석 · BOD 11.3 이면 끝',
+    meta: '개인전 · 환경 × AI · 울산 특강 연계',
+    primary: '75% 0.14 200', primaryContent: '100% 0 0', hex: '#4CC9F0',
+    grid: { cols: 12, rows: 20 },
+    adminView: 'grid',
+    needsPeers: false, hasNext: false,
+    stats: [{ key: 'bodText', label: 'BOD' }, { key: 'trust', label: '신뢰도' }],
+    detail: function (g) { return '파도 ' + g.wave + ' · 오염물 ' + g.caught + '개 · 오경보 ' + g.falseAlarms + ' · 독감 ' + g.fluFound + ' · DNA ' + g.dnaFound; },
+    controls: ['left', 'fire', 'right'],
+    labels: { fire: '분석' },
+    create: function (canvas, opts) { return new RiverGame(canvas, opts.cellSize); },
+    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, wave: g.wave }; }
+  },
+
   shooter: {
     type: 'canvas',
     name: '우주 방어',
@@ -282,6 +300,8 @@ const GAMES = {
     fullBleed: true,
     adminView: 'shared',
     needsPeers: true, hasNext: false, hasTracks: true,
+    detail: function (g) { const fmt = ms => { const s2 = ms / 1000; return Math.floor(s2 / 60) + ':' + (s2 % 60).toFixed(1).padStart(4, '0'); };
+      return (g.finishRank ? g.finishRank + '위로 완주' : Math.max(1, g.lap + 1) + '바퀴째') + (g.bestLap ? ' · 최고 랩 ' + fmt(g.bestLap) : ''); },
     controls: ['left', 'item', 'right', 'discard'],
     create: function (canvas, opts) { return new KartGame(canvas, opts); },
     sync: function (g) { return { score: g.score }; }
@@ -298,6 +318,8 @@ const GAMES = {
     fullBleed: true,
     adminView: 'shared',
     needsPeers: true, hasNext: false, hasTracks: true,
+    detail: function (g) { const fmt = ms => { const s2 = ms / 1000; return Math.floor(s2 / 60) + ':' + (s2 % 60).toFixed(1).padStart(4, '0'); };
+      return (g.finishRank ? g.finishRank + '위로 완주' : Math.max(1, g.lap + 1) + '바퀴째') + (g.bestLap ? ' · 최고 랩 ' + fmt(g.bestLap) : ''); },
     controls: ['left', 'right'],
     create: function (canvas, opts) { return new KartGame(canvas, Object.assign({ noItems: true }, opts)); },
     sync: function (g) { return { score: g.score }; }

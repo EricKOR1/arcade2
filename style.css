@@ -671,3 +671,9 @@ body.fullgrid .spectate { grid-template-columns: 1fr 320px }
 /* 결과 점수: 살짝 빛남 */
 .result-score { text-shadow: 0 0 30px var(--accent-glow) }
 @media (prefers-reduced-motion: reduce) { .readygo span, .stats.pop, .confetti i { animation: none } }
+
+/* 교사: 게임 분류 칩 */
+.game-filter { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0 14px }
+.fchip { font: 600 13px/1 Pretendard, sans-serif; padding: 9px 14px; border-radius: 999px; border: 1px solid var(--a-line2); background: transparent; color: var(--a-dim); cursor: pointer }
+.fchip:hover { background: var(--a-card2); color: var(--a-text) }
+.fchip.on { background: var(--a-text); color: var(--a-bg); border-color: transparent }
