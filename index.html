@@ -10,8 +10,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1B2027">
 <title>아케이드</title>
-<link rel="stylesheet" href="platform.css?v=2026-09-19a">
-<link rel="stylesheet" href="style.css?v=2026-09-19a">
+<link rel="stylesheet" href="platform.css?v=2026-09-20a">
+<link rel="stylesheet" href="style.css?v=2026-09-20a">
 </head>
 <body>
 <div class="app">
@@ -128,31 +128,31 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script src="firebase-config.js?v=2026-09-19a"></script>
-<script src="sound.js?v=2026-09-19a"></script>
-<script src="shared.js?v=2026-09-19a"></script>
-<script src="tetris-engine.js?v=2026-09-19a"></script>
-<script src="racing-engine.js?v=2026-09-19a"></script>
-<script src="snake-engine.js?v=2026-09-19a"></script>
-<script src="breakout-engine.js?v=2026-09-19a"></script>
-<script src="flappy-engine.js?v=2026-09-19a"></script>
-<script src="shooter-engine.js?v=2026-09-19a"></script>
+<script src="firebase-config.js?v=2026-09-20a"></script>
+<script src="sound.js?v=2026-09-20a"></script>
+<script src="shared.js?v=2026-09-20a"></script>
+<script src="tetris-engine.js?v=2026-09-20a"></script>
+<script src="racing-engine.js?v=2026-09-20a"></script>
+<script src="snake-engine.js?v=2026-09-20a"></script>
+<script src="breakout-engine.js?v=2026-09-20a"></script>
+<script src="flappy-engine.js?v=2026-09-20a"></script>
+<script src="shooter-engine.js?v=2026-09-20a"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="fps-engine.js?v=2026-09-19a"></script>
-<script src="fps3d-engine.js?v=2026-09-19a"></script>
-<script src="game2048-engine.js?v=2026-09-19a"></script>
-<script src="frogger-engine.js?v=2026-09-19a"></script>
-<script src="asteroids-engine.js?v=2026-09-19a"></script>
-<script src="maze-engine.js?v=2026-09-19a"></script>
-<script src="tower-engine.js?v=2026-09-19a"></script>
-<script src="missile-engine.js?v=2026-09-19a"></script>
-<script src="centipede-engine.js?v=2026-09-19a"></script>
-<script src="games.js?v=2026-09-19a"></script>
-<script src="app.js?v=2026-09-19a"></script>
+<script src="fps-engine.js?v=2026-09-20a"></script>
+<script src="fps3d-engine.js?v=2026-09-20a"></script>
+<script src="game2048-engine.js?v=2026-09-20a"></script>
+<script src="frogger-engine.js?v=2026-09-20a"></script>
+<script src="asteroids-engine.js?v=2026-09-20a"></script>
+<script src="maze-engine.js?v=2026-09-20a"></script>
+<script src="tower-engine.js?v=2026-09-20a"></script>
+<script src="missile-engine.js?v=2026-09-20a"></script>
+<script src="centipede-engine.js?v=2026-09-20a"></script>
+<script src="games.js?v=2026-09-20a"></script>
+<script src="app.js?v=2026-09-20a"></script>
 <script>
 (function () {
 
-  const BUILD = '2026-09-19a';   // 화면 아래에 표시됩니다
+  const BUILD = '2026-09-20a';   // 화면 아래에 표시됩니다
 
   const gameId = getGameId();
   const def = GAMES[gameId];
@@ -937,7 +937,10 @@
     t.className = 'qtoast'; t.textContent = quality === 1 ? '화면을 조금 가볍게 했어요' : '화면을 가장 가볍게 했어요';
     document.body.appendChild(t); setTimeout(() => t.remove(), 2200);
   }
+  let loopRaf = null;
   function loop(ts) {
+    // 다음 프레임을 먼저 예약합니다 — 이번 프레임이 오래 걸려도 다음 호출이 밀리지 않습니다
+    if (game && !game.gameOver) loopRaf = requestAnimationFrame(loop);
     flushPeers();
     if (!game) return;
     if (game.gameOver) { game.draw(); return; }
@@ -946,8 +949,8 @@
     qLast = ts;
     if (qFrames >= 120) { if (qSum / qFrames > 21) lowerQuality(); qFrames = 0; qSum = 0; }   // 평균 48fps 밑이면 낮춤
     game.tick(ts);
-    if (isKart) renderKartHud(game.hud());
-    requestAnimationFrame(loop);
+    // hud() 는 객체를 새로 만들므로, 실제로 화면을 갱신할 때만 호출합니다
+    if (isKart && ts - hudLast >= 66) renderKartHud(game.hud());
   }
 
   // ── 레이싱 HUD (매 프레임 갱신) ──
@@ -956,7 +959,7 @@
   let hudLast = 0, hudPrev = '';
   function renderKartHud(h) {
     // DOM 은 값이 바뀔 때만, 그리고 초당 15번까지만 만집니다 (매 프레임 레이아웃 재계산 방지)
-    const t = performance.now(); if (t - hudLast < 66) return; hudLast = t;
+    hudLast = performance.now();
     const hsig = [h.rank, h.total, h.lap, h.laps, h.speed, h.speedPct | 0, h.items.join(','), h.rolling, h.shield, h.boost, h.wrongWay, h.corner, h.nearBoost, h.finished].join('|');
     if (hsig === hudPrev) return; hudPrev = hsig;
     document.getElementById('hud-rank').textContent = h.rank;

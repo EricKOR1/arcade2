@@ -595,7 +595,7 @@ class KartGame {
       this.showToast('부스터!', '#4CC9F0');
 
     } else if (it === 'banana' || it === 'oil' || it === 'bomb') {
-      const back = this.track.carLen * 1.3;
+      const back = this.track.carLen * (it === 'bomb' ? 2.2 : 1.3);   // 폭탄은 판정이 넓어 더 뒤에
       const bx = this.x - Math.cos(this.angle)*back;
       const by = this.y - Math.sin(this.angle)*back;
       if (this.opts.onDropHazard) this.opts.onDropHazard(bx, by, it);
@@ -801,6 +801,7 @@ class KartGame {
 
   tick(now) {
     this.now = now;                       // 엔진 안의 모든 타이머는 이 시계를 씁니다
+    // 이동량은 '화면에 실제로 표시된 시간'에 비례해야 균일해 보입니다 (간격을 임의로 다듬으면 오히려 끊겨 보임)
     const dt = this.lastTime ? Math.min(50, now - this.lastTime) : 16.7;
     this.lastTime = now;
     const f = dt / 16.7;
@@ -976,6 +977,10 @@ class KartGame {
     Object.keys(this.hazards).forEach(hid => {
       const h = this.hazards[hid];
       const kind = h.kind || 'banana';
+      // 내가 놓은 것은 나를 해치지 않습니다 (특히 폭탄은 판정이 넓어 놓자마자 자폭했습니다).
+      // 다른 학생 것이라도 놓인 지 1초 안에는 지나가는 사람을 잡지 않습니다.
+      if (h.by && h.by === this.myId) return;
+      if (h.t && Date.now() - h.t < 1000) return;
       const reach = this.track.carLen * (kind === 'bomb' ? 1.5 : 0.8);
       if (Math.hypot(h.x - this.x, h.y - this.y) < reach) {
         if (this.opts.onHitHazard) this.opts.onHitHazard(hid);
@@ -1431,7 +1436,8 @@ class KartGame {
     const K = Math.min([70, 100, 140][Q], Math.ceil([2400, 3400, 4600][Q] / t.stepLen));
     const DETAIL = [10, 14, 20][Q];
 
-    const segs = [];
+    const segs = this._segs || (this._segs = []);
+    segs.length = 0;
     let k = -24;                                   // 카메라(카트 뒤 약 4대 길이)보다 더 뒤에서 시작
     while (k < K) {
       const i = ((this.segIdx + k) % n + n) % n;
@@ -1713,7 +1719,21 @@ class KartGame {
   // ── 입체 물체 ──
   drawSprites(ctx, W, H, cam, now) {
     const t = this.track, n = t.n;
-    const list = [];
+    // 목록에 쓰는 객체를 돌려 씁니다 — 매 프레임 수십 개를 새로 만들면 가비지 수집 때 화면이 순간 멈춥니다
+    const pool = this._pool || (this._pool = []);
+    let pn = 0;
+    const push = (z, kind, a, b) => {
+      const o = pool[pn] || (pool[pn] = {});
+      o.z = z; o.kind = kind; o.o = null; o.sp = null; o.h = null; o.peer = null; o.e = 0; o.full = false; o.far = false; o.mix = 0;
+      if (kind === 'deco' || kind === 'obst') o.o = a;
+      else if (kind === 'box') o.sp = a;
+      else if (kind === 'banana') o.h = a;
+      else if (kind === 'kart') o.peer = a;
+      else if (kind === 'me') o.e = a;
+      pn++; return o;
+    };
+    const list = this._listView || (this._listView = []);
+    list.length = 0;
 
     // 노변 지물 (앞쪽 구간만)
     const from = this.segIdx - 8, to = this.segIdx + Math.ceil(4800 / t.stepLen);
@@ -1724,14 +1744,14 @@ class KartGame {
       if (d < -8 || d > (to - this.segIdx)) return;
       const p = this.project(cam, o.x, o.y, o.e);
       if (!p || p.x < -260 || p.x > W + 260) return;
-      list.push({ z: p.z, kind: 'deco', o: o });
+      list.push(push(p.z, 'deco', o));
     });
 
     t.itemSpots.forEach(sp => {
       if (now < sp.takenUntil) return;
       const p = this.project(cam, sp.x, sp.y, t.elevAt(sp.i));
       if (!p || p.x < -200 || p.x > W + 200) return;
-      list.push({ z: p.z, kind: 'box', sp: sp });
+      list.push(push(p.z, 'box', sp));
     });
 
     Object.keys(this.hazards).forEach(id => {
@@ -1739,7 +1759,7 @@ class KartGame {
       if (h.e === undefined) h.e = t.elevAt(t.nearestIndex(h.x, h.y).index);
       const p = this.project(cam, h.x, h.y, h.e);
       if (!p || p.x < -200 || p.x > W + 200) return;
-      list.push({ z: p.z, kind: 'banana', h: h });
+      list.push(push(p.z, 'banana', h));
     });
 
     // 장애물
@@ -1747,7 +1767,7 @@ class KartGame {
       if (Math.hypot(o.x - this.x, o.y - this.y) > t.stepLen * 160) return;
       const p = this.project(cam, o.x, o.y, t.elevAt(o.i));
       if (!p) return;
-      list.push({ z: p.z, kind: 'obst', o: Object.assign({ e: t.elevAt(o.i) }, o) });
+      o.e = t.elevAt(o.i); list.push(push(p.z, 'obst', o));
     });
 
     Object.keys(this.peers).forEach(id => {
@@ -1764,18 +1784,20 @@ class KartGame {
       const p = this.project(cam, pr.x, pr.y, pr.e);
       if (!p) return;
       if (this.spectator && id === this.followId) return;
-      list.push({ z: p.z, kind: 'kart', peer: pr });
+      list.push(push(p.z, 'kart', pr));
     });
 
     const myE = t.elevAt(this.segIdx);
     const me = this.project(cam, this.x, this.y, myE);
-    if (me) list.push({ z: me.z, kind: 'me', e: myE });
+    if (me) list.push(push(me.z, 'me', myE));
 
     // 보일지 말지를 "가까운 순서 N개" 로 자르면 순서가 바뀔 때마다 나타났다 사라졌다 깜박입니다.
     // 대신 거리로 자릅니다 — 같은 거리면 항상 같은 결과라 화면이 안정적입니다.
     const Q = (this.q == null ? 2 : this.q);
     const zDeco = t.stepLen * [60, 100, 150][Q], zObj = t.stepLen * [120, 160, 200][Q], zFull = t.stepLen * [10, 18, 26][Q];
-    const shown = list.filter(o => o.z < (o.kind === 'deco' ? zDeco : zObj));
+    const shown = this._shown || (this._shown = []);
+    shown.length = 0;
+    for (let i = 0; i < list.length; i++) { const o = list[i]; if (o.z < (o.kind === 'deco' ? zDeco : zObj)) shown.push(o); }
     shown.sort((a, b) => a.z - b.z);
     // 정밀 모델도 거리로 결정 (가까우면 정밀, 멀면 단순)
     shown.forEach(o => {
