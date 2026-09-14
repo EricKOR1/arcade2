@@ -788,6 +788,10 @@ class KartGame {
   // ── 프레임 ──
   clock() { return (this.now != null) ? this.now : performance.now(); }
 
+  // 프레임 간격에 맞춘 보간 비율.
+  // 0.25 를 그냥 쓰면 프레임이 많은 기기에서는 빨리, 적은 기기에서는 느리게 따라가 화면이 불규칙해집니다.
+  smooth(k, f) { return 1 - Math.pow(1 - k, Math.max(0.2, f || 1)); }
+
   // 화질 단계 (2 최고 · 0 최저) — 시야 거리 · 지물 · 입자 · 정밀 모델 범위를 줄입니다
   setQuality(q) { this.q = Math.max(0, Math.min(2, q | 0)); this.pts = null; }
 
@@ -807,6 +811,7 @@ class KartGame {
     const dt = this.lastTime ? Math.min(50, now - this.lastTime) : 16.7;
     this.lastTime = now;
     const f = dt / 16.7;
+    this.lastF = f;                       // 카메라·보간이 프레임 간격을 알 수 있도록
     this.stepParts(f);
     if (this.shakeT > 0) this.shakeT = Math.max(0, this.shakeT - dt / 1000);
 
@@ -1132,7 +1137,7 @@ class KartGame {
     ctx.save();
     // 코너에서 화면이 살짝 기웁니다 (조작 방향과 속도에 비례, 부드럽게 따라감)
     const bankTarget = (this.spectator ? 0 : this.steer) * Math.min(1, this.speed / this.maxSpeed) * 0.045;
-    this.bank = (this.bank || 0) + (bankTarget - (this.bank || 0)) * 0.08;
+    this.bank = (this.bank || 0) + (bankTarget - (this.bank || 0)) * this.smooth(0.08, this.lastF);
     if (Math.abs(this.bank) > 0.0005) {
       ctx.translate(W / 2, H * 0.62); ctx.rotate(-this.bank); ctx.scale(1.03, 1.03); ctx.translate(-W / 2, -H * 0.62);
     }
@@ -1165,7 +1170,7 @@ class KartGame {
 
     // 경사를 따라 시선이 부드럽게 따라감
     const g = this.track.gradeAt(this.segIdx, 8);
-    this.viewGrade = (this.viewGrade === undefined) ? g : this.viewGrade + (g - this.viewGrade) * 0.08;
+    this.viewGrade = (this.viewGrade === undefined) ? g : this.viewGrade + (g - this.viewGrade) * this.smooth(0.08, this.lastF);
     const horizonY = Math.max(H * 0.14, Math.min(H * 0.56,
                        H * 0.33 + f * this.viewGrade * 1.35));
 
@@ -1184,7 +1189,7 @@ class KartGame {
     let da = camAngle - (this.camAngle === undefined ? camAngle : this.camAngle);
     while (da > Math.PI) da -= Math.PI * 2;
     while (da < -Math.PI) da += Math.PI * 2;
-    this.camAngle = (this.camAngle === undefined) ? camAngle : this.camAngle + da * 0.25;
+    this.camAngle = (this.camAngle === undefined) ? camAngle : this.camAngle + da * this.smooth(0.25, this.lastF);
 
     return {
       x: this.x - Math.cos(this.camAngle) * back,
@@ -1574,11 +1579,15 @@ class KartGame {
     const seen = {};
     segs.forEach(sg => { seen[sg.i] = sg; });
 
-    // 진행 방향 화살표
+    // 진행 방향 화살표 — 화살표가 놓일 인덱스를 직접 훑습니다.
+    // (그려진 구간 목록에서 고르면, 멀수록 구간을 건너뛰어 샘플이 프레임마다 달라져 깜박였습니다)
     const arrowStep = Math.max(6, Math.round(380 / t.stepLen));
-    for (let s = segs.length - 1; s >= 0; s--) {
-      const sg = segs[s];
-      if (sg.k > 60 || sg.i % arrowStep !== 0) continue;
+    const from = Math.ceil((this.segIdx - 6) / arrowStep) * arrowStep;
+    for (let a = from; a < this.segIdx + 70; a += arrowStep) {
+      const ai = ((a % t.n) + t.n) % t.n;
+      const [atx, aty] = t.tangent[ai];
+      const sg = { i: ai, cx: t.center[ai][0], cy: t.center[ai][1], tx: atx, ty: aty,
+                   nx: -aty, ny: atx, e: t.elevAt(ai) };
       const len = t.halfW * 0.34;
       const tip = this.project(cam, sg.cx + sg.tx*len, sg.cy + sg.ty*len, sg.e);
       const bl  = this.project(cam, sg.cx - sg.tx*len*0.5 + sg.nx*len*0.55,
@@ -1797,12 +1806,13 @@ class KartGame {
       const pr = this.peers[id];
       const since = Math.min(250, this.clock() - (pr.at || this.clock())) / 1000;
       const gx = (pr.tx !== undefined ? pr.tx : pr.x) + (pr.vx || 0) * since, gy = (pr.ty !== undefined ? pr.ty : pr.y) + (pr.vy || 0) * since;
-      pr.x += (gx - pr.x) * 0.35;
-      pr.y += (gy - pr.y) * 0.35;
+      const pk = this.smooth(0.35, this.lastF);
+      pr.x += (gx - pr.x) * pk;
+      pr.y += (gy - pr.y) * pk;
       let da = (pr.tangle !== undefined ? pr.tangle : pr.angle) - pr.angle;
       while (da >  Math.PI) da -= Math.PI*2;
       while (da < -Math.PI) da += Math.PI*2;
-      pr.angle += da * 0.25;
+      pr.angle += da * this.smooth(0.25, this.lastF);
       pr.e = t.elevAt(Math.round(pr.progress || 0));
       const p = this.project(cam, pr.x, pr.y, pr.e);
       if (!p) return;

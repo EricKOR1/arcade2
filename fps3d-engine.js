@@ -73,6 +73,9 @@ class Fps3DGame {
   get isDead() { return this.now < this.deadUntil; }
   get reloading() { return this.now < this.reloadUntil; }
   clock() { return this.now || performance.now(); }
+
+  // 프레임 간격에 맞춘 보간 비율 (프레임 수에 좌우되지 않게)
+  smooth(k, f) { return 1 - Math.pow(1 - k, Math.max(0.2, f || 1)); }
   cell(x, y) { const r = this.map[Math.floor(y)]; return (r && r[Math.floor(x)]) || '#'; }
   wall(x, y) { return this.cell(x, y) !== '.'; }
 
@@ -394,14 +397,15 @@ class Fps3DGame {
   // ── 프레임 ──
   tick(now) {
     this.now = now;
-    const dt = this.lastTime ? Math.min(50, now - this.lastTime) : 16.7; this.lastTime = now; const f = dt / 16.7;
+    const dt = this.lastTime ? Math.min(50, now - this.lastTime) : 16.7; this.lastTime = now; const f = dt / 16.7; this.lastF = f;
     Object.keys(this.peers).forEach(id => { const p = this.peers[id]; if (p.tx == null) return;
       // 예측 이동: 마지막 신호 이후 최대 0.25초까지는 추정 속도로 목표점을 앞당김
       const since = Math.min(250, now - (p.at || now)) / 1000;
       const gx = p.tx + (p.vx || 0) * since, gy = p.ty + (p.vy || 0) * since;
-      if (!p.dead && !this.wall(gx, gy)) { p.x += (gx - p.x) * Math.min(1, 0.45 * f); p.y += (gy - p.y) * Math.min(1, 0.45 * f); }
-      else { p.x += (p.tx - p.x) * Math.min(1, 0.45 * f); p.y += (p.ty - p.y) * Math.min(1, 0.45 * f); }
-      let da = p.tangle - p.angle; while (da > Math.PI) da -= Math.PI * 2; while (da < -Math.PI) da += Math.PI * 2; p.angle += da * Math.min(1, 0.4 * f);
+      const sk = this.smooth(0.45, f), sa = this.smooth(0.4, f);
+      if (!p.dead && !this.wall(gx, gy)) { p.x += (gx - p.x) * sk; p.y += (gy - p.y) * sk; }
+      else { p.x += (p.tx - p.x) * sk; p.y += (p.ty - p.y) * sk; }
+      let da = p.tangle - p.angle; while (da > Math.PI) da -= Math.PI * 2; while (da < -Math.PI) da += Math.PI * 2; p.angle += da * sa;
       p.walk = (p.walk || 0) + (p.moving ? 0.22 * f : 0); });
     this.tracers = this.tracers.filter(t => t.until > now);
     this.muzzle = Math.max(0, this.muzzle - 0.2 * f); this.recoil = Math.max(0, this.recoil - 0.06 * f);
@@ -460,7 +464,7 @@ class Fps3DGame {
     const shake = this.hurt > 0.5 ? (this.hurt - 0.5) * 0.06 : 0;
     this.camera.position.set(this.x + (Math.random() - 0.5) * shake, F3_EYE + bobY + (Math.random() - 0.5) * shake, this.y + (Math.random() - 0.5) * shake);
     const fov = 72 + this.recoil * 2.5 + (this.moving ? 1.5 : 0);
-    if (Math.abs(this.camera.fov - fov) > 0.05) { this.camera.fov += (fov - this.camera.fov) * 0.3; this.camera.updateProjectionMatrix(); }
+    if (Math.abs(this.camera.fov - fov) > 0.05) { this.camera.fov += (fov - this.camera.fov) * this.smooth(0.3, this.lastF || 1); this.camera.updateProjectionMatrix(); }
     this.camera.rotation.order = 'YXZ';
     this.camera.rotation.y = -this.yaw - Math.PI / 2; this.camera.rotation.x = this.pitch; this.camera.rotation.z = (this.mx || 0) * -0.02;   // 시선 = 이동 방향 · 옆걸음 때 살짝 기울기
     // 총 흔들림 · 반동 · 재장전
