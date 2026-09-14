@@ -491,7 +491,10 @@ class KartGame {
 
     const st = this.track.startPos(this.opts.slot || 0);
     this.x = st.x; this.y = st.y; this.angle = st.angle; this.camAngle = undefined;
-    this.segIdx = st.index; this.lap = 0; this.progress = st.index;   // 출발선 바로 뒤에서 시작
+    // 출발 격자는 결승선 '바로 뒤'(인덱스 n-몇)에 있습니다.
+    // lap 을 0 으로 두면 출발 직후 결승선을 지나며 1바퀴로 세어졌으므로, -1 에서 시작합니다.
+    // (결승선을 처음 지나는 순간 0 이 되고, 화면의 '랩' 표시는 lap+1 이라 1로 보입니다)
+    this.segIdx = st.index; this.lap = -1; this.progress = -(this.track.n - st.index);
     this.speed = 0; this.steer = 0;
 
     this.maxSpeed = this.track.def.speed || 5.6;
@@ -1114,7 +1117,7 @@ class KartGame {
     const now = this.clock();
     return {
       rank: this.rank, total: this.total,
-      lap: Math.min(this.lap + 1, this.track.laps), laps: this.track.laps,
+      lap: Math.max(1, Math.min(this.lap + 1, this.track.laps)), laps: this.track.laps,
       speed: Math.round(this.speed * 34),
       speedPct: Math.min(100, (this.speed / (this.maxSpeed*1.9)) * 100),
       items: this.items.slice(), max: MAX_ITEMS, rolling: now < this.itemRollUntil,

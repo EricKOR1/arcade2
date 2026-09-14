@@ -644,3 +644,30 @@ body.fullgrid .spectate { grid-template-columns: 1fr 320px }
   background: linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent); animation: shimmer 2.4s ease-in-out 1s 1 }
 @keyframes shimmer { from { left: -60% } to { left: 130% } }
 @media (prefers-reduced-motion: reduce) { .btn-primary.btn-lg::after { animation: none } }
+
+/* ═══ 고급 연출 (전부 정적 합성 · 렉 없음) ═══ */
+/* 캔버스 가장자리 비네트 — 화면에 깊이감 */
+.canvas-wrap { position: relative }
+.canvas-wrap::after { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 2;
+  background: radial-gradient(120% 90% at 50% 45%, transparent 55%, rgba(0,0,0,.28) 100%) }
+.canvas-wrap.bleed::after { background: radial-gradient(130% 100% at 50% 45%, transparent 60%, rgba(0,0,0,.22) 100%) }
+/* 숫자는 폭이 같은 글꼴로 — 점수가 바뀔 때 글자가 흔들리지 않음 */
+.num, .stat-value, .result-score, .chip .v { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" }
+/* READY → GO */
+.readygo { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 6 }
+.readygo span { font-size: clamp(40px, 12vw, 72px); font-weight: 800; letter-spacing: .08em; color: #fff;
+  text-shadow: 0 4px 24px rgba(0,0,0,.6), 0 0 40px var(--accent-glow); animation: rgIn .55s var(--ease-out) both }
+.readygo .go { color: var(--accent); animation: rgGo .7s var(--ease-out) both }
+@keyframes rgIn { from { opacity: 0; transform: scale(1.6) } 60% { opacity: 1; transform: scale(.96) } to { opacity: 1; transform: scale(1) } }
+@keyframes rgGo { from { opacity: 0; transform: scale(.6) } 30% { opacity: 1; transform: scale(1.15) } 70% { opacity: 1; transform: scale(1) } to { opacity: 0; transform: scale(1.3) } }
+/* 순위 카드 등장 · 색종이 */
+.stats.pop { animation: popIn .5s var(--ease-spring) both }
+@keyframes popIn { from { opacity: 0; transform: translateY(14px) scale(.9) } to { opacity: 1; transform: none } }
+.confetti { position: fixed; inset: 0; pointer-events: none; z-index: 95; overflow: hidden }
+.confetti i { position: absolute; top: -12px; width: 9px; height: 14px; border-radius: 2px; opacity: .95; animation: fall linear both }
+@keyframes fall { to { transform: translateY(110vh) rotate(720deg); opacity: .6 } }
+/* 패드 버튼 누름 — 강조색 링이 퍼짐 */
+.pad button:active { box-shadow: 0 0 0 3px var(--accent-soft), var(--shadow-panel) }
+/* 결과 점수: 살짝 빛남 */
+.result-score { text-shadow: 0 0 30px var(--accent-glow) }
+@media (prefers-reduced-motion: reduce) { .readygo span, .stats.pop, .confetti i { animation: none } }

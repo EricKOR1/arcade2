@@ -53,11 +53,13 @@ class SnakeGame {
   hardDrop(){ this.down(); }        // 스페이스
 
   tick(now) {
+    this.now = now;
     if (this.gameOver) return;
     if (this.softDropping && this.dir[1] !== -1 && this.dir[1] !== 1) this.turn(0, 1);
     if (this.started) {
       if (!this.lastStep) this.lastStep = now;          // 시작 직후 첫 걸음까지 한 박자 여유
       if (now - this.lastStep >= this.stepMs) {
+        this.prevBody = this.body.map(c => c.slice());   // 이전 걸음의 위치 (미끄러지는 그림용)
         this.lastStep = now;
         this.step();
       }
@@ -132,8 +134,20 @@ class SnakeGame {
 
     // 몸통 — 꼬리로 갈수록 가늘고 어둡게
     const n = this.body.length;
+    // 걸음 사이 진행률 — 한 칸씩 점프하지 않고 이전 칸에서 현재 칸으로 미끄러지게
+    const now = this.now || performance.now();
+    const k = (this.started && this.lastStep && this.prevBody) ? Math.min(1, (now - this.lastStep) / this.stepMs) : 1;
+    const ease = k * k * (3 - 2 * k);
+    const posOf = (i) => {
+      const cur = this.body[i];
+      const prev = this.prevBody && this.prevBody[i];
+      if (!prev || k >= 1) return cur;
+      // 화면 반대편으로 넘어간 마디는 보간하지 않음
+      if (Math.abs(cur[0] - prev[0]) > 1 || Math.abs(cur[1] - prev[1]) > 1) return cur;
+      return [prev[0] + (cur[0] - prev[0]) * ease, prev[1] + (cur[1] - prev[1]) * ease];
+    };
     for (let i = n - 1; i >= 0; i--) {
-      const [x, y] = this.body[i];
+      const [x, y] = posOf(i);
       const t = i / Math.max(1, n - 1);
       const pad = cs * (0.06 + t * 0.14);
       ctx.fillStyle = i === 0 ? CELL_COLORS[14] : CELL_COLORS[13];
@@ -147,7 +161,7 @@ class SnakeGame {
     ctx.globalAlpha = 1;
 
     // 머리의 눈
-    const [hx, hy] = this.body[0];
+    const [hx, hy] = posOf(0);
     const ex = (hx + .5) * cs, ey = (hy + .5) * cs;
     const ox = this.dir[1] !== 0 ? cs * .18 : 0, oy = this.dir[0] !== 0 ? cs * .18 : 0;
     const fx = this.dir[0] * cs * .12, fy = this.dir[1] * cs * .12;

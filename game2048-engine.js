@@ -22,12 +22,15 @@ class Game2048 {
   }
   // 한 줄을 왼쪽으로 밀어 합치기
   slideRow(row) {
-    const a = row.filter(v => v), out = []; let gained = 0;
+    const idx = [], a = [];
+    row.forEach((v, i) => { if (v) { a.push(v); idx.push(i); } });
+    const out = [], src = []; let gained = 0;
     for (let i = 0; i < a.length; i++) {
-      if (a[i] === a[i + 1]) { out.push(a[i] * 2); gained += a[i] * 2; i++; } else out.push(a[i]);
+      if (a[i] === a[i + 1]) { out.push(a[i] * 2); src.push([idx[i], idx[i + 1]]); gained += a[i] * 2; i++; }
+      else { out.push(a[i]); src.push([idx[i]]); }
     }
-    while (out.length < G2048_N) out.push(0);
-    return { row: out, gained };
+    while (out.length < G2048_N) { out.push(0); src.push([]); }
+    return { row: out, gained, src };
   }
   push(dx, dy) {
     if (this.gameOver) return;
@@ -42,13 +45,21 @@ class Game2048 {
       }
       lines.push(cells);
     }
+    const slides = [];
     lines.forEach(cells => {
       const vals = cells.map(([x, y]) => g[y][x]);
       const r = this.slideRow(vals);
       gained += r.gained;
-      cells.forEach(([x, y], k) => { if (g[y][x] !== r.row[k]) moved = true; g[y][x] = r.row[k]; if (r.row[k] && r.row[k] !== vals[k]) this.anim.push({ x, y, t: 1, kind: 'merge' }); });
+      cells.forEach(([x, y], k) => {
+        if (g[y][x] !== r.row[k]) moved = true;
+        // 이 칸으로 미끄러져 오는 타일들 (합쳐지면 둘 다 같은 칸으로)
+        (r.src[k] || []).forEach(from => { const [fx, fy] = cells[from]; slides.push({ fx, fy, tx: x, ty: y, v: vals[from] }); });
+        g[y][x] = r.row[k];
+        if (r.row[k] && r.src[k] && r.src[k].length === 2) this.anim.push({ x, y, t: 1, kind: 'merge', delay: 1 });
+      });
     });
     if (!moved) return;
+    this.slide = { t: 0, tiles: slides };                 // 120ms 동안 미끄러지는 그림
     this.moves++; this.score += gained;
     this.best = Math.max(this.best, ...g.flat());
     if (gained && window.Sound) Sound.clear(gained >= 64 ? 2 : 1); else if (window.Sound) Sound.move();
@@ -72,7 +83,13 @@ class Game2048 {
   softDrop() { if (!this._downLatch) { this._downLatch = true; this.down(); } }
   hardDrop() { this.down(); }
 
-  tick(now) { if (!this.softDropping) this._downLatch = false; this.anim = this.anim.filter(a => (a.t -= 0.09) > 0); this.draw(); }
+  tick(now) {
+    if (!this.softDropping) this._downLatch = false;
+    const dt = this.lastTick ? Math.min(50, now - this.lastTick) : 16.7; this.lastTick = now;
+    if (this.slide) { this.slide.t += dt / 120; if (this.slide.t >= 1) this.slide = null; }
+    if (!this.slide) this.anim = this.anim.filter(a => { if (a.delay) { a.delay = 0; return true; } return (a.t -= 0.09 * dt / 16.7) > 0; });
+    this.draw();
+  }
 
   getSnapshot() {
     // 교사 미니보드: 값의 로그를 색 번호로
@@ -83,6 +100,25 @@ class Game2048 {
     const ctx = this.ctx, cs = this.cellSize, N = G2048_N, W = cs * N, H = cs * N;
     const pad = cs * 0.06;
     ctx.fillStyle = '#BBADA0'; ctx.fillRect(0, 0, W, H);
+    if (this.slide) {
+      // 빈 칸 바탕
+      for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+        ctx.fillStyle = 'rgba(238,228,218,0.35)'; ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(x * cs + pad, y * cs + pad, cs - pad * 2, cs - pad * 2, cs * 0.08); else ctx.rect(x * cs + pad, y * cs + pad, cs - pad * 2, cs - pad * 2); ctx.fill();
+      }
+      const k = this.slide.t, e = 1 - Math.pow(1 - k, 3);
+      this.slide.tiles.forEach(tl => {
+        const x = tl.fx + (tl.tx - tl.fx) * e, y = tl.fy + (tl.ty - tl.fy) * e, w = cs - pad * 2;
+        ctx.fillStyle = G2048_COLORS[tl.v] || '#3C3A32'; ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(x * cs + pad, y * cs + pad, w, w, cs * 0.08); else ctx.rect(x * cs + pad, y * cs + pad, w, w); ctx.fill();
+        ctx.fillStyle = tl.v <= 4 ? '#776E65' : '#F9F6F2';
+        const fs = tl.v < 100 ? cs * 0.5 : tl.v < 1000 ? cs * 0.4 : cs * 0.32;
+        ctx.font = '800 ' + Math.round(fs) + 'px Pretendard, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(String(tl.v), x * cs + cs / 2, y * cs + cs / 2 + 1);
+      });
+      ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+      return;
+    }
     for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
       const v = this.grid[y][x];
       const a = this.anim.find(q => q.x === x && q.y === y);

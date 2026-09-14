@@ -10,8 +10,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1B2027">
 <title>아케이드</title>
-<link rel="stylesheet" href="platform.css?v=2026-09-20c">
-<link rel="stylesheet" href="style.css?v=2026-09-20c">
+<link rel="stylesheet" href="platform.css?v=2026-09-21a">
+<link rel="stylesheet" href="style.css?v=2026-09-21a">
 </head>
 <body>
 <div class="app">
@@ -128,31 +128,31 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script src="firebase-config.js?v=2026-09-20c"></script>
-<script src="sound.js?v=2026-09-20c"></script>
-<script src="shared.js?v=2026-09-20c"></script>
-<script src="tetris-engine.js?v=2026-09-20c"></script>
-<script src="racing-engine.js?v=2026-09-20c"></script>
-<script src="snake-engine.js?v=2026-09-20c"></script>
-<script src="breakout-engine.js?v=2026-09-20c"></script>
-<script src="flappy-engine.js?v=2026-09-20c"></script>
-<script src="shooter-engine.js?v=2026-09-20c"></script>
+<script src="firebase-config.js?v=2026-09-21a"></script>
+<script src="sound.js?v=2026-09-21a"></script>
+<script src="shared.js?v=2026-09-21a"></script>
+<script src="tetris-engine.js?v=2026-09-21a"></script>
+<script src="racing-engine.js?v=2026-09-21a"></script>
+<script src="snake-engine.js?v=2026-09-21a"></script>
+<script src="breakout-engine.js?v=2026-09-21a"></script>
+<script src="flappy-engine.js?v=2026-09-21a"></script>
+<script src="shooter-engine.js?v=2026-09-21a"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="fps-engine.js?v=2026-09-20c"></script>
-<script src="fps3d-engine.js?v=2026-09-20c"></script>
-<script src="game2048-engine.js?v=2026-09-20c"></script>
-<script src="frogger-engine.js?v=2026-09-20c"></script>
-<script src="asteroids-engine.js?v=2026-09-20c"></script>
-<script src="maze-engine.js?v=2026-09-20c"></script>
-<script src="tower-engine.js?v=2026-09-20c"></script>
-<script src="missile-engine.js?v=2026-09-20c"></script>
-<script src="centipede-engine.js?v=2026-09-20c"></script>
-<script src="games.js?v=2026-09-20c"></script>
-<script src="app.js?v=2026-09-20c"></script>
+<script src="fps-engine.js?v=2026-09-21a"></script>
+<script src="fps3d-engine.js?v=2026-09-21a"></script>
+<script src="game2048-engine.js?v=2026-09-21a"></script>
+<script src="frogger-engine.js?v=2026-09-21a"></script>
+<script src="asteroids-engine.js?v=2026-09-21a"></script>
+<script src="maze-engine.js?v=2026-09-21a"></script>
+<script src="tower-engine.js?v=2026-09-21a"></script>
+<script src="missile-engine.js?v=2026-09-21a"></script>
+<script src="centipede-engine.js?v=2026-09-21a"></script>
+<script src="games.js?v=2026-09-21a"></script>
+<script src="app.js?v=2026-09-21a"></script>
 <script>
 (function () {
 
-  const BUILD = '2026-09-20c';   // 화면 아래에 표시됩니다
+  const BUILD = '2026-09-21a';   // 화면 아래에 표시됩니다
 
   const gameId = getGameId();
   const def = GAMES[gameId];
@@ -743,6 +743,7 @@
           onDropHazard: dropHazard, onHitHazard: hitHazard, nameOf: id => names[id] || '',
           onAttack: sendAttack, onFinish: reportFinish
         });
+        if (!isKart && def.padLayout !== 'joystick') readyGo();
         if (def.padLayout === 'joystick') game.autoFire = fpsOpt.auto;
         if (game.setQuality) game.setQuality(quality);
         qFrames = 0; qSum = 0; qLast = 0;
@@ -1138,11 +1139,37 @@
     if (e.key === 'Tab') game.showBoard = false;
   }
 
+  // 시작 연출 — 화면을 막지 않고 READY → GO! 만 띄웁니다
+  function readyGo() {
+    const wrap = byId('canvas-wrap'); if (!wrap) return;
+    const el = document.createElement('div'); el.className = 'readygo'; el.innerHTML = '<span>READY</span>';
+    wrap.appendChild(el);
+    setTimeout(() => { el.innerHTML = '<span class="go">GO!</span>'; if (window.Sound) Sound.rotate(); }, 700);
+    setTimeout(() => el.remove(), 1400);
+  }
+
   // ── 결과 ──
+  // 숫자가 0 에서 목표까지 차오르는 연출 (0.9초)
+  function countUp(el, target) {
+    const t0 = performance.now(), dur = 900, from = 0;
+    const step = ts => { const k = Math.min(1, (ts - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+      el.textContent = Math.round(from + (target - from) * e); if (k < 1) requestAnimationFrame(step); };
+    requestAnimationFrame(step);
+  }
+  // 1위 색종이 (DOM 조각 40개, 2.4초 뒤 제거)
+  function confetti() {
+    const box = document.createElement('div'); box.className = 'confetti'; document.body.appendChild(box);
+    const colors = ['#FFD166', '#FF5C7A', '#4CC9F0', '#06D6A0', '#B15DFF', '#FFFFFF'];
+    for (let i = 0; i < 40; i++) { const p = document.createElement('i');
+      p.style.left = (Math.random() * 100) + '%'; p.style.background = colors[i % colors.length];
+      p.style.animationDelay = (Math.random() * 0.6) + 's'; p.style.animationDuration = (1.6 + Math.random() * 0.9) + 's';
+      p.style.transform = 'rotate(' + (Math.random() * 360) + 'deg)'; box.appendChild(p); }
+    setTimeout(() => box.remove(), 2600);
+  }
   function endGame() {
     clearInterval(syncTimer);
     stopGame();
-    document.getElementById('final-score').textContent = game.score;
+    countUp(document.getElementById('final-score'), game.score);
     document.getElementById('final-detail').textContent = def.detail ? def.detail(game) : '';
     show('screen-over');
     playersRef.once('value').then(snap => {
@@ -1165,9 +1192,11 @@
 
   function showRank(rank, total) {
     if (!rank || total < 2) return;
-    document.getElementById('rank-value').textContent = rank + '등';
-    document.getElementById('rank-desc').textContent = '전체 ' + total + '명';
-    document.getElementById('rank-stat').classList.remove('hidden');
+    const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '';
+    document.getElementById('rank-value').textContent = (medal ? medal + ' ' : '') + rank + '등';
+    document.getElementById('rank-desc').textContent = '전체 ' + total + '명 중';
+    const st = document.getElementById('rank-stat'); st.classList.remove('hidden'); st.classList.add('pop');
+    if (rank === 1) { confetti(); if (window.Sound) Sound.levelUp(); }
   }
 
   function stopGame() {
