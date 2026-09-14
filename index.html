@@ -10,8 +10,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1B2027">
 <title>아케이드</title>
-<link rel="stylesheet" href="platform.css?v=2026-09-20a">
-<link rel="stylesheet" href="style.css?v=2026-09-20a">
+<link rel="stylesheet" href="platform.css?v=2026-09-20b">
+<link rel="stylesheet" href="style.css?v=2026-09-20b">
 </head>
 <body>
 <div class="app">
@@ -128,37 +128,37 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script src="firebase-config.js?v=2026-09-20a"></script>
-<script src="sound.js?v=2026-09-20a"></script>
-<script src="shared.js?v=2026-09-20a"></script>
-<script src="tetris-engine.js?v=2026-09-20a"></script>
-<script src="racing-engine.js?v=2026-09-20a"></script>
-<script src="snake-engine.js?v=2026-09-20a"></script>
-<script src="breakout-engine.js?v=2026-09-20a"></script>
-<script src="flappy-engine.js?v=2026-09-20a"></script>
-<script src="shooter-engine.js?v=2026-09-20a"></script>
+<script src="firebase-config.js?v=2026-09-20b"></script>
+<script src="sound.js?v=2026-09-20b"></script>
+<script src="shared.js?v=2026-09-20b"></script>
+<script src="tetris-engine.js?v=2026-09-20b"></script>
+<script src="racing-engine.js?v=2026-09-20b"></script>
+<script src="snake-engine.js?v=2026-09-20b"></script>
+<script src="breakout-engine.js?v=2026-09-20b"></script>
+<script src="flappy-engine.js?v=2026-09-20b"></script>
+<script src="shooter-engine.js?v=2026-09-20b"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="fps-engine.js?v=2026-09-20a"></script>
-<script src="fps3d-engine.js?v=2026-09-20a"></script>
-<script src="game2048-engine.js?v=2026-09-20a"></script>
-<script src="frogger-engine.js?v=2026-09-20a"></script>
-<script src="asteroids-engine.js?v=2026-09-20a"></script>
-<script src="maze-engine.js?v=2026-09-20a"></script>
-<script src="tower-engine.js?v=2026-09-20a"></script>
-<script src="missile-engine.js?v=2026-09-20a"></script>
-<script src="centipede-engine.js?v=2026-09-20a"></script>
-<script src="games.js?v=2026-09-20a"></script>
-<script src="app.js?v=2026-09-20a"></script>
+<script src="fps-engine.js?v=2026-09-20b"></script>
+<script src="fps3d-engine.js?v=2026-09-20b"></script>
+<script src="game2048-engine.js?v=2026-09-20b"></script>
+<script src="frogger-engine.js?v=2026-09-20b"></script>
+<script src="asteroids-engine.js?v=2026-09-20b"></script>
+<script src="maze-engine.js?v=2026-09-20b"></script>
+<script src="tower-engine.js?v=2026-09-20b"></script>
+<script src="missile-engine.js?v=2026-09-20b"></script>
+<script src="centipede-engine.js?v=2026-09-20b"></script>
+<script src="games.js?v=2026-09-20b"></script>
+<script src="app.js?v=2026-09-20b"></script>
 <script>
 (function () {
 
-  const BUILD = '2026-09-20a';   // 화면 아래에 표시됩니다
+  const BUILD = '2026-09-20b';   // 화면 아래에 표시됩니다
 
   const gameId = getGameId();
   const def = GAMES[gameId];
   const isHtml = (def.type === 'html');      // 자체 화면을 가진 학습 게임
   const isTetris = (gameId === 'tetris');
-  const isKart = (gameId === 'kart');
+  const isKart = !!(GAMES[gameId] && GAMES[gameId].hasTracks);   // 카트 계열 (아이템전 · 노템전)
   const isRealtime = isKart || !!(GAMES[gameId] && GAMES[gameId].realtime);   // 위치를 실시간으로 주고받는 게임
 
   applyAccent(gameId);
@@ -181,6 +181,9 @@
   if (isKart) {
     document.querySelector('.topbar').classList.add('kart-mode');
     document.getElementById('kart-hud').classList.remove('hidden');
+  }
+  if (isKart && !(GAMES[gameId].controls || []).includes('item')) {
+    const rack = document.querySelector('.item-rack'); if (rack) rack.classList.add('hidden');   // 노템전
   }
   if (GAMES[gameId] && GAMES[gameId].padLayout === 'joystick') {
     document.querySelector('.topbar').classList.add('kart-mode');   // 게임 안 HUD 가 점수·체력을 보여 주므로 위 칩은 숨김

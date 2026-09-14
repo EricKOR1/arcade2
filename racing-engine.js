@@ -485,6 +485,7 @@ class KartGame {
     this.opts = opts || {};
     this.track = new Track(TRACKS[this.opts.trackId] || TRACKS.meadow);
     this.myId = this.opts.myId;
+    this.noItems = !!this.opts.noItems;      // 노템전: 상자·아이템·위험물 없음
     this.myName = this.opts.myName || '';
     this.look = kartLook(this.myName || this.myId);
 
@@ -571,6 +572,7 @@ class KartGame {
   }
 
   useItem() {
+    if (this.noItems) return;
     if (!this.items.length || this.finished || this.countdown > 0) return;
     const it = this.items[0];
     const now = this.clock();
@@ -960,7 +962,7 @@ class KartGame {
     });
 
     // 아이템 상자
-    this.track.itemSpots.forEach(s => {
+    if (!this.noItems) this.track.itemSpots.forEach(s => {
       if (now < s.takenUntil) return;
       if (Math.hypot(s.x - this.x, s.y - this.y) < this.track.pickR) {
         s.takenUntil = now + 5000;
@@ -1433,7 +1435,7 @@ class KartGame {
   drawRoad(ctx, W, H, cam, now) {
     const t = this.track, d = t.def, n = t.n;
     const Q = (this.q == null ? 2 : this.q);
-    const K = Math.min([70, 100, 140][Q], Math.ceil([2400, 3400, 4600][Q] / t.stepLen));
+    const K = Math.min([110, 150, 200][Q], Math.ceil([3600, 5000, 6800][Q] / t.stepLen));
     const DETAIL = [10, 14, 20][Q];
 
     const segs = this._segs || (this._segs = []);
@@ -1451,7 +1453,7 @@ class KartGame {
       if (!L || !R) { k += (k < DETAIL) ? 1 : 2; continue; }
       segs.push({ i: i, L: L, R: R, cx: c[0], cy: c[1], e: e,
                   nx: nx, ny: ny, tx: tx, ty: ty, k: k, detail: k < DETAIL });
-      k += (k < DETAIL) ? 1 : (k < DETAIL * 2 ? 2 : (k < DETAIL * 4 ? 4 : 8));   // 멀수록 성기게
+      k += (k < DETAIL) ? 1 : (k < DETAIL * 2 ? 2 : (k < DETAIL * 4 ? 4 : (k < DETAIL * 7 ? 8 : 14)));   // 멀수록 성기게
     }
     if (segs.length < 2) return;
     this.segsCache = segs;
@@ -1467,9 +1469,17 @@ class KartGame {
     const grassLight = this.lighten(d.grass, 0.07);
     const grassDark = this.shade(d.grass, -0.06);
 
-    // 안전망: 지평선 아래를 먼저 지면색으로 덮습니다.
-    ctx.fillStyle = grassDark;
-    ctx.fillRect(0, Math.max(0, cam.horizonY - 1), W, H - Math.max(0, cam.horizonY - 1));
+    // 안전망: 지평선 아래를 지면색으로 덮되, 지평선 가까이는 안개색으로 자연스럽게 이어집니다.
+    {
+      const sk = d.sky || {};
+      const haze = sk.haze || this.lighten(d.grass, 0.35);
+      const y0 = Math.max(0, cam.horizonY - 1);
+      const gg = ctx.createLinearGradient(0, y0, 0, Math.min(H, y0 + H * 0.22));
+      gg.addColorStop(0, haze);
+      gg.addColorStop(1, grassDark);
+      ctx.fillStyle = gg;
+      ctx.fillRect(0, y0, W, H - y0);
+    }
 
     // ── 도로는 '이어진 띠' 하나로 그립니다 ──
     // 구간마다 사각형을 따로 채우면 경계에 머리카락 같은 틈이 생기고, 그 사이로 지면색이 비칩니다.
@@ -1524,6 +1534,19 @@ class KartGame {
       const near = run.filter(sg => sg.k < 14);
       if (near.length > 1) { stripe(near, 0.51, 0.33, 'rgba(0,0,0,0.10)', toBottom); stripe(near, -0.33, -0.51, 'rgba(0,0,0,0.10)', toBottom); }
     });
+
+    // 먼 끝을 안개로 녹입니다 — 도로가 흰 바탕에서 툭 나타나지 않고 서서히 드러납니다
+    {
+      const sk = d.sky || {};
+      const haze = sk.haze || this.lighten(d.grass, 0.35);
+      const band = Math.max(24, H * 0.16);
+      const gfog = ctx.createLinearGradient(0, cam.horizonY - 2, 0, cam.horizonY + band);
+      gfog.addColorStop(0, this.rgba(haze, 1));
+      gfog.addColorStop(0.45, this.rgba(haze, 0.72));
+      gfog.addColorStop(1, this.rgba(haze, 0));
+      ctx.fillStyle = gfog;
+      ctx.fillRect(0, cam.horizonY - 2, W, band + 2);
+    }
 
     // 아스팔트 얼룩 — 가까운 구간에만
     ctx.fillStyle = 'rgba(0,0,0,0.10)';
@@ -1747,7 +1770,7 @@ class KartGame {
       list.push(push(p.z, 'deco', o));
     });
 
-    t.itemSpots.forEach(sp => {
+    if (!this.noItems) t.itemSpots.forEach(sp => {
       if (now < sp.takenUntil) return;
       const p = this.project(cam, sp.x, sp.y, t.elevAt(sp.i));
       if (!p || p.x < -200 || p.x > W + 200) return;
@@ -1800,8 +1823,16 @@ class KartGame {
     for (let i = 0; i < list.length; i++) { const o = list[i]; if (o.z < (o.kind === 'deco' ? zDeco : zObj)) shown.push(o); }
     shown.sort((a, b) => a.z - b.z);
     // 정밀 모델도 거리로 결정 (가까우면 정밀, 멀면 단순)
+    // 카트 정밀도: 가까운 순서로 정밀(2) → 단순 입체(1) → 납작한 그림(0)
+    // 30명이 출발선에 몰려도 무거운 조립은 앞쪽 몇 대에만 합니다
+    const FULL_N = [2, 4, 6][Q], BOX_N = [4, 8, 12][Q];
+    let kn = 0;
     shown.forEach(o => {
-      if (o.kind === 'kart' || o.kind === 'me') o.full = o.z < zFull;
+      if (o.kind === 'kart' || o.kind === 'me') {
+        if (o.kind === 'me') o.lod = 2;
+        else { o.lod = kn < FULL_N ? 2 : (kn < BOX_N ? 1 : 0); kn++; }
+        o.full = o.lod === 2 && o.z < zFull;
+      }
       if (o.kind === 'deco') { const r = o.z / zDeco; o.far = r > 0.45; o.mix = (r > 0.36 && r < 0.54) ? (r - 0.36) / 0.18 : (r >= 0.54 ? 1 : 0); }
     });
     shown.reverse();
@@ -1820,10 +1851,10 @@ class KartGame {
         if (!o.peer.look) o.peer.look = kartLook(o.peer.name || o.peer.id);
         this.drawKart3D(ctx, cam, o.peer.x, o.peer.y, o.peer.e, o.peer.angle,
                         o.peer.finished ? { style: o.peer.look.style, color: '#565D6E' } : o.peer.look,
-                        o.peer.name, false, o.peer.spin, o.peer.shield, o.peer.boost, now, o.full);
+                        o.peer.name, false, o.peer.spin, o.peer.shield, o.peer.boost, now, o.full, o.lod);
       } else this.drawKart3D(ctx, cam, this.x, this.y, o.e, this.angle, this.look, this.myName, true,
                              now < this.spinUntil || now < this.stunUntil,
-                             now < this.shieldUntil, now < this.boostUntil, now, true);
+                             now < this.shieldUntil, now < this.boostUntil, now, true, 2);
     });
   }
 
@@ -2136,7 +2167,7 @@ class KartGame {
     ctx.closePath(); ctx.fill();
   }
 
-  drawKart3D(ctx, cam, x, y, e, angle, look, name, isMe, spinning, shield, boosting, now, allowFull) {
+  drawKart3D(ctx, cam, x, y, e, angle, look, name, isMe, spinning, shield, boosting, now, allowFull, lod) {
     const t = this.track;
     if (typeof look === 'string') look = { style: 'racer', color: look };
     const color = look.color, style = look.style || 'racer';
@@ -2151,14 +2182,37 @@ class KartGame {
     const fwd = (d, w) => ({ x: x + co * d - si * w, y: y + si * d + co * w });
 
     // 그림자
+    // 화면에서 얼마나 크게 보이는지 먼저 재고, 작으면 아주 간단히 그립니다
+    const px0 = this.project(cam, x, y, e);
+    if (!px0) return;
+    const screenLen = L * px0.s;
+
+    // 멀리 있는 카트: 입체 상자 조립(투영 수십 번) 대신 납작한 그림 몇 개로
+    if ((lod === 0 || screenLen < 30) && !isMe) {
+      const w = Math.max(2, screenLen * 0.55), h2 = Math.max(1.5, screenLen * 0.42);
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.beginPath(); ctx.ellipse(px0.x, px0.y, w * 0.9, h2 * 0.35, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(px0.x - w / 2, px0.y - h2, w, h2, Math.max(1, w * 0.18));
+      else ctx.rect(px0.x - w / 2, px0.y - h2, w, h2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      ctx.fillRect(px0.x - w / 2, px0.y - h2 * 0.45, w, Math.max(1, h2 * 0.16));
+      if (boosting) { ctx.fillStyle = 'rgba(120,230,255,0.7)'; ctx.beginPath(); ctx.arc(px0.x, px0.y - h2 * 0.3, w * 0.35, 0, Math.PI * 2); ctx.fill(); }
+      if (name && screenLen > 12) {
+        const sp = this.nameSprite(name, isMe), sc = Math.max(0.45, Math.min(0.8, screenLen / 40));
+        const top = this.project(cam, x, y, e + Hh * 3.6);
+        if (top) ctx.drawImage(sp, top.x - sp.width * sc / 2, top.y - sp.height * sc, sp.width * sc, sp.height * sc);
+      }
+      return;
+    }
+
     const sh = this.boxCorners(cam, x, y, e, angle, L * 1.05, Wd * 1.1, 0.01);
     if (!sh) return;
     this.fillPoly(ctx, sh.g, 'rgba(0,0,0,0.36)');
 
-    // 화면에서 작게 보이면 단순 모델로 (성능)
-    const px0 = this.project(cam, x, y, e);
-    const screenLen = px0 ? L * px0.s : 0;
-    const full = (allowFull !== false) && screenLen > 26;
+    const full = (allowFull !== false) && lod !== 1 && screenLen > 46;
 
     // 바퀴 4개 (차체보다 살짝 바깥, 어두운 원통 느낌)
     const wk = SHAPE.wheel || 1;

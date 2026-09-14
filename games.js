@@ -288,6 +288,22 @@ const GAMES = {
   },
 
   /* ───────── 과학 학습 게임 ───────── */
+  kartpure: {
+    type: 'canvas',
+    name: '카트 레이싱 (노템전)',
+    desc: '아이템 없이 주행 실력만으로 3바퀴. 부스터 발판과 코너 공략이 승부처',
+    howto: '← → 조향만 · 아이템 없음 · 부스터 발판을 밟고 코너에서 안쪽을 노리세요',
+    meta: '실시간 대전 · 순위 경쟁 · 노템전',
+    primary: '78% 0.13 230', primaryContent: '20% 0.04 230', hex: '#4CC9F0',
+    fullBleed: true,
+    adminView: 'shared',
+    needsPeers: true, hasNext: false, hasTracks: true,
+    controls: ['left', 'right'],
+    create: function (canvas, opts) { return new KartGame(canvas, Object.assign({ noItems: true }, opts)); },
+    sync: function (g) { return { score: g.score }; }
+  },
+
+  /* ───────── 과학 학습 게임 ───────── */
   photo: {
     type: 'html',
     src: 'photo.html',
