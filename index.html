@@ -10,8 +10,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1B2027">
 <title>아케이드</title>
-<link rel="stylesheet" href="platform.css?v=2026-09-22d">
-<link rel="stylesheet" href="style.css?v=2026-09-22d">
+<link rel="stylesheet" href="platform.css?v=2026-09-23b">
+<link rel="stylesheet" href="style.css?v=2026-09-23b">
 </head>
 <body>
 <div class="app">
@@ -128,32 +128,32 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script src="firebase-config.js?v=2026-09-22d"></script>
-<script src="sound.js?v=2026-09-22d"></script>
-<script src="shared.js?v=2026-09-22d"></script>
-<script src="tetris-engine.js?v=2026-09-22d"></script>
-<script src="racing-engine.js?v=2026-09-22d"></script>
-<script src="snake-engine.js?v=2026-09-22d"></script>
-<script src="breakout-engine.js?v=2026-09-22d"></script>
-<script src="flappy-engine.js?v=2026-09-22d"></script>
-<script src="shooter-engine.js?v=2026-09-22d"></script>
+<script src="firebase-config.js?v=2026-09-23b"></script>
+<script src="sound.js?v=2026-09-23b"></script>
+<script src="shared.js?v=2026-09-23b"></script>
+<script src="tetris-engine.js?v=2026-09-23b"></script>
+<script src="racing-engine.js?v=2026-09-23b"></script>
+<script src="snake-engine.js?v=2026-09-23b"></script>
+<script src="breakout-engine.js?v=2026-09-23b"></script>
+<script src="flappy-engine.js?v=2026-09-23b"></script>
+<script src="shooter-engine.js?v=2026-09-23b"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="fps-engine.js?v=2026-09-22d"></script>
-<script src="fps3d-engine.js?v=2026-09-22d"></script>
-<script src="game2048-engine.js?v=2026-09-22d"></script>
-<script src="frogger-engine.js?v=2026-09-22d"></script>
-<script src="asteroids-engine.js?v=2026-09-22d"></script>
-<script src="maze-engine.js?v=2026-09-22d"></script>
-<script src="tower-engine.js?v=2026-09-22d"></script>
-<script src="missile-engine.js?v=2026-09-22d"></script>
-<script src="centipede-engine.js?v=2026-09-22d"></script>
-<script src="river-engine.js?v=2026-09-22d"></script>
-<script src="games.js?v=2026-09-22d"></script>
-<script src="app.js?v=2026-09-22d"></script>
+<script src="fps-engine.js?v=2026-09-23b"></script>
+<script src="fps3d-engine.js?v=2026-09-23b"></script>
+<script src="game2048-engine.js?v=2026-09-23b"></script>
+<script src="frogger-engine.js?v=2026-09-23b"></script>
+<script src="asteroids-engine.js?v=2026-09-23b"></script>
+<script src="maze-engine.js?v=2026-09-23b"></script>
+<script src="tower-engine.js?v=2026-09-23b"></script>
+<script src="missile-engine.js?v=2026-09-23b"></script>
+<script src="centipede-engine.js?v=2026-09-23b"></script>
+<script src="river-engine.js?v=2026-09-23b"></script>
+<script src="games.js?v=2026-09-23b"></script>
+<script src="app.js?v=2026-09-23b"></script>
 <script>
 (function () {
 
-  const BUILD = '2026-09-22d';   // 화면 아래에 표시됩니다
+  const BUILD = '2026-09-23b';   // 화면 아래에 표시됩니다
 
   const gameId = getGameId();
   const def = GAMES[gameId];
@@ -533,25 +533,26 @@
         '<button class="fopt" id="fopt-gyro">자이로</button>' +
         '<button class="fopt" id="fopt-sens">감도 ×1</button>' +
       '</div>' +
-      '<div class="fhint" id="fhint">왼쪽: 이동 · 오른쪽: 끌어서 조준 · ●: 발사</div>';
+      '<div class="fhint" id="fhint">왼쪽 아래 조이스틱: 이동 · 화면 끌기: 조준 · ●: 발사</div>';
     wrap.appendChild(ctl);
     const joy = byId('fjoy'), base = joy.querySelector('.fjoy-base'), knob = joy.querySelector('.fjoy-knob');
     setTimeout(() => { const h = byId('fhint'); if (h) h.classList.add('fade'); }, 3500);
 
-    // 터치 배분: 왼쪽 절반 = 조이스틱, 오른쪽 = 조준 (버튼 위는 버튼)
+    // 터치 배분: 조이스틱은 왼쪽 아래에 '고정' — 그 근처를 짚으면 조이스틱, 나머지는 조준 (버튼 위는 버튼)
     let joyId = null, jcx = 0, jcy = 0, R = 46, lookId = null, lx = 0, ly = 0;
     const setJoy = (dx, dy) => { const d = Math.hypot(dx, dy), k = d > R ? R / d : 1; knob.style.transform = 'translate(' + (dx * k) + 'px,' + (dy * k) + 'px)'; if (game && game.setMove) game.setMove(dx * k / R, -dy * k / R); };
     // 버튼 위 터치는 버튼에 맡깁니다 (여기서 preventDefault 하면 버튼의 click 이 안 생깁니다)
     const onStart = e => {
-      const rect = wrap.getBoundingClientRect();
       let used = false;
       for (const t of e.changedTouches) {
         if (t.target.closest && t.target.closest('button')) continue;
         used = true;
-        const rx = t.clientX - rect.left, ry = t.clientY - rect.top;
-        if (rx < rect.width * 0.45 && joyId === null) {
-          joyId = t.identifier; jcx = t.clientX; jcy = t.clientY; R = Math.min(56, rect.width * 0.12);
-          joy.style.left = (rx - 70) + 'px'; joy.style.top = (ry - 70) + 'px'; joy.classList.add('on'); setJoy(0, 0);
+        const br = base.getBoundingClientRect();
+        const bcx = br.left + br.width / 2, bcy = br.top + br.height / 2, baseR = br.width / 2;
+        const near = Math.hypot(t.clientX - bcx, t.clientY - bcy) < baseR * 1.7;   // 조이스틱 근처(반지름 1.7배 안)
+        if (near && joyId === null) {
+          joyId = t.identifier; jcx = bcx; jcy = bcy; R = baseR * 0.62;
+          joy.classList.add('on'); setJoy(t.clientX - bcx, t.clientY - bcy);
         } else if (lookId === null) { lookId = t.identifier; lx = t.clientX; ly = t.clientY; }
       }
       if (used) e.preventDefault();
@@ -864,6 +865,8 @@
         if (game.progress > e.p) game.hitByBolt(e.by);
       } else if ((e.type === 'missile' || e.type === 'turtle') && e.target === playerId) {
         game.hitByMissile(e.by, e.type);
+      } else if (e.type === 'magnet' && e.target === playerId) {
+        game.hitByMagnet(e.by);
       } else if (e.type === 'swap' && e.target === playerId) {
         game.teleportTo(e.state, e.by);
       }
@@ -883,7 +886,7 @@
     peerPos[id] = {
       x: +a[0], y: +a[1], angle: +a[2], lap: +a[3], progress: +a[4],
       spin: !!(fl & 1), shield: !!(fl & 2), boost: !!(fl & 4),
-      finished: a[6] === '1', name: names[id] || ''
+      finished: a[6] === '1', z: +a[7] || 0, name: names[id] || ''
     };
     pushPeers();
   }
