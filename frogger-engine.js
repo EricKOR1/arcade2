@@ -18,7 +18,7 @@ class FroggerGame {
     this.lanes = FROG_LANES.map((kind, y) => {
       if (kind !== 'road' && kind !== 'river') return { kind, y, items: [] };
       const dir = (y % 2) ? 1 : -1;
-      const speed = (0.02 + Math.random() * 0.02 + this.level * 0.005) * dir;
+      const speed = (0.016 + Math.random() * 0.016 + (this.level - 1) * 0.006) * dir;   // 1단계는 여유 있게
       const len = kind === 'river' ? 2 + Math.floor(Math.random() * 3) : 1 + Math.floor(Math.random() * 2);
       const gap = len + 2 + Math.floor(Math.random() * 3);
       const items = [];

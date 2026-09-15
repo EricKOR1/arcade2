@@ -20,6 +20,8 @@ class MissileGame {
   // 톡 누른 자리(칸 단위)로 요격탄 발사
   tapAt(x, y) {
     if (this.gameOver || this.waveClear) return;
+    if (this.now - (this.lastTap || 0) < 120) return;        // 한 번의 톡이 여러 번 들어와도 한 발만
+    this.lastTap = this.now;
     const b = this.bases[0]; if (b.ammo <= 0) return;
     if (y > this.H - 2.5) y = this.H - 2.5;
     b.ammo--;

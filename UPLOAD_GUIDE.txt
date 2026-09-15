@@ -1,17 +1,17 @@
-아케이드 플랫폼 — v2026-09-24a
+아케이드 플랫폼 — v2026-09-25b
 ==============================
 
-새로 올릴 파일 1개
-  source-engine.js     오염원 추적 (태화강 AI 안전망을 대체)
-
-교체할 파일 4개
-  games.js  shared.js  index.html  admin.html   (+ README.md)
-
-지워도 되는 파일
-  river-engine.js      (더 이상 쓰지 않음)
+교체할 파일 6개
+  index.html          캔버스 터치 핸들러 중복 수정(모든 게임) · 자동발사 제거
+  fps3d-engine.js     자동발사 제거
+  missile-engine.js   연타 방지
+  snake-engine.js     시작 속도 완화
+  frogger-engine.js   1단계 차 속도 완화
+  admin.html          버전
+  (+ README.md)
 
 건드리지 않는 파일
   firebase-config.js  ← 본인 값 그대로 (EXAMPLE 은 올리지 마세요)
   photo.html / force.html / body.html
 
-올린 뒤 화면 아래 v2026-09-24a 를 꼭 확인하세요. 안 보이면 Ctrl+Shift+R. 학생 기기도 새로고침.
+올린 뒤 화면 아래 v2026-09-25b 를 꼭 확인하세요. 안 보이면 Ctrl+Shift+R. 학생 기기도 새로고침.

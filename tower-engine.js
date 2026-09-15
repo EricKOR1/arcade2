@@ -12,7 +12,7 @@ class TowerGame {
     this.ladders = [[11, 21, 17], [2, 17, 13], [10, 13, 9], [3, 9, 5], [7, 5, 1.5]];
     this.score = 0; this.lives = 3; this.level = 1; this.gameOver = false; this.climbed = 0;
     this.lastTime = 0; this.now = 0; this.steer = 0; this.upHeld = false;
-    this.barrels = []; this.parts = []; this.spawnT = 0; this.invul = 1500;
+    this.barrels = []; this.parts = []; this.spawnT = 3000; this.invul = 1500;
     this.resetPlayer();
   }
   resetPlayer() { this.x = 1.5; this.y = this.floors[0]; this.vy = 0; this.onLadder = false; this.jumping = false; this.face = 1; }
@@ -51,14 +51,19 @@ class TowerGame {
     // 꼭대기 도달
     if (this.y <= 1.6) { this.level++; this.climbed++; this.score += 500 * this.level; if (window.Sound) Sound.levelUp(); this.barrels = []; this.resetPlayer(); this.invul = 1500; }
     // 통 생성 · 이동 (맨 위 층 왼쪽에서 출발, 층 끝에서 아래로 떨어지고 방향 전환, 가끔 사다리로 내려감)
-    this.spawnT -= dt; if (this.spawnT <= 0) { this.spawnT = Math.max(900, 2600 - this.level * 250); this.barrels.push({ x: 1, y: 5, dir: 1, vy: 0, falling: false, rot: 0 }); }
-    const bs = 0.09 + this.level * 0.012;
+    // 통 생성 간격: 1층 4초 → 층마다 0.35초씩 짧아져 최소 1초. 속도: 1층 0.07 → 층마다 +0.01
+    this.spawnT -= dt; if (this.spawnT <= 0) { this.spawnT = Math.max(1000, 4000 - (this.level - 1) * 350); this.barrels.push({ x: 1, y: 5, dir: 1, vy: 0, falling: false, rot: 0 }); }
+    const bs = Math.min(0.16, 0.07 + (this.level - 1) * 0.01);
+    const ladderChance = Math.min(0.5, 0.15 + (this.level - 1) * 0.06);   // 사다리로 내려올 확률: 1층 15% → 서서히
     this.barrels.forEach(b => { b.rot += b.dir * 0.2 * f;
-      if (b.falling) { b.vy += 0.03 * f; b.y += b.vy * f; const fl = this.floors.find(fy => b.y >= fy - 0.05 && b.y <= fy + 0.6); if (fl != null && b.y >= fl) { b.y = fl; b.falling = false; b.vy = 0; b.dir = -b.dir; } return; }
+      if (b.falling) { b.vy += 0.03 * f; b.y += b.vy * f;
+        // 떨어지기 시작한 층보다 '아래'의 층에만 착지 (같은 층에 다시 걸려 영원히 튕기던 버그)
+        const fl = this.floors.find(fy => fy > (b.fromY || 0) + 0.5 && b.y >= fy - 0.05 && b.y <= fy + 0.6);
+        if (fl != null && b.y >= fl) { b.y = fl; b.falling = false; b.vy = 0; b.dir = -b.dir; b.fromY = null; } return; }
       b.x += b.dir * bs * f;
       const lad = this.ladders.find(([lx, by]) => by === b.y && Math.abs(lx + 0.5 - b.x) < 0.15);
-      if (lad && Math.random() < 0.35 && !b.usedLadder) { b.usedLadder = true; b.falling = true; b.vy = 0.05; b.x = lad[0] + 0.5; return; }
-      if (b.x < 0.5 || b.x > this.W - 0.5) { b.falling = true; b.vy = 0; b.x = Math.max(0.5, Math.min(this.W - 0.5, b.x)); b.usedLadder = false; }
+      if (lad && Math.random() < ladderChance && !b.usedLadder) { b.usedLadder = true; b.falling = true; b.fromY = b.y; b.vy = 0.05; b.x = lad[0] + 0.5; return; }
+      if (b.x < 0.5 || b.x > this.W - 0.5) { b.falling = true; b.fromY = b.y; b.vy = 0; b.x = Math.max(0.5, Math.min(this.W - 0.5, b.x)); b.usedLadder = false; }
     });
     this.barrels = this.barrels.filter(b => b.y < this.H + 1 && !(b.y >= this.floors[0] && (b.x <= 0.5 || b.x >= this.W - 0.5)));
     // 통과 충돌 · 뛰어넘기 점수

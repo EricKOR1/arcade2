@@ -565,7 +565,7 @@ const OBSTACLE = {
 // 뒤처질수록 좋은 아이템 (카트라이더식 보정)
 function rollItem(rankRatio) {
   let pool;
-  if (rankRatio < 0.25)      pool = ['banana','oil','bomb','shield','turtle','turtle','boost','banana','boost'];
+  if (rankRatio < 0.25)      pool = ['banana','oil','bomb','shield','turtle','turtle','boost','banana','boost2','magnet'];
   else if (rankRatio < 0.6)  pool = ['boost','boost','missile','banana','oil','shield','bomb','bolt','magnet','boost2'];
   else                       pool = ['swap','star','bolt','missile','boost2','star','missile','bomb','magnet','boost2'];
   return pool[Math.floor(Math.random() * pool.length)];
@@ -929,6 +929,7 @@ class KartGame {
   }
 
   // ── 프레임 ──
+  getSnapshot() { return null; }                       // 카트는 미니보드 대신 위치 신호를 씁니다
   clock() { return (this.now != null) ? this.now : performance.now(); }
 
   // 프레임 간격에 맞춘 보간 비율.

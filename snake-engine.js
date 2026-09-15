@@ -23,7 +23,7 @@ class SnakeGame {
     this.placeFood();
   }
 
-  get stepMs() { return Math.max(70, 170 - (this.level - 1) * 12); }
+  get stepMs() { return Math.max(75, 210 - (this.level - 1) * 14); }   // 처음은 조금 느리게(초당 약 5칸), 단계마다 빨라짐
 
   placeFood() {
     const taken = {};

@@ -40,6 +40,10 @@ const F3_HEIGHT = { '#': 2.4, '=': 2.4, 'B': 2.4, 'H': 4.0, 'X': 1.0, 'L': 0.6 }
 const F3_SPAWNS = [[7.5, 7.5], [36.5, 7.5], [7.5, 36.5], [36.5, 36.5], [22, 2.5], [2.5, 22], [41.5, 22], [22, 41.5], [10.5, 16.5], [33.5, 10.5], [27.5, 33.5], [16.5, 27.5]];
 const F3_TEAM = { red: 0xFF5C7A, blue: 0x2E9BFF };
 const F3_TEAM_CSS = { red: '#FF5C7A', blue: '#2E9BFF' };
+const F3_WEAPONS = {
+  rifle:  { name: '라이플',  mag: 30, reload: 1400, rate: 110, dmgBody: 34, dmgHead: 60,  dmgFar: 26, spread: 1.0, zoomFov: 72 },
+  sniper: { name: '스나이퍼', mag: 5,  reload: 2600, rate: 900, dmgBody: 90, dmgHead: 150, dmgFar: 90, spread: 0.15, zoomFov: 22 }   // 줌 상태에서만 정확
+};
 const F3_MAG = 30;
 const F3_EYE = 1.6;
 
@@ -54,6 +58,7 @@ class Fps3DGame {
     this.map = F3_MAP;
     this.peers = {}; this.models = {};
     this.hp = 100; this.kills = 0; this.deaths = 0; this.score = 0; this.streak = 0;
+    this.weapon = 'rifle'; this.zoomed = false; this.zoomK = 0;
     this.ammo = F3_MAG; this.reloadUntil = 0;
     this.mx = 0; this.my = 0; this.firing = false; this.turn = 0; this.upHeld = false; this.fwd = 0;
     this.yaw = 0; this.pitch = 0;
@@ -71,7 +76,9 @@ class Fps3DGame {
     return { x: +a[0], y: +a[1], angle: +a[2], hp: +a[3], kills: +a[4], deaths: +a[5], team: a[6] || null, fire: a[7] === '1', dead: a[8] === '1', moving: a[9] === '1', pitch: +a[10] || 0 };
   }
   get isDead() { return this.now < this.deadUntil; }
-  get reloading() { return this.now < this.reloadUntil; }
+  get reloading() { return this.now < this.reloadUntil || this.now < (this.readyUntil || 0); }   // 재장전 중이거나 무기 전환 준비 중
+  get wpn() { return F3_WEAPONS[this.weapon] || F3_WEAPONS.rifle; }
+  get magSize() { return this.wpn.mag; }
   clock() { return this.now || performance.now(); }
 
   // 프레임 간격에 맞춘 보간 비율 (프레임 수에 좌우되지 않게)
@@ -89,7 +96,7 @@ class Fps3DGame {
     });
     this.x = best[0]; this.y = best[1];
     const C = this.map.length / 2; this.yaw = Math.atan2(C - this.y, C - this.x); this.pitch = 0;
-    this.ammo = F3_MAG; this.reloadUntil = 0;
+    this.ammo = this.magSize; this.reloadUntil = 0; this.zoomed = false;
   }
 
   // ── 장면 구성 ──
@@ -173,7 +180,7 @@ class Fps3DGame {
     }
 
     // 총 (카메라에 붙임)
-    this.weapon = this.buildWeapon(); this.camera.add(this.weapon); this.scene.add(this.camera);
+    this.weaponModel = this.buildWeapon(); this.camera.add(this.weaponModel); this.scene.add(this.camera);
     // 총구 섬광
     const flashTex = new T.CanvasTexture(Fps3DGame.texCanvas('flash')); flashTex.encoding = T.sRGBEncoding;
     this.flash = new T.Sprite(new T.SpriteMaterial({ map: flashTex, transparent: true, depthWrite: false, blending: T.AdditiveBlending }));
@@ -257,7 +264,7 @@ class Fps3DGame {
 
   // ── 조작 (플랫폼 계약 + 조이스틱) ──
   setMove(x, y) { this.mx = Math.max(-1, Math.min(1, x)); this.my = Math.max(-1, Math.min(1, y)); }
-  look(dx, dy) { if (this.spectator) return; this.yaw += dx * 0.0042; this.pitch = Math.max(-1.1, Math.min(1.1, this.pitch - dy * 0.0036)); }
+  look(dx, dy) { if (this.spectator) return; const k = this.zoomed ? 0.3 : 1; this.yaw += dx * 0.0042 * k; this.pitch = Math.max(-1.1, Math.min(1.1, this.pitch - dy * 0.0036 * k)); }
   move(dir) { this.turn = dir; }                       // 키보드 ← → 는 회전
   releaseSteer(dir) { if (this.turn === dir) this.turn = 0; }
   up() { this.upHeld = true; }
@@ -265,19 +272,31 @@ class Fps3DGame {
   rotate() { this.fire(); }
   hardDrop() { this.fire(); }
   fire() { this.shoot(); }
-  reload() { if (this.reloading || this.ammo === F3_MAG || this.isDead) return; this.reloadUntil = this.clock() + 1400; if (window.Sound) Sound.softDrop(); }
+  reload() { if (this.reloading || this.ammo === this.magSize || this.isDead) return; this.reloadUntil = this.clock() + this.wpn.reload; if (window.Sound) Sound.softDrop(); }
+  // 무기 전환: 라이플 ↔ 스나이퍼 (전환에 0.8초, 탄약은 새 탄창)
+  switchWeapon() {
+    if (this.isDead || this.spectator) return;
+    this.weapon = this.weapon === 'rifle' ? 'sniper' : 'rifle';
+    this.zoomed = false; this.ammo = this.magSize; this.reloadUntil = 0; this.readyUntil = this.clock() + 800;
+    this.showToast(this.wpn.name + (this.weapon === 'sniper' ? ' — 🔍 줌으로 조준하세요' : ''), '#FFD166');
+    if (window.Sound) Sound.rotate();
+  }
+  // 줌 토글 (스나이퍼 전용): 시야 72° → 22°, 이동 느려짐, 조준 감도 낮아짐
+  toggleZoom() { if (this.weapon !== 'sniper' || this.isDead) return; this.zoomed = !this.zoomed; if (window.Sound) Sound.move(); }
 
   shoot() {
     const now = this.clock();
     if (this.isDead || this.spectator || this.reloading) return;
     if (this.ammo <= 0) { this.reload(); return; }
-    if (now - this.lastFire < 110) return;
+    if (now - this.lastFire < this.wpn.rate) return;
     this.lastFire = now; this.muzzle = 1; this.ammo--;
     if (this.ammo <= 0) this.reload();
     if (window.Sound) Sound.hardDrop();
-    const spread = 0.01 * this.recoil + (this.moving ? 0.012 : 0);
+    // 산탄: 스나이퍼는 줌 상태면 거의 정확, 줌 없이 쏘면 많이 튐
+    const base = 0.01 * this.recoil + (this.moving ? 0.012 : 0);
+    const spread = this.weapon === 'sniper' ? (this.zoomed ? base * 0.15 : 0.06) : base;
     const yaw = this.yaw + (Math.random() - 0.5) * spread * 2, pitch = this.pitch + (Math.random() - 0.5) * spread;
-    this.recoil = Math.min(1, this.recoil + 0.3); this.pitch = Math.min(1.1, this.pitch + 0.012);   // 반동은 발사 뒤에
+    this.recoil = Math.min(1, this.recoil + (this.weapon === 'sniper' ? 0.9 : 0.3)); this.pitch = Math.min(1.1, this.pitch + (this.weapon === 'sniper' ? 0.05 : 0.012));   // 반동은 발사 뒤에
     // 조준선을 따라 전진하며 벽 또는 사람에 닿는 첫 지점
     const dx = Math.cos(yaw) * Math.cos(pitch), dy = Math.sin(yaw) * Math.cos(pitch), dz = Math.sin(pitch);
     let best = null, bestD = 1e9, hitZ = 0;
@@ -285,7 +304,7 @@ class Fps3DGame {
       const p = this.peers[id];
       if (p.dead || (this.teamMode && p.team === this.team)) return;
       const rx = p.x - this.x, ry = p.y - this.y;
-      const t = rx * dx + ry * dy; if (t <= 0 || t > 30) return;
+      const t = rx * dx + ry * dy; if (t <= 0 || t > (this.weapon === 'sniper' ? 60 : 30)) return;
       const px = this.x + dx * t, py = this.y + dy * t, pz = F3_EYE + dz * t;
       const lateral = Math.hypot(px - p.x, py - p.y);
       // 터치 조준을 감안해 판정을 넉넉하게: 몸통 반지름 0.5 + 거리 비례 (10칸에서 약 3.5도)
@@ -303,7 +322,7 @@ class Fps3DGame {
     this.tracers.push({ from: [this.x, this.y, F3_EYE - 0.1], to: [ex, ey, ez], until: now + 80 });
     if (best) {
       const head = hitZ > 1.66;                                 // 눈높이(1.6) 직사는 몸통, 살짝 올려야 머리
-      const dmg = head ? 60 : (bestD < 8 ? 34 : 26);
+      const dmg = head ? this.wpn.dmgHead : (bestD < 8 ? this.wpn.dmgBody : this.wpn.dmgFar);
       this.pops = this.pops || []; this.pops.push({ x: ex, y: ey, z: ez + 0.2, val: dmg, head: head, until: now + 800 });
       if (this.opts.onAttack) this.opts.onAttack('hit', best, { dmg: dmg, head: head ? 1 : 0 });
       this.hitMarker = head ? 1.4 : 1; this.score += head ? 5 : 3;
@@ -423,7 +442,7 @@ class Fps3DGame {
       this.draw(); return;
     }
     this._respawned = false;
-    if (this.reloadUntil && now >= this.reloadUntil && this.ammo < F3_MAG) { this.ammo = F3_MAG; this.reloadUntil = 0; if (window.Sound) Sound.rotate(); }
+    if (this.reloadUntil && now >= this.reloadUntil && this.ammo < this.magSize) { this.ammo = this.magSize; this.reloadUntil = 0; if (window.Sound) Sound.rotate(); }
 
     this.yaw += this.turn * 0.05 * f;
     // 이동: 조이스틱(mx: 옆, my: 앞) + 키보드
@@ -432,23 +451,24 @@ class Fps3DGame {
     const len = Math.hypot(sx, sy);
     this.moving = len > 0.15 ? 1 : 0;
     if (this.moving) {
-      const sp = 0.095 * f * Math.min(1, len);
+      const sp = 0.095 * f * Math.min(1, len) * (this.zoomed ? 0.4 : 1);   // 줌 중엔 천천히
       const ux = (Math.cos(this.yaw) * sy - Math.sin(this.yaw) * sx) / (len || 1), uy = (Math.sin(this.yaw) * sy + Math.cos(this.yaw) * sx) / (len || 1);
       // 한 프레임에 너무 멀리 가지 않게 잘게 나눠 움직이고, 매번 벽에서 밀어냅니다
       const steps = Math.max(1, Math.ceil(sp / 0.12));
       for (let k = 0; k < steps; k++) { this.x += ux * sp / steps; this.y += uy * sp / steps; this.pushOut(); }
       this.bob += 0.2 * f;
     }
+    this.updateFov();
     if (this.firing) this.shoot();
-    else if (this.autoFire && !this.reloading && this.ammo > 0) {
-      // 자동 발사: 조준선에서 5도 안에 적이 보이면 쏩니다
-      const dx = Math.cos(this.yaw) * Math.cos(this.pitch), dy = Math.sin(this.yaw) * Math.cos(this.pitch);
-      const found = Object.keys(this.peers).some(id => { const p = this.peers[id]; if (p.dead || (this.teamMode && p.team === this.team)) return false;
-        const rx = p.x - this.x, ry = p.y - this.y, t = rx * dx + ry * dy; if (t <= 0.5 || t > 26) return false;
-        const lateral = Math.hypot(this.x + dx * t - p.x, this.y + dy * t - p.y); return lateral < Math.max(0.5, t * 0.09) && !this.blocked(this.x, this.y, p.x, p.y); });
-      if (found) this.shoot();
-    }
     this.draw();
+  }
+
+  // 시야각: 줌·반동·이동 반영 (렌더러 없이도 동작하도록 tick 에서 호출)
+  updateFov() {
+    if (!this.camera) return;
+    this.zoomK += ((this.zoomed ? 1 : 0) - this.zoomK) * this.smooth(0.25, this.lastF || 1);
+    const fov = (72 + (this.wpn.zoomFov - 72) * this.zoomK) + this.recoil * 2.5 * (1 - this.zoomK) + (this.moving ? 1.5 : 0);
+    if (Math.abs(this.camera.fov - fov) > 0.02) { this.camera.fov += (fov - this.camera.fov) * this.smooth(0.35, this.lastF || 1); this.camera.updateProjectionMatrix(); }
   }
 
   getSnapshot() { return null; }
@@ -465,14 +485,13 @@ class Fps3DGame {
     const bobY = this.moving ? Math.sin(this.bob) * 0.03 : 0;
     const shake = this.hurt > 0.5 ? (this.hurt - 0.5) * 0.06 : 0;
     this.camera.position.set(this.x + (Math.random() - 0.5) * shake, F3_EYE + bobY + (Math.random() - 0.5) * shake, this.y + (Math.random() - 0.5) * shake);
-    const fov = 72 + this.recoil * 2.5 + (this.moving ? 1.5 : 0);
-    if (Math.abs(this.camera.fov - fov) > 0.05) { this.camera.fov += (fov - this.camera.fov) * this.smooth(0.3, this.lastF || 1); this.camera.updateProjectionMatrix(); }
+    this.updateFov();
     this.camera.rotation.order = 'YXZ';
     this.camera.rotation.y = -this.yaw - Math.PI / 2; this.camera.rotation.x = this.pitch; this.camera.rotation.z = (this.mx || 0) * -0.02;   // 시선 = 이동 방향 · 옆걸음 때 살짝 기울기
     // 총 흔들림 · 반동 · 재장전
     const rel = this.reloading ? Math.sin(((this.reloadUntil - now) / 1400) * Math.PI) * 0.25 : 0;
-    this.weapon.position.set(0.28 + (this.moving ? Math.sin(this.bob * 0.5) * 0.01 : 0), -0.26 - rel + (this.moving ? Math.abs(Math.cos(this.bob * 0.5)) * 0.01 : 0), -0.55 + this.recoil * 0.06);
-    this.weapon.rotation.x = -rel * 1.5 + this.recoil * 0.1; this.weapon.visible = !this.spectator && !this.isDead;
+    this.weaponModel.position.set(0.28 + (this.moving ? Math.sin(this.bob * 0.5) * 0.01 : 0), -0.26 - rel + (this.moving ? Math.abs(Math.cos(this.bob * 0.5)) * 0.01 : 0), -0.55 + this.recoil * 0.06);
+    this.weaponModel.rotation.x = -rel * 1.5 + this.recoil * 0.1; this.weaponModel.visible = !this.spectator && !this.isDead && this.zoomK < 0.5;
     this.flash.visible = this.muzzle > 0.15; this.flash.material.opacity = this.muzzle; this.flash.scale.setScalar(0.25 + this.muzzle * 0.25);
 
     // 궤적
@@ -554,11 +573,27 @@ class Fps3DGame {
       ctx.restore(); ctx.textAlign = 'left';
       ctx.fillStyle = '#FFD166'; ctx.fillRect(W / 2 - 1, cy0 - 3, 2, 24);
     }
+    // 스코프 (스나이퍼 줌)
+    if (this.zoomK > 0.05) {
+      const R = Math.min(W, H) * 0.42, k = this.zoomK;
+      ctx.save(); ctx.globalAlpha = k;
+      ctx.fillStyle = 'rgba(0,0,0,0.92)'; ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.arc(W / 2, hy, R, 0, Math.PI * 2, true); ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(W / 2, hy, R, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.moveTo(W / 2 - R, hy); ctx.lineTo(W / 2 + R, hy); ctx.moveTo(W / 2, hy - R); ctx.lineTo(W / 2, hy + R); ctx.stroke();
+      for (let i = 1; i <= 4; i++) { const d = R * i / 5; ctx.beginPath(); ctx.moveTo(W / 2 - 8, hy + d); ctx.lineTo(W / 2 + 8, hy + d); ctx.moveTo(W / 2 - d, hy - 6); ctx.lineTo(W / 2 - d, hy + 6); ctx.moveTo(W / 2 + d, hy - 6); ctx.lineTo(W / 2 + d, hy + 6); ctx.stroke(); }
+      ctx.strokeStyle = 'rgba(255,60,80,0.9)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(W / 2, hy, 6, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+    }
     // 조준점 + 히트마커
     const gap = 6 + this.recoil * 10 + (this.moving ? 5 : 0);
-    ctx.strokeStyle = 'rgba(255,255,255,0.95)'; ctx.lineWidth = 2; ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 3;
-    [[-1, 0], [1, 0], [0, -1], [0, 1]].forEach(([ax, ay]) => { ctx.beginPath(); ctx.moveTo(W / 2 + ax * gap, hy + ay * gap); ctx.lineTo(W / 2 + ax * (gap + 8), hy + ay * (gap + 8)); ctx.stroke(); });
-    ctx.shadowBlur = 0;
+    if (this.zoomK > 0.5) { /* 스코프 중엔 십자선이 대신함 */ }
+    if (this.zoomK < 0.5) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.95)'; ctx.lineWidth = 2; ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 3;
+      const g2 = this.weapon === 'sniper' ? gap + 10 : gap;   // 스나이퍼는 줌 없이 쏘면 산탄이 큼을 표시
+      [[-1, 0], [1, 0], [0, -1], [0, 1]].forEach(([ax, ay]) => { ctx.beginPath(); ctx.moveTo(W / 2 + ax * g2, hy + ay * g2); ctx.lineTo(W / 2 + ax * (g2 + 8), hy + ay * (g2 + 8)); ctx.stroke(); });
+      ctx.shadowBlur = 0;
+    }
     if (this.hitMarker > 0) { const hm = Math.min(1, this.hitMarker); ctx.strokeStyle = this.hitMarker > 1 ? 'rgba(255,214,102,' + hm + ')' : 'rgba(255,80,80,' + hm + ')'; ctx.lineWidth = 3;
       [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([ax, ay]) => { ctx.beginPath(); ctx.moveTo(W / 2 + ax * 6, hy + ay * 6); ctx.lineTo(W / 2 + ax * 16, hy + ay * 16); ctx.stroke(); }); }
     if (this.dmgDir && now < this.dmgDir.until) { const k = (this.dmgDir.until - now) / 900; ctx.save(); ctx.translate(W / 2, hy); ctx.rotate(this.dmgDir.a); ctx.strokeStyle = 'rgba(255,60,80,' + (k * 0.9).toFixed(2) + ')'; ctx.lineWidth = 8; ctx.lineCap = 'round'; ctx.beginPath(); ctx.arc(0, 0, Math.min(W, H) * 0.22, -0.35, 0.35); ctx.stroke(); ctx.restore(); }
@@ -569,9 +604,10 @@ class Fps3DGame {
     ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.fillRect(28, H - 24, 140, 5); ctx.fillStyle = this.hp > 40 ? '#06D6A0' : '#FF5C7A'; ctx.fillRect(28, H - 24, 140 * this.hp / 100, 5);
     // 탄약
     rr(W - 152, H - 66, 138, 52, 14, 'rgba(8,10,16,0.72)'); ctx.textAlign = 'right';
-    if (this.reloading) { ctx.fillStyle = '#FFD166'; ctx.font = '800 15px Pretendard, sans-serif'; ctx.fillText('재장전 중…', W - 28, H - 36); ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.fillRect(W - 138, H - 26, 110, 5); ctx.fillStyle = '#FFD166'; ctx.fillRect(W - 138, H - 26, 110 * (1 - (this.reloadUntil - now) / 1400), 5); }
-    else { ctx.fillStyle = this.ammo > 6 ? '#FFFFFF' : '#FF5C7A'; ctx.font = '800 28px Pretendard, sans-serif'; ctx.fillText(String(this.ammo), W - 62, H - 34); ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.font = '700 13px Pretendard, sans-serif'; ctx.fillText('/ ' + F3_MAG, W - 26, H - 34);
-      for (let k = 0; k < 15; k++) { ctx.fillStyle = k < Math.ceil(this.ammo / 2) ? (this.ammo > 6 ? '#FFD166' : '#FF5C7A') : 'rgba(255,255,255,0.15)'; ctx.fillRect(W - 138 + k * 7.4, H - 26, 5, 6); } }
+    if (this.reloading) { ctx.fillStyle = '#FFD166'; ctx.font = '800 15px Pretendard, sans-serif'; ctx.fillText(this.reloadUntil > now ? '재장전 중…' : '무기 준비…', W - 28, H - 36); ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.fillRect(W - 138, H - 26, 110, 5); ctx.fillStyle = '#FFD166'; const rl = this.reloadUntil > now ? (1 - (this.reloadUntil - now) / this.wpn.reload) : (1 - ((this.readyUntil || 0) - now) / 800); ctx.fillRect(W - 138, H - 26, 110 * Math.max(0, Math.min(1, rl)), 5); }
+    else { ctx.fillStyle = this.ammo > 6 ? '#FFFFFF' : '#FF5C7A'; ctx.font = '800 28px Pretendard, sans-serif'; ctx.fillText(String(this.ammo), W - 62, H - 34); ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.font = '700 13px Pretendard, sans-serif'; ctx.fillText('/ ' + this.magSize, W - 26, H - 34);
+      ctx.fillStyle = '#FFD166'; ctx.font = '800 11px Pretendard, sans-serif'; ctx.fillText(this.wpn.name + (this.weapon === 'sniper' ? ' 🔍' : ''), W - 26, H - 52);
+      const ticks = Math.min(15, this.magSize), per = this.magSize / ticks; for (let k = 0; k < ticks; k++) { ctx.fillStyle = k < Math.ceil(this.ammo / per) ? (this.ammo > (this.magSize > 10 ? 6 : 1) ? '#FFD166' : '#FF5C7A') : 'rgba(255,255,255,0.15)'; ctx.fillRect(W - 138 + k * (110 / ticks), H - 26, Math.max(4, 110 / ticks - 2.4), 6); } }
     ctx.textAlign = 'left';
     // 점수판
     if (this.teamMode) {

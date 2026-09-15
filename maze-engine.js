@@ -43,7 +43,9 @@ class MazeGame {
   }
   resetActors() {
     this.px = 9; this.py = 15; this.dir = [0,0]; this.want = [0,0]; this.mouth = 0;
-    this.drones = [0,1,2,3].map(i => ({ x: 8 + i % 3, y: 9, dir: [0,-1], home: true, out: this.now + 1500 + i * 2500, dead: 0, color: ['#FF5C7A','#FFB3C6','#4CC9F0','#FFA726'][i] }));
+    // 단계별 드론 수: 1단계 2대 → 2단계 3대 → 3단계부터 4대. 출동 간격도 처음엔 길게
+    const count = Math.min(4, 1 + this.level), gap = Math.max(2000, 5000 - this.level * 800);
+    this.drones = [0,1,2,3].slice(0, count).map(i => ({ x: 8 + i % 3, y: 9, dir: [0,-1], home: true, out: this.now + 3000 + i * gap, dead: 0, color: ['#FF5C7A','#FFB3C6','#4CC9F0','#FFA726'][i] }));
     this.deathT = 0;
   }
   free(x, y) { if (y < 0 || y >= MZ_ROWS) return false; if (x < 0 || x >= MZ_COLS) return true; return !this.walls[y][x]; }   // 좌우 끝은 터널
@@ -95,7 +97,7 @@ class MazeGame {
     if (gx >= 0 && gx < MZ_COLS && this.dots[gy] && this.dots[gy][gx]) {
       const v = this.dots[gy][gx]; this.dots[gy][gx] = 0; this.dotsLeft--;
       this.score += v === 2 ? 50 : 10;
-      if (v === 2) { this.powerUntil = now + Math.max(3000, 7000 - this.level * 600); this.eatChain = 0; this.drones.forEach(d => { if (!d.dead && !d.home) d.scared = true; }); if (window.Sound) Sound.levelUp(); }
+      if (v === 2) { this.powerUntil = now + Math.max(3500, 9000 - this.level * 700); this.eatChain = 0; this.drones.forEach(d => { if (!d.dead && !d.home) d.scared = true; }); if (window.Sound) Sound.levelUp(); }
       else if (window.Sound && Math.floor(this.mouth * 2) % 2 === 0) Sound.move();
       if (this.dotsLeft <= 0) { this.level++; this.score += 500; if (window.Sound) Sound.clear(2); this.build(); this.started = false; }
     }
@@ -105,7 +107,8 @@ class MazeGame {
     this.drones.forEach((d, i) => {
       if (d.dead > 0) { d.dead -= dt; if (d.dead <= 0) { d.dead = 0; d.x = 9; d.y = 9; d.home = true; d.out = now + 2000; } return; }
       if (d.home) { if (now > d.out) { d.home = false; d.x = 9; d.y = 7; d.dir = [i % 2 ? 1 : -1, 0]; } return; }
-      const sp = (d.scared ? 0.045 : 0.068 + (this.level - 1) * 0.006) * f;
+      // 드론 속도: 1단계 로봇의 75% → 4단계쯤 로봇과 비슷 → 이후 조금 더 빠름
+      const sp = (d.scared ? 0.045 : Math.min(0.086, 0.056 + (this.level - 1) * 0.008)) * f;
       const actor = { get px() { return d.x; }, set px(v) { d.x = v; }, get py() { return d.y; }, set py(v) { d.y = v; }, get dir() { return d.dir; }, set dir(v) { d.dir = v; } };
       this.stepActor(actor, sp, () => {
         const dcx = d.x, dcy = d.y;
