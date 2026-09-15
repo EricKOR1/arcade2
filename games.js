@@ -261,7 +261,7 @@ const GAMES = {
     howto: '화면을 톡 → 센서 설치(값 0~100) · 핀을 두 번 톡 → 지목 · 수질: 하류로 퍼지고 상류는 0 · 악취: 바람 방향으로 퍼짐 → 거슬러 올라가기 · 센서를 적게 쓰고 빨리 맞힐수록 고득점 · 틀리면 ♥ 하나',
     meta: '개인전 · 환경 × AI 추리 · 울산 특강 연계',
     primary: '75% 0.14 200', primaryContent: '100% 0 0', hex: '#4CC9F0',
-    grid: { cols: 14, rows: 18 },
+    grid: { cols: 12, rows: 16 },
     adminView: 'grid',
     needsPeers: false, hasNext: false,
     stats: [{ key: 'solved', label: '해결' }, { key: 'lives', label: '♥' }],
