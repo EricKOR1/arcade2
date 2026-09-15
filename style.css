@@ -552,6 +552,9 @@ body.fullgrid .spectate { grid-template-columns: 1fr 320px }
 .pad-split .pad-mid button { min-height: 52px; font-size: 20px }
 .pad-split .pad-mid .k-up, .pad-split .pad-mid .k-down { font-size: 24px; min-height: 48px }
 .pad-split .pad-mid .k-rotate { color: var(--accent); font-size: 26px }
+/* 회전과 '바로 내리기' 사이를 크게 띄웁니다 — 잘못 누르기 쉬운 조합이라 실수를 줄입니다 */
+.pad-split .pad-mid .k-drop { margin-top: 22px }
+.pad-split .pad-mid .k-down + .k-drop { margin-top: 22px }
 .pad-split .pad-mid .k-drop, .pad-split .pad-mid .k-fire, .pad-split .pad-mid .k-item {
   font-size: 15px; font-weight: 700; color: var(--accent-ink);
   background: var(--accent); border-color: transparent; box-shadow: var(--shadow-panel) }
@@ -561,6 +564,7 @@ body.fullgrid .spectate { grid-template-columns: 1fr 320px }
 @media (orientation: landscape) and (max-height: 540px) {
   .pad-split .pad-edge button { min-height: 80px; font-size: 26px }
   .pad-split .pad-mid button { min-height: 40px; font-size: 16px } .pad-split .pad-mid .k-fire, .pad-split .pad-mid .k-item { min-height: 46px }
+  .pad-split .pad-mid .k-drop { margin-top: 14px }
   .pad.pad-kart.pad-split .pad-edge button { min-height: 86px }
 }
 
@@ -685,11 +689,14 @@ body.fullgrid .spectate { grid-template-columns: 1fr 320px }
 .fchip.on { background: var(--a-text); color: var(--a-bg); border-color: transparent }
 
 /* FPS 무기 전환 · 줌 버튼 (재장전 위에 세로로) */
-.fweapon { position: absolute; right: 30px; bottom: 192px; padding: 8px 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,.35); background: rgba(8,10,16,.55); color: #fff; font: 700 12px Pretendard, sans-serif }
+/* 무기 칩 2개 — 눌러서 바로 선택 (키보드 없이) */
+.fwpns { position: absolute; right: 26px; bottom: 186px; display: flex; flex-direction: column; gap: 6px; align-items: flex-end }
+.fwpn { padding: 8px 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,.3); background: rgba(8,10,16,.55); color: rgba(255,255,255,.75); font: 700 12px Pretendard, sans-serif; white-space: nowrap }
+.fwpn.on { background: rgba(255,209,102,.92); color: #1a1500; border-color: transparent }
 .fzoom { position: absolute; right: 136px; bottom: 34px; width: 64px; height: 64px; border-radius: 50%; border: 2px solid rgba(255,255,255,.45); background: rgba(8,10,16,.6); color: #fff; font-size: 24px; touch-action: none }
 .fzoom.on { background: rgba(255,209,102,.9); color: #1a1500; border-color: transparent }
 .fzoom.hidden { display: none }
 @media (orientation: landscape) and (max-height: 540px) {
-  .fweapon { bottom: 140px; right: 16px; padding: 6px 10px; font-size: 11px }
+  .fwpns { bottom: 132px; right: 14px; gap: 4px } .fwpn { padding: 6px 9px; font-size: 10.5px }
   .fzoom { right: 104px; bottom: 18px; width: 52px; height: 52px; font-size: 20px }
 }

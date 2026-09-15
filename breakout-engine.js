@@ -18,6 +18,7 @@ class BreakoutGame {
     this.balls = [];            // 공 여러 개
     this.drops = [];            // 떨어지는 아이템 캡슐
     this.wideUntil = 0;         // 넓은 패들
+    this.magnetUntil = 0; this.bigUntil = 0; this.laserUntil = 0; this.shrinkUntil = 0; this.lasers = []; this.stuck = null; this.lastLaser = 0;
     this.slowUntil = 0;         // 느린 공
     this.pierceUntil = 0;       // 관통 공
     this.hits = 0;              // 패들에 튕긴 횟수 (속도 상승)
@@ -38,12 +39,14 @@ class BreakoutGame {
     this.left = this.bricks.length;
     this.paddleW = Math.max(2.2, 3.6 - (this.level - 1) * 0.25);
     this.wideUntil = 0; this.slowUntil = 0; this.pierceUntil = 0;
+    this.magnetUntil = 0; this.bigUntil = 0; this.laserUntil = 0; this.shrinkUntil = 0; this.lasers = []; this.stuck = null; this.lastLaser = 0;
     this.paddleX = (BRICK_COLS - this.paddleW) / 2;
     this.paddleY = BRICK_ROWS - 1.4;
     this.serve();
   }
 
-  get paddleW() { return this._pw * ((this.lastTime && this.lastTime < this.wideUntil) ? 1.6 : 1); }
+  get paddleW() { const t = this.lastTime || 0; let k = 1; if (t < this.wideUntil) k *= 1.6; if (t < this.shrinkUntil) k *= 0.62; return this._pw * k; }
+  get ballR() { return ((this.lastTime || 0) < this.bigUntil) ? 1.8 : 1; }   // 큰 공 배율
   set paddleW(v) { this._pw = v; }
 
   serve() {
@@ -61,8 +64,29 @@ class BreakoutGame {
       wide:   { color: '#06D6A0', label: '넓은 패들', icon: '⟷' },
       slow:   { color: '#FFD166', label: '느린 공',   icon: '◔' },
       life:   { color: '#EF476F', label: '목숨 +1',   icon: '♥' },
-      pierce: { color: '#B15DFF', label: '관통 공',   icon: '⇑' }
+      pierce: { color: '#B15DFF', label: '관통 공',   icon: '⇑' },
+      magnetp:{ color: '#F5A524', label: '자석 패들', icon: '🧲' },   // 공이 패들에 붙었다가 발사로 다시 쏨
+      big:    { color: '#FF8A56', label: '큰 공',     icon: '⬤' },   // 공이 커져 맞히기 쉬움
+      laser:  { color: '#EF476F', label: '레이저',    icon: '⇈' },   // 발사 버튼으로 위로 쏨
+      shrink: { color: '#8A919E', label: '작은 패들', icon: '⟩⟨' }   // 함정! 패들이 좁아짐
     };
+  }
+
+  // 벽돌에 피해 (공·레이저 공통)
+  damageBrick(i, dmg) {
+    const k = this.bricks[i]; if (!k) return;
+    k.hp -= dmg;
+    this.flash.push({ x: k.x, y: k.y, t: 1, color: k.color });
+    if (k.hp <= 0) {
+      this.bricks.splice(i, 1); this.left--; this.score += 10 * this.level;
+      if (Math.random() < 0.128 && this.drops.length < 4) {
+        const kinds = Object.keys(BreakoutGame.ITEMS);
+        const kind = kinds[Math.floor(Math.random() * kinds.length)];
+        if (!this.drops.some(d => d.kind === kind)) this.drops.push({ x: k.x + 0.5, y: k.y + 0.5, kind: kind, a: 0 });
+      }
+      if (window.Sound) Sound.clear(1);
+    } else if (window.Sound) Sound.lock();
+    this.shake = 0.4;
   }
 
   move(dir) { this.steer = dir; }
@@ -72,10 +96,18 @@ class BreakoutGame {
   rotate() { this.launch(); }
   softDrop() {}
 
-  get baseSpeed() { return 0.15 + (this.level - 1) * 0.02; }
+  get baseSpeed() { return 0.195 + (this.level - 1) * 0.026; }   // 초반 속도 +30%
 
   launch() {
-    if (this.gameOver || this.launched) return;
+    if (this.gameOver) return;
+    const now = this.lastTime || 0;
+    // 자석 패들에 붙은 공을 다시 쏩니다
+    if (this.stuck) { const b = this.stuck; const ang = -Math.PI / 2 + (b.offset || 0) * 0.9; const sp = this.baseSpeed;
+      b.vx = Math.cos(ang) * sp; b.vy = Math.sin(ang) * sp; this.stuck = null; if (window.Sound) Sound.start(); return; }
+    // 레이저 발사 (0.35초 간격)
+    if (now < this.laserUntil && this.launched) { if (now - this.lastLaser > 350) { this.lastLaser = now;
+      this.lasers.push({ x: this.paddleX + this.paddleW / 2, y: this.paddleY - 0.4 }); if (window.Sound) Sound.move(); } return; }
+    if (this.launched) return;
     const speed = this.baseSpeed;
     const ang = -Math.PI / 2 + (Math.random() - 0.5) * 0.8;
     this.balls.forEach(b => { b.vx = Math.cos(ang) * speed; b.vy = Math.sin(ang) * speed; });
@@ -93,6 +125,17 @@ class BreakoutGame {
     this.paddleX += this.steer * 0.32 * f;
     this.paddleX = Math.max(0, Math.min(BRICK_COLS - this.paddleW, this.paddleX));
     if (!this.launched) this.balls.forEach(b => { b.x = this.paddleX + this.paddleW / 2; });
+    // 자석 패들에 붙은 공은 패들을 따라다닙니다
+    if (this.stuck) { this.stuck.x = this.paddleX + this.paddleW / 2 + (this.stuck.offset || 0) * this.paddleW * 0.4; this.stuck.y = this.paddleY - 0.4; this.stuck.vx = 0; this.stuck.vy = 0; }
+    // 레이저
+    if (this.lasers.length) {
+      for (let i = this.lasers.length - 1; i >= 0; i--) {
+        const L = this.lasers[i]; L.y -= 0.45 * f;
+        if (L.y < 0) { this.lasers.splice(i, 1); continue; }
+        const bi = this.bricks.findIndex(k => L.x >= k.x && L.x <= k.x + 1 && L.y >= k.y && L.y <= k.y + 1);
+        if (bi >= 0) { this.damageBrick(bi, 1); this.lasers.splice(i, 1); }
+      }
+    }
 
     // 공 — 빠를 때 벽돌을 뚫고 지나가지 않도록 잘게 나눠 움직입니다
     if (this.launched) {
@@ -142,10 +185,16 @@ class BreakoutGame {
     }
     else if (kind === 'life')   this.lives = Math.min(5, this.lives + 1);
     else if (kind === 'pierce') this.pierceUntil = now + 7000;
+    else if (kind === 'magnetp') this.magnetUntil = now + 12000;
+    else if (kind === 'big')     this.bigUntil = now + 10000;
+    else if (kind === 'laser')   { this.laserUntil = now + 9000; this.lasers = this.lasers || []; }
+    else if (kind === 'shrink')  this.shrinkUntil = now + 8000;
     if (window.Sound) Sound.levelUp();
   }
 
   stepBalls(f, now) {
+    const rr = 0.28 * this.ballR;
+    this.balls.forEach(b => { b.r = rr; });
     const pierce = now < this.pierceUntil;
     const minSpeed = this.baseSpeed * (now < this.slowUntil ? 0.65 : 1);
     for (let bi = this.balls.length - 1; bi >= 0; bi--) {
@@ -162,6 +211,8 @@ class BreakoutGame {
           b.x >= this.paddleX - b.r && b.x <= this.paddleX + this.paddleW + b.r) {
         const rel = (b.x - (this.paddleX + this.paddleW / 2)) / (this.paddleW / 2);
         this.hits++;
+        // 자석 패들: 공이 붙습니다 (발사 버튼으로 다시 쏨). 한 번에 하나만
+        if (now < this.magnetUntil && !this.stuck) { this.stuck = b; b.offset = rel; b.vx = 0; b.vy = 0; b.y = this.paddleY - b.r; if (window.Sound) Sound.lock(); continue; }
         // 튕길 때마다 1.2% 빨라지되, 기본 속도의 1.7배를 넘지 않습니다
         const speed = Math.min(this.baseSpeed * 1.7, Math.max(minSpeed, Math.hypot(b.vx, b.vy)) * 1.012);
         const ang = -Math.PI / 2 + rel * 1.05;
@@ -171,6 +222,7 @@ class BreakoutGame {
       }
 
       // 벽돌
+      this._pierceFlag = pierce;
       for (let i = this.bricks.length - 1; i >= 0; i--) {
         const k = this.bricks[i];
         if (b.x + b.r < k.x || b.x - b.r > k.x + 1 || b.y + b.r < k.y || b.y - b.r > k.y + 1) continue;
@@ -179,23 +231,7 @@ class BreakoutGame {
           const oy = Math.min(b.y + b.r - k.y, k.y + 1 - (b.y - b.r));
           if (ox < oy) b.vx = -b.vx; else b.vy = -b.vy;
         }
-        k.hp -= pierce ? 2 : 1;
-        this.flash.push({ x: k.x, y: k.y, t: 1, color: k.color });
-        if (k.hp <= 0) {
-          this.bricks.splice(i, 1);
-          this.left--;
-          this.score += 10 * this.level;
-          // 벽돌 12개 중 1개꼴로 아이템이 떨어집니다 (같은 종류가 이미 떨어지는 중이면 건너뜀)
-          if (Math.random() < 0.085 && this.drops.length < 3) {
-            const kinds = Object.keys(BreakoutGame.ITEMS);
-            const kind = kinds[Math.floor(Math.random() * kinds.length)];
-            if (!this.drops.some(d => d.kind === kind)) this.drops.push({ x: k.x + 0.5, y: k.y + 0.5, kind: kind, a: 0 });
-          }
-          if (window.Sound) Sound.clear(1);
-        } else {
-          if (window.Sound) Sound.lock();
-        }
-        this.shake = 0.4;
+        this.damageBrick(i, pierce ? 2 : 1);
         if (!pierce) break;
       }
 
@@ -292,6 +328,15 @@ class BreakoutGame {
       ctx.restore();
     });
     ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+
+    // 레이저
+    this.lasers.forEach(L => { ctx.fillStyle = '#EF476F'; ctx.fillRect(L.x * cs - 1.5, L.y * cs - cs * 0.4, 3, cs * 0.6); });
+    // 자석 패들 · 큰 공 · 레이저 남은 시간 표시
+    { const now2 = this.lastTime || 0, badges = [];
+      if (now2 < this.magnetUntil) badges.push(['🧲', '#F5A524']); if (now2 < this.bigUntil) badges.push(['⬤', '#FF8A56']);
+      if (now2 < this.laserUntil) badges.push(['⇈', '#EF476F']); if (now2 < this.shrinkUntil) badges.push(['⟩⟨', '#8A919E']);
+      if (now2 < this.wideUntil) badges.push(['⟷', '#06D6A0']); if (now2 < this.pierceUntil) badges.push(['⇑', '#B15DFF']);
+      badges.forEach(([ic, c], i2) => { ctx.fillStyle = c; ctx.font = '700 ' + Math.round(cs * 0.6) + 'px Pretendard, sans-serif'; ctx.textAlign = 'left'; ctx.fillText(ic, cs * 0.3 + i2 * cs * 0.9, cs * 0.9); }); }
 
     // 공
     const pierce = this.lastTime < this.pierceUntil;

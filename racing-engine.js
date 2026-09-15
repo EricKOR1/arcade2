@@ -360,7 +360,7 @@ class Track {
     // 장애물 — 트랙 위에 고정. 아이템 상자·출발선 근처는 피합니다
     this.obstacles = [];
     const okinds = this.theme.obstacles || ['cone', 'barrel'];
-    const oCount = Math.round(this.n / 72);
+    const oCount = Math.min(14, Math.round(this.n / 104));   // 장애물 약 30% 감소 · 긴 코스도 14개까지
     const oGap = Math.floor(this.n / oCount);
     let rr = 0.37;
     const orand = () => { rr = (rr * 9301 + 49297) % 233280; return rr / 233280; };
@@ -1662,7 +1662,7 @@ class KartGame {
   drawRoad(ctx, W, H, cam, now) {
     const t = this.track, d = t.def, n = t.n;
     const Q = (this.q == null ? 2 : this.q);
-    const K = Math.min([110, 150, 200][Q], Math.ceil([3600, 5000, 6800][Q] / t.stepLen));
+    const K = Math.min([150, 200, 280][Q], Math.ceil([5200, 7000, 9500][Q] / t.stepLen));   // 먼 도로가 더 일찍 보이도록
     const DETAIL = [10, 14, 20][Q];
 
     const segs = this._segs || (this._segs = []);
@@ -1792,7 +1792,7 @@ class KartGame {
     {
       const sk = d.sky || {};
       const haze = sk.haze || this.lighten(d.grass, 0.35);
-      const band = Math.max(24, H * 0.16);
+      const band = Math.max(20, H * 0.11);
       const gfog = ctx.createLinearGradient(0, cam.horizonY - 2, 0, cam.horizonY + band);
       gfog.addColorStop(0, this.rgba(haze, 1));
       gfog.addColorStop(0.45, this.rgba(haze, 0.72));
@@ -1874,7 +1874,7 @@ class KartGame {
   // ── 부스터 패드: 멀리서도 확실히 보이게 ──
   drawBoostPads(ctx, cam, now) {
     const t = this.track;
-    const reach = t.stepLen * 200;
+    const reach = t.stepLen * 280;
     t.boostPads.forEach(p => {
       if (Math.hypot(p.x - this.x, p.y - this.y) > reach) return;
       const e = t.elevAt(p.i);
@@ -2016,7 +2016,7 @@ class KartGame {
     list.length = 0;
 
     // 노변 지물 (앞쪽 구간만)
-    const from = this.segIdx - 8, to = this.segIdx + Math.ceil(4800 / t.stepLen);
+    const from = this.segIdx - 8, to = this.segIdx + Math.ceil(7000 / t.stepLen);
     t.scenery.forEach(o => {
       let d = o.i - this.segIdx;
       if (d < -n/2) d += n;
@@ -2076,7 +2076,7 @@ class KartGame {
     // 보일지 말지를 "가까운 순서 N개" 로 자르면 순서가 바뀔 때마다 나타났다 사라졌다 깜박입니다.
     // 대신 거리로 자릅니다 — 같은 거리면 항상 같은 결과라 화면이 안정적입니다.
     const Q = (this.q == null ? 2 : this.q);
-    const zDeco = t.stepLen * [60, 100, 150][Q], zObj = t.stepLen * [120, 160, 200][Q], zFull = t.stepLen * [10, 18, 26][Q];
+    const zDeco = t.stepLen * [80, 130, 190][Q], zObj = t.stepLen * [170, 230, 290][Q], zFull = t.stepLen * [10, 18, 26][Q];
     const shown = this._shown || (this._shown = []);
     shown.length = 0;
     for (let i = 0; i < list.length; i++) { const o = list[i]; if (o.z < (o.kind === 'deco' ? zDeco : zObj)) shown.push(o); }

@@ -10,8 +10,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1B2027">
 <title>아케이드</title>
-<link rel="stylesheet" href="platform.css?v=2026-09-25b">
-<link rel="stylesheet" href="style.css?v=2026-09-25b">
+<link rel="stylesheet" href="platform.css?v=2026-09-26a">
+<link rel="stylesheet" href="style.css?v=2026-09-26a">
 </head>
 <body>
 <div class="app">
@@ -128,32 +128,32 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script src="firebase-config.js?v=2026-09-25b"></script>
-<script src="sound.js?v=2026-09-25b"></script>
-<script src="shared.js?v=2026-09-25b"></script>
-<script src="tetris-engine.js?v=2026-09-25b"></script>
-<script src="racing-engine.js?v=2026-09-25b"></script>
-<script src="snake-engine.js?v=2026-09-25b"></script>
-<script src="breakout-engine.js?v=2026-09-25b"></script>
-<script src="flappy-engine.js?v=2026-09-25b"></script>
-<script src="shooter-engine.js?v=2026-09-25b"></script>
+<script src="firebase-config.js?v=2026-09-26a"></script>
+<script src="sound.js?v=2026-09-26a"></script>
+<script src="shared.js?v=2026-09-26a"></script>
+<script src="tetris-engine.js?v=2026-09-26a"></script>
+<script src="racing-engine.js?v=2026-09-26a"></script>
+<script src="snake-engine.js?v=2026-09-26a"></script>
+<script src="breakout-engine.js?v=2026-09-26a"></script>
+<script src="flappy-engine.js?v=2026-09-26a"></script>
+<script src="shooter-engine.js?v=2026-09-26a"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="fps-engine.js?v=2026-09-25b"></script>
-<script src="fps3d-engine.js?v=2026-09-25b"></script>
-<script src="game2048-engine.js?v=2026-09-25b"></script>
-<script src="frogger-engine.js?v=2026-09-25b"></script>
-<script src="asteroids-engine.js?v=2026-09-25b"></script>
-<script src="maze-engine.js?v=2026-09-25b"></script>
-<script src="tower-engine.js?v=2026-09-25b"></script>
-<script src="missile-engine.js?v=2026-09-25b"></script>
-<script src="centipede-engine.js?v=2026-09-25b"></script>
-<script src="source-engine.js?v=2026-09-25b"></script>
-<script src="games.js?v=2026-09-25b"></script>
-<script src="app.js?v=2026-09-25b"></script>
+<script src="fps-engine.js?v=2026-09-26a"></script>
+<script src="fps3d-engine.js?v=2026-09-26a"></script>
+<script src="game2048-engine.js?v=2026-09-26a"></script>
+<script src="frogger-engine.js?v=2026-09-26a"></script>
+<script src="asteroids-engine.js?v=2026-09-26a"></script>
+<script src="maze-engine.js?v=2026-09-26a"></script>
+<script src="tower-engine.js?v=2026-09-26a"></script>
+<script src="missile-engine.js?v=2026-09-26a"></script>
+<script src="centipede-engine.js?v=2026-09-26a"></script>
+<script src="source-engine.js?v=2026-09-26a"></script>
+<script src="games.js?v=2026-09-26a"></script>
+<script src="app.js?v=2026-09-26a"></script>
 <script>
 (function () {
 
-  const BUILD = '2026-09-25b';   // 화면 아래에 표시됩니다
+  const BUILD = '2026-09-26a';   // 화면 아래에 표시됩니다
 
   const gameId = getGameId();
   const def = GAMES[gameId];
@@ -201,11 +201,11 @@
     if (can && !watchTimer) {
       watchTimer = setInterval(() => {
         const cv = byId('game-canvas'); if (!cv || !cv.width) return;
-        const w = 240, h = Math.round(cv.height * w / cv.width);
+        const w = 480, h = Math.round(cv.height * w / cv.width);   // 교사 화면에서 또렷하게
         if (!shotCv) shotCv = document.createElement('canvas');
         if (shotCv.width !== w || shotCv.height !== h) { shotCv.width = w; shotCv.height = h; }
         const g = shotCv.getContext('2d', { alpha: false });
-        try { g.drawImage(cv, 0, 0, w, h); screenRef.set(shotCv.toDataURL('image/jpeg', 0.55)); } catch (e) {}
+        try { g.drawImage(cv, 0, 0, w, h); screenRef.set(shotCv.toDataURL('image/jpeg', 0.7)); } catch (e) {}
       }, 150);
       screenRef.onDisconnect().remove();
     } else if (!can && watchTimer) { clearInterval(watchTimer); watchTimer = null; screenRef.remove(); }
@@ -527,7 +527,10 @@
       '<div class="fjoy" id="fjoy"><div class="fjoy-base"><div class="fjoy-knob"></div></div></div>' +
       '<button class="ffire" id="ffire" aria-label="발사"><span>●</span><small>발사</small></button>' +
       '<button class="freload" id="freload">↻ 재장전</button>' +
-      '<button class="fweapon" id="fweapon">🔫 무기</button>' +
+      '<div class="fwpns" id="fwpns">' +
+        '<button class="fwpn on" data-w="rifle">🔫 라이플</button>' +
+        '<button class="fwpn" data-w="sniper">🎯 스나이퍼</button>' +
+      '</div>' +
       '<button class="fzoom" id="fzoom">🔍</button>' +
       '<button class="fboard" id="fboard">📊</button>' +
       '<div class="fopts">' +
@@ -589,9 +592,22 @@
     fire.addEventListener('touchstart', fireOn, { passive: false }); fire.addEventListener('touchend', fireOff); fire.addEventListener('touchcancel', fireOff);
     fire.addEventListener('mousedown', fireOn); fire.addEventListener('mouseup', fireOff);
     tapBtn(byId('freload'), () => game && game.reload && game.reload());
-    tapBtn(byId('fweapon'), () => { if (game && game.switchWeapon) { game.switchWeapon(); paintWeapon(); } });
+    // 무기 칩: 누른 무기로 바로 바꿉니다 (이미 그 무기면 아무 일도 없음)
+    const paintWeapon = () => { if (!game) return;
+      document.querySelectorAll('#fwpns .fwpn').forEach(b => b.classList.toggle('on', b.dataset.w === game.weapon));
+      byId('fzoom').classList.toggle('hidden', game.weapon !== 'sniper');
+      byId('fzoom').classList.toggle('on', !!game.zoomed); };
+    document.querySelectorAll('#fwpns .fwpn').forEach(b => tapBtn(b, () => {
+      if (!game || !game.switchWeapon) return;
+      if (game.weapon !== b.dataset.w) game.switchWeapon();
+      paintWeapon();
+    }));
     tapBtn(byId('fzoom'), () => { if (game && game.toggleZoom) { game.toggleZoom(); paintWeapon(); } });
-    const paintWeapon = () => { if (!game) return; byId('fweapon').textContent = game.weapon === 'sniper' ? '🎯 스나이퍼' : '🔫 라이플'; byId('fzoom').classList.toggle('hidden', game.weapon !== 'sniper'); byId('fzoom').classList.toggle('on', !!game.zoomed); };
+    // 발사 버튼을 0.4초 이상 꾹 → 무기 전환 (한 손으로도 가능)
+    let holdT = null;
+    fire.addEventListener('touchstart', () => { holdT = setTimeout(() => { if (game && game.switchWeapon) { game.switchWeapon(); paintWeapon(); game.firing = false; fire.classList.remove('on'); } }, 400); }, { passive: true });
+    ['touchend', 'touchcancel'].forEach(ev => fire.addEventListener(ev, () => { clearTimeout(holdT); }));
+    setInterval(paintWeapon, 300);        // 줌 상태 등을 화면과 맞춤
     setTimeout(paintWeapon, 0);
     // 점수판: 누르고 있는 동안 표시 (PC 는 Tab)
     const fb = byId('fboard');
@@ -700,9 +716,12 @@
       pad.classList.add('pad-split');
       const L = document.createElement('div'); L.className = 'pad-edge'; L.appendChild(mk('left'));
       const C = document.createElement('div'); C.className = 'pad-mid';
+      // 가운데 세로 배치 순서: ▲ · 회전/발사 · ↓ · 바로 내리기 · 버리기
+      // (회전과 '바로 내리기' 를 ↓ 로 갈라놓고 간격도 띄워, 잘못 누르는 일을 줄입니다)
       if (dirs.indexOf('up') >= 0) C.appendChild(mk('up'));
-      acts.forEach(c => { if (c !== 'discard') C.appendChild(mk(c)); });
+      acts.forEach(c => { if (c !== 'discard' && c !== 'drop') C.appendChild(mk(c)); });
       if (dirs.indexOf('down') >= 0) C.appendChild(mk('down'));
+      if (acts.indexOf('drop') >= 0) C.appendChild(mk('drop'));
       if (acts.indexOf('discard') >= 0) C.appendChild(mk('discard'));
       const R = document.createElement('div'); R.className = 'pad-edge'; R.appendChild(mk('right'));
       pad.append(L, C, R);
