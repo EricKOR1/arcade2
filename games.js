@@ -254,22 +254,21 @@ const GAMES = {
     sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, wave: g.wave }; }
   },
 
-  river: {
+  source: {
     type: 'canvas',
-    name: '태화강 AI 안전망',
-    desc: '바이오센서 드론으로 강을 감시하세요. 오염물만 분석해 잡고, 연어·은어를 잡으면 오경보로 신뢰도가 떨어집니다',
-    howto: '← → 차선 이동 · 발사 = 분석 펄스 · 폐수·기름·벤젠·쓰레기만 잡기 · 연어·은어·나뭇잎은 오경보 · 악취가 나면 바람 반대쪽 공장을 분석 · BOD 11.3 이면 끝',
-    meta: '개인전 · 환경 × AI · 울산 특강 연계',
+    name: '오염원 추적',
+    desc: '센서 몇 개의 값과 물·바람의 흐름으로 오염이 어디서 시작됐는지 알아맞히세요. 수질 사건과 악취 사건이 번갈아 나옵니다',
+    howto: '화면을 톡 → 센서 설치(값 0~100) · 핀을 두 번 톡 → 지목 · 수질: 하류로 퍼지고 상류는 0 · 악취: 바람 방향으로 퍼짐 → 거슬러 올라가기 · 센서를 적게 쓰고 빨리 맞힐수록 고득점 · 틀리면 ♥ 하나',
+    meta: '개인전 · 환경 × AI 추리 · 울산 특강 연계',
     primary: '75% 0.14 200', primaryContent: '100% 0 0', hex: '#4CC9F0',
-    grid: { cols: 12, rows: 20 },
+    grid: { cols: 14, rows: 18 },
     adminView: 'grid',
     needsPeers: false, hasNext: false,
-    stats: [{ key: 'bodText', label: 'BOD' }, { key: 'trust', label: '신뢰도' }],
-    detail: function (g) { return '파도 ' + g.wave + ' · 오염물 ' + g.caught + '개 · 오경보 ' + g.falseAlarms + ' · 독감 ' + g.fluFound + ' · DNA ' + g.dnaFound; },
-    controls: ['left', 'fire', 'right'],
-    labels: { fire: '분석' },
-    create: function (canvas, opts) { return new RiverGame(canvas, opts.cellSize); },
-    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, wave: g.wave }; }
+    stats: [{ key: 'solved', label: '해결' }, { key: 'lives', label: '♥' }],
+    detail: function (g) { return g.round + '라운드 · ' + g.solved + '건 해결 · 오답 ' + g.wrong; },
+    controls: [], padLayout: 'tap',
+    create: function (canvas, opts) { return new SourceHuntGame(canvas, opts.cellSize); },
+    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, solved: g.solved }; }
   },
 
   shooter: {
