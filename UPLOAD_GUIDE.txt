@@ -1,18 +1,17 @@
-아케이드 플랫폼 — v2026-09-22d
+아케이드 플랫폼 — v2026-09-24a
 ==============================
 
-★ Firebase 규칙을 이미 적용하셨다면 firebase-rules.json 을 다시 붙여 넣으세요
-  (교사가 학생 실제 화면을 보는 'screens' 노드가 빠져 있었습니다)
+새로 올릴 파일 1개
+  source-engine.js     오염원 추적 (태화강 AI 안전망을 대체)
 
-새로 올릴 파일 1개 (22a 이후 처음이면)
-  river-engine.js      태화강 AI 안전망
+교체할 파일 4개
+  games.js  shared.js  index.html  admin.html   (+ README.md)
 
-교체할 파일
-  racing-engine.js  fps3d-engine.js  river-engine.js  shared.js  games.js  sound.js
-  index.html  admin.html  style.css  firebase-rules.json  README.md
+지워도 되는 파일
+  river-engine.js      (더 이상 쓰지 않음)
 
 건드리지 않는 파일
   firebase-config.js  ← 본인 값 그대로 (EXAMPLE 은 올리지 마세요)
   photo.html / force.html / body.html
 
-올린 뒤 화면 아래 v2026-09-22d 를 꼭 확인하세요. 안 보이면 Ctrl+Shift+R. 학생 기기도 새로고침.
+올린 뒤 화면 아래 v2026-09-24a 를 꼭 확인하세요. 안 보이면 Ctrl+Shift+R. 학생 기기도 새로고침.
