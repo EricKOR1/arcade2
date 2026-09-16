@@ -583,7 +583,7 @@ body.fullgrid .spectate { grid-template-columns: 1fr 320px }
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; box-shadow: 0 10px 30px rgba(0,0,0,.45); touch-action: none }
 .ffire small { font-size: 11px; font-weight: 700; opacity: .85 } .ffire span { line-height: 1 }
 .ffire.on, .ffire:active { transform: scale(.94); filter: brightness(1.15) }
-.freload { position: absolute; right: 30px; bottom: 146px; padding: 8px 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,.35);
+.freload { position: absolute; right: 30px; bottom: 228px; padding: 8px 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,.35);
   background: rgba(8,10,16,.55); color: #fff; font: 700 12px Pretendard, sans-serif }
 .fopts { position: absolute; right: 12px; top: 96px; display: flex; flex-direction: column; gap: 6px }
 .fopt { padding: 6px 10px; border-radius: 10px; border: 1px solid rgba(255,255,255,.25); background: rgba(8,10,16,.5); color: rgba(255,255,255,.75); font: 700 11px Pretendard, sans-serif }
@@ -595,7 +595,7 @@ body.fullgrid .spectate { grid-template-columns: 1fr 320px }
 @media (orientation: landscape) and (max-height: 540px) {
   .fjoy { width: 104px; height: 104px; left: 14px; bottom: 14px } .fjoy-knob { width: 42px; height: 42px; margin: -21px 0 0 -21px }
   .ffire { width: 74px; height: 74px; right: 14px; bottom: 14px; font-size: 22px } .ffire small { font-size: 10px }
-  .freload { bottom: 98px; right: 16px; padding: 6px 10px; font-size: 11px }
+  .freload { bottom: 170px; right: 16px; padding: 5px 9px; font-size: 10.5px }
   .fboard { top: 8px; right: 12px; width: 36px; height: 30px }
   .fopts { top: 44px; right: 12px; gap: 4px } .fopt { padding: 5px 8px; font-size: 10px }
   .fhint { bottom: 8px; left: 50%; font-size: 11px }
@@ -690,24 +690,24 @@ body.fullgrid .spectate { grid-template-columns: 1fr 320px }
 
 /* FPS 무기 전환 · 줌 버튼 (재장전 위에 세로로) */
 /* 무기 칩 2개 — 눌러서 바로 선택 (키보드 없이) */
-.fwpns { position: absolute; right: 26px; bottom: 186px; display: flex; flex-direction: column; gap: 6px; align-items: flex-end }
+.fwpns { position: absolute; right: 26px; bottom: 274px; display: flex; flex-direction: column; gap: 6px; align-items: flex-end }
 .fwpn { padding: 8px 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,.3); background: rgba(8,10,16,.55); color: rgba(255,255,255,.75); font: 700 12px Pretendard, sans-serif; white-space: nowrap }
 .fwpn.on { background: rgba(255,209,102,.92); color: #1a1500; border-color: transparent }
-.fzoom { position: absolute; right: 136px; bottom: 34px; width: 64px; height: 64px; border-radius: 50%; border: 2px solid rgba(255,255,255,.45); background: rgba(8,10,16,.6); color: #fff; font-size: 24px; touch-action: none }
+.fzoom { position: absolute; right: 138px; bottom: 40px; width: 64px; height: 64px; border-radius: 50%; border: 2px solid rgba(255,255,255,.45); background: rgba(8,10,16,.6); color: #fff; font-size: 24px; touch-action: none }
 .fzoom.on { background: rgba(255,209,102,.9); color: #1a1500; border-color: transparent }
 .fzoom.hidden { display: none }
 @media (orientation: landscape) and (max-height: 540px) {
-  .fwpns { bottom: 132px; right: 14px; gap: 4px } .fwpn { padding: 6px 9px; font-size: 10.5px }
-  .fzoom { right: 104px; bottom: 18px; width: 52px; height: 52px; font-size: 20px }
+  .fwpns { bottom: 206px; right: 14px; gap: 4px } .fwpn { padding: 5px 8px; font-size: 10px }
+  .fzoom { right: 102px; bottom: 16px; width: 50px; height: 50px; font-size: 19px }
 }
 
 /* FPS 점프 · 구르기 (오른쪽, 발사 버튼 왼쪽 위) */
-.fjump { position: absolute; right: 128px; bottom: 120px; width: 62px; height: 62px; border-radius: 50%;
+.fjump { position: absolute; right: 122px; bottom: 146px; width: 64px; height: 64px; border-radius: 50%;
   border: 2px solid rgba(255,255,255,.4); background: rgba(8,10,16,.58); color: #fff; font: 700 13px Pretendard, sans-serif; touch-action: none }
-.froll { position: absolute; right: 30px; bottom: 120px; width: 62px; height: 62px; border-radius: 50%;
+.froll { position: absolute; right: 30px; bottom: 146px; width: 64px; height: 64px; border-radius: 50%;
   border: 2px solid rgba(76,201,240,.5); background: rgba(8,10,16,.58); color: #fff; font: 700 13px Pretendard, sans-serif; touch-action: none }
 .fjump:active, .froll:active { transform: scale(.93); filter: brightness(1.2) }
 @media (orientation: landscape) and (max-height: 540px) {
-  .fjump { right: 100px; bottom: 96px; width: 50px; height: 50px; font-size: 11px }
-  .froll { right: 24px; bottom: 96px; width: 50px; height: 50px; font-size: 11px }
+  .fjump { right: 96px; bottom: 108px; width: 52px; height: 52px; font-size: 11px }
+  .froll { right: 24px; bottom: 108px; width: 52px; height: 52px; font-size: 11px }
 }

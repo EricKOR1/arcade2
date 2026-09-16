@@ -75,7 +75,7 @@ class Fps3DGame {
   static teamOf(id) { let h = 0; for (const c of String(id)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return (h & 1) ? 'red' : 'blue'; }
   static parse(raw) {
     const a = String(raw).split(',');
-    return { x: +a[0], y: +a[1], angle: +a[2], hp: +a[3], kills: +a[4], deaths: +a[5], team: a[6] || null, fire: a[7] === '1', dead: a[8] === '1', moving: a[9] === '1', pitch: +a[10] || 0, z: +a[11] || 0, roll: a[12] === '1' };
+    return { x: +a[0], y: +a[1], angle: +a[2], hp: +a[3], kills: +a[4], deaths: +a[5], team: a[6] || null, fire: a[7] === '1', dead: a[8] === '1', moving: a[9] === '1', pitch: +a[10] || 0, z: +a[11] || 0, rollT: (a[12] === undefined ? -1 : +a[12]), roll: (a[12] !== undefined && +a[12] >= 0) };
   }
   get isDead() { return this.now < this.deadUntil; }
   get reloading() { return this.now < this.reloadUntil || this.now < (this.readyUntil || 0); }   // 재장전 중이거나 무기 전환 준비 중
@@ -302,15 +302,24 @@ class Fps3DGame {
     const l2 = Math.hypot(sx, sy) || 1;
     this.rollDir = [(Math.cos(this.yaw) * sy - Math.sin(this.yaw) * sx) / l2,
                     (Math.sin(this.yaw) * sy + Math.cos(this.yaw) * sx) / l2];
-    this.rollUntil = now + 450; this.rollCdUntil = now + 3000; this.zoomed = false;
+    this.rollSide = sx >= 0 ? 1 : -1;
+    this.rollUntil = now + 700; this.rollStart = now; this.rollCdUntil = now + 3000; this.zoomed = false;
     this.showToast('회피!', '#4CC9F0'); if (window.Sound) Sound.softDrop(); if (window.Haptic) Haptic.good();
   }
   get rolling() { return this.now < this.rollUntil; }
-  get eyeZ() { return F3_EYE + this.z - (this.rolling ? 0.75 : 0); }   // 구르는 동안 시점이 낮아짐
+  // 구르기 진행률 0~1
+  get rollT() { return this.rolling ? Math.max(0, Math.min(1, (this.now - this.rollStart) / 700)) : -1; }
+  get eyeZ() {
+    // 구르는 동안 시점이 아래로 내려갔다 돌아옵니다 (몸을 낮췄다 일어나는 느낌)
+    if (!this.rolling) return F3_EYE + this.z;
+    const k = this.rollT;
+    return F3_EYE + this.z - Math.sin(Math.min(1, k * 1.15) * Math.PI) * 0.95;
+  }
 
   shoot() {
     const now = this.clock();
     if (this.isDead || this.spectator || this.reloading) return;
+    if (this.rolling) return;                              // 구르는 중엔 쏠 수 없습니다
     if (this.ammo <= 0) { this.reload(); return; }
     if (now - this.lastFire < this.wpn.rate) return;
     this.lastFire = now; this.muzzle = 1; this.ammo--;
@@ -420,7 +429,7 @@ class Fps3DGame {
   serialize() {
     return [this.x.toFixed(2), this.y.toFixed(2), this.yaw.toFixed(2), this.hp, this.kills, this.deaths, this.team || '',
             this.muzzle > 0.5 ? 1 : 0, this.isDead ? 1 : 0, this.moving ? 1 : 0, this.pitch.toFixed(2),
-            this.z.toFixed(2), this.rolling ? 1 : 0].join(',');
+            this.z.toFixed(2), this.rollT.toFixed(2)].join(',');
   }
   applyPeerRaw(id, raw, name) {
     const d = Fps3DGame.parse(raw);
@@ -428,13 +437,16 @@ class Fps3DGame {
     const p = this.peers[id];
     const now = this.clock();
     // 같은 값이 다시 오면(변화 없음) 무시 — 속도 추정이 0 으로 흐트러지지 않게
-    if (p.tx != null && Math.abs(p.tx - d.x) < 1e-4 && Math.abs(p.ty - d.y) < 1e-4 && Math.abs((p.tangle || 0) - d.angle) < 1e-4 && p.hp === d.hp && p.dead === d.dead) { p.fire = d.fire; return; }
+    if (p.tx != null && Math.abs(p.tx - d.x) < 1e-4 && Math.abs(p.ty - d.y) < 1e-4 && Math.abs((p.tangle || 0) - d.angle) < 1e-4 && p.hp === d.hp && p.dead === d.dead && !!p.roll === !!d.roll) { p.fire = d.fire; return; }
     // 마지막 두 신호로 속도 추정 (다음 신호까지 예측 이동에 씀)
     if (p.at && p.tx != null) { const dt = Math.min(600, Math.max(50, now - p.at)) / 1000;
       const nvx = (d.x - p.tx) / dt, nvy = (d.y - p.ty) / dt;
       if (Math.hypot(nvx, nvy) < 12) { p.vx = nvx; p.vy = nvy; } else { p.vx = 0; p.vy = 0; } }   // 순간이동(리스폰)은 예측 안 함
     p.at = now;
-    Object.assign(p, { tx: d.x, ty: d.y, tangle: d.angle, hp: d.hp, kills: d.kills, deaths: d.deaths, team: d.team, fire: d.fire, dead: d.dead, moving: d.moving, pitch: d.pitch, z: d.z, roll: d.roll });
+    Object.assign(p, { tx: d.x, ty: d.y, tangle: d.angle, hp: d.hp, kills: d.kills, deaths: d.deaths, team: d.team, fire: d.fire, dead: d.dead, moving: d.moving, pitch: d.pitch, z: d.z, roll: d.roll, rollT: d.rollT });
+    // 구르기는 신호가 드물어도 끊기지 않도록, 받은 시점을 기록해 두고 화면에서 이어서 재생합니다
+    if (d.roll && !p.rollPlaying) { p.rollPlaying = true; p.rollAt = now - d.rollT * 700; }
+    if (p.rollPlaying && now - (p.rollAt || 0) >= 700) p.rollPlaying = false;
     if (name) p.name = name;
   }
   removePeer(id) { delete this.peers[id]; if (this.models[id] && this.scene) { this.scene.remove(this.models[id]); delete this.models[id]; } }
@@ -469,7 +481,7 @@ class Fps3DGame {
 
     if (this.spectator) {
       const p = this.peers[this.followId];
-      if (p) { this.x = p.x; this.y = p.y; this.z = p.z || 0; this.rollUntil = p.roll ? now + 50 : 0; this.yaw = p.angle; this.pitch = p.pitch || 0; this.hp = p.hp; this.kills = p.kills; this.deaths = p.deaths; this.team = p.team; this.myName = p.name || ''; this.deadUntil = p.dead ? now + 100 : 0; this.moving = p.moving; if (p.fire) this.muzzle = 1; }
+      if (p) { this.x = p.x; this.y = p.y; this.z = p.z || 0; if (p.roll) { this.rollStart = now - p.rollT * 700; this.rollUntil = this.rollStart + 700; } else this.rollUntil = 0; this.yaw = p.angle; this.pitch = p.pitch || 0; this.hp = p.hp; this.kills = p.kills; this.deaths = p.deaths; this.team = p.team; this.myName = p.name || ''; this.deadUntil = p.dead ? now + 100 : 0; this.moving = p.moving; if (p.fire) this.muzzle = 1; }
       this.draw(); return;
     }
     if (this.isDead) {
@@ -487,9 +499,13 @@ class Fps3DGame {
     this.moving = len > 0.15 ? 1 : 0;
     // 구르기: 방향·속도가 고정되고 조작을 받지 않습니다
     if (this.rolling) {
-      const sp = 0.22 * f;
+      // 처음에 밀고 나가다 서서히 멈춥니다 (등속이면 순간이동처럼 보입니다). 총 약 4칸
+      const k0 = this.rollT;
+      // 처음 0.12 구간은 부드럽게 붙고(순간이동처럼 튀지 않게) 이후 서서히 멈춥니다
+      const ramp = Math.min(1, k0 / 0.12);
+      const sp = 0.30 * ramp * Math.pow(1 - k0, 2.6) * f;   // 끝에서 확실히 멈춥니다
       const steps = Math.max(1, Math.ceil(sp / 0.12));
-      for (let k = 0; k < steps; k++) { this.x += this.rollDir[0] * sp / steps; this.y += this.rollDir[1] * sp / steps; this.pushOut(); }
+      for (let q = 0; q < steps; q++) { this.x += this.rollDir[0] * sp / steps; this.y += this.rollDir[1] * sp / steps; this.pushOut(); }
       this.moving = 1;
     } else if (this.moving) {
       const sp = 0.095 * f * Math.min(1, len) * (this.zoomed ? 0.4 : 1) * (this.onGround ? 1 : 0.8);   // 줌 중엔 천천히, 공중에선 조금 느리게
@@ -562,13 +578,23 @@ class Fps3DGame {
       if (!m || m.userData.team !== p.team) { if (m) this.scene.remove(m); m = this.buildSoldier(p.team, p.name); m.userData.team = p.team; this.models[id] = m; this.scene.add(m); }
       const far = Math.hypot(p.x - this.x, p.y - this.y) > 45;
       m.visible = !far; if (far) return;
-      m.position.set(p.x, p.z || 0, p.y); m.rotation.y = -p.angle - Math.PI / 2;
-      m.scale.y = p.roll ? 0.55 : 1;      // 구르는 중엔 낮게
+      m.rotation.order = 'YXZ';                 // 방향(y) 을 먼저 적용해야 앞으로 구르는 회전이 자연스럽습니다
+      m.rotation.y = -p.angle - Math.PI / 2;
+      if (p.rollPlaying && now - (p.rollAt || 0) >= 700) { p.rollPlaying = false; p.roll = false; p.rollT = -1; }   // 재생이 끝나면 정리
+      const playing = p.rollPlaying;
+      if (playing || p.roll) {
+        // 재생 중이면 시계 기준으로만 진행 — 늦게 도착한 신호 때문에 동작이 뒤로 가지 않습니다
+        const k = Math.max(0, Math.min(1, playing ? (now - p.rollAt) / 640 : Math.max(0, p.rollT)));   // 640ms 에 한 바퀴를 마치고 마지막은 착지 자세
+        m.rotation.x = k * Math.PI * 2;                                     // 앞으로 한 바퀴
+        m.position.set(p.x, (p.z || 0) + Math.sin(k * Math.PI) * 0.55, p.y); // 몸이 뜨면서 구름
+        m.scale.y = 1;
+      } else { m.rotation.x = 0; m.position.set(p.x, p.z || 0, p.y); m.scale.y = 1; }
       const u = m.userData;
       const sw = p.moving ? Math.sin(p.walk) * 0.5 : 0;
       u.legL.rotation.x = sw; u.legR.rotation.x = -sw; u.armR.rotation.x = -(p.pitch || 0);
       // 다운: 쓰러짐
-      const fall = p.dead ? 1 : 0; m.rotation.x += (fall * -Math.PI / 2 - m.rotation.x) * 0.2;
+      // 다운: 쓰러짐 (구르는 중에는 건드리지 않습니다 — 회전이 깎이면 한 바퀴가 안 돕니다)
+      if (!(playing || p.roll)) { const fall = p.dead ? 1 : 0; m.rotation.x += (fall * -Math.PI / 2 - m.rotation.x) * 0.2; }
       // 이름표 체력 갱신 (바뀔 때만)
       if (this.teamMode && p.team === this.team && (Math.round((u.tag.userData.hp || 0) / 10) !== Math.round((p.hp || 0) / 10) || u.tag.userData.name !== p.name)) { const nt = this.makeTag(p.name || '', p.team, p.hp); nt.position.copy(u.tag.position); m.remove(u.tag); if (u.tag.material.map) u.tag.material.map.dispose(); u.tag = nt; m.add(nt); }
       u.tag.visible = !p.dead && this.teamMode && p.team === this.team;      // 이름표·체력은 같은 팀만 (적은 보이지 않음)
