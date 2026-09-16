@@ -10,8 +10,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1B2027">
 <title>아케이드</title>
-<link rel="stylesheet" href="platform.css?v=2026-09-27a">
-<link rel="stylesheet" href="style.css?v=2026-09-27a">
+<link rel="stylesheet" href="platform.css?v=2026-09-27b">
+<link rel="stylesheet" href="style.css?v=2026-09-27b">
 </head>
 <body>
 <div class="app">
@@ -128,32 +128,32 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script src="firebase-config.js?v=2026-09-27a"></script>
-<script src="sound.js?v=2026-09-27a"></script>
-<script src="shared.js?v=2026-09-27a"></script>
-<script src="tetris-engine.js?v=2026-09-27a"></script>
-<script src="racing-engine.js?v=2026-09-27a"></script>
-<script src="snake-engine.js?v=2026-09-27a"></script>
-<script src="breakout-engine.js?v=2026-09-27a"></script>
-<script src="flappy-engine.js?v=2026-09-27a"></script>
-<script src="shooter-engine.js?v=2026-09-27a"></script>
+<script src="firebase-config.js?v=2026-09-27b"></script>
+<script src="sound.js?v=2026-09-27b"></script>
+<script src="shared.js?v=2026-09-27b"></script>
+<script src="tetris-engine.js?v=2026-09-27b"></script>
+<script src="racing-engine.js?v=2026-09-27b"></script>
+<script src="snake-engine.js?v=2026-09-27b"></script>
+<script src="breakout-engine.js?v=2026-09-27b"></script>
+<script src="flappy-engine.js?v=2026-09-27b"></script>
+<script src="shooter-engine.js?v=2026-09-27b"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="fps-engine.js?v=2026-09-27a"></script>
-<script src="fps3d-engine.js?v=2026-09-27a"></script>
-<script src="game2048-engine.js?v=2026-09-27a"></script>
-<script src="frogger-engine.js?v=2026-09-27a"></script>
-<script src="asteroids-engine.js?v=2026-09-27a"></script>
-<script src="maze-engine.js?v=2026-09-27a"></script>
-<script src="tower-engine.js?v=2026-09-27a"></script>
-<script src="missile-engine.js?v=2026-09-27a"></script>
-<script src="centipede-engine.js?v=2026-09-27a"></script>
-<script src="source-engine.js?v=2026-09-27a"></script>
-<script src="games.js?v=2026-09-27a"></script>
-<script src="app.js?v=2026-09-27a"></script>
+<script src="fps-engine.js?v=2026-09-27b"></script>
+<script src="fps3d-engine.js?v=2026-09-27b"></script>
+<script src="game2048-engine.js?v=2026-09-27b"></script>
+<script src="frogger-engine.js?v=2026-09-27b"></script>
+<script src="asteroids-engine.js?v=2026-09-27b"></script>
+<script src="maze-engine.js?v=2026-09-27b"></script>
+<script src="tower-engine.js?v=2026-09-27b"></script>
+<script src="missile-engine.js?v=2026-09-27b"></script>
+<script src="centipede-engine.js?v=2026-09-27b"></script>
+<script src="source-engine.js?v=2026-09-27b"></script>
+<script src="games.js?v=2026-09-27b"></script>
+<script src="app.js?v=2026-09-27b"></script>
 <script>
 (function () {
 
-  const BUILD = '2026-09-27a';   // 화면 아래에 표시됩니다
+  const BUILD = '2026-09-27b';   // 화면 아래에 표시됩니다
 
   const gameId = getGameId();
   const def = GAMES[gameId];
@@ -612,10 +612,8 @@
       paintWeapon();
     }));
     tapBtn(byId('fzoom'), () => { if (game && game.toggleZoom) { game.toggleZoom(); paintWeapon(); } });
-    // 발사 버튼을 0.4초 이상 꾹 → 무기 전환 (한 손으로도 가능)
-    let holdT = null;
-    fire.addEventListener('touchstart', () => { holdT = setTimeout(() => { if (game && game.switchWeapon) { game.switchWeapon(); paintWeapon(); game.firing = false; fire.classList.remove('on'); } }, 400); }, { passive: true });
-    ['touchend', 'touchcancel'].forEach(ev => fire.addEventListener(ev, () => { clearTimeout(holdT); }));
+    // 무기는 위의 무기 칩(또는 PC 의 Q)으로만 바뀝니다.
+    // 발사 버튼 길게 누르기로 바꾸던 기능은 연사와 겹쳐(꾹 누르면 0.4초 뒤 총이 바뀜) 제거했습니다.
     setInterval(paintWeapon, 300);        // 줌 상태 등을 화면과 맞춤
     setTimeout(paintWeapon, 0);
     // 점수판: 누르고 있는 동안 표시 (PC 는 Tab)
