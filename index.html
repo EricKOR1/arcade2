@@ -10,8 +10,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1B2027">
 <title>아케이드</title>
-<link rel="stylesheet" href="platform.css?v=2026-09-26a">
-<link rel="stylesheet" href="style.css?v=2026-09-26a">
+<link rel="stylesheet" href="platform.css?v=2026-09-26b">
+<link rel="stylesheet" href="style.css?v=2026-09-26b">
 </head>
 <body>
 <div class="app">
@@ -128,32 +128,32 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script src="firebase-config.js?v=2026-09-26a"></script>
-<script src="sound.js?v=2026-09-26a"></script>
-<script src="shared.js?v=2026-09-26a"></script>
-<script src="tetris-engine.js?v=2026-09-26a"></script>
-<script src="racing-engine.js?v=2026-09-26a"></script>
-<script src="snake-engine.js?v=2026-09-26a"></script>
-<script src="breakout-engine.js?v=2026-09-26a"></script>
-<script src="flappy-engine.js?v=2026-09-26a"></script>
-<script src="shooter-engine.js?v=2026-09-26a"></script>
+<script src="firebase-config.js?v=2026-09-26b"></script>
+<script src="sound.js?v=2026-09-26b"></script>
+<script src="shared.js?v=2026-09-26b"></script>
+<script src="tetris-engine.js?v=2026-09-26b"></script>
+<script src="racing-engine.js?v=2026-09-26b"></script>
+<script src="snake-engine.js?v=2026-09-26b"></script>
+<script src="breakout-engine.js?v=2026-09-26b"></script>
+<script src="flappy-engine.js?v=2026-09-26b"></script>
+<script src="shooter-engine.js?v=2026-09-26b"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="fps-engine.js?v=2026-09-26a"></script>
-<script src="fps3d-engine.js?v=2026-09-26a"></script>
-<script src="game2048-engine.js?v=2026-09-26a"></script>
-<script src="frogger-engine.js?v=2026-09-26a"></script>
-<script src="asteroids-engine.js?v=2026-09-26a"></script>
-<script src="maze-engine.js?v=2026-09-26a"></script>
-<script src="tower-engine.js?v=2026-09-26a"></script>
-<script src="missile-engine.js?v=2026-09-26a"></script>
-<script src="centipede-engine.js?v=2026-09-26a"></script>
-<script src="source-engine.js?v=2026-09-26a"></script>
-<script src="games.js?v=2026-09-26a"></script>
-<script src="app.js?v=2026-09-26a"></script>
+<script src="fps-engine.js?v=2026-09-26b"></script>
+<script src="fps3d-engine.js?v=2026-09-26b"></script>
+<script src="game2048-engine.js?v=2026-09-26b"></script>
+<script src="frogger-engine.js?v=2026-09-26b"></script>
+<script src="asteroids-engine.js?v=2026-09-26b"></script>
+<script src="maze-engine.js?v=2026-09-26b"></script>
+<script src="tower-engine.js?v=2026-09-26b"></script>
+<script src="missile-engine.js?v=2026-09-26b"></script>
+<script src="centipede-engine.js?v=2026-09-26b"></script>
+<script src="source-engine.js?v=2026-09-26b"></script>
+<script src="games.js?v=2026-09-26b"></script>
+<script src="app.js?v=2026-09-26b"></script>
 <script>
 (function () {
 
-  const BUILD = '2026-09-26a';   // 화면 아래에 표시됩니다
+  const BUILD = '2026-09-26b';   // 화면 아래에 표시됩니다
 
   const gameId = getGameId();
   const def = GAMES[gameId];
@@ -527,6 +527,8 @@
       '<div class="fjoy" id="fjoy"><div class="fjoy-base"><div class="fjoy-knob"></div></div></div>' +
       '<button class="ffire" id="ffire" aria-label="발사"><span>●</span><small>발사</small></button>' +
       '<button class="freload" id="freload">↻ 재장전</button>' +
+      '<button class="fjump" id="fjump">⤒ 점프</button>' +
+      '<button class="froll" id="froll">⤻ 구르기</button>' +
       '<div class="fwpns" id="fwpns">' +
         '<button class="fwpn on" data-w="rifle">🔫 라이플</button>' +
         '<button class="fwpn" data-w="sniper">🎯 스나이퍼</button>' +
@@ -537,7 +539,7 @@
         '<button class="fopt" id="fopt-gyro">자이로</button>' +
         '<button class="fopt" id="fopt-sens">감도 ×1</button>' +
       '</div>' +
-      '<div class="fhint" id="fhint">왼쪽 아래 조이스틱: 이동 · 화면 끌기: 조준 · ●: 발사</div>';
+      '<div class="fhint" id="fhint">조이스틱: 이동(두 번 톡 = 구르기) · 화면 끌기: 조준 · ●: 발사</div>';
     wrap.appendChild(ctl);
     const joy = byId('fjoy'), base = joy.querySelector('.fjoy-base'), knob = joy.querySelector('.fjoy-knob');
     setTimeout(() => { const h = byId('fhint'); if (h) h.classList.add('fade'); }, 3500);
@@ -555,6 +557,9 @@
         const bcx = br.left + br.width / 2, bcy = br.top + br.height / 2, baseR = br.width / 2;
         const near = Math.hypot(t.clientX - bcx, t.clientY - bcy) < baseR * 1.7;   // 조이스틱 근처(반지름 1.7배 안)
         if (near && joyId === null) {
+          const tnow = Date.now();
+          if (tnow - lastJoyTap < 300 && game && game.roll) game.roll();     // 두 번 톡 = 구르기
+          lastJoyTap = tnow;
           joyId = t.identifier; jcx = bcx; jcy = bcy; R = baseR * 0.62;
           joy.classList.add('on'); setJoy(t.clientX - bcx, t.clientY - bcy);
         } else if (lookId === null) { lookId = t.identifier; lx = t.clientX; ly = t.clientY; }
@@ -592,6 +597,10 @@
     fire.addEventListener('touchstart', fireOn, { passive: false }); fire.addEventListener('touchend', fireOff); fire.addEventListener('touchcancel', fireOff);
     fire.addEventListener('mousedown', fireOn); fire.addEventListener('mouseup', fireOff);
     tapBtn(byId('freload'), () => game && game.reload && game.reload());
+    tapBtn(byId('fjump'), () => game && game.jump && game.jump());
+    tapBtn(byId('froll'), () => game && game.roll && game.roll());
+    // 왼쪽 조이스틱을 두 번 톡 → 그 방향으로 구르기 (한 손 조작)
+    let lastJoyTap = 0;
     // 무기 칩: 누른 무기로 바로 바꿉니다 (이미 그 무기면 아무 일도 없음)
     const paintWeapon = () => { if (!game) return;
       document.querySelectorAll('#fwpns .fwpn').forEach(b => b.classList.toggle('on', b.dataset.w === game.weapon));
@@ -1146,6 +1155,8 @@
     if (game.setMove && (k === 'w' || k === 'a' || k === 's' || k === 'd')) { wasd[k] = true; pushWasd(); return; }
     if (k === 'r' && game.reload) { game.reload(); return; }
     if (k === 'q' && game.switchWeapon) { game.switchWeapon(); return; }
+    if (game.jump && (e.code === 'Space' || k === ' ') && game.setMove) { e.preventDefault(); game.jump(); return; }
+    if (k === 'shift' && game.roll) { game.roll(); return; }
     if (k === 'z' && game.toggleZoom) { game.toggleZoom(); return; }
     if (e.key === 'Tab' && game.drawScoreboard) { e.preventDefault(); game.showBoard = true; return; }
     if (e.key === 'ArrowLeft') game.move(-1);

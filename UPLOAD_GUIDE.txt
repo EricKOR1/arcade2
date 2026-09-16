@@ -1,16 +1,18 @@
-아케이드 플랫폼 — v2026-09-26a
+아케이드 플랫폼 — v2026-09-26b
 ==============================
 
-교체할 파일 5개
-  index.html          테트리스 키 배치 · FPS 무기 칩(터치) · 전송 해상도 480px
-  style.css           키 간격 · 무기 칩
-  breakout-engine.js  속도 +30% · 아이템 확률 +50% · 아이템 4종 추가
-  racing-engine.js    시야 확대 · 장애물 감소
-  admin.html          관전 해상도 2배 · 버전
+교체할 파일 4개
+  fps3d-engine.js   점프 · 구르기(회피) · 높이 판정 · 쿨다운 링
+  index.html        점프·구르기 버튼 · 조이스틱 두 번 톡
+  style.css         버튼 배치(세로·가로)
+  admin.html        버전
   (+ README.md)
+
+★ 학생 기기도 반드시 새로고침해야 서로 높이가 맞습니다
+  (위치 신호에 높이 정보가 추가되었습니다)
 
 건드리지 않는 파일
   firebase-config.js  ← 본인 값 그대로 (EXAMPLE 은 올리지 마세요)
   photo.html / force.html / body.html
 
-올린 뒤 화면 아래 v2026-09-26a 를 꼭 확인하세요. 안 보이면 Ctrl+Shift+R. 학생 기기도 새로고침.
+올린 뒤 화면 아래 v2026-09-26b 를 꼭 확인하세요. 안 보이면 Ctrl+Shift+R.

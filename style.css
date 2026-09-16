@@ -700,3 +700,14 @@ body.fullgrid .spectate { grid-template-columns: 1fr 320px }
   .fwpns { bottom: 132px; right: 14px; gap: 4px } .fwpn { padding: 6px 9px; font-size: 10.5px }
   .fzoom { right: 104px; bottom: 18px; width: 52px; height: 52px; font-size: 20px }
 }
+
+/* FPS 점프 · 구르기 (오른쪽, 발사 버튼 왼쪽 위) */
+.fjump { position: absolute; right: 128px; bottom: 120px; width: 62px; height: 62px; border-radius: 50%;
+  border: 2px solid rgba(255,255,255,.4); background: rgba(8,10,16,.58); color: #fff; font: 700 13px Pretendard, sans-serif; touch-action: none }
+.froll { position: absolute; right: 30px; bottom: 120px; width: 62px; height: 62px; border-radius: 50%;
+  border: 2px solid rgba(76,201,240,.5); background: rgba(8,10,16,.58); color: #fff; font: 700 13px Pretendard, sans-serif; touch-action: none }
+.fjump:active, .froll:active { transform: scale(.93); filter: brightness(1.2) }
+@media (orientation: landscape) and (max-height: 540px) {
+  .fjump { right: 100px; bottom: 96px; width: 50px; height: 50px; font-size: 11px }
+  .froll { right: 24px; bottom: 96px; width: 50px; height: 50px; font-size: 11px }
+}

@@ -59,6 +59,8 @@ class Fps3DGame {
     this.peers = {}; this.models = {};
     this.hp = 100; this.kills = 0; this.deaths = 0; this.score = 0; this.streak = 0;
     this.weapon = 'rifle'; this.zoomed = false; this.zoomK = 0;
+    this.z = 0; this.vz = 0; this.onGround = true;           // 점프 높이
+    this.rollUntil = 0; this.rollCdUntil = 0; this.rollDir = [0, 0];   // 구르기(회피)
     this.ammo = F3_MAG; this.reloadUntil = 0;
     this.mx = 0; this.my = 0; this.firing = false; this.turn = 0; this.upHeld = false; this.fwd = 0;
     this.yaw = 0; this.pitch = 0;
@@ -73,7 +75,7 @@ class Fps3DGame {
   static teamOf(id) { let h = 0; for (const c of String(id)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return (h & 1) ? 'red' : 'blue'; }
   static parse(raw) {
     const a = String(raw).split(',');
-    return { x: +a[0], y: +a[1], angle: +a[2], hp: +a[3], kills: +a[4], deaths: +a[5], team: a[6] || null, fire: a[7] === '1', dead: a[8] === '1', moving: a[9] === '1', pitch: +a[10] || 0 };
+    return { x: +a[0], y: +a[1], angle: +a[2], hp: +a[3], kills: +a[4], deaths: +a[5], team: a[6] || null, fire: a[7] === '1', dead: a[8] === '1', moving: a[9] === '1', pitch: +a[10] || 0, z: +a[11] || 0, roll: a[12] === '1' };
   }
   get isDead() { return this.now < this.deadUntil; }
   get reloading() { return this.now < this.reloadUntil || this.now < (this.readyUntil || 0); }   // 재장전 중이거나 무기 전환 준비 중
@@ -284,6 +286,28 @@ class Fps3DGame {
   // 줌 토글 (스나이퍼 전용): 시야 72° → 22°, 이동 느려짐, 조준 감도 낮아짐
   toggleZoom() { if (this.weapon !== 'sniper' || this.isDead) return; this.zoomed = !this.zoomed; if (window.Sound) Sound.move(); }
 
+  // 점프 — 땅에 있을 때만. 공중에서는 조향은 되지만 속도가 조금 줄어듭니다
+  jump() {
+    if (this.isDead || this.spectator || !this.onGround || this.now < this.rollUntil) return;
+    this.vz = 0.115; this.onGround = false; this.zoomed = false;
+    if (window.Sound) Sound.rotate(); if (window.Haptic) Haptic.tap();
+  }
+  // 구르기 — 0.45초간 빠르게 미끄러지며 총알 판정이 낮아집니다. 3초 쿨다운
+  roll() {
+    const now = this.clock();
+    if (this.isDead || this.spectator || now < this.rollCdUntil || !this.onGround) return;
+    let sx = this.mx, sy = this.my; if (this.upHeld) sy = 1;
+    const len = Math.hypot(sx, sy);
+    if (len < 0.15) { sy = 1; sx = 0; }                       // 방향 입력이 없으면 앞으로
+    const l2 = Math.hypot(sx, sy) || 1;
+    this.rollDir = [(Math.cos(this.yaw) * sy - Math.sin(this.yaw) * sx) / l2,
+                    (Math.sin(this.yaw) * sy + Math.cos(this.yaw) * sx) / l2];
+    this.rollUntil = now + 450; this.rollCdUntil = now + 3000; this.zoomed = false;
+    this.showToast('회피!', '#4CC9F0'); if (window.Sound) Sound.softDrop(); if (window.Haptic) Haptic.good();
+  }
+  get rolling() { return this.now < this.rollUntil; }
+  get eyeZ() { return F3_EYE + this.z - (this.rolling ? 0.75 : 0); }   // 구르는 동안 시점이 낮아짐
+
   shoot() {
     const now = this.clock();
     if (this.isDead || this.spectator || this.reloading) return;
@@ -305,21 +329,23 @@ class Fps3DGame {
       if (p.dead || (this.teamMode && p.team === this.team)) return;
       const rx = p.x - this.x, ry = p.y - this.y;
       const t = rx * dx + ry * dy; if (t <= 0 || t > (this.weapon === 'sniper' ? 60 : 30)) return;
-      const px = this.x + dx * t, py = this.y + dy * t, pz = F3_EYE + dz * t;
+      const px = this.x + dx * t, py = this.y + dy * t, pz = this.eyeZ + dz * t;
       const lateral = Math.hypot(px - p.x, py - p.y);
       // 터치 조준을 감안해 판정을 넉넉하게: 몸통 반지름 0.5 + 거리 비례 (10칸에서 약 3.5도)
       const tol = Math.max(0.5, t * 0.06);
-      if (lateral > tol || pz < -0.2 || pz > 2.1) return;
+      // 상대의 발 높이(점프 중이면 +z) 와 키(구르는 중이면 낮아짐)
+      const base = p.z || 0, top = base + (p.roll ? 1.05 : 1.85);
+      if (lateral > tol || pz < base - 0.2 || pz > top) return;
       if (this.blocked(this.x, this.y, p.x, p.y)) return;
       // 여러 명이 겹치면 조준선에 가장 가까운 쪽 (같으면 가까운 쪽)
       const score = lateral / tol + t * 0.01;
       if (score < bestD) { bestD = score; best = id; hitZ = pz; this._bestT = t; }
     });
     if (best) bestD = this._bestT;
-    let ex = this.x, ey = this.y, ez = F3_EYE, n = 0;
+    let ex = this.x, ey = this.y, ez = this.eyeZ, n = 0;
     while (!this.wall(ex, ey) && ez > 0 && ez < 2.2 && n++ < 400) { ex += dx * 0.08; ey += dy * 0.08; ez += dz * 0.08; }
     if (best) { const p = this.peers[best]; ex = p.x; ey = p.y; ez = hitZ; }
-    this.tracers.push({ from: [this.x, this.y, F3_EYE - 0.1], to: [ex, ey, ez], until: now + 80 });
+    this.tracers.push({ from: [this.x, this.y, this.eyeZ - 0.1], to: [ex, ey, ez], until: now + 80 });
     if (best) {
       const head = hitZ > 1.66;                                 // 눈높이(1.6) 직사는 몸통, 살짝 올려야 머리
       const dmg = head ? this.wpn.dmgHead : (bestD < 8 ? this.wpn.dmgBody : this.wpn.dmgFar);
@@ -330,11 +356,19 @@ class Fps3DGame {
       if (window.Sound) Sound.lock();
     }
   }
+  // 서 있는 자리의 바닥 높이 — 낮은 구조물(상자 1m · 방벽 0.6m) 위에는 올라설 수 있습니다
+  floorAt(x, y) {
+    const c = this.cell(x, y), h = F3_HEIGHT[c];
+    return (c === 'X' || c === 'L') ? h : 0;
+  }
+
   // 원(반지름 R) 이 주변 벽 칸과 겹치면 가장 가까운 면으로 밀어냅니다
   pushOut() {
     const R = 0.3, cx = Math.floor(this.x), cy = Math.floor(this.y);
     for (let gy = cy - 1; gy <= cy + 1; gy++) for (let gx = cx - 1; gx <= cx + 1; gx++) {
       if (!this.wall(gx + 0.5, gy + 0.5)) continue;
+      const hh = F3_HEIGHT[this.cell(gx + 0.5, gy + 0.5)] || 2.4;
+      if (this.z >= hh - 0.02) continue;                    // 그 구조물보다 높이 있으면 통과 (위로 올라섬)
       const nx = Math.max(gx, Math.min(gx + 1, this.x)), ny = Math.max(gy, Math.min(gy + 1, this.y));   // 칸에서 가장 가까운 점
       let dx = this.x - nx, dy = this.y - ny, d = Math.hypot(dx, dy);
       if (d >= R) continue;
@@ -385,7 +419,8 @@ class Fps3DGame {
 
   serialize() {
     return [this.x.toFixed(2), this.y.toFixed(2), this.yaw.toFixed(2), this.hp, this.kills, this.deaths, this.team || '',
-            this.muzzle > 0.5 ? 1 : 0, this.isDead ? 1 : 0, this.moving ? 1 : 0, this.pitch.toFixed(2)].join(',');
+            this.muzzle > 0.5 ? 1 : 0, this.isDead ? 1 : 0, this.moving ? 1 : 0, this.pitch.toFixed(2),
+            this.z.toFixed(2), this.rolling ? 1 : 0].join(',');
   }
   applyPeerRaw(id, raw, name) {
     const d = Fps3DGame.parse(raw);
@@ -399,7 +434,7 @@ class Fps3DGame {
       const nvx = (d.x - p.tx) / dt, nvy = (d.y - p.ty) / dt;
       if (Math.hypot(nvx, nvy) < 12) { p.vx = nvx; p.vy = nvy; } else { p.vx = 0; p.vy = 0; } }   // 순간이동(리스폰)은 예측 안 함
     p.at = now;
-    Object.assign(p, { tx: d.x, ty: d.y, tangle: d.angle, hp: d.hp, kills: d.kills, deaths: d.deaths, team: d.team, fire: d.fire, dead: d.dead, moving: d.moving, pitch: d.pitch });
+    Object.assign(p, { tx: d.x, ty: d.y, tangle: d.angle, hp: d.hp, kills: d.kills, deaths: d.deaths, team: d.team, fire: d.fire, dead: d.dead, moving: d.moving, pitch: d.pitch, z: d.z, roll: d.roll });
     if (name) p.name = name;
   }
   removePeer(id) { delete this.peers[id]; if (this.models[id] && this.scene) { this.scene.remove(this.models[id]); delete this.models[id]; } }
@@ -434,7 +469,7 @@ class Fps3DGame {
 
     if (this.spectator) {
       const p = this.peers[this.followId];
-      if (p) { this.x = p.x; this.y = p.y; this.yaw = p.angle; this.pitch = p.pitch || 0; this.hp = p.hp; this.kills = p.kills; this.deaths = p.deaths; this.team = p.team; this.myName = p.name || ''; this.deadUntil = p.dead ? now + 100 : 0; this.moving = p.moving; if (p.fire) this.muzzle = 1; }
+      if (p) { this.x = p.x; this.y = p.y; this.z = p.z || 0; this.rollUntil = p.roll ? now + 50 : 0; this.yaw = p.angle; this.pitch = p.pitch || 0; this.hp = p.hp; this.kills = p.kills; this.deaths = p.deaths; this.team = p.team; this.myName = p.name || ''; this.deadUntil = p.dead ? now + 100 : 0; this.moving = p.moving; if (p.fire) this.muzzle = 1; }
       this.draw(); return;
     }
     if (this.isDead) {
@@ -450,14 +485,26 @@ class Fps3DGame {
     if (this.upHeld) sy = 1; if (this.fwd) sy = this.fwd; this.fwd = 0;
     const len = Math.hypot(sx, sy);
     this.moving = len > 0.15 ? 1 : 0;
-    if (this.moving) {
-      const sp = 0.095 * f * Math.min(1, len) * (this.zoomed ? 0.4 : 1);   // 줌 중엔 천천히
+    // 구르기: 방향·속도가 고정되고 조작을 받지 않습니다
+    if (this.rolling) {
+      const sp = 0.22 * f;
+      const steps = Math.max(1, Math.ceil(sp / 0.12));
+      for (let k = 0; k < steps; k++) { this.x += this.rollDir[0] * sp / steps; this.y += this.rollDir[1] * sp / steps; this.pushOut(); }
+      this.moving = 1;
+    } else if (this.moving) {
+      const sp = 0.095 * f * Math.min(1, len) * (this.zoomed ? 0.4 : 1) * (this.onGround ? 1 : 0.8);   // 줌 중엔 천천히, 공중에선 조금 느리게
       const ux = (Math.cos(this.yaw) * sy - Math.sin(this.yaw) * sx) / (len || 1), uy = (Math.sin(this.yaw) * sy + Math.cos(this.yaw) * sx) / (len || 1);
       // 한 프레임에 너무 멀리 가지 않게 잘게 나눠 움직이고, 매번 벽에서 밀어냅니다
       const steps = Math.max(1, Math.ceil(sp / 0.12));
       for (let k = 0; k < steps; k++) { this.x += ux * sp / steps; this.y += uy * sp / steps; this.pushOut(); }
-      this.bob += 0.2 * f;
+      if (this.onGround) this.bob += 0.2 * f;
     }
+    // 점프 · 중력 (상자 1m · 낮은 방벽 0.6m 위에 올라설 수 있습니다)
+    this.vz -= 0.0062 * f;
+    this.z += this.vz * f;
+    const floor = this.floorAt(this.x, this.y);
+    if (this.z <= floor) { if (!this.onGround && this.vz < -0.03 && window.Sound) Sound.lock(); this.z = floor; this.vz = 0; this.onGround = true; }
+    else this.onGround = false;
     this.updateFov();
     if (this.firing) this.shoot();
     this.draw();
@@ -484,7 +531,7 @@ class Fps3DGame {
     // 카메라
     const bobY = this.moving ? Math.sin(this.bob) * 0.03 : 0;
     const shake = this.hurt > 0.5 ? (this.hurt - 0.5) * 0.06 : 0;
-    this.camera.position.set(this.x + (Math.random() - 0.5) * shake, F3_EYE + bobY + (Math.random() - 0.5) * shake, this.y + (Math.random() - 0.5) * shake);
+    this.camera.position.set(this.x + (Math.random() - 0.5) * shake, this.eyeZ + bobY + (Math.random() - 0.5) * shake, this.y + (Math.random() - 0.5) * shake);
     this.updateFov();
     this.camera.rotation.order = 'YXZ';
     this.camera.rotation.y = -this.yaw - Math.PI / 2; this.camera.rotation.x = this.pitch; this.camera.rotation.z = (this.mx || 0) * -0.02;   // 시선 = 이동 방향 · 옆걸음 때 살짝 기울기
@@ -515,7 +562,8 @@ class Fps3DGame {
       if (!m || m.userData.team !== p.team) { if (m) this.scene.remove(m); m = this.buildSoldier(p.team, p.name); m.userData.team = p.team; this.models[id] = m; this.scene.add(m); }
       const far = Math.hypot(p.x - this.x, p.y - this.y) > 45;
       m.visible = !far; if (far) return;
-      m.position.set(p.x, 0, p.y); m.rotation.y = -p.angle - Math.PI / 2;
+      m.position.set(p.x, p.z || 0, p.y); m.rotation.y = -p.angle - Math.PI / 2;
+      m.scale.y = p.roll ? 0.55 : 1;      // 구르는 중엔 낮게
       const u = m.userData;
       const sw = p.moving ? Math.sin(p.walk) * 0.5 : 0;
       u.legL.rotation.x = sw; u.legR.rotation.x = -sw; u.armR.rotation.x = -(p.pitch || 0);
@@ -622,6 +670,15 @@ class Fps3DGame {
     this.feed = this.feed.filter(x => x.until > now); ctx.font = '700 12px Pretendard, sans-serif'; ctx.textAlign = 'right';
     this.feed.forEach((x, i) => { const y = 66 + i * 20, t = x.a + (x.head ? '  🎯  ' : '  ⚡  ') + x.b; const tw = ctx.measureText(t).width + 16; rr(W - 14 - tw, y - 14, tw, 19, 8, 'rgba(8,10,16,0.6)'); ctx.fillStyle = x.color; ctx.fillText(t, W - 22, y); });
     ctx.textAlign = 'left';
+    // 구르기 쿨다운 링 (체력 카드 오른쪽)
+    {
+      const cd = Math.max(0, (this.rollCdUntil - now) / 3000), cx2 = 206, cy2 = H - 40, r2 = 17;
+      ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(cx2, cy2, r2, 0, Math.PI * 2); ctx.stroke();
+      if (cd > 0) { ctx.strokeStyle = '#4CC9F0'; ctx.beginPath(); ctx.arc(cx2, cy2, r2, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (1 - cd)); ctx.stroke(); }
+      ctx.fillStyle = cd > 0 ? 'rgba(255,255,255,0.45)' : '#4CC9F0'; ctx.font = '800 15px Pretendard, sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('⤻', cx2, cy2 + 1); ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    }
+
     this.drawMinimap(ctx, W, H);
     if (this.toast && now < this.toast.until) { ctx.textAlign = 'center'; ctx.font = '800 18px Pretendard, sans-serif'; ctx.fillStyle = this.toast.color; ctx.shadowColor = 'rgba(0,0,0,0.7)'; ctx.shadowBlur = 4; ctx.fillText(this.toast.text, W / 2, hy + 80); ctx.shadowBlur = 0; ctx.textAlign = 'left'; }
     if (this.isDead) {
