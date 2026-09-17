@@ -34,7 +34,7 @@ class SourceHuntGame {
     this.cands = [];
     if (this.kind !== 'air') {
       // 강 옆 자리는 유한하므로, 가능한 자리를 섞어서 앞에서부터 고릅니다 (무한 루프 방지)
-      const slots = []; for (let ri = 1; ri <= this.river.length - 4; ri++) slots.push(ri);
+      const slots = []; for (let ri = 2; ri <= this.river.length - 5; ri++) slots.push(ri);   // 아래로 센서 놓을 칸이 2개 이상 남도록
       for (let i = slots.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [slots[i], slots[j]] = [slots[j], slots[i]]; }
       const want = Math.min(nCand, slots.length);
       const chosen = slots.slice(0, want).sort((a, b) => a - b);
@@ -90,7 +90,7 @@ class SourceHuntGame {
     }
     const cx = Math.floor(x), cy = Math.floor(y);
     if (cx < 0 || cy < 0 || cx >= this.W || cy >= this.H - 1.6) return;
-    const cand = this.cands.find(c => Math.abs(c.x + 0.5 - x) < 0.9 && Math.abs(c.y + 0.5 - y) < 0.9);
+    const cand = this.cands.find(c => Math.hypot(c.x + 0.5 - x, c.y + 0.5 - y) < 0.62);   // 핀(반지름 0.5칸) 안쪽만 — 옆 칸을 누르면 센서
     if (cand && !this.droneArmed) {
       if (this.excluded.includes(cand)) { this.flash('AI 가 제외한 후보예요', '#9AA3B2'); return; }
       if (this.armed === cand) this.accuse(cand);
@@ -148,9 +148,9 @@ class SourceHuntGame {
   tick(now) {
     this.now = now; if (!this.caseStart) this.caseStart = now;
     if (this.gameOver) return;
-    const dt = this.lastTime ? Math.min(50, now - this.lastTime) : 16.7; this.lastTime = now; const f = dt / 16.7;
+    const { dt, f } = FX.frame(this, now);
     this.anim = this.anim.filter(a => (a.t -= 0.03 * f) > 0);
-    this.parts.forEach(p => { p.x += p.vx * f; p.y += p.vy * f; p.l -= 0.03 * f; }); this.parts = this.parts.filter(p => p.l > 0);
+    this.parts = FX.stepParts(this.parts, f, 0.03);
     if (!this.result && !this.legend && (now - this.caseStart) / 1000 > this.caseLimit) this.timeout();
     this.draw();
   }
@@ -215,7 +215,7 @@ class SourceHuntGame {
       ctx.strokeStyle = col; ctx.lineWidth = 1.5; ctx.shadowColor = col; ctx.shadowBlur = 8 * k; ctx.stroke(); ctx.shadowBlur = 0;
       ctx.fillStyle = '#fff'; ctx.font = F('800', px * (s.small ? 3.0 : 3.6)); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(Math.round(s.v)), cx, cy + 1); });
     this.anim.forEach(a => { if (a.kind !== 'ring') return; ctx.strokeStyle = 'rgba(255,255,255,' + a.t.toFixed(2) + ')'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(a.x * cs, a.y * cs, cs * ((a.big ? 2.6 : 1.6) - a.t * 1.2), 0, Math.PI * 2); ctx.stroke(); });
-    this.parts.forEach(p => { ctx.globalAlpha = Math.max(0, p.l); ctx.fillStyle = p.c; ctx.fillRect(p.x * cs - 2, p.y * cs - 2, 4, 4); }); ctx.globalAlpha = 1;
+    FX.drawParts(ctx, this.parts, cs, 4);
     // 바람 입자
     if (this.wind) for (let i = 0; i < 14; i++) { const ph = ((now / 1100) + i * 0.29) % 1; const bx = ((i * 1.37) % this.W) * cs + this.wind.ax * ph * W * 0.6, by = ((i * 2.3) % (this.H - 2)) * cs + this.wind.ay * ph * mapH * 0.6;
       ctx.strokeStyle = 'rgba(255,255,255,' + (0.35 * (1 - ph)).toFixed(2) + ')'; ctx.lineWidth = 1.5; const x0 = ((bx % W) + W) % W, y0 = ((by % mapH) + mapH) % mapH;
@@ -224,10 +224,10 @@ class SourceHuntGame {
 
     // ── HUD (글래스 카드: 반투명 + 그라데이션 테두리 + 안쪽 광택) ──
     const glass = (x, y, w, h, r, accent) => {
-      ctx.fillStyle = 'rgba(10,16,30,0.78)'; ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(x, y, w, h, r); else ctx.rect(x, y, w, h); ctx.fill();
+      ctx.fillStyle = 'rgba(10,16,30,0.78)'; FX.rr(ctx, x, y, w, h, r); ctx.fill();
       const g = ctx.createLinearGradient(x, y, x + w, y + h); g.addColorStop(0, accent || 'rgba(255,255,255,0.35)'); g.addColorStop(1, 'rgba(255,255,255,0.08)');
       ctx.strokeStyle = g; ctx.lineWidth = 1.2; ctx.stroke();
-      ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(x + 1, y + 1, w - 2, h * 0.45, r); else ctx.rect(x + 1, y + 1, w - 2, h * 0.45); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.05)'; FX.rr(ctx, x + 1, y + 1, w - 2, h * 0.45, r); ctx.fill();
     };
     const accent = this.kind === 'air' ? '#B15DFF' : this.kind === 'storm' ? '#4CC9F0' : '#3B82F6';
     // 상단 사건 카드
@@ -256,7 +256,7 @@ class SourceHuntGame {
     const barY = mapH + px * 1.2, bw = (W - px * 8) / 3, bh = H - barY - px * 1.5;
     [['📋 범례', '#8FA0B8', false], ['🤖 AI 힌트  -80', this.hintUsed ? '#5B6474' : '#B15DFF', this.hintUsed], ['🚁 드론  센서 2', this.droneUsed ? '#5B6474' : '#4CC9F0', this.droneUsed || this.droneArmed]].forEach(([label, col, dim], i) => {
       const x = px * 2 + i * (bw + px * 2); glass(x, barY, bw, bh, px * 3, col);
-      if (i === 2 && this.droneArmed) { ctx.fillStyle = 'rgba(76,201,240,0.25)'; ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(x, barY, bw, bh, px * 3); else ctx.rect(x, barY, bw, bh); ctx.fill(); }
+      if (i === 2 && this.droneArmed) { ctx.fillStyle = 'rgba(76,201,240,0.25)'; FX.rr(ctx, x, barY, bw, bh, px * 3); ctx.fill(); }
       ctx.fillStyle = dim && !(i === 2 && this.droneArmed) ? 'rgba(255,255,255,0.4)' : '#fff'; ctx.font = F('800', px * 3.3); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(label, x + bw / 2, barY + bh / 2); });
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
     // 지목 대기 · 안내

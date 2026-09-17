@@ -311,8 +311,7 @@ class BreakoutGame {
     const g = ctx.createLinearGradient(0, py, 0, py + ph);
     g.addColorStop(0, wide ? '#B9FFE9' : '#FFFFFF'); g.addColorStop(1, wide ? '#06D6A0' : '#9AA3B2');
     ctx.fillStyle = g;
-    ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(px, py, pw, ph, ph / 2); else ctx.rect(px, py, pw, ph);
+    FX.rr(ctx, px, py, pw, ph, ph / 2);
     ctx.fill();
 
     // 떨어지는 아이템
@@ -320,8 +319,7 @@ class BreakoutGame {
       const it = BreakoutGame.ITEMS[d.kind];
       ctx.save(); ctx.translate(d.x * cs, d.y * cs); ctx.rotate(Math.sin(d.a) * 0.15);
       ctx.fillStyle = it.color;
-      ctx.beginPath();
-      if (ctx.roundRect) ctx.roundRect(-cs * .48, -cs * .26, cs * .96, cs * .52, cs * .26); else ctx.rect(-cs * .48, -cs * .26, cs * .96, cs * .52);
+      FX.rr(ctx, -cs * .48, -cs * .26, cs * .96, cs * .52, cs * .26);
       ctx.fill();
       ctx.fillStyle = '#0B0D12'; ctx.font = '800 ' + Math.round(cs * .34) + 'px Pretendard, sans-serif';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(it.icon, 0, 1);

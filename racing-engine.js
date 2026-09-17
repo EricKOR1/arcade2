@@ -954,9 +954,7 @@ class KartGame {
   tick(now) {
     this.now = now;                       // 엔진 안의 모든 타이머는 이 시계를 씁니다
     // 이동량은 '화면에 실제로 표시된 시간'에 비례해야 균일해 보입니다 (간격을 임의로 다듬으면 오히려 끊겨 보임)
-    const dt = this.lastTime ? Math.min(50, now - this.lastTime) : 16.7;
-    this.lastTime = now;
-    const f = dt / 16.7;
+    const { dt, f } = FX.frame(this, now);
     this.lastF = f;                       // 카메라·보간이 프레임 간격을 알 수 있도록
     this.stepParts(f);
     if (this.shakeT > 0) this.shakeT = Math.max(0, this.shakeT - dt / 1000);
@@ -2269,11 +2267,11 @@ class KartGame {
       if (!top) return;
       const w = Math.max(2, u * 0.26 * s), hgt = base.y - top.y;
       ctx.fillStyle = '#2E8B57';
-      ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(base.x - w/2, top.y, w, hgt, w/2); else ctx.rect(base.x - w/2, top.y, w, hgt); ctx.fill();
+      FX.rr(ctx, base.x - w/2, top.y, w, hgt, w/2); ctx.fill();
       [[-1, 0.45], [1, 0.6]].forEach(([sd, f]) => {
         const ax = base.x + sd * w * 0.9, ay = base.y - hgt * f;
         ctx.fillRect(base.x + (sd < 0 ? -w * 1.3 : w * 0.5), ay, w * 0.8, w * 0.45);
-        ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(ax - w * 0.35, ay - hgt * 0.25, w * 0.7, hgt * 0.3, w * 0.35); else ctx.rect(ax - w * 0.35, ay - hgt * 0.25, w * 0.7, hgt * 0.3); ctx.fill();
+        FX.rr(ctx, ax - w * 0.35, ay - hgt * 0.25, w * 0.7, hgt * 0.3, w * 0.35); ctx.fill();
       });
 
     } else if (o.kind === 'rock') {
@@ -2452,9 +2450,7 @@ class KartGame {
       ctx.fillStyle = 'rgba(0,0,0,0.3)';
       ctx.beginPath(); ctx.ellipse(px0.x, px0.y, w * 0.9, h2 * 0.35, 0, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = color;
-      ctx.beginPath();
-      if (ctx.roundRect) ctx.roundRect(px0.x - w / 2, px0.y - h2, w, h2, Math.max(1, w * 0.18));
-      else ctx.rect(px0.x - w / 2, px0.y - h2, w, h2);
+      FX.rr(ctx, px0.x - w / 2, px0.y - h2, w, h2, Math.max(1, w * 0.18));
       ctx.fill();
       ctx.fillStyle = 'rgba(0,0,0,0.35)';
       ctx.fillRect(px0.x - w / 2, px0.y - h2 * 0.45, w, Math.max(1, h2 * 0.16));
@@ -2813,7 +2809,7 @@ class KartGame {
     ctx.save();
     // 유리 카드
     ctx.fillStyle = 'rgba(10,13,20,0.62)';
-    ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(ox, oy, size, size, 16); else ctx.rect(ox, oy, size, size); ctx.fill();
+    FX.rr(ctx, ox, oy, size, size, 16); ctx.fill();
     ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 1; ctx.stroke();
     // 트랙 선은 한 번만 그려 두고 이미지로 붙입니다 (매 프레임 400점 선긋기 2번 → drawImage 1번)
     if (!this._mmTrack || this._mmSize !== size) {

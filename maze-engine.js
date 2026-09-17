@@ -79,7 +79,7 @@ class MazeGame {
   tick(now) {
     this.now = now;
     if (this.gameOver) return;
-    const dt = this.lastTime ? Math.min(50, now - this.lastTime) : 16.7; this.lastTime = now; const f = dt / 16.7;
+    const { dt, f } = FX.frame(this, now);
     if (!this.softDropping) this._dl = false;
     if (this.deathT > 0) { this.deathT -= 0.025 * f; if (this.deathT <= 0) { this.deathT = 0; this.resetActors(); this.started = false; } this.draw(); return; }
     if (!this.started) { this.draw(); return; }

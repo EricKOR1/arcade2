@@ -10,8 +10,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1B2027">
 <title>아케이드</title>
-<link rel="stylesheet" href="platform.css?v=2026-09-27b">
-<link rel="stylesheet" href="style.css?v=2026-09-27b">
+<link rel="stylesheet" href="platform.css?v=2026-09-28b">
+<link rel="stylesheet" href="style.css?v=2026-09-28b">
 </head>
 <body>
 <div class="app">
@@ -128,32 +128,33 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script src="firebase-config.js?v=2026-09-27b"></script>
-<script src="sound.js?v=2026-09-27b"></script>
-<script src="shared.js?v=2026-09-27b"></script>
-<script src="tetris-engine.js?v=2026-09-27b"></script>
-<script src="racing-engine.js?v=2026-09-27b"></script>
-<script src="snake-engine.js?v=2026-09-27b"></script>
-<script src="breakout-engine.js?v=2026-09-27b"></script>
-<script src="flappy-engine.js?v=2026-09-27b"></script>
-<script src="shooter-engine.js?v=2026-09-27b"></script>
+<script src="firebase-config.js?v=2026-09-28b"></script>
+<script src="sound.js?v=2026-09-28b"></script>
+<script src="shared.js?v=2026-09-28b"></script>
+<script src="fx.js?v=2026-09-28b"></script>
+<script src="tetris-engine.js?v=2026-09-28b"></script>
+<script src="racing-engine.js?v=2026-09-28b"></script>
+<script src="snake-engine.js?v=2026-09-28b"></script>
+<script src="breakout-engine.js?v=2026-09-28b"></script>
+<script src="flappy-engine.js?v=2026-09-28b"></script>
+<script src="shooter-engine.js?v=2026-09-28b"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="fps-engine.js?v=2026-09-27b"></script>
-<script src="fps3d-engine.js?v=2026-09-27b"></script>
-<script src="game2048-engine.js?v=2026-09-27b"></script>
-<script src="frogger-engine.js?v=2026-09-27b"></script>
-<script src="asteroids-engine.js?v=2026-09-27b"></script>
-<script src="maze-engine.js?v=2026-09-27b"></script>
-<script src="tower-engine.js?v=2026-09-27b"></script>
-<script src="missile-engine.js?v=2026-09-27b"></script>
-<script src="centipede-engine.js?v=2026-09-27b"></script>
-<script src="source-engine.js?v=2026-09-27b"></script>
-<script src="games.js?v=2026-09-27b"></script>
-<script src="app.js?v=2026-09-27b"></script>
+<script src="fps-engine.js?v=2026-09-28b"></script>
+<script src="fps3d-engine.js?v=2026-09-28b"></script>
+<script src="game2048-engine.js?v=2026-09-28b"></script>
+<script src="frogger-engine.js?v=2026-09-28b"></script>
+<script src="asteroids-engine.js?v=2026-09-28b"></script>
+<script src="maze-engine.js?v=2026-09-28b"></script>
+<script src="tower-engine.js?v=2026-09-28b"></script>
+<script src="missile-engine.js?v=2026-09-28b"></script>
+<script src="centipede-engine.js?v=2026-09-28b"></script>
+<script src="source-engine.js?v=2026-09-28b"></script>
+<script src="games.js?v=2026-09-28b"></script>
+<script src="app.js?v=2026-09-28b"></script>
 <script>
 (function () {
 
-  const BUILD = '2026-09-27b';   // 화면 아래에 표시됩니다
+  const BUILD = '2026-09-28b';   // 화면 아래에 표시됩니다
 
   const gameId = getGameId();
   const def = GAMES[gameId];
@@ -778,6 +779,7 @@
         if (!isKart && def.padLayout !== 'joystick') readyGo();
         if (game.setQuality) game.setQuality(quality);
         qFrames = 0; qSum = 0; qLast = 0;
+        if (window.FX) { FX.juice.reset(); if (window.Sound) FX.hookSound(Sound); } juiceScore = null; juicePopAt = 0;
         window.__game = game;                               // 검사·디버깅용
         if (def.hasNext) { game.onNextChange = drawNextPreview; drawNextPreview(); }
         game.draw();
@@ -976,7 +978,7 @@
     t.className = 'qtoast'; t.textContent = quality === 1 ? '화면을 조금 가볍게 했어요' : '화면을 가장 가볍게 했어요';
     document.body.appendChild(t); setTimeout(() => t.remove(), 2200);
   }
-  let loopRaf = null, syncDue = false;
+  let loopRaf = null, syncDue = false, juiceScore = null, juicePopAt = 0;
   function loop(ts) {
     // 다음 프레임을 먼저 예약합니다 — 이번 프레임이 오래 걸려도 다음 호출이 밀리지 않습니다
     if (game && !game.gameOver) loopRaf = requestAnimationFrame(loop);
@@ -987,7 +989,16 @@
     if (qLast) { const dt = ts - qLast; if (dt < 200) { qSum += dt; qFrames++; } }
     qLast = ts;
     if (qFrames >= 120) { if (qSum / qFrames > 21) lowerQuality(); qFrames = 0; qSum = 0; }   // 평균 48fps 밑이면 낮춤
+    // 손맛 층: 2D 캔버스 게임은 흔들림·섬광·배너를 공통으로 덧입힙니다 (카트·3D 는 자체 연출)
+    const juiceOn = window.FX && def.type === 'canvas' && !isRealtime && def.padLayout !== 'joystick';
+    let jctx = null, shook = false;
+    if (juiceOn) { const cv = byId('game-canvas'); jctx = cv.getContext('2d'); shook = FX.juice.applyShake(jctx); }
     game.tick(ts);
+    if (juiceOn) { FX.juice.restoreShake(jctx, shook);
+      // 점수가 오르면 '+N' 팝업 (초당 6개까지)
+      if (typeof game.score === 'number') { if (juiceScore != null && game.score > juiceScore && ts - juicePopAt > 160) { const cvj = byId('game-canvas'); FX.juice.pop('+' + (game.score - juiceScore), (cvj.clientWidth || 320) / 2, 64, '#FFD166'); juicePopAt = ts; } juiceScore = game.score; }
+      const cv = byId('game-canvas'), dpr = cv.width / Math.max(1, cv.clientWidth || cv.width);
+      jctx.save(); jctx.setTransform(dpr, 0, 0, dpr, 0, 0); FX.juice.draw(jctx, cv.width / dpr, cv.height / dpr, 1, game); jctx.restore(); }
     // hud() 는 객체를 새로 만들므로, 실제로 화면을 갱신할 때만 호출합니다
     if (isKart && ts - hudLast >= 66) renderKartHud(game.hud());
     if (syncDue) { syncDue = false; pushState(); }     // 전송은 그리기가 끝난 뒤에

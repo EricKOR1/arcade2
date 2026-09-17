@@ -465,7 +465,7 @@ class Fps3DGame {
   // ── 프레임 ──
   tick(now) {
     this.now = now;
-    const dt = this.lastTime ? Math.min(50, now - this.lastTime) : 16.7; this.lastTime = now; const f = dt / 16.7; this.lastF = f;
+    const { dt, f } = FX.frame(this, now); this.lastF = f;
     Object.keys(this.peers).forEach(id => { const p = this.peers[id]; if (p.tx == null) return;
       // 예측 이동: 마지막 신호 이후 최대 0.25초까지는 추정 속도로 목표점을 앞당김
       const since = Math.min(250, now - (p.at || now)) / 1000;
@@ -608,7 +608,7 @@ class Fps3DGame {
     ctx.clearRect(0, 0, W, H);
     const hy = H / 2, teamC = this.team ? F3_TEAM_CSS[this.team] : '#FFD166';
     // 유리 카드 — 반투명 + 밝은 테두리
-    const rr = (x, y, w, h, r, fill) => { ctx.fillStyle = fill; ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(x, y, w, h, r); else ctx.rect(x, y, w, h); ctx.fill();
+    const rr = (x, y, w, h, r, fill) => { ctx.fillStyle = fill; FX.rr(ctx, x, y, w, h, r); ctx.fill();
       ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 1; ctx.stroke(); };
 
     // 피해 숫자 — 맞은 자리에서 떠오름 (3D → 화면 좌표)
@@ -729,7 +729,7 @@ class Fps3DGame {
     let bh = 34; groups.forEach(([t, g]) => { bh += (t ? 26 : 0) + Math.min(g.length, 10) * rowH + 8; });
     const x0 = W / 2 - bw / 2, y0 = Math.max(60, H / 2 - bh / 2);
     ctx.save();
-    ctx.fillStyle = 'rgba(8,10,16,0.88)'; ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(x0, y0, bw, bh, 18); else ctx.rect(x0, y0, bw, bh); ctx.fill();
+    ctx.fillStyle = 'rgba(8,10,16,0.88)'; FX.rr(ctx, x0, y0, bw, bh, 18); ctx.fill();
     ctx.strokeStyle = 'rgba(255,255,255,0.16)'; ctx.lineWidth = 1; ctx.stroke();
     ctx.textBaseline = 'middle';
     ctx.font = '800 13px Pretendard, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.textAlign = 'left'; ctx.fillText('점수판', x0 + 16, y0 + 18);
@@ -739,7 +739,7 @@ class Fps3DGame {
       if (t) { ctx.textAlign = 'left'; ctx.font = '800 12px Pretendard, sans-serif'; ctx.fillStyle = F3_TEAM_CSS[t];
         const tk = g.reduce((a, r) => a + r.k, 0); ctx.fillText((t === 'red' ? '🔴 RED' : '🔵 BLUE') + '  ' + tk, x0 + 16, y + 13); y += 26; }
       g.slice(0, 10).forEach((r, i) => {
-        if (r.me) { ctx.fillStyle = 'rgba(255,255,255,0.10)'; ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(x0 + 8, y + 1, bw - 16, rowH - 2, 7); else ctx.rect(x0 + 8, y + 1, bw - 16, rowH - 2); ctx.fill(); }
+        if (r.me) { ctx.fillStyle = 'rgba(255,255,255,0.10)'; FX.rr(ctx, x0 + 8, y + 1, bw - 16, rowH - 2, 7); ctx.fill(); }
         ctx.textAlign = 'left'; ctx.font = (r.me ? '800' : '600') + ' 13px Pretendard, sans-serif';
         ctx.fillStyle = r.dead ? 'rgba(255,255,255,0.4)' : (r.team ? F3_TEAM_CSS[r.team] : '#fff');
         ctx.fillText((i + 1) + '.  ' + r.name, x0 + 16, y + rowH / 2);

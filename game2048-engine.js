@@ -103,14 +103,12 @@ class Game2048 {
     if (this.slide) {
       // 빈 칸 바탕
       for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
-        ctx.fillStyle = 'rgba(238,228,218,0.35)'; ctx.beginPath();
-        if (ctx.roundRect) ctx.roundRect(x * cs + pad, y * cs + pad, cs - pad * 2, cs - pad * 2, cs * 0.08); else ctx.rect(x * cs + pad, y * cs + pad, cs - pad * 2, cs - pad * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(238,228,218,0.35)'; FX.rr(ctx, x * cs + pad, y * cs + pad, cs - pad * 2, cs - pad * 2, cs * 0.08); ctx.fill();
       }
       const k = this.slide.t, e = 1 - Math.pow(1 - k, 3);
       this.slide.tiles.forEach(tl => {
         const x = tl.fx + (tl.tx - tl.fx) * e, y = tl.fy + (tl.ty - tl.fy) * e, w = cs - pad * 2;
-        ctx.fillStyle = G2048_COLORS[tl.v] || '#3C3A32'; ctx.beginPath();
-        if (ctx.roundRect) ctx.roundRect(x * cs + pad, y * cs + pad, w, w, cs * 0.08); else ctx.rect(x * cs + pad, y * cs + pad, w, w); ctx.fill();
+        ctx.fillStyle = G2048_COLORS[tl.v] || '#3C3A32'; FX.rr(ctx, x * cs + pad, y * cs + pad, w, w, cs * 0.08); ctx.fill();
         ctx.fillStyle = tl.v <= 4 ? '#776E65' : '#F9F6F2';
         const fs = tl.v < 100 ? cs * 0.5 : tl.v < 1000 ? cs * 0.4 : cs * 0.32;
         ctx.font = '800 ' + Math.round(fs) + 'px Pretendard, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -125,7 +123,7 @@ class Game2048 {
       const sc = a ? (a.kind === 'new' ? 1 - a.t * 0.6 : 1 + Math.sin(a.t * Math.PI) * 0.12) : 1;
       const w = (cs - pad * 2) * sc, x0 = x * cs + cs / 2 - w / 2, y0 = y * cs + cs / 2 - w / 2;
       ctx.fillStyle = v ? (G2048_COLORS[v] || '#3C3A32') : 'rgba(238,228,218,0.35)';
-      ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(x0, y0, w, w, cs * 0.08); else ctx.rect(x0, y0, w, w); ctx.fill();
+      FX.rr(ctx, x0, y0, w, w, cs * 0.08); ctx.fill();
       if (v) {
         ctx.fillStyle = v <= 4 ? '#776E65' : '#F9F6F2';
         const fs = v < 100 ? cs * 0.5 : v < 1000 ? cs * 0.4 : cs * 0.32;

@@ -52,7 +52,7 @@ class FroggerGame {
 
   tick(now) {
     if (this.gameOver) return;
-    const dt = this.lastTime ? Math.min(50, now - this.lastTime) : 16.7; this.lastTime = now; const f = dt / 16.7;
+    const { dt, f } = FX.frame(this, now);
     if (!this.softDropping) this._dl = false;
     this.time += dt;
     if (this.hopT > 0) this.hopT = Math.max(0, this.hopT - 0.18 * f);
@@ -109,10 +109,10 @@ class FroggerGame {
       l.items.forEach(it => {
         const x = it.x * cs, w = it.len * cs;
         if (l.kind === 'river') {
-          ctx.fillStyle = '#8B5A2B'; ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(x, y + cs * 0.15, w, cs * 0.7, cs * 0.3); else ctx.rect(x, y + cs * 0.15, w, cs * 0.7); ctx.fill();
+          ctx.fillStyle = '#8B5A2B'; FX.rr(ctx, x, y + cs * 0.15, w, cs * 0.7, cs * 0.3); ctx.fill();
           ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.fillRect(x + cs * 0.2, y + cs * 0.25, w - cs * 0.4, cs * 0.12);
         } else {
-          ctx.fillStyle = l.color; ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(x, y + cs * 0.15, w, cs * 0.7, cs * 0.18); else ctx.rect(x, y + cs * 0.15, w, cs * 0.7); ctx.fill();
+          ctx.fillStyle = l.color; FX.rr(ctx, x, y + cs * 0.15, w, cs * 0.7, cs * 0.18); ctx.fill();
           ctx.fillStyle = 'rgba(200,235,255,0.7)'; ctx.fillRect(x + (l.dir > 0 ? w - cs * 0.45 : cs * 0.15), y + cs * 0.25, cs * 0.3, cs * 0.5);
           ctx.fillStyle = '#1A1D24'; ctx.fillRect(x + cs * 0.1, y + cs * 0.82, cs * 0.25, cs * 0.12); ctx.fillRect(x + w - cs * 0.35, y + cs * 0.82, cs * 0.25, cs * 0.12);
         }

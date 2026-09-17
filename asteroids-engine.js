@@ -44,7 +44,7 @@ class AsteroidsGame {
   tick(now) {
     this.now = now;
     if (this.gameOver) return;
-    const dt = this.lastTime ? Math.min(50, now - this.lastTime) : 16.7; this.lastTime = now; const f = dt / 16.7;
+    const { dt, f } = FX.frame(this, now);
     this.angle += this.turn * 0.075 * f;
     const thr = this.thrust || this.upHeld;
     if (thr) { this.vx += Math.cos(this.angle) * 0.006 * f; this.vy += Math.sin(this.angle) * 0.006 * f;
@@ -86,8 +86,7 @@ class AsteroidsGame {
       }
     }
     if (!this.rocks.length) { this.wave++; this.score += 100 * this.wave; if (window.Sound) Sound.levelUp(); this.spawnWave(); }
-    this.parts.forEach(p => { p.x += p.vx * f; p.y += p.vy * f; p.l -= 0.05 * f; });
-    this.parts = this.parts.filter(p => p.l > 0);
+    this.parts = FX.stepParts(this.parts, f, 0.05);
     this.draw();
   }
   burst(x, y, n, c) { for (let i = 0; i < n; i++) { const a = Math.random() * Math.PI * 2, v = 0.03 + Math.random() * 0.08; this.parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, l: 1, c }); } }
@@ -117,7 +116,7 @@ class AsteroidsGame {
     // 총알
     ctx.fillStyle = '#FFD166'; this.bullets.forEach(b => { ctx.beginPath(); ctx.arc(b.x * cs, b.y * cs, cs * 0.12, 0, Math.PI * 2); ctx.fill(); });
     // 파편
-    this.parts.forEach(p => { ctx.globalAlpha = Math.max(0, p.l); ctx.fillStyle = p.c; ctx.fillRect(p.x * cs - 1.5, p.y * cs - 1.5, 3, 3); }); ctx.globalAlpha = 1;
+    FX.drawParts(ctx, this.parts, cs, 3);
     // 배
     if (!(this.invul > 0 && Math.floor(this.invul / 120) % 2 === 0)) {
       ctx.save(); ctx.translate(this.x * cs, this.y * cs); ctx.rotate(this.angle);

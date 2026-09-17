@@ -34,7 +34,7 @@ class MissileGame {
   tick(now) {
     this.now = now;
     if (this.gameOver) return;
-    const dt = this.lastTime ? Math.min(50, now - this.lastTime) : 16.7; this.lastTime = now; const f = dt / 16.7;
+    const { dt, f } = FX.frame(this, now);
 
     // 적 미사일 생성
     if (this.spawnLeft > 0) { this.spawnTimer -= dt; if (this.spawnTimer <= 0) { this.spawnTimer = Math.max(350, 1400 - this.wave * 100) * (0.6 + Math.random() * 0.8); this.spawnLeft--;
@@ -59,7 +59,7 @@ class MissileGame {
     // 파도 끝: 남은 도시·탄약 보너스
     if (this.spawnLeft === 0 && !this.missiles.length && !this.waveClear) { this.waveClear = now + 2200; this.score += this.citiesLeft * 100 + this.bases[0].ammo * 5; this.saved += this.citiesLeft; if (window.Sound) Sound.levelUp(); }
     if (this.waveClear && now > this.waveClear) { this.wave++; if (this.wave % 3 === 0) { const d = this.cities.find(c => !c.alive); if (d) d.alive = true; } this.startWave(); }
-    this.parts.forEach(p => { p.x += p.vx * f; p.y += p.vy * f; p.l -= 0.04 * f; }); this.parts = this.parts.filter(p => p.l > 0);
+    this.parts = FX.stepParts(this.parts, f, 0.04);
     this.draw();
   }
   burst(x, y, c) { for (let i = 0; i < 8; i++) { const a = Math.random() * Math.PI * 2, v = 0.03 + Math.random() * 0.06; this.parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, l: 1, c }); } }
@@ -98,7 +98,7 @@ class MissileGame {
     // 폭발
     this.blasts.forEach(bl => { const g = ctx.createRadialGradient(bl.x * cs, bl.y * cs, 0, bl.x * cs, bl.y * cs, bl.r * cs); g.addColorStop(0, 'rgba(255,255,255,0.95)'); g.addColorStop(0.5, 'rgba(255,214,102,0.8)'); g.addColorStop(1, 'rgba(255,92,122,0)');
       ctx.fillStyle = g; ctx.beginPath(); ctx.arc(bl.x * cs, bl.y * cs, bl.r * cs, 0, Math.PI * 2); ctx.fill(); });
-    this.parts.forEach(p => { ctx.globalAlpha = Math.max(0, p.l); ctx.fillStyle = p.c; ctx.fillRect(p.x * cs - 1.5, p.y * cs - 1.5, 3, 3); }); ctx.globalAlpha = 1;
+    FX.drawParts(ctx, this.parts, cs, 3);
     if (this.waveClear) { ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.font = '800 ' + Math.round(cs * .9) + 'px Pretendard, sans-serif'; ctx.textAlign = 'center';
       ctx.fillText('WAVE ' + this.wave + ' 방어 성공', W / 2, H * 0.4); ctx.font = '600 ' + Math.round(cs * .5) + 'px Pretendard, sans-serif'; ctx.fillText('도시 ' + this.citiesLeft + '개 · 남은 탄 ' + b.ammo + ' 보너스', W / 2, H * 0.4 + cs); ctx.textAlign = 'left'; }
     if (this.wave === 1 && this.spawnLeft > 5 + 3 - 2 && !this.missiles.length) { ctx.fillStyle = 'rgba(255,255,255,0.75)'; ctx.font = '700 ' + Math.round(cs * .6) + 'px Pretendard, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('미사일이 지나갈 자리를 톡 누르세요', W / 2, H * 0.55); ctx.textAlign = 'left'; }

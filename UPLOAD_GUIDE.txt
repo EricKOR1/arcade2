@@ -1,15 +1,15 @@
-아케이드 플랫폼 — v2026-09-27a
+아케이드 플랫폼 — v2026-09-28b
 ==============================
 
-교체할 파일 3개
-  fps3d-engine.js   구르기 연출(감속·시점·화면 회전) · 상대 구르기 재생 · 구르는 중 사격 불가
-  style.css         오른쪽 조작 층 배치 (겹침 해소)
-  index.html/admin.html  버전
+교체할 파일 1개 (+ 버전 표시)
+  snake-engine.js    픽셀아트 스프라이트
+  index.html / admin.html  버전 표시만
+  (+ README.md)
 
-★ 학생 기기도 반드시 새로고침 (신호에 구르기 진행률이 들어갑니다)
+★ 28a 를 아직 안 올렸다면 fx.js 와 엔진 13개도 함께 올리세요 (이 zip 에 모두 있습니다)
 
 건드리지 않는 파일
   firebase-config.js  ← 본인 값 그대로 (EXAMPLE 은 올리지 마세요)
   photo.html / force.html / body.html
 
-올린 뒤 화면 아래 v2026-09-27a 를 꼭 확인하세요. 안 보이면 Ctrl+Shift+R.
+올린 뒤 화면 아래 v2026-09-28b 를 꼭 확인하세요. 안 보이면 Ctrl+Shift+R. 학생 기기도 새로고침.

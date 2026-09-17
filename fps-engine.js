@@ -182,8 +182,7 @@ class FpsGame {
   // ── 프레임 ──
   tick(now) {
     this.now = now;
-    const dt = this.lastTime ? Math.min(50, now - this.lastTime) : 16.7;
-    this.lastTime = now; const f = dt / 16.7;
+    const { dt, f } = FX.frame(this, now);
     Object.keys(this.peers).forEach(id => { const p = this.peers[id]; if (p.tx == null) return;
       p.x += (p.tx - p.x) * 0.3; p.y += (p.ty - p.y) * 0.3;
       let da = p.tangle - p.angle; while (da > Math.PI) da -= Math.PI * 2; while (da < -Math.PI) da += Math.PI * 2; p.angle += da * 0.3;
@@ -371,7 +370,7 @@ class FpsGame {
     ctx.fillRect(sx - w * 0.3, y0 + h * 0.56, w * 0.24, h * 0.44 - Math.max(0, sw) * h * 0.1);
     ctx.fillRect(sx + w * 0.06, y0 + h * 0.56, w * 0.24, h * 0.44 - Math.max(0, -sw) * h * 0.1);
     // 몸통 (방탄복) + 팀 색 띠
-    ctx.fillStyle = '#3A4256'; ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(sx - w * 0.42, y0 + h * 0.22, w * 0.84, h * 0.38, w * 0.12); else ctx.rect(sx - w * 0.42, y0 + h * 0.22, w * 0.84, h * 0.38); ctx.fill();
+    ctx.fillStyle = '#3A4256'; FX.rr(ctx, sx - w * 0.42, y0 + h * 0.22, w * 0.84, h * 0.38, w * 0.12); ctx.fill();
     ctx.fillStyle = teamC; ctx.fillRect(sx - w * 0.42, y0 + h * 0.22, w * 0.84, h * 0.06); ctx.fillRect(sx - w * 0.12, y0 + h * 0.28, w * 0.24, h * 0.3);
     // 팔 + 총
     ctx.fillStyle = '#2F3648'; ctx.fillRect(sx - w * 0.55, y0 + h * 0.26, w * 0.14, h * 0.3);
@@ -432,7 +431,7 @@ class FpsGame {
   }
 
   drawHud(ctx, W, H, hy, now, teamC) {
-    const rr = (x, y, w, h, r, fill) => { ctx.fillStyle = fill; ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(x, y, w, h, r); else ctx.rect(x, y, w, h); ctx.fill(); };
+    const rr = (x, y, w, h, r, fill) => { ctx.fillStyle = fill; FX.rr(ctx, x, y, w, h, r); ctx.fill(); };
     // 조준점 — 움직이거나 쏘면 벌어짐 · 히트마커
     const gap = 6 + this.recoil * 10 + (this.moving ? 5 : 0);
     ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 2;

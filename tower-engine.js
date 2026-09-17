@@ -28,7 +28,7 @@ class TowerGame {
   tick(now) {
     this.now = now;
     if (this.gameOver) return;
-    const dt = this.lastTime ? Math.min(50, now - this.lastTime) : 16.7; this.lastTime = now; const f = dt / 16.7;
+    const { dt, f } = FX.frame(this, now);
     if (this.invul > 0) this.invul -= dt;
     // 사다리
     const lad = this.ladderAt(this.x, this.y);
@@ -71,7 +71,7 @@ class TowerGame {
       if (!b.scored && dx < 0.5 && dy < -0.8 && dy > -2.2 && this.jumping) { b.scored = true; this.score += 50; }
       if (this.invul <= 0 && dx < 0.55 && Math.abs(dy) < 0.6) { this.lives--; this.invul = 2000; this.burst(this.x, this.y); if (window.Sound) Sound.crash();
         if (this.lives <= 0) { this.gameOver = true; if (window.Sound) Sound.gameOver(); } else { this.barrels = []; this.resetPlayer(); } } });
-    this.parts.forEach(p => { p.x += p.vx * f; p.y += p.vy * f; p.l -= 0.05 * f; }); this.parts = this.parts.filter(p => p.l > 0);
+    this.parts = FX.stepParts(this.parts, f, 0.05);
     this.draw();
   }
   burst(x, y) { for (let i = 0; i < 10; i++) { const a = Math.random() * Math.PI * 2, v = 0.04 + Math.random() * 0.08; this.parts.push({ x, y: y - 0.5, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 0.05, l: 1, c: '#FF5C7A' }); } }
@@ -109,7 +109,7 @@ class TowerGame {
       ctx.fillStyle = '#2B3140'; const sw = (this.steer || this.onLadder) ? Math.sin(now / 80) * r * 0.4 : 0;
       ctx.fillRect(px - r * 0.55, py - r * 0.7, r * 0.45, r * 0.7 + sw); ctx.fillRect(px + r * 0.1, py - r * 0.7, r * 0.45, r * 0.7 - sw);
       ctx.fillStyle = '#fff'; ctx.fillRect(px + this.face * r * 0.15, py - r * 2.5, r * 0.15, r * 0.15); }
-    this.parts.forEach(p => { ctx.globalAlpha = Math.max(0, p.l); ctx.fillStyle = p.c; ctx.fillRect(p.x * cs - 1.5, p.y * cs - 1.5, 3, 3); }); ctx.globalAlpha = 1;
+    FX.drawParts(ctx, this.parts, cs, 3);
     for (let i = 0; i < this.lives; i++) { ctx.fillStyle = '#06D6A0'; ctx.fillRect(cs * (0.3 + i * 0.6), H - cs * 0.5, cs * 0.35, cs * 0.35); }
     if (this.gameOver) { ctx.fillStyle = 'rgba(11,13,18,0.55)'; ctx.fillRect(0, 0, W, H); }
   }
