@@ -1,17 +1,17 @@
-아케이드 플랫폼 — v2026-09-30a
+아케이드 플랫폼 — v2026-09-30b
 ==============================
 
-교체할 파일 3개 (+ 버전 표시)
-  racing-engine.js   도로 대비(멀리 보임) · 안내 문구 위치 · 덧칠 감소
-  style.css          HUD 배치 (겹침 해소)
-  index.html / admin.html  버전 표시만
+교체할 파일 4개
+  racing-engine.js    스키드마크 제거 · 안개 약화(먼 도로) · 점프 연출 강화
+  frogger-engine.js   길 건너기 그래픽 (차·통나무·개구리)
+  index.html / admin.html  버전 표시
   (+ README.md)
 
-★ v29b 를 아직 안 올리셨다면 이 zip 으로 한 번에 올리시면 됩니다
-  (도로 대비 개선이 29b 부터 들어갔습니다)
+지워도 되는 파일 (저장소에 남아 있다면)
+  river-engine.js     더 이상 쓰지 않습니다
 
 건드리지 않는 파일
   firebase-config.js  ← 본인 값 그대로 (EXAMPLE 은 올리지 마세요)
   photo.html / force.html / body.html
 
-올린 뒤 화면 아래 v2026-09-30a 를 꼭 확인하세요. 안 보이면 Ctrl+Shift+R. 학생 기기도 새로고침.
+올린 뒤 화면 아래 v2026-09-30b 를 꼭 확인하세요. 안 보이면 Ctrl+Shift+R. 학생 기기도 새로고침.

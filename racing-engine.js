@@ -1061,9 +1061,13 @@ class KartGame {
         const dseg = ((this.segIdx - jp.i) % this.track.n + this.track.n) % this.track.n;
         if (dseg <= 1 && this.speed > 2 && this.lastJumpAt !== jp.i) {
           this.airborne = true; this.airZ = 0.01; this.airVz = 5.5 + Math.min(1, this.speed / this.maxSpeed) * 6.5;
-          this.lastJumpAt = jp.i; this.jumpFrom = jp;
-          this.showToast('JUMP!', '#FFD166'); if (window.Sound) Sound.rotate(); if (window.Haptic) Haptic.good();
-          this.spawn(14, this.x, this.y, this.track.carLen * 0.3, { speed: 4, up: 3, size: 6, colors: ['#FFD166', '#FFFFFF'], gravity: 2 });
+          this.lastJumpAt = jp.i; this.jumpFrom = jp; this.airStart = now; this.airBest = 0;
+          this.jumpBanner = now + 1200;                 // 큰 'JUMP!' 배너
+          this.shakeT = 0.45;                            // 발판을 차고 오르는 충격
+          if (window.Sound) { Sound.rotate(); Sound.boost && Sound.boost(); } if (window.Haptic) Haptic.big();
+          // 흙먼지 · 불꽃
+          this.spawn(30, this.x, this.y, this.track.carLen * 0.45,
+            { speed: 6, up: 4.5, size: 9, colors: ['#FFD166', '#FF9F43', '#FFFFFF', this.track.def.grass], gravity: 2.2 });
         }
       }
     }
@@ -1080,7 +1084,15 @@ class KartGame {
           this.x = c[0]; this.y = c[1]; this.angle = Math.atan2(ty, tx); this.segIdx = back; this.speed = 0; this.camAngle = undefined;
           this.showToast('추락! 더 빠르게 진입하세요', '#FF5C7A'); if (window.Sound) Sound.crash(); if (window.Haptic) Haptic.hit();
           this.shakeT = 0.28;
-        } else { this.shakeT = 0.18; if (window.Sound) Sound.lock(); }
+        } else {
+          // 착지 성공: 충격 + 먼지 + 비행 시간에 따른 보너스 문구
+          this.shakeT = 0.5;
+          this.spawn(26, this.x, this.y, this.track.carLen * 0.5,
+            { speed: 5, up: 2.2, size: 8, colors: ['#FFFFFF', '#FFD166', this.track.def.grass], gravity: 2.4 });
+          const airSec = (now - (this.airStart || now)) / 1000;
+          this.showToast(airSec > 1.1 ? '★ 멋진 점프! ' + airSec.toFixed(1) + '초' : '착지! ' + airSec.toFixed(1) + '초', '#FFD166');
+          if (window.Sound) Sound.clear(1); if (window.Haptic) Haptic.hit();
+        }
       }
     }
     this.x += Math.cos(this.angle) * this.speed * f;
@@ -1775,9 +1787,6 @@ class KartGame {
       stripe(run, 1 + kw, 1, kerb, toBottom);          // 왼쪽 연석
       stripe(run, -1, -1 - kw, kerb, toBottom);        // 오른쪽 연석
       stripe(run, 1, -1, d.road, toBottom);            // 도로
-      // 타이어 자국 (가까운 구간만)
-      const near = run.filter(sg => sg.k < 14);
-      if (near.length > 1) { stripe(near, 0.51, 0.33, 'rgba(0,0,0,0.10)', toBottom); stripe(near, -0.33, -0.51, 'rgba(0,0,0,0.10)', toBottom); }
     });
 
     // 끊긴 구간: 어두운 협곡 + 점프대 (빨간·노란 빗금 램프)
@@ -1804,10 +1813,10 @@ class KartGame {
     {
       const sk = d.sky || {};
       const haze = sk.haze || this.lighten(d.grass, 0.35);
-      const band = Math.max(20, H * 0.11);
+      const band = Math.max(16, H * 0.075);
       const gfog = ctx.createLinearGradient(0, cam.horizonY - 2, 0, cam.horizonY + band);
-      gfog.addColorStop(0, this.rgba(haze, 1));
-      gfog.addColorStop(0.45, this.rgba(haze, 0.72));
+      gfog.addColorStop(0, this.rgba(haze, 0.85));
+      gfog.addColorStop(0.45, this.rgba(haze, 0.42));
       gfog.addColorStop(1, this.rgba(haze, 0));
       ctx.fillStyle = gfog;
       ctx.fillRect(0, cam.horizonY - 2, W, band + 2);
@@ -2942,6 +2951,30 @@ class KartGame {
       ctx.font = '600 12px Pretendard, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.75)';
       ctx.fillText('마지막 바퀴입니다', 0, 14);
       ctx.restore();
+    }
+
+    // ── 점프 연출 ──
+    if (this.airborne || now < (this.jumpBanner || 0)) {
+      this.airBest = Math.max(this.airBest || 0, this.airZ || 0);
+      // 공중일 때 속도선으로 질주감
+      if (this.airborne) this.drawSpeedLines(ctx, W, H, 0.5);
+      // 큰 JUMP! 배너 (튀어 올랐다 사라짐)
+      if (now < (this.jumpBanner || 0)) {
+        const k = 1 - (this.jumpBanner - now) / 1200;
+        const sc = 0.6 + 0.4 * FX.ease.outBack(Math.min(1, k * 4)), al = k > 0.7 ? (1 - k) / 0.3 : 1;
+        ctx.save(); ctx.globalAlpha = Math.max(0, al); ctx.translate(W / 2, H * 0.3); ctx.scale(sc, sc);
+        ctx.font = '800 54px Pretendard, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.lineWidth = 8; ctx.strokeStyle = 'rgba(8,10,16,0.85)'; ctx.strokeText('JUMP!', 0, 0);
+        ctx.fillStyle = '#FFD166'; ctx.fillText('JUMP!', 0, 0);
+        ctx.restore(); ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+      }
+      // 고도 막대 (오른쪽) — 얼마나 높이 떠 있는지
+      if (this.airborne) {
+        const bh = H * 0.22, bx = W - 26, by = H * 0.42, k2 = Math.min(1, (this.airZ || 0) / 200);
+        ctx.fillStyle = 'rgba(8,10,16,0.55)'; FX.rr(ctx, bx, by, 8, bh, 4); ctx.fill();
+        ctx.fillStyle = '#FFD166'; FX.rr(ctx, bx, by + bh * (1 - k2), 8, bh * k2, 4); ctx.fill();
+        FX.text(ctx, Math.round(this.airZ || 0) + 'm', bx + 4, by - 8, { size: 13, weight: 800, color: '#FFD166', align: 'center', shadow: 4 });
+      }
     }
 
     // 랩 타임 (미니맵 아래 오른쪽)

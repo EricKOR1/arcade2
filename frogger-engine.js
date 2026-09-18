@@ -98,44 +98,114 @@ class FroggerGame {
     return g;
   }
 
+  // ── 스프라이트 (코드 생성 · 외부 파일 없음) ──
+  buildSprites(cs) {
+    const P = 16, S = Math.ceil(cs), mk = () => { const c = document.createElement('canvas'); c.width = S; c.height = S; return c; };
+    const px = (g, grid, pal) => { const u = S / P; g.imageSmoothingEnabled = false;
+      const at = v => v >= P ? S : Math.floor(v * u);
+      grid.forEach((row, y) => { for (let x = 0; x < row.length; x++) { const ch = row[x]; if (ch === '.') continue; g.fillStyle = pal[ch]; g.fillRect(at(x), at(y), at(x + 1) - at(x), at(y + 1) - at(y)); } }); };
+    const pal = { G: '#7DF58F', g: '#2FBF5C', d: '#12572A', w: '#FFFFFF', k: '#0B0D12', y: '#FFD166', p: '#FF8AB0', r: '#FF5C5C' };
+    // 개구리: 정면을 보는 모습 (눈 · 앞발 · 뒷다리)
+    const frog = [
+      '................','...dd......dd...','..dGGd....dGGd..','..dGwGd..dGwGd..','..dGwkGddGwkGd..','..dGGGGGGGGGGd..','...dgggggggggd..',
+      '..dgggggggggggd.','.dGgggggggggggGd','.dGgggddddgggGd.','.dGggggggggggGd.','..dGgggggggggd..','..ddGgggggggGdd.','.dd..dGGGGGd..dd',
+      'dd....ddddd....d','................'];
+    const frogHop = frog.map((r, y) => y >= 12 ? r.replace(/d/g, 'g') : r);
+    const bake = grid => { const c = mk(); px(c.getContext('2d'), grid, pal); return c; };
+    this._fs = { frog: bake(frog), frogHop: bake(frogHop) };
+    this._fsCs = cs;
+  }
+
   draw() {
     const ctx = this.ctx, cs = this.cellSize, W = FROG_COLS * cs, H = FROG_ROWS * cs;
+    if (!this._fs || this._fsCs !== cs) this.buildSprites(cs);
+    const T = this.time;
+
     this.lanes.forEach(l => {
       const y = l.y * cs;
-      ctx.fillStyle = l.kind === 'river' ? '#1E5FA8' : l.kind === 'road' ? '#2B2F3A' : l.kind === 'home' ? '#173D2A' : '#2E7D46';
-      ctx.fillRect(0, y, W, cs);
-      if (l.kind === 'road') { ctx.fillStyle = 'rgba(255,255,255,0.25)'; for (let x = 0; x < FROG_COLS; x += 2) ctx.fillRect(x * cs + cs * 0.2, y + cs / 2 - 1, cs * 0.6, 2); }
-      if (l.kind === 'river') { ctx.fillStyle = 'rgba(255,255,255,0.12)'; for (let x = 0; x < FROG_COLS; x++) ctx.fillRect(x * cs + ((this.time / 40 + l.y * 7) % cs), y + cs * 0.3, cs * 0.35, 2); }
+      // ── 차선 바탕 ──
+      if (l.kind === 'river') {
+        const g = ctx.createLinearGradient(0, y, 0, y + cs); g.addColorStop(0, '#14538F'); g.addColorStop(1, '#0E3E६E'.replace('६','6'));
+        ctx.fillStyle = g; ctx.fillRect(0, y, W, cs);
+        // 물결: 흐르는 방향으로 이동
+        ctx.strokeStyle = 'rgba(190,235,255,0.22)'; ctx.lineWidth = Math.max(1.5, cs * 0.06);
+        for (let k = 0; k < 3; k++) { const oy = y + cs * (0.25 + k * 0.28);
+          ctx.beginPath(); for (let x = -cs; x <= W + cs; x += cs * 0.5) {
+            const ph = (T / 22 * l.dir + x * 0.6 + k * 40) ;
+            ctx.lineTo(x, oy + Math.sin(ph / 30) * cs * 0.05); } ctx.stroke(); }
+      } else if (l.kind === 'road') {
+        ctx.fillStyle = '#31353F'; ctx.fillRect(0, y, W, cs);
+        ctx.fillStyle = 'rgba(0,0,0,0.18)'; ctx.fillRect(0, y, W, cs * 0.1); ctx.fillRect(0, y + cs * 0.9, W, cs * 0.1);
+        ctx.fillStyle = 'rgba(255,255,255,0.30)';
+        for (let x = 0; x < FROG_COLS; x += 2) ctx.fillRect(x * cs + cs * 0.22, y + cs / 2 - Math.max(1, cs * 0.03), cs * 0.56, Math.max(2, cs * 0.06));
+      } else if (l.kind === 'home') {
+        const g = ctx.createLinearGradient(0, y, 0, y + cs); g.addColorStop(0, '#1B4A32'); g.addColorStop(1, '#123424');
+        ctx.fillStyle = g; ctx.fillRect(0, y, W, cs);
+      } else {
+        const g = ctx.createLinearGradient(0, y, 0, y + cs); g.addColorStop(0, '#39955A'); g.addColorStop(1, '#2C7A47');
+        ctx.fillStyle = g; ctx.fillRect(0, y, W, cs);
+        // 풀잎
+        ctx.fillStyle = 'rgba(125,245,143,0.28)';
+        for (let x = 0; x < FROG_COLS; x++) { const sd = (x * 37 + l.y * 91) % 11; if (sd > 4) continue;
+          ctx.fillRect(x * cs + (sd + 2) * cs / 16, y + (sd * 2 + 4) * cs / 16, cs / 16, cs / 8); }
+      }
+
+      // ── 차 · 통나무 ──
       l.items.forEach(it => {
         const x = it.x * cs, w = it.len * cs;
         if (l.kind === 'river') {
-          ctx.fillStyle = '#8B5A2B'; FX.rr(ctx, x, y + cs * 0.15, w, cs * 0.7, cs * 0.3); ctx.fill();
-          ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.fillRect(x + cs * 0.2, y + cs * 0.25, w - cs * 0.4, cs * 0.12);
+          // 통나무: 나뭇결 + 양끝 단면
+          ctx.fillStyle = 'rgba(0,0,0,0.25)'; FX.rr(ctx, x + cs * 0.06, y + cs * 0.24, w, cs * 0.66, cs * 0.3); ctx.fill();
+          ctx.fillStyle = '#8B5A2B'; FX.rr(ctx, x, y + cs * 0.18, w, cs * 0.64, cs * 0.3); ctx.fill();
+          ctx.fillStyle = 'rgba(0,0,0,0.18)';
+          for (let q = 0; q < Math.max(1, Math.round(it.len)); q++) ctx.fillRect(x + cs * (0.45 + q), y + cs * 0.24, Math.max(1.5, cs * 0.05), cs * 0.52);
+          ctx.fillStyle = '#A9713A'; ctx.beginPath(); ctx.ellipse(x + cs * 0.1, y + cs * 0.5, cs * 0.1, cs * 0.3, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.beginPath(); ctx.ellipse(x + w - cs * 0.1, y + cs * 0.5, cs * 0.1, cs * 0.3, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = '#6E4522'; ctx.beginPath(); ctx.ellipse(x + w - cs * 0.1, y + cs * 0.5, cs * 0.05, cs * 0.16, 0, 0, Math.PI * 2); ctx.fill();
         } else {
-          ctx.fillStyle = l.color; FX.rr(ctx, x, y + cs * 0.15, w, cs * 0.7, cs * 0.18); ctx.fill();
-          ctx.fillStyle = 'rgba(200,235,255,0.7)'; ctx.fillRect(x + (l.dir > 0 ? w - cs * 0.45 : cs * 0.15), y + cs * 0.25, cs * 0.3, cs * 0.5);
-          ctx.fillStyle = '#1A1D24'; ctx.fillRect(x + cs * 0.1, y + cs * 0.82, cs * 0.25, cs * 0.12); ctx.fillRect(x + w - cs * 0.35, y + cs * 0.82, cs * 0.25, cs * 0.12);
+          // 차: 몸통 + 지붕(창) + 바퀴 + 전조등
+          const fwd = l.dir > 0;
+          ctx.fillStyle = 'rgba(0,0,0,0.30)'; FX.rr(ctx, x + cs * 0.06, y + cs * 0.26, w, cs * 0.6, cs * 0.16); ctx.fill();
+          ctx.fillStyle = l.color; FX.rr(ctx, x, y + cs * 0.2, w, cs * 0.6, cs * 0.16); ctx.fill();
+          ctx.fillStyle = 'rgba(255,255,255,0.18)'; FX.rr(ctx, x + cs * 0.06, y + cs * 0.24, w - cs * 0.12, cs * 0.18, cs * 0.08); ctx.fill();
+          ctx.fillStyle = 'rgba(190,235,255,0.75)';
+          FX.rr(ctx, x + (fwd ? w - cs * 0.62 : cs * 0.16), y + cs * 0.3, cs * 0.46, cs * 0.34, cs * 0.08); ctx.fill();
+          ctx.fillStyle = '#12161F';
+          [0.18, 0.82].forEach(f2 => { ctx.beginPath(); ctx.ellipse(x + w * f2, y + cs * 0.84, cs * 0.14, cs * 0.1, 0, 0, Math.PI * 2); ctx.fill(); });
+          ctx.fillStyle = '#FFE9A8'; ctx.beginPath();
+          ctx.ellipse(x + (fwd ? w - cs * 0.06 : cs * 0.06), y + cs * 0.5, cs * 0.06, cs * 0.12, 0, 0, Math.PI * 2); ctx.fill();
         }
       });
-      if (l.kind === 'home') for (let s = 0; s < 5; s++) {
-        const hx = (s / 4) * (FROG_COLS - 1) * cs + cs * 0.5;
-        ctx.fillStyle = this.homes[s] ? '#06D6A0' : 'rgba(0,0,0,0.35)';
-        ctx.beginPath(); ctx.arc(hx, y + cs / 2, cs * 0.38, 0, Math.PI * 2); ctx.fill();
+
+      // ── 도착 칸 ──
+      if (l.kind === 'home') for (let s2 = 0; s2 < 5; s2++) {
+        const hx = (s2 / 4) * (FROG_COLS - 1) * cs + cs * 0.5;
+        ctx.fillStyle = 'rgba(0,0,0,0.4)'; FX.rr(ctx, hx - cs * 0.44, y + cs * 0.08, cs * 0.88, cs * 0.84, cs * 0.2); ctx.fill();
+        if (this.homes[s2]) { ctx.drawImage(this._fs.frog, hx - cs * 0.42, y + cs * 0.1, cs * 0.84, cs * 0.84); }
+        else { ctx.strokeStyle = 'rgba(125,245,143,0.5)'; ctx.lineWidth = 2; FX.rr(ctx, hx - cs * 0.4, y + cs * 0.12, cs * 0.8, cs * 0.76, cs * 0.18); ctx.stroke(); }
       }
     });
-    // 개구리
+
+    // ── 개구리 ──
     if (!this.gameOver && this.deathT <= 0) {
-      const px = (this.fx + 0.5) * cs, py = (this.fy + 0.5) * cs - Math.sin(this.hopT * Math.PI) * cs * 0.35;
-      const r = cs * 0.38;
-      ctx.fillStyle = '#06D6A0'; ctx.beginPath(); ctx.ellipse(px, py, r, r * 0.85, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(px - r * 0.4, py - r * 0.5, r * 0.28, 0, Math.PI * 2); ctx.arc(px + r * 0.4, py - r * 0.5, r * 0.28, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#0B0D12'; ctx.beginPath(); ctx.arc(px - r * 0.4, py - r * 0.5, r * 0.13, 0, Math.PI * 2); ctx.arc(px + r * 0.4, py - r * 0.5, r * 0.13, 0, Math.PI * 2); ctx.fill();
+      const hop = Math.sin(this.hopT * Math.PI);
+      const px2 = (this.fx + 0.5) * cs, py2 = (this.fy + 0.5) * cs - hop * cs * 0.4;
+      ctx.fillStyle = 'rgba(0,0,0,' + (0.3 * (1 - hop * 0.7)).toFixed(2) + ')';
+      ctx.beginPath(); ctx.ellipse(px2, (this.fy + 0.5) * cs + cs * 0.3, cs * 0.3 * (1 - hop * 0.3), cs * 0.1, 0, 0, Math.PI * 2); ctx.fill();
+      const sc = 1 + hop * 0.12;
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(hop > 0.15 ? this._fs.frogHop : this._fs.frog, px2 - cs * 0.5 * sc, py2 - cs * 0.5 * sc, cs * sc, cs * sc);
+      ctx.imageSmoothingEnabled = true;
     } else if (this.deathT > 0) {
-      const px = (this.fx + 0.5) * cs, py = (this.fy + 0.5) * cs;
-      ctx.fillStyle = 'rgba(255,92,122,' + this.deathT.toFixed(2) + ')';
-      ctx.font = '800 ' + Math.round(cs * 0.9) + 'px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('✕', px, py); ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+      const px2 = (this.fx + 0.5) * cs, py2 = (this.fy + 0.5) * cs;
+      ctx.globalAlpha = this.deathT;
+      ctx.fillStyle = '#FF5C7A'; ctx.beginPath(); ctx.arc(px2, py2, cs * 0.45 * (1.6 - this.deathT), 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+      FX.text(ctx, '✕', px2, py2, { size: cs * 0.8, weight: 800, color: '#fff', align: 'center', baseline: 'middle', shadow: 6 });
     }
-    for (let i = 0; i < this.lives; i++) { ctx.fillStyle = '#06D6A0'; ctx.beginPath(); ctx.arc(cs * (0.5 + i * 0.7), H - cs * 0.5, cs * 0.18, 0, Math.PI * 2); ctx.fill(); }
+
+    // 목숨
+    for (let i = 0; i < this.lives; i++) { ctx.imageSmoothingEnabled = false; ctx.drawImage(this._fs.frog, cs * (0.15 + i * 0.6), H - cs * 0.78, cs * 0.55, cs * 0.55); ctx.imageSmoothingEnabled = true; }
     if (this.gameOver) { ctx.fillStyle = 'rgba(11,13,18,0.55)'; ctx.fillRect(0, 0, W, H); }
   }
 }
