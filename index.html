@@ -10,8 +10,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1B2027">
 <title>아케이드</title>
-<link rel="stylesheet" href="platform.css?v=2026-10-01a">
-<link rel="stylesheet" href="style.css?v=2026-10-01a">
+<link rel="stylesheet" href="platform.css?v=2026-10-01c">
+<link rel="stylesheet" href="style.css?v=2026-10-01c">
 </head>
 <body>
 <div class="app">
@@ -128,33 +128,33 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script src="firebase-config.js?v=2026-10-01a"></script>
-<script src="sound.js?v=2026-10-01a"></script>
-<script src="shared.js?v=2026-10-01a"></script>
-<script src="fx.js?v=2026-10-01a"></script>
-<script src="tetris-engine.js?v=2026-10-01a"></script>
-<script src="racing-engine.js?v=2026-10-01a"></script>
-<script src="snake-engine.js?v=2026-10-01a"></script>
-<script src="breakout-engine.js?v=2026-10-01a"></script>
-<script src="flappy-engine.js?v=2026-10-01a"></script>
-<script src="shooter-engine.js?v=2026-10-01a"></script>
+<script src="firebase-config.js?v=2026-10-01c"></script>
+<script src="sound.js?v=2026-10-01c"></script>
+<script src="shared.js?v=2026-10-01c"></script>
+<script src="fx.js?v=2026-10-01c"></script>
+<script src="tetris-engine.js?v=2026-10-01c"></script>
+<script src="racing-engine.js?v=2026-10-01c"></script>
+<script src="snake-engine.js?v=2026-10-01c"></script>
+<script src="breakout-engine.js?v=2026-10-01c"></script>
+<script src="flappy-engine.js?v=2026-10-01c"></script>
+<script src="shooter-engine.js?v=2026-10-01c"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="fps-engine.js?v=2026-10-01a"></script>
-<script src="fps3d-engine.js?v=2026-10-01a"></script>
-<script src="game2048-engine.js?v=2026-10-01a"></script>
-<script src="frogger-engine.js?v=2026-10-01a"></script>
-<script src="asteroids-engine.js?v=2026-10-01a"></script>
-<script src="maze-engine.js?v=2026-10-01a"></script>
-<script src="tower-engine.js?v=2026-10-01a"></script>
-<script src="missile-engine.js?v=2026-10-01a"></script>
-<script src="centipede-engine.js?v=2026-10-01a"></script>
-<script src="source-engine.js?v=2026-10-01a"></script>
-<script src="games.js?v=2026-10-01a"></script>
-<script src="app.js?v=2026-10-01a"></script>
+<script src="fps-engine.js?v=2026-10-01c"></script>
+<script src="fps3d-engine.js?v=2026-10-01c"></script>
+<script src="game2048-engine.js?v=2026-10-01c"></script>
+<script src="frogger-engine.js?v=2026-10-01c"></script>
+<script src="asteroids-engine.js?v=2026-10-01c"></script>
+<script src="maze-engine.js?v=2026-10-01c"></script>
+<script src="tower-engine.js?v=2026-10-01c"></script>
+<script src="missile-engine.js?v=2026-10-01c"></script>
+<script src="centipede-engine.js?v=2026-10-01c"></script>
+<script src="source-engine.js?v=2026-10-01c"></script>
+<script src="games.js?v=2026-10-01c"></script>
+<script src="app.js?v=2026-10-01c"></script>
 <script>
 (function () {
 
-  const BUILD = '2026-10-01a';   // 화면 아래에 표시됩니다
+  const BUILD = '2026-10-01c';   // 화면 아래에 표시됩니다
 
   const gameId = getGameId();
   const def = GAMES[gameId];
@@ -338,6 +338,11 @@
   const rosterRef  = db.ref('roster');                 // {id: 닉네임} — 학생 기기는 이것만 구독합니다 (players 는 교사만)
   const myRosterRef = rosterRef.child(playerId);
   const playersRef = db.ref('players');
+  // 서버 시계와의 차이 — 기기 시계가 달라도 같은 순간에 출발하도록
+  let serverOffset = 0;
+  db.ref('.info/serverTimeOffset').on('value', s2 => { serverOffset = s2.val() || 0; });
+  const serverNow = () => Date.now() + serverOffset;
+  let sessionStartAt = 0;
   const posRef     = db.ref('pos');
   const myPosRef   = db.ref('pos/' + playerId);
   const hazardsRef = db.ref('hazards');
@@ -435,6 +440,7 @@
     // 입장한 학생만 게임으로 넘어갑니다.
     // (이미 진행 중인 수업에 뒤늦게 QR로 들어와도 닉네임 화면을 먼저 거칩니다)
     const st = s.status || 'idle';
+    sessionStartAt = +s.startAt || 0;
     setWatched(s.watch === playerId);
 
     // 선생님이 다른 게임을 골랐으면 그 게임으로 옮겨 갑니다.
@@ -770,7 +776,11 @@
       const canvas = document.getElementById('game-canvas');
       requestAnimationFrame(() => {
         fitCanvas();
+        // 공통 출발 시각까지 남은 시간을 카운트다운으로 넘깁니다.
+        // (기기마다 준비 시간이 달라도 같은 순간에 출발합니다. 늦게 들어온 학생은 바로 출발)
+        const cd = sessionStartAt ? Math.max(0, (sessionStartAt - serverNow()) / 1000) : undefined;
         game = def.create(canvas, {
+          countdown: cd,
           cellSize: cellSize, trackId: trackId, slot: slot,
           myId: playerId, myName: myNickname,
           onDropHazard: dropHazard, onHitHazard: hitHazard, nameOf: id => names[id] || '',
@@ -945,14 +955,28 @@
     setTimeout(() => ref.remove(), 3000);
   }
 
-  // 완주 순위를 원자적으로 배정
+  // 완주 순위 — '먼저 신호가 도착한 순서' 가 아니라 '실제로 먼저 들어온 순서' 로 정합니다.
+  // Firebase 카운터를 쓰면 늦게 통과해도 네트워크가 빠른 학생이 1위가 될 수 있습니다.
+  // 각자 주행 시간(출발 신호 → 결승선, 기기 안에서 잰 값)을 올리고, 그 시간이 짧은 순서가 순위입니다.
+  let finishesOff = null;
   function reportFinish() {
-    db.ref('finishCount').transaction(c => (c || 0) + 1, (err, ok, snap) => {
-      const rank = ok ? snap.val() : null;
+    const ms = (game && game.raceMs) || 1;
+    db.ref('finishes/' + playerId).set({ ms: ms, n: nickname });
+    playerRef.update({ status: 'finished' });
+    const ref = db.ref('finishes');
+    const recalc = snap => {
+      const all = snap.val() || {};
+      const list = Object.keys(all).map(id => ({ id: id, ms: +all[id].ms || 0 }))
+                         .sort((a, b) => a.ms - b.ms || (a.id < b.id ? -1 : 1));   // 동률이면 id 로 고정
+      const rank = list.findIndex(x => x.id === playerId) + 1;
+      if (!rank) return;
       if (game) game.finishRank = rank;
-      playerRef.update({ status: 'finished', score: rank ? (1000 - rank) : 0, rank: rank });
+      playerRef.update({ score: 1000 - rank, rank: rank });
       showResult(rank);
-    });
+    };
+    ref.on('value', recalc);
+    finishesOff = () => ref.off('value', recalc);
+    setTimeout(() => { if (finishesOff) { finishesOff(); finishesOff = null; } }, 30000);   // 30초 뒤 고정
   }
 
   function drawNextPreview() {
@@ -1252,6 +1276,7 @@
   function stopGame() {
     if (game && game.destroy) { try { game.destroy(); } catch (e) {} }
     if (watchTimer) { clearInterval(watchTimer); watchTimer = null; if (screenRef) screenRef.remove(); }
+    if (finishesOff) { finishesOff(); finishesOff = null; }
     const fc = byId('fps-ctl'); if (fc) fc.remove();
     stopGyro();
     detachPeerSync();

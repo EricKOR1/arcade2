@@ -613,7 +613,9 @@ class KartGame {
     this.starUntil = 0; this.slideUntil = 0; this.slideDrift = 0; this.lastBump = 0;
     this.lastTime = 0;
     this.camX = this.x; this.camY = this.y;
-    this.countdown = 3.6;
+    // 카운트다운은 기기별로 따로 재면 출발이 어긋납니다.
+    // 학생 화면이 '공통 출발 시각'을 계산해 넘겨 주면 그 값을 씁니다 (opts.countdown).
+    this.countdown = (typeof this.opts.countdown === 'number') ? Math.max(0, this.opts.countdown) : 3.6;
     this.startedAt = null;
     this.toast = null;
     this.fx = [];
@@ -1046,12 +1048,28 @@ class KartGame {
     if (spinning)      this.angle += 0.34 * f;
     else if (sliding)  this.angle += (this.slideDrift || 0.02) * f;                 // 핸들이 안 듣고 슬슬 밀림
     else if (!stunned && !this.airborne) this.angle += this.steer * this.turnRate * Math.min(1, this.speed/3) * f;
-    // 자석: 앞 주자 방향으로 조향이 살짝 끌림
+    // 자석: 상대를 '직선으로' 향하면 코너에서 벽에 박습니다.
+    // 대신 ① 도로를 따라가도록 진행 방향을 잡아 주고 ② 상대가 달리는 도로 옆쪽(안/바깥)으로만 조금씩 옮깁니다.
     if (now < this.magnetUntil && this.magnetTarget && this.peers[this.magnetTarget]) {
-      const tp = this.peers[this.magnetTarget];
-      let da = Math.atan2(tp.y - this.y, tp.x - this.x) - this.angle;
+      const tp = this.peers[this.magnetTarget], t = this.track;
+      // ① 코스 방향 따라가기 — 조금 앞 구간을 바라봅니다 (코너를 미리 돌게)
+      const look = Math.round(this.speed * 3 / t.stepLen) + 3;
+      const ai = ((this.segIdx + look) % t.n + t.n) % t.n;
+      const c = t.center[ai];
+      let da = Math.atan2(c[1] - this.y, c[0] - this.x) - this.angle;
       while (da > Math.PI) da -= Math.PI * 2; while (da < -Math.PI) da += Math.PI * 2;
-      this.angle += da * this.smooth(0.06, f);
+      // 직접 조향(steer)이 있으면 학생 조작이 우선 — 자석은 거들기만 합니다
+      const assist = this.steer ? 0.03 : 0.10;
+      this.angle += da * this.smooth(assist, f);
+      // ② 도로 폭 안에서 상대와 같은 쪽으로 (밖으로 밀려나지 않게 ±0.85 로 제한)
+      const mi = ((this.segIdx % t.n) + t.n) % t.n, mc = t.center[mi], [mtx, mty] = t.tangent[mi];
+      const nx = -mty, ny = mtx;
+      const myOff = ((this.x - mc[0]) * nx + (this.y - mc[1]) * ny) / t.halfW;
+      const ti = ((Math.round(tp.progress || 0) % t.n) + t.n) % t.n, tc = t.center[ti], [ttx, tty] = t.tangent[ti];
+      const tOff = ((tp.x - tc[0]) * (-tty) + (tp.y - tc[1]) * ttx) / t.halfW;
+      const want = Math.max(-0.85, Math.min(0.85, tOff));
+      const move = (want - myOff) * this.smooth(0.05, f) * t.halfW;
+      this.x += nx * move; this.y += ny * move;
     }
 
     // 점프대: 지나는 순간 도약 (속도에 비례해 멀리)
@@ -1281,6 +1299,8 @@ class KartGame {
 
     if (this.lap >= this.track.laps && !this.finished) {
       this.finished = true; this.speed *= 0.4; this.finishedAt = now;
+      // 실제 주행 시간(출발 신호부터 결승선까지). 네트워크와 무관하므로 순위의 기준이 됩니다.
+      this.raceMs = Math.max(1, Math.round(now - (this.startedAt || now)));
       if (window.Haptic) Haptic.big();
       if (window.Sound && Sound.engineStop) Sound.engineStop();
       this.spawn(70, this.x, this.y, this.track.carLen * 1.2,

@@ -52,6 +52,12 @@
         ".write": true,
         ".validate": "newData.isString() && newData.val().length <= 120000"
       }
+    },
+    "finishes": {
+      "$id": {
+        ".write": true,
+        ".validate": "newData.hasChildren(['ms'])"
+      }
     }
   }
 }

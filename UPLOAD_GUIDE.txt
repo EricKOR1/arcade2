@@ -1,21 +1,15 @@
-아케이드 플랫폼 — v2026-10-01a
+아케이드 플랫폼 — v2026-10-01c
 ==============================
 
-교체할 파일 6개
-  tower-engine.js      타워 오르기 그래픽 (등반가·사다리·통·배경)
-  centipede-engine.js  지네 사냥 그래픽 (지네·버섯·우주선)
-  breakout-engine.js   벽돌깨기 그래픽 (입체 벽돌·공 꼬리·패들)
-  fx.js                색 밝기 조절 도구(FX.tint) 추가
-  index.html / admin.html  버전 표시
+교체할 파일 4개
+  racing-engine.js    동시 출발(카운트다운 옵션) · 자석 로직 · 주행 시간
+  index.html          공통 출발 시각 적용 · 완주 순위(주행 시간 기준)
+  admin.html          시작 시 공통 출발 시각 전송 · 완주 기록 초기화
+  firebase-rules.json ★ 'finishes' 노드 추가 — 규칙을 쓰신다면 다시 붙여 넣으세요
   (+ README.md)
-
-★ v30b 를 아직 안 올리셨다면 이 zip 으로 한 번에 (frogger·racing 포함)
-
-지워도 되는 파일
-  river-engine.js      더 이상 쓰지 않습니다
 
 건드리지 않는 파일
   firebase-config.js  ← 본인 값 그대로 (EXAMPLE 은 올리지 마세요)
   photo.html / force.html / body.html
 
-올린 뒤 화면 아래 v2026-10-01a 를 꼭 확인하세요. 안 보이면 Ctrl+Shift+R. 학생 기기도 새로고침.
+올린 뒤 화면 아래 v2026-10-01c 를 꼭 확인하세요. 안 보이면 Ctrl+Shift+R. 학생 기기도 새로고침.
