@@ -266,10 +266,19 @@ class BreakoutGame {
     const g = this._layer.getContext('2d');
     g.clearRect(0, 0, W, H);
     this.bricks.forEach(k => {
-      drawBevelCell(g, k.x * cs, k.y * cs, cs, CELL_COLORS[k.color]);
-      if (k.hp > 1) {                                   // 단단한 벽돌 표시
-        g.fillStyle = 'rgba(0,0,0,0.35)';
-        g.fillRect(k.x * cs + cs * .3, k.y * cs + cs * .42, cs * .4, cs * .16);
+      const x = k.x * cs, y = k.y * cs, col = CELL_COLORS[k.color], pad = Math.max(1, cs * 0.05);
+      // 그림자 → 본체(세로 그라데이션) → 윗면 광택 → 테두리
+      g.fillStyle = 'rgba(0,0,0,0.35)'; FX.rr(g, x + pad, y + pad * 1.6, cs - pad * 2, cs - pad * 2, cs * 0.16); g.fill();
+      const gg = g.createLinearGradient(0, y, 0, y + cs);
+      gg.addColorStop(0, FX.tint(col, 0.30)); gg.addColorStop(0.55, col); gg.addColorStop(1, FX.tint(col, -0.32));
+      g.fillStyle = gg; FX.rr(g, x + pad, y + pad, cs - pad * 2, cs - pad * 2, cs * 0.16); g.fill();
+      g.fillStyle = 'rgba(255,255,255,0.35)'; FX.rr(g, x + pad * 2, y + pad * 2, cs - pad * 4, cs * 0.22, cs * 0.1); g.fill();
+      g.strokeStyle = 'rgba(0,0,0,0.30)'; g.lineWidth = Math.max(1, cs * 0.04);
+      FX.rr(g, x + pad, y + pad, cs - pad * 2, cs - pad * 2, cs * 0.16); g.stroke();
+      if (k.hp > 1) {                                   // 단단한 벽돌: 금 간 무늬
+        g.strokeStyle = 'rgba(0,0,0,0.45)'; g.lineWidth = Math.max(1.5, cs * 0.06);
+        g.beginPath(); g.moveTo(x + cs * 0.3, y + cs * 0.28); g.lineTo(x + cs * 0.46, y + cs * 0.5);
+        g.lineTo(x + cs * 0.34, y + cs * 0.62); g.lineTo(x + cs * 0.62, y + cs * 0.76); g.stroke();
       }
     });
     this._layerSig = sig;
@@ -295,7 +304,11 @@ class BreakoutGame {
     const W = BRICK_COLS * cs, H = BRICK_ROWS * cs;
     ctx.save();
     if (this.shake > 0) ctx.translate((Math.random() - .5) * this.shake * 6, (Math.random() - .5) * this.shake * 6);
-    ctx.fillStyle = '#0B0D12'; ctx.fillRect(-10, -10, W + 20, H + 20);
+    const bgg = ctx.createLinearGradient(0, 0, 0, H); bgg.addColorStop(0, '#141A2E'); bgg.addColorStop(1, '#080A12');
+    ctx.fillStyle = bgg; ctx.fillRect(-10, -10, W + 20, H + 20);
+    ctx.strokeStyle = 'rgba(120,170,255,0.05)'; ctx.lineWidth = 1;
+    for (let gx = 0; gx <= BRICK_COLS; gx++) { ctx.beginPath(); ctx.moveTo(gx * cs, 0); ctx.lineTo(gx * cs, H); ctx.stroke(); }
+    for (let gy = 0; gy <= BRICK_ROWS; gy++) { ctx.beginPath(); ctx.moveTo(0, gy * cs); ctx.lineTo(W, gy * cs); ctx.stroke(); }
 
     // 벽돌 — 바뀔 때만 다시 그려 두고 이미지로 붙입니다 (태블릿 부담 감소)
     ctx.drawImage(this.brickLayer(cs), 0, 0);
@@ -310,9 +323,19 @@ class BreakoutGame {
     const wide = this.lastTime < this.wideUntil;
     const g = ctx.createLinearGradient(0, py, 0, py + ph);
     g.addColorStop(0, wide ? '#B9FFE9' : '#FFFFFF'); g.addColorStop(1, wide ? '#06D6A0' : '#9AA3B2');
+    ctx.fillStyle = 'rgba(0,0,0,0.35)'; FX.rr(ctx, px, py + ph * 0.3, pw, ph, ph / 2); ctx.fill();
     ctx.fillStyle = g;
     FX.rr(ctx, px, py, pw, ph, ph / 2);
     ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = Math.max(1, cs * 0.04); ctx.stroke();
+    // 가운데 그립 무늬
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    for (let q = -1; q <= 1; q++) ctx.fillRect(px + pw / 2 + q * cs * 0.28 - cs * 0.03, py + ph * 0.28, cs * 0.06, ph * 0.44);
+    // 자석 패들: 위쪽에 자기장 표시 / 레이저: 양끝 포신
+    if (this.lastTime < this.magnetUntil) { ctx.strokeStyle = 'rgba(245,165,36,0.8)'; ctx.lineWidth = 2;
+      for (let q = 0; q < 3; q++) { ctx.beginPath(); ctx.arc(px + pw / 2, py, pw * (0.25 + q * 0.16), Math.PI, 0); ctx.stroke(); } }
+    if (this.lastTime < this.laserUntil) { ctx.fillStyle = '#EF476F';
+      [px + cs * 0.12, px + pw - cs * 0.28].forEach(lx => ctx.fillRect(lx, py - cs * 0.24, cs * 0.16, cs * 0.28)); }
 
     // 떨어지는 아이템
     this.drops.forEach(d => {
@@ -339,10 +362,21 @@ class BreakoutGame {
     // 공
     const pierce = this.lastTime < this.pierceUntil;
     this.balls.forEach(b => {
-      ctx.fillStyle = pierce ? 'rgba(177,93,255,0.35)' : 'rgba(255,255,255,0.25)';
-      ctx.beginPath(); ctx.arc(b.x * cs, b.y * cs, b.r * cs * 1.9, 0, Math.PI * 2); ctx.fill();
+      // 지나온 자리 (꼬리)
+      b.trail = b.trail || [];
+      if (this.launched) { b.trail.push([b.x, b.y]); if (b.trail.length > 7) b.trail.shift(); }
+      b.trail.forEach((t, i) => { const a = (i + 1) / b.trail.length * 0.3;
+        ctx.fillStyle = (pierce ? 'rgba(177,93,255,' : 'rgba(255,255,255,') + a.toFixed(2) + ')';
+        ctx.beginPath(); ctx.arc(t[0] * cs, t[1] * cs, b.r * cs * (0.4 + 0.5 * (i + 1) / b.trail.length), 0, Math.PI * 2); ctx.fill(); });
+      const bx = b.x * cs, by = b.y * cs, r = b.r * cs;
+      const gr = ctx.createRadialGradient(bx, by, 0, bx, by, r * 2.4);
+      gr.addColorStop(0, pierce ? 'rgba(177,93,255,0.55)' : 'rgba(255,255,255,0.4)');
+      gr.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(bx, by, r * 2.4, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = pierce ? '#E9D5FF' : '#FFFFFF';
-      ctx.beginPath(); ctx.arc(b.x * cs, b.y * cs, b.r * cs, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(bx, by, r, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.beginPath(); ctx.arc(bx - r * 0.3, by - r * 0.35, r * 0.3, 0, Math.PI * 2); ctx.fill();
     });
 
     // 효과 남은 시간 (위쪽 작은 막대)

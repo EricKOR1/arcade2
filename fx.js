@@ -130,10 +130,19 @@ const FX = (function () {
     wrap('levelUp',  () => {});                          // 배너는 level 값 변화로 자동
   }
 
+  // 색 밝기 조절 — #RRGGBB 를 k 만큼 밝게(+) / 어둡게(-)
+  function tint(hex, k) {
+    const h = String(hex).replace('#', '');
+    if (h.length !== 6) return hex;
+    const v = [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16));
+    const o = v.map(c => Math.max(0, Math.min(255, Math.round(k > 0 ? c + (255 - c) * k : c * (1 + k)))));
+    return '#' + o.map(c => c.toString(16).padStart(2, '0')).join('');
+  }
+
   // 기존 엔진들의 단순 파티클 배열({x,y,vx,vy,l,c})용 공용 진행·그리기
   function stepParts(list, f, decay) { for (const p of list) { p.x += p.vx * f; p.y += p.vy * f; if (p.g) p.vy += p.g * f; p.l -= (decay || 0.05) * f; } return list.filter(p => p.l > 0); }
   function drawParts(ctx, list, cs, size) { const s = size || 3; for (const p of list) { ctx.globalAlpha = Math.max(0, p.l); ctx.fillStyle = p.c; ctx.fillRect(p.x * cs - s / 2, p.y * cs - s / 2, s, s); } ctx.globalAlpha = 1; }
 
-  return { frame, rr, text, glass, ease, Particles, stepParts, drawParts, juice, hookSound };
+  return { frame, rr, text, glass, ease, tint, Particles, stepParts, drawParts, juice, hookSound };
 })();
 if (typeof window !== 'undefined') window.FX = FX;

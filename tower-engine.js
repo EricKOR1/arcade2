@@ -85,32 +85,110 @@ class TowerGame {
     return g;
   }
 
+  // ── 스프라이트 (코드 생성 · 외부 파일 없음) ──
+  buildSprites(cs) {
+    const P = 16, S = Math.ceil(cs), mk = () => { const c = document.createElement('canvas'); c.width = S; c.height = S; return c; };
+    const px = (g, grid, pal) => { const u = S / P; g.imageSmoothingEnabled = false;
+      const at = v => v >= P ? S : Math.floor(v * u);
+      grid.forEach((row, y) => { for (let x = 0; x < row.length; x++) { const ch = row[x]; if (ch === '.') continue; g.fillStyle = pal[ch]; g.fillRect(at(x), at(y), at(x + 1) - at(x), at(y + 1) - at(y)); } }); };
+    // s 피부 h 머리 b 상의 B 상의그늘 p 바지 P 바지그늘 k 검정 w 흰 y 노랑(장갑·신발)
+    const pal = { s: '#FFD9A8', h: '#5A3A22', b: '#06D6A0', B: '#049C6F', p: '#3A6EA5', P: '#28527A', k: '#161A24', w: '#FFFFFF', y: '#FFD166' };
+    // 서 있는 모습 (아래 4행은 다리)
+    const stand = [
+      '................','......hhhh......','.....hhhhhh.....','.....hssssh.....','.....sskssk.....','.....ssssss.....','......ssss......',
+      '....yybbbbyy....','...yybbbbbbyy...','...yybbBBbbyy...','.....bbbbbb.....','.....pppppp.....','.....pppppp.....','....pPPP.PPP....',
+      '....pPP...PP....','...yyy.....yyy..'];
+    // 걷기 (다리를 벌림)
+    const walk = [
+      '................','......hhhh......','.....hhhhhh.....','.....hssssh.....','.....sskssk.....','.....ssssss.....','......ssss......',
+      '...yybbbbbbyy...','..yybbbbbbbbyy..','....bbBBBBbb....','.....bbbbbb.....','.....pppppp.....','.....pppppp.....','...pPP....PPp...',
+      '..pPP.......PP..','.yyy.........yyy'];
+    // 사다리 오르기 (팔을 위로)
+    const climb = [
+      '....y......y....','....y.hhhh.y....','....yhhhhhhy....','....yhssssh.y...','.....sskssk.....','.....ssssss.....','...y..ssss..y...',
+      '...y.bbbbbb.y...','....bbbbbbbb....','....bbBBBBbb....','.....bbbbbb.....','.....pppppp.....','.....pppppp.....','....pPP..PPp....',
+      '...pPP....PPp...','..yyy......yyy..'];
+    // 점프 (다리 모음 · 팔 벌림)
+    const jump = [
+      '................','......hhhh......','.....hhhhhh.....','.....hssssh.....','.....sskssk.....','.....ssssss.....','.y....ssss....y.',
+      'yybbbbbbbbbbbbyy','.yybbbbbbbbbbyy.','....bbBBBBbb....','.....bbbbbb.....','.....pppppp.....','.....pppppp.....','.....pPPPPp.....',
+      '.....pPPPPp.....','....yyy..yyy....'];
+    // 통 (옆에서 본 나무통)
+    const barrel = [
+      '................','...kkkkkkkkkk...','..kBBBBBBBBBBk..','.kBnnNNnnNNnnBk.','.kBnnNNnnNNnnBk.','kBnNNnnNNnnNNnBk','kBnNNnnNNnnNNnBk',
+      'kBnNNnnNNnnNNnBk','kBnNNnnNNnnNNnBk','kBnNNnnNNnnNNnBk','kBnNNnnNNnnNNnBk','.kBnnNNnnNNnnBk.','.kBnnNNnnNNnnBk.','..kBBBBBBBBBBk..',
+      '...kkkkkkkkkk...','................'];
+    const bpal = { k: '#5A3E1E', B: '#8A6432', n: '#C79A5A', N: '#A87C42' };
+    const bake = (grid, pl) => { const c = mk(); px(c.getContext('2d'), grid, pl || pal); return c; };
+    this._ts = { stand: bake(stand), walk: bake(walk), climb: bake(climb), jump: bake(jump), barrel: bake(barrel, bpal) };
+    this._tsCs = cs;
+  }
+
   draw() {
     const ctx = this.ctx, cs = this.cellSize, W = this.W * cs, H = this.H * cs, now = this.now;
-    const bg = ctx.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, '#1B1030'); bg.addColorStop(1, '#0C0A1A'); ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
-    // 사다리
-    this.ladders.forEach(([lx, by, ty]) => { const x = (lx + 0.5) * cs; ctx.strokeStyle = '#4CC9F0'; ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.moveTo(x - cs * .3, ty * cs); ctx.lineTo(x - cs * .3, by * cs); ctx.moveTo(x + cs * .3, ty * cs); ctx.lineTo(x + cs * .3, by * cs); ctx.stroke();
-      ctx.lineWidth = 2; for (let y = ty + 0.5; y < by; y += 0.7) { ctx.beginPath(); ctx.moveTo(x - cs * .3, y * cs); ctx.lineTo(x + cs * .3, y * cs); ctx.stroke(); } });
-    // 층 (강철 발판)
-    this.floors.forEach(fy => { const y = fy * cs; ctx.fillStyle = '#FF5C7A'; ctx.fillRect(0, y, W, cs * 0.35); ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.fillRect(0, y, W, 3);
-      ctx.fillStyle = 'rgba(0,0,0,0.25)'; for (let x = 0; x < W; x += cs) ctx.fillRect(x + cs * 0.15, y + cs * 0.1, cs * 0.5, cs * 0.15); });
-    // 꼭대기 목표
-    ctx.fillStyle = '#FFD166'; ctx.beginPath(); ctx.moveTo(7.5 * cs, 0.4 * cs); ctx.lineTo(8.1 * cs, 1.5 * cs); ctx.lineTo(6.9 * cs, 1.5 * cs); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#fff'; ctx.font = '800 ' + Math.round(cs * .5) + 'px Pretendard, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('GOAL', 7.5 * cs, 1.3 * cs); ctx.textAlign = 'left';
-    // 통
-    this.barrels.forEach(b => { const px = b.x * cs, py = (b.y - 0.45) * cs, r = cs * 0.42;
-      ctx.save(); ctx.translate(px, py); ctx.rotate(b.rot); ctx.fillStyle = '#B98A55'; ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = '#7A552F'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, r * 0.6, 0, Math.PI * 2); ctx.stroke(); ctx.beginPath(); ctx.moveTo(-r, 0); ctx.lineTo(r, 0); ctx.moveTo(0, -r); ctx.lineTo(0, r); ctx.stroke(); ctx.restore(); });
-    // 플레이어 (작은 등반가)
-    if (!(this.invul > 0 && Math.floor(this.invul / 120) % 2 === 0)) { const px = this.x * cs, py = this.y * cs, r = cs * 0.38;
-      ctx.fillStyle = '#06D6A0'; ctx.fillRect(px - r * 0.6, py - r * 2.0, r * 1.2, r * 1.3);
-      ctx.fillStyle = '#FFD166'; ctx.beginPath(); ctx.arc(px, py - r * 2.4, r * 0.5, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#2B3140'; const sw = (this.steer || this.onLadder) ? Math.sin(now / 80) * r * 0.4 : 0;
-      ctx.fillRect(px - r * 0.55, py - r * 0.7, r * 0.45, r * 0.7 + sw); ctx.fillRect(px + r * 0.1, py - r * 0.7, r * 0.45, r * 0.7 - sw);
-      ctx.fillStyle = '#fff'; ctx.fillRect(px + this.face * r * 0.15, py - r * 2.5, r * 0.15, r * 0.15); }
+    if (!this._ts || this._tsCs !== cs) this.buildSprites(cs);
+    const SP = this._ts;
+
+    // 배경: 밤하늘 + 멀리 도시 실루엣
+    const bg = ctx.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, '#241243'); bg.addColorStop(0.55, '#150E2B'); bg.addColorStop(1, '#0A0818');
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    for (let i = 0; i < 26; i++) { const sx = (i * 137) % W, sy = ((i * 89) % Math.round(H * 0.45));
+      ctx.globalAlpha = 0.25 + ((i * 17) % 10) / 20; ctx.fillRect(sx, sy, 2, 2); }
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = 'rgba(70,50,110,0.55)';
+    for (let i = 0; i < 9; i++) { const bw = cs * (0.8 + (i % 3) * 0.5), bx = i * (W / 9), bh2 = cs * (1.2 + ((i * 7) % 5) * 0.5);
+      ctx.fillRect(bx, H * 0.55 - bh2, bw, bh2 + H); }
+
+    // 사다리 (나무 기둥 + 가로대)
+    this.ladders.forEach(([lx, by, ty]) => { const x = (lx + 0.5) * cs;
+      ctx.fillStyle = '#8A6432'; ctx.fillRect(x - cs * 0.34, ty * cs, cs * 0.12, (by - ty) * cs); ctx.fillRect(x + cs * 0.22, ty * cs, cs * 0.12, (by - ty) * cs);
+      ctx.fillStyle = '#C79A5A';
+      for (let y = ty + 0.35; y < by; y += 0.55) ctx.fillRect(x - cs * 0.34, y * cs, cs * 0.68, Math.max(2, cs * 0.09));
+      ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(x + cs * 0.3, ty * cs, cs * 0.04, (by - ty) * cs); });
+
+    // 층 (강철 대들보 + 리벳)
+    this.floors.forEach(fy => { const y = fy * cs;
+      const gg = ctx.createLinearGradient(0, y, 0, y + cs * 0.38); gg.addColorStop(0, '#FF7A90'); gg.addColorStop(1, '#C8324C');
+      ctx.fillStyle = gg; ctx.fillRect(0, y, W, cs * 0.38);
+      ctx.fillStyle = 'rgba(255,255,255,0.45)'; ctx.fillRect(0, y, W, Math.max(2, cs * 0.07));
+      ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(0, y + cs * 0.32, W, Math.max(2, cs * 0.06));
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      for (let x = cs * 0.3; x < W; x += cs * 0.8) { ctx.beginPath(); ctx.arc(x, y + cs * 0.19, Math.max(1.5, cs * 0.05), 0, Math.PI * 2); ctx.fill(); } });
+
+    // 꼭대기 목표 (깃발 + 빛)
+    { const gx = 7.5 * cs, gy = 1.6 * cs;
+      const pulse = 0.5 + 0.5 * Math.sin(now / 320);
+      const gr = ctx.createRadialGradient(gx, gy - cs * 0.2, 0, gx, gy - cs * 0.2, cs * 1.6);
+      gr.addColorStop(0, 'rgba(255,209,102,' + (0.28 * pulse).toFixed(2) + ')'); gr.addColorStop(1, 'rgba(255,209,102,0)');
+      ctx.fillStyle = gr; ctx.fillRect(gx - cs * 1.6, gy - cs * 1.8, cs * 3.2, cs * 3.2);
+      ctx.fillStyle = '#C9CFD8'; ctx.fillRect(gx - cs * 0.06, gy - cs * 1.25, cs * 0.12, cs * 1.25);
+      ctx.fillStyle = '#FFD166'; ctx.beginPath(); ctx.moveTo(gx + cs * 0.06, gy - cs * 1.25);
+      ctx.lineTo(gx + cs * 0.95, gy - cs * 0.95); ctx.lineTo(gx + cs * 0.06, gy - cs * 0.62); ctx.closePath(); ctx.fill();
+      FX.text(ctx, 'GOAL', gx, gy + cs * 0.1, { size: cs * 0.42, weight: 800, color: '#FFD166', align: 'center', shadow: 6 }); }
+
+    // 통 (굴러가며 회전)
+    ctx.imageSmoothingEnabled = false;
+    this.barrels.forEach(b => { const px2 = b.x * cs, py2 = (b.y - 0.45) * cs, r = cs * 0.46;
+      ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(px2, py2 + r * 0.9, r * 0.8, r * 0.22, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.save(); ctx.translate(px2, py2); ctx.rotate(b.rot); ctx.drawImage(SP.barrel, -r, -r, r * 2, r * 2); ctx.restore(); });
+
+    // 등반가
+    if (!(this.invul > 0 && Math.floor(this.invul / 120) % 2 === 0)) {
+      const px2 = this.x * cs, py2 = this.y * cs, w = cs * 1.02;
+      const img = this.onLadder ? SP.climb : (this.vy < -0.01 || this.jumping ? SP.jump : (this.steer ? (Math.floor(now / 110) % 2 ? SP.walk : SP.stand) : SP.stand));
+      ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(px2, py2 + cs * 0.06, cs * 0.32, cs * 0.09, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.save(); ctx.translate(px2, py2 - w * 0.44);   // 발이 층 위에 닿도록
+      if (this.face < 0 && !this.onLadder) ctx.scale(-1, 1);
+      ctx.drawImage(img, -w / 2, -w / 2, w, w); ctx.restore();
+    }
+    ctx.imageSmoothingEnabled = true;
+
     FX.drawParts(ctx, this.parts, cs, 3);
-    for (let i = 0; i < this.lives; i++) { ctx.fillStyle = '#06D6A0'; ctx.fillRect(cs * (0.3 + i * 0.6), H - cs * 0.5, cs * 0.35, cs * 0.35); }
+    // 목숨: 작은 등반가 머리
+    ctx.imageSmoothingEnabled = false;
+    for (let i = 0; i < this.lives; i++) ctx.drawImage(SP.stand, cs * (0.2 + i * 0.6), H - cs * 0.72, cs * 0.55, cs * 0.55);
+    ctx.imageSmoothingEnabled = true;
     if (this.gameOver) { ctx.fillStyle = 'rgba(11,13,18,0.55)'; ctx.fillRect(0, 0, W, H); }
   }
 }
