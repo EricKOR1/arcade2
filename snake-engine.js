@@ -101,16 +101,16 @@ class SnakeGame {
 
   // 16×16 픽셀 격자 스프라이트를 셀 크기로 확대해 캔버스에 구워 둡니다
   buildSprites(cs) {
-    const P = 16, mk = () => { const c = document.createElement('canvas'); c.width = cs; c.height = cs; return c; };
-    const px = (g, grid, pal) => { const u = cs / P; g.imageSmoothingEnabled = false;
-      // 픽셀 경계를 정확히 나눠 칠합니다 (셀 크기가 16의 배수가 아니어도 겹침·틈 없이)
-      const at = v => Math.floor(v * u);
+    const P = 16, S = Math.ceil(cs), mk = () => { const c = document.createElement('canvas'); c.width = S; c.height = S; return c; };
+    const px = (g, grid, pal) => { const u = S / P; g.imageSmoothingEnabled = false;
+      // 픽셀 경계를 정확히 나눠 칠합니다 (셀 크기가 16의 배수가 아니어도 겹침·틈 없이). 마지막 픽셀은 캔버스 끝까지
+      const at = v => v >= P ? S : Math.floor(v * u);
       grid.forEach((row, y) => { for (let x = 0; x < row.length; x++) { const ch = row[x]; if (ch === '.') continue; g.fillStyle = pal[ch]; g.fillRect(at(x), at(y), at(x + 1) - at(x), at(y + 1) - at(y)); } }); };
     // 팔레트: G 밝은 초록 g 초록 d 진초록 y 노랑 배 w 흰 k 검정 r 빨강 R 진빨강 s 줄기 l 잎 o 주황 혀 p 분홍
-    const pal = { G: '#7CFC8A', g: '#3DD36A', d: '#1E9A47', y: '#C8F5A3', w: '#FFFFFF', k: '#0B0D12', r: '#FF5C5C', R: '#C62A2A', s: '#7A4B1E', l: '#3DD36A', o: '#FF7A3D', p: '#FFB3C6', h: 'rgba(0,0,0,0.28)' };
+    const pal = { G: '#6BEE7E', g: '#2FBF5C', d: '#166F35', y: '#B8F09A', w: '#FFFFFF', k: '#0B0D12', r: '#FF5C5C', R: '#C62A2A', s: '#7A4B1E', l: '#3DD36A', o: '#FF7A3D', p: '#FFB3C6', h: 'rgba(0,0,0,0.28)' };
     const head = [
-      '................','................','.........ddddd..','.......ddGGGGGd.','......dGGgggggGd','......dGwkggwkgd','......dGwkggwkgd','......dGgggggggd',
-      '......dGgggggggd','......dGyyyyyyyd','......dGyyyyyyyd','.......ddyyyyGd.','.........ddddd..','................','................','................'];
+      '................','.........ddddd..','.......dddGGGdd.','......ddGGgggGGd','.....ddGgggggggd','.....dGgwkggwkgd','.....dGgwkggwkgd','.....dGggggggggd',
+      '.....dGggggggggd','.....dGgyyyyyyyd','.....ddGyyyyyyyd','......ddGyyyyGd.','.......dddGGGdd.','.........ddddd..','................','................'];
     const headOpen = head.map((r, y) => y >= 9 && y <= 11 ? r.replace(/y/g, 'p') : r);
     const body = [
       '................','.....dddddd.....','...ddGGGGGGdd...','..dGGGggggGGGd..','..dGGggggggGGd..','.dGGgggggggggGd.',
@@ -129,8 +129,8 @@ class SnakeGame {
       '.....hhhhhh.....','...hhhhhhhhhh...','..hhhhhhhhhhhh..','..hhhhhhhhhhhh..','...hhhhhhhhhh...','.....hhhhhh.....','................','................','................','................'];
     // 반쪽 관: 셀 중심에서 오른쪽 가장자리까지 (회전해서 네 방향으로 씀)
     const half = [
-      '................','................','................','........dddddddd','........GGGGGGGG','........GgggggGG','........gggggggg','........gggggggg',
-      '........gggggggg','........gggggggg','........yyyyyyyy','........yyyyyyyy','........dddddddd','................','................','................'];
+      '................','................','................','........dddddddd','........GGGGGGGG','........gggggggg','........gggggggg','........gggggggg',
+      '........gggggggg','........gggggggg','........gggggggg','........yyyyyyyy','........dddddddd','................','................','................'];
     // 관이 꺾이는 중심을 메우는 둥근 마디 (반쪽 관 두 개 위에 겹침)
     const scale = [
       '................','................','................','................','................','......dgggd.....','.....dggdgg.....','.....dgdddg.....',
@@ -171,8 +171,8 @@ class SnakeGame {
     // 먹이: 사과 (살짝 둥실)
     if (this.food) {
       const bob = Math.sin(performance.now() / 220) * cs * 0.05;
-      ctx.drawImage(sp.shadow, this.food[0] * cs, this.food[1] * cs + cs * 0.1);
-      ctx.drawImage(sp.apple, this.food[0] * cs, this.food[1] * cs + bob);
+      ctx.drawImage(sp.shadow, this.food[0] * cs, this.food[1] * cs + cs * 0.1, cs, cs);
+      ctx.drawImage(sp.apple, this.food[0] * cs, this.food[1] * cs + bob, cs, cs);
     }
 
     const n = this.body.length;
@@ -186,25 +186,39 @@ class SnakeGame {
       if (Math.abs(cur[0] - prev[0]) > 1 || Math.abs(cur[1] - prev[1]) > 1) return cur;
       return [prev[0] + (cur[0] - prev[0]) * ease, prev[1] + (cur[1] - prev[1]) * ease];
     };
-    // 이웃 마디 방향 (화면 반대편으로 넘어간 경우 보정)
-    const toward = (a, b) => { let dx = b[0] - a[0], dy = b[1] - a[1]; if (Math.abs(dx) > 1) dx = -Math.sign(dx); if (Math.abs(dy) > 1) dy = -Math.sign(dy); return Math.atan2(dy, dx); };
-    const put = (img, x, y, a) => { ctx.save(); ctx.translate((x + 0.5) * cs, (y + 0.5) * cs); ctx.rotate(a); ctx.drawImage(img, -cs / 2, -cs / 2); ctx.restore(); };
-    // 그림자
-    for (let i = n - 1; i >= 0; i--) { const [x, y] = posOf(i); ctx.drawImage(sp.shadow, x * cs, y * cs + cs * 0.12); }
-    // 몸통: 각 마디에서 앞·뒤 이웃을 향해 반쪽 관을 그리면 코너에서도 끊김 없이 이어집니다
-    // 방향은 '보간된 위치끼리' 계산합니다 — 걸음 사이에도 이웃과 정확히 이어집니다
+    // ── 몸통: 칸 단위 조각이 아니라 '하나의 이어진 선'으로 그립니다 ──
+    // 조각을 이어 붙이면 기기 배율이 소수점일 때 마디마다 경계선이 보입니다.
+    // 선 하나로 그리면 어떤 배율에서도 매끈합니다. (화면 반대편으로 넘어가는 구간은 끊어서 그림)
     const P = []; for (let i = 0; i < n; i++) P.push(posOf(i));
-    for (let i = n - 1; i >= 1; i--) {
-      const [x, y] = P[i];
-      if (i < n - 1) put(sp.half, x, y, toward(P[i], P[i + 1]));   // 뒤쪽(꼬리 방향)
-      put(sp.half, x, y, toward(P[i], P[i - 1]));                    // 앞쪽(머리 방향)
-      if (i === n - 1) put(sp.tailTip, x, y, toward(P[i], P[i - 1]));
-      if (i % 3 === 0) put(sp.scale, x, y, 0);
+    const runs = [[P[0]]];
+    for (let i = 1; i < n; i++) {
+      const a = P[i - 1], b = P[i];
+      if (Math.abs(a[0] - b[0]) > 1.5 || Math.abs(a[1] - b[1]) > 1.5) runs.push([b]);   // 벽을 통과한 지점
+      else runs[runs.length - 1].push(b);
     }
-    // 머리: 뒤로 반쪽 관 + 머리 스프라이트
+    const path = (w) => { ctx.lineWidth = w; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+      runs.forEach(r => { if (r.length < 2) { ctx.beginPath(); ctx.arc((r[0][0] + .5) * cs, (r[0][1] + .5) * cs, w / 2, 0, Math.PI * 2); ctx.fillStyle = ctx.strokeStyle; ctx.fill(); return; }
+        ctx.beginPath(); r.forEach((p, k) => { const X = (p[0] + .5) * cs, Y = (p[1] + .5) * cs; k ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); }); ctx.stroke(); }); };
+    const BW = cs * 0.80;
+    ctx.save();
+    ctx.translate(0, cs * 0.06); ctx.strokeStyle = 'rgba(0,0,0,0.32)'; path(BW + cs * 0.06); ctx.translate(0, -cs * 0.06);   // 바닥 그림자
+    ctx.strokeStyle = '#12572A'; path(BW);                                     // 테두리(진초록)
+    ctx.strokeStyle = '#2FBF5C'; path(BW - cs * 0.16);                         // 본색
+    // 윗면 하이라이트: 위로 살짝 올려 입체감
+    ctx.save(); ctx.translate(0, -BW * 0.20); ctx.strokeStyle = '#7DF58F'; ctx.globalAlpha = 0.9; path(BW * 0.26); ctx.restore();
+    ctx.globalAlpha = 1;
+    // 비늘: 선을 따라 일정 간격으로 (칸이 아니라 '길이' 기준이라 경계선처럼 보이지 않습니다)
+    ctx.fillStyle = 'rgba(18,87,42,0.45)';
+    runs.forEach(r => { for (let k = 1; k < r.length; k++) { const a = r[k - 1], b = r[k];
+      for (let t = 0; t < 1; t += 0.5) { const X = (a[0] + (b[0] - a[0]) * t + .5) * cs, Y = (a[1] + (b[1] - a[1]) * t + .5) * cs;
+        if ((k * 2 + t * 2) % 3 !== 0) continue;
+        ctx.beginPath(); ctx.arc(X, Y + BW * 0.12, BW * 0.13, 0, Math.PI * 2); ctx.fill(); } } });
+    ctx.restore();
+    // 머리 스프라이트 (픽셀아트 유지)
     { const [x, y] = P[0], a = Math.atan2(this.dir[1], this.dir[0]);
-      if (n > 1) put(sp.half, x, y, toward(P[0], P[1]));
-      put(this.eatFlash > 0.3 ? sp.headOpen : sp.head, x, y, a); }
+      const img = this.eatFlash > 0.3 ? sp.headOpen : sp.head;
+      ctx.save(); ctx.translate((x + 0.5) * cs, (y + 0.5) * cs); ctx.rotate(a);
+      ctx.drawImage(img, -cs * 0.72, -cs * 0.72, cs * 1.44, cs * 1.44); ctx.restore(); }
     ctx.imageSmoothingEnabled = true;
 
     if (this.eatFlash > 0) {

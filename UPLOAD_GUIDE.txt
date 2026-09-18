@@ -1,15 +1,13 @@
-아케이드 플랫폼 — v2026-09-28b
+아케이드 플랫폼 — v2026-09-29b
 ==============================
 
 교체할 파일 1개 (+ 버전 표시)
-  snake-engine.js    픽셀아트 스프라이트
+  racing-engine.js   도로 대비 개선(멀리 보임) · 덧칠 8.1→6.2배 · 투영 객체 재사용
   index.html / admin.html  버전 표시만
   (+ README.md)
-
-★ 28a 를 아직 안 올렸다면 fx.js 와 엔진 13개도 함께 올리세요 (이 zip 에 모두 있습니다)
 
 건드리지 않는 파일
   firebase-config.js  ← 본인 값 그대로 (EXAMPLE 은 올리지 마세요)
   photo.html / force.html / body.html
 
-올린 뒤 화면 아래 v2026-09-28b 를 꼭 확인하세요. 안 보이면 Ctrl+Shift+R. 학생 기기도 새로고침.
+올린 뒤 화면 아래 v2026-09-29b 를 꼭 확인하세요. 안 보이면 Ctrl+Shift+R. 학생 기기도 새로고침.
