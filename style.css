@@ -270,9 +270,11 @@ p { margin: 0 }
 .kart-hud { position: absolute; inset: 0; pointer-events: none; font-variant-numeric: tabular-nums }
 .hud-tl { position: absolute; top: 12px; left: 60px; display: flex; flex-direction: column; gap: 8px }   /* ← 버튼 오른쪽 */
 .hud-bl { position: absolute; bottom: 14px; left: 14px }
-.hud-br { position: absolute; bottom: 14px; right: 14px; display: flex; flex-direction: column; align-items: center; gap: 6px }
-.hud-badges { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px;
-              flex-wrap: wrap; justify-content: center; max-width: 88% }
+.hud-br { position: absolute; bottom: 14px; right: 14px; display: flex; flex-direction: column-reverse; align-items: center; gap: 6px }   /* 이름표가 칸 위에 */
+/* 상태 배지: 순위·LAP 상자(왼쪽 위, 높이 약 112px)와 미니맵(오른쪽 위) 사이를 피해 그 아래 가운데로 */
+/* 상태 배지: 순위·LAP 상자 아래, 왼쪽 정렬 — 오른쪽 위 미니맵을 피합니다 */
+.hud-badges { position: absolute; top: 120px; left: 14px; right: 46%; display: flex; gap: 6px;
+              flex-wrap: wrap; justify-content: flex-start; pointer-events: none }
 .pos-box { display: flex; align-items: baseline; gap: 2px; padding: 8px 16px 9px; border-radius: 16px;
   color: var(--accent-ink); background: linear-gradient(160deg, color-mix(in srgb, var(--accent) 85%, #fff), var(--accent));
   box-shadow: inset 0 1px 0 rgba(255,255,255,.45), 0 12px 28px -12px var(--accent-glow) }

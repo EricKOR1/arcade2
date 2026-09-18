@@ -3117,9 +3117,11 @@ class KartGame {
       ctx.textAlign = 'center';
       const w = ctx.measureText(this.toast.text).width + 32;
       ctx.fillStyle = 'rgba(8,10,16,0.85)';
-      if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(W/2-w/2, H-104, w, 36, 18); ctx.fill(); }
+      // 아이템 칸(오른쪽 아래 98px)과 속도계(왼쪽 아래 52px) 위로 띄웁니다
+      const ty = H - 156;
+      FX.rr(ctx, W/2-w/2, ty, w, 36, 18); ctx.fill();
       ctx.fillStyle = this.toast.color;
-      ctx.fillText(this.toast.text, W/2, H-80);
+      ctx.fillText(this.toast.text, W/2, ty + 24);
       ctx.restore();
     }
   }
