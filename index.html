@@ -10,8 +10,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1B2027">
 <title>아케이드</title>
-<link rel="stylesheet" href="platform.css?v=2026-10-01c">
-<link rel="stylesheet" href="style.css?v=2026-10-01c">
+<link rel="stylesheet" href="platform.css?v=2026-10-05a">
+<link rel="stylesheet" href="style.css?v=2026-10-05a">
 </head>
 <body>
 <div class="app">
@@ -128,39 +128,41 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script src="firebase-config.js?v=2026-10-01c"></script>
-<script src="sound.js?v=2026-10-01c"></script>
-<script src="shared.js?v=2026-10-01c"></script>
-<script src="fx.js?v=2026-10-01c"></script>
-<script src="tetris-engine.js?v=2026-10-01c"></script>
-<script src="racing-engine.js?v=2026-10-01c"></script>
-<script src="snake-engine.js?v=2026-10-01c"></script>
-<script src="breakout-engine.js?v=2026-10-01c"></script>
-<script src="flappy-engine.js?v=2026-10-01c"></script>
-<script src="shooter-engine.js?v=2026-10-01c"></script>
+<script src="firebase-config.js?v=2026-10-05a"></script>
+<script src="sound.js?v=2026-10-05a"></script>
+<script src="shared.js?v=2026-10-05a"></script>
+<script src="fx.js?v=2026-10-05a"></script>
+<script src="tetris-engine.js?v=2026-10-05a"></script>
+<script src="racing-engine.js?v=2026-10-05a"></script>
+<script src="snake-engine.js?v=2026-10-05a"></script>
+<script src="breakout-engine.js?v=2026-10-05a"></script>
+<script src="flappy-engine.js?v=2026-10-05a"></script>
+<script src="shooter-engine.js?v=2026-10-05a"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="fps-engine.js?v=2026-10-01c"></script>
-<script src="fps3d-engine.js?v=2026-10-01c"></script>
-<script src="game2048-engine.js?v=2026-10-01c"></script>
-<script src="frogger-engine.js?v=2026-10-01c"></script>
-<script src="asteroids-engine.js?v=2026-10-01c"></script>
-<script src="maze-engine.js?v=2026-10-01c"></script>
-<script src="tower-engine.js?v=2026-10-01c"></script>
-<script src="missile-engine.js?v=2026-10-01c"></script>
-<script src="centipede-engine.js?v=2026-10-01c"></script>
-<script src="source-engine.js?v=2026-10-01c"></script>
-<script src="games.js?v=2026-10-01c"></script>
-<script src="app.js?v=2026-10-01c"></script>
+<script src="fps-engine.js?v=2026-10-05a"></script>
+<script src="fps3d-engine.js?v=2026-10-05a"></script>
+<script src="game2048-engine.js?v=2026-10-05a"></script>
+<script src="frogger-engine.js?v=2026-10-05a"></script>
+<script src="asteroids-engine.js?v=2026-10-05a"></script>
+<script src="maze-engine.js?v=2026-10-05a"></script>
+<script src="tower-engine.js?v=2026-10-05a"></script>
+<script src="missile-engine.js?v=2026-10-05a"></script>
+<script src="centipede-engine.js?v=2026-10-05a"></script>
+<script src="source-engine.js?v=2026-10-05a"></script>
+<script src="arena-engine.js?v=2026-10-05a"></script>
+<script src="slither-engine.js?v=2026-10-05a"></script>
+<script src="games.js?v=2026-10-05a"></script>
+<script src="app.js?v=2026-10-05a"></script>
 <script>
 (function () {
 
-  const BUILD = '2026-10-01c';   // 화면 아래에 표시됩니다
+  const BUILD = '2026-10-05a';   // 화면 아래에 표시됩니다
 
   const gameId = getGameId();
   const def = GAMES[gameId];
   const isHtml = (def.type === 'html');      // 자체 화면을 가진 학습 게임
   const isTetris = (gameId === 'tetris');
-  const isKart = !!(GAMES[gameId] && GAMES[gameId].hasTracks);   // 카트 계열 (아이템전 · 노템전)
+  const isKart = !!(GAMES[gameId] && GAMES[gameId].hasTracks && GAMES[gameId].trackKind !== 'map');   // 카트 계열 (아이템전 · 노템전) — FPS 의 '맵' 선택과 구분
   const isRealtime = isKart || !!(GAMES[gameId] && GAMES[gameId].realtime);   // 위치를 실시간으로 주고받는 게임
 
   applyAccent(gameId);
@@ -168,8 +170,7 @@
   document.getElementById('over-chip').textContent = def.name;
 
   document.getElementById('exit-chip').textContent = def.name;
-  document.getElementById('howto-name').textContent = def.name +
-    ((gameId === 'fpsteam' && typeof Fps3DGame !== 'undefined') ? (Fps3DGame.teamOf(playerId) === 'red' ? '  ·  🔴 나는 레드 팀' : '  ·  🔵 나는 블루 팀') : '');
+  document.getElementById('howto-name').textContent = def.name;   // 팀 표시는 playerId 가 정해진 뒤 paintTeamLabel() 에서
   document.getElementById('howto-desc').textContent = def.desc || '';
   document.getElementById('howto-keys').textContent = def.howto ? '조작: ' + def.howto : '';
   // 점수 옆 보조 수치 두 칸 — 게임마다 무엇을 보여 줄지 정합니다
@@ -332,6 +333,13 @@
   if (!playerId) {
     playerId = 'p_' + Math.random().toString(36).slice(2, 10);
     sessionStorage.setItem('playerId', playerId);
+  // 팀전(레이저 태그 팀전 · 젬 아레나): 대기 화면에 내 팀 표시
+  (function paintTeamLabel() {
+    if ((gameId === 'fpsteam' || gameId === 'arena') && typeof Fps3DGame !== 'undefined') {
+      const red = Fps3DGame.teamOf(playerId) === 'red';
+      document.getElementById('howto-name').textContent = def.name + (red ? '  ·  🔴 나는 레드 팀' : '  ·  🔵 나는 블루 팀');
+    }
+  })();
   }
 
   const playerRef  = db.ref('players/' + playerId);
@@ -346,6 +354,8 @@
   const posRef     = db.ref('pos');
   const myPosRef   = db.ref('pos/' + playerId);
   const hazardsRef = db.ref('hazards');
+  const gemsRef = db.ref('gems');                     // 젬 아레나: {id: {x, y, by?}}
+  let gems = {};
   const eventsRef  = db.ref('events');
   const sessionRef = db.ref('session');
 
@@ -525,6 +535,51 @@
   const fpsOpt = { gyro: false, sens: 1 };
   try { const o = JSON.parse(localStorage.getItem('fpsOpt') || '{}'); Object.assign(fpsOpt, o); } catch (e) {}
   function saveOpt() { try { localStorage.setItem('fpsOpt', JSON.stringify(fpsOpt)); } catch (e) {} }
+
+  // 젬 아레나: 왼쪽 조이스틱 = 이동, 오른쪽 조이스틱 = 조준(놓으면 발사), ★ = 궁극기
+  function buildArenaControls(mode) {
+    const slither = mode === 'slither';
+    const wrap = byId('canvas-wrap');
+    let ctl = byId('fps-ctl'); if (ctl) ctl.remove();
+    ctl = document.createElement('div'); ctl.id = 'fps-ctl'; ctl.className = 'arena-ctl';
+    ctl.innerHTML =
+      '<div class="fjoy" id="fjoy"><div class="fjoy-base"><div class="fjoy-knob"></div></div></div>' +
+      (slither ? '' : '<div class="fjoy ajoy-aim" id="ajoy"><div class="fjoy-base aim"><div class="fjoy-knob"></div></div></div>') +
+      (slither ? '<button class="asuper aboost" id="aboost">⚡<small>부스트</small></button>' : '<button class="asuper" id="asuper">★<small>궁극기</small></button>') +
+      '<div class="fhint" id="fhint">' + (slither ? '조이스틱: 방향 · ⚡ 꾹: 부스트(길이 소모) · 큰 뱀에 닿지 마세요' : '왼쪽: 이동 · 오른쪽: 끌어서 놓으면 발사 (톡 = 자동 조준) · ★ 궁극기') + '</div>';
+    wrap.appendChild(ctl);
+    if (slither) {
+      const bst = byId('aboost');
+      const on = () => { if (game && game.setBoost) game.setBoost(true); bst.classList.add('ready'); }, off = () => { if (game && game.setBoost) game.setBoost(false); bst.classList.remove('ready'); };
+      bst.addEventListener('touchstart', e => { e.preventDefault(); on(); }, { passive: false }); ['touchend', 'touchcancel'].forEach(ev => bst.addEventListener(ev, off));
+      bst.addEventListener('mousedown', on); bst.addEventListener('mouseup', off); bst.addEventListener('mouseleave', off);
+    }
+    const mk = (el, onMove, onEnd) => {
+      const base = el.querySelector('.fjoy-base'), knob = el.querySelector('.fjoy-knob');
+      let id = null, cx = 0, cy = 0, R = 46, lx = 0, ly = 0;
+      const set = (dx, dy) => { const d = Math.hypot(dx, dy), k = d > R ? R / d : 1; knob.style.transform = 'translate(' + (dx * k) + 'px,' + (dy * k) + 'px)'; lx = dx * k / R; ly = dy * k / R; onMove(lx, ly); };
+      return {
+        grab(t) { const br = base.getBoundingClientRect(); cx = br.left + br.width / 2; cy = br.top + br.height / 2; R = br.width * 0.31;
+          const near = Math.hypot(t.clientX - cx, t.clientY - cy) < br.width * 0.85; if (!near || id !== null) return false;
+          id = t.identifier; el.classList.add('on'); set(t.clientX - cx, t.clientY - cy); return true; },
+        move(t) { if (t.identifier !== id) return; set(t.clientX - cx, t.clientY - cy); },
+        end(t) { if (t.identifier !== id) return; id = null; el.classList.remove('on'); knob.style.transform = ''; onEnd(lx, ly); lx = 0; ly = 0; }
+      };
+    };
+    const L = mk(byId('fjoy'), (x, y) => game && game.setMove && game.setMove(x, y), () => game && game.setMove && game.setMove(0, 0));
+    const A = slither ? { grab: () => false, move: () => {}, end: () => {} } : mk(byId('ajoy'), (x, y) => game && game.setAim && game.setAim(x, y), (x, y) => game && game.releaseAim && game.releaseAim(x, y));
+    const on = (ev, fn) => ctl.addEventListener(ev, e => { let used = false; for (const t of e.changedTouches) { if (t.target.closest && t.target.closest('button')) continue; fn(t); used = true; } if (used) e.preventDefault(); }, { passive: false });
+    on('touchstart', t => { if (!L.grab(t)) A.grab(t); });
+    on('touchmove', t => { L.move(t); A.move(t); });
+    on('touchend', t => { L.end(t); A.end(t); }); on('touchcancel', t => { L.end(t); A.end(t); });
+    if (!slither) { tapBtn(byId('asuper'), () => game && game.useSuper && game.useSuper());
+      setInterval(() => { const b = byId('asuper'); if (b && game) b.classList.toggle('ready', game.super >= 100); }, 200); }
+    // PC: WASD 이동 · 마우스 조준 · 클릭 발사 · Space 궁극기
+    const cv = byId('game-canvas');
+    cv.addEventListener('mousemove', e => { if (!game) return; const r = cv.getBoundingClientRect(); const dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+      if (slither) { if (game.setMove) game.setMove(dx / 120, dy / 120); } else if (game.setAim) game.setAim(dx / 120, dy / 120); });
+    cv.addEventListener('mousedown', e => { if (!game || !game.releaseAim) return; const r = cv.getBoundingClientRect(); const dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2); game.releaseAim(dx / 120, dy / 120); });
+  }
 
   function buildFloatingControls() {
     const wrap = byId('canvas-wrap');
@@ -711,6 +766,8 @@
       buildFloatingControls();
       return;
     }
+    if (def.padLayout === 'arena') { pad.classList.add('pad-none'); buildArenaControls('arena'); return; }   // 양손 조이스틱
+    if (def.padLayout === 'slither') { pad.classList.add('pad-none'); buildArenaControls('slither'); return; }  // 조이스틱 + 부스트
     if (def.padLayout === 'tap') { pad.classList.add('pad-none'); return; }   // 화면을 직접 누르는 게임
     const dirs = def.controls.filter(c => DIR_KEYS.indexOf(c) >= 0);
     const acts = def.controls.filter(c => DIR_KEYS.indexOf(c) < 0);
@@ -784,7 +841,10 @@
           cellSize: cellSize, trackId: trackId, slot: slot,
           myId: playerId, myName: myNickname,
           onDropHazard: dropHazard, onHitHazard: hitHazard, nameOf: id => names[id] || '',
-          onAttack: sendAttack, onFinish: reportFinish
+          onAttack: sendAttack, onFinish: reportFinish,
+          // 젬 아레나: 젬은 '먼저 쓴 사람' 이 갖습니다 (트랜잭션). 쓰러지면 그 자리에 새 젬을 놓습니다
+          onGem: id => { gemsRef.child(id).transaction(g => { if (!g || g.by) return; g.by = playerId; return g; }); },
+          onDropGems: drops => { drops.forEach((d, i) => gemsRef.child('d' + Date.now().toString(36) + i).set({ x: Math.round(d[0] * 10) / 10, y: Math.round(d[1] * 10) / 10 })); }
         });
         if (!isKart && def.padLayout !== 'joystick') readyGo();
         if (game.setQuality) game.setQuality(quality);
@@ -892,6 +952,9 @@
     posRef.on('child_changed', s => applyPeer(s.key, s.val()));
     posRef.on('child_removed', s => { delete peerPos[s.key]; if (game && game.removePeer) game.removePeer(s.key); pushPeers(); });
 
+    if (def.padLayout === 'arena') {
+      gemsRef.on('value', s => { gems = s.val() || {}; if (game && game.setGems) game.setGems(gems); });
+    }
     hazardsRef.on('child_added',   s => { hazards[s.key] = s.val(); if (game) game.setHazards(hazards); });
     hazardsRef.on('child_removed', s => { delete hazards[s.key]; if (game) game.setHazards(hazards); });
 
@@ -959,7 +1022,8 @@
   // Firebase 카운터를 쓰면 늦게 통과해도 네트워크가 빠른 학생이 1위가 될 수 있습니다.
   // 각자 주행 시간(출발 신호 → 결승선, 기기 안에서 잰 값)을 올리고, 그 시간이 짧은 순서가 순위입니다.
   let finishesOff = null;
-  function reportFinish() {
+  function reportFinish(won) {
+    if (def.padLayout === 'arena') { playerRef.update({ status: 'finished', score: game.score }); showResult(won ? 1 : 2); return; }
     const ms = (game && game.raceMs) || 1;
     db.ref('finishes/' + playerId).set({ ms: ms, n: nickname });
     playerRef.update({ status: 'finished' });

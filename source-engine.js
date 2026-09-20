@@ -172,7 +172,9 @@ class SourceHuntGame {
     const mapH = H - cs * 1.6;                              // 지도 영역 (아래 액션 바 제외)
 
     // 지도 바탕 — 진한 남색, 미세 격자, 레이더 스윕
-    ctx.fillStyle = '#080D18'; ctx.fillRect(0, 0, W, H);
+    { const bg = ctx.createLinearGradient(0, 0, W, mapH); bg.addColorStop(0, '#0B1322'); bg.addColorStop(1, '#070B14'); ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H); }
+    // 지형 명암: 가운데가 낮고 가장자리가 높은 분지 느낌
+    { const tg = ctx.createRadialGradient(W / 2, mapH / 2, 0, W / 2, mapH / 2, Math.hypot(W, mapH) * 0.55); tg.addColorStop(0, 'rgba(76,201,240,0.04)'); tg.addColorStop(1, 'rgba(0,0,0,0.35)'); ctx.fillStyle = tg; ctx.fillRect(0, 0, W, mapH); }
     ctx.strokeStyle = 'rgba(120,170,255,0.06)'; ctx.lineWidth = 1;
     for (let x = 0; x <= this.W; x++) { ctx.beginPath(); ctx.moveTo(x * cs, 0); ctx.lineTo(x * cs, mapH); ctx.stroke(); }
     for (let y = 0; y < this.H - 1; y++) { ctx.beginPath(); ctx.moveTo(0, y * cs); ctx.lineTo(W, y * cs); ctx.stroke(); }
@@ -184,6 +186,7 @@ class SourceHuntGame {
       ctx.fillStyle = 'rgba(255,209,102,0.6)'; ctx.font = F('800', px * 3.2); ctx.textAlign = 'right'; ctx.fillText('산업단지', W - px * 2, mapH - px * 2); ctx.textAlign = 'left'; }
     // 강
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.strokeStyle = 'rgba(61,184,112,0.14)'; ctx.lineWidth = cs * 2.4; this.riverPath(ctx, cs); ctx.stroke();   // 강변 둔치
     ctx.strokeStyle = 'rgba(76,201,240,0.16)'; ctx.lineWidth = cs * 1.7; this.riverPath(ctx, cs); ctx.stroke();
     const rg = ctx.createLinearGradient(0, 0, 0, mapH); rg.addColorStop(0, '#2B86CC'); rg.addColorStop(1, '#155A8E');
     ctx.strokeStyle = rg; ctx.lineWidth = cs * 1.05; this.riverPath(ctx, cs); ctx.stroke();

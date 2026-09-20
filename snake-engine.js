@@ -101,11 +101,7 @@ class SnakeGame {
 
   // 16×16 픽셀 격자 스프라이트를 셀 크기로 확대해 캔버스에 구워 둡니다
   buildSprites(cs) {
-    const P = 16, S = Math.ceil(cs), mk = () => { const c = document.createElement('canvas'); c.width = S; c.height = S; return c; };
-    const px = (g, grid, pal) => { const u = S / P; g.imageSmoothingEnabled = false;
-      // 픽셀 경계를 정확히 나눠 칠합니다 (셀 크기가 16의 배수가 아니어도 겹침·틈 없이). 마지막 픽셀은 캔버스 끝까지
-      const at = v => v >= P ? S : Math.floor(v * u);
-      grid.forEach((row, y) => { for (let x = 0; x < row.length; x++) { const ch = row[x]; if (ch === '.') continue; g.fillStyle = pal[ch]; g.fillRect(at(x), at(y), at(x + 1) - at(x), at(y + 1) - at(y)); } }); };
+    const P = 16;
     // 팔레트: G 밝은 초록 g 초록 d 진초록 y 노랑 배 w 흰 k 검정 r 빨강 R 진빨강 s 줄기 l 잎 o 주황 혀 p 분홍
     const pal = { G: '#6BEE7E', g: '#2FBF5C', d: '#166F35', y: '#B8F09A', w: '#FFFFFF', k: '#0B0D12', r: '#FF5C5C', R: '#C62A2A', s: '#7A4B1E', l: '#3DD36A', o: '#FF7A3D', p: '#FFB3C6', h: 'rgba(0,0,0,0.28)' };
     const head = [
@@ -139,7 +135,7 @@ class SnakeGame {
     const tailTip = [
       '................','................','................','................','......ddddd.....','....ddGGGGG.....','...dGGggggg.....','..dGgggggg......',
       '..dGgggggg......','...dGyyyyy......','....ddyyyyy.....','......ddddd.....','................','................','................','................'];
-    const bake = grid => { const c = mk(); px(c.getContext('2d'), grid, pal); return c; };
+    const bake = grid => FX.sprite(grid, pal, cs);
     // 바닥: 풀 타일 (두 가지 톤 + 작은 풀잎)
     const W = SNAKE_COLS * cs, H = SNAKE_ROWS * cs, bg = document.createElement('canvas'); bg.width = W; bg.height = H;
     const g = bg.getContext('2d');

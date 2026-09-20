@@ -100,10 +100,7 @@ class FroggerGame {
 
   // ── 스프라이트 (코드 생성 · 외부 파일 없음) ──
   buildSprites(cs) {
-    const P = 16, S = Math.ceil(cs), mk = () => { const c = document.createElement('canvas'); c.width = S; c.height = S; return c; };
-    const px = (g, grid, pal) => { const u = S / P; g.imageSmoothingEnabled = false;
-      const at = v => v >= P ? S : Math.floor(v * u);
-      grid.forEach((row, y) => { for (let x = 0; x < row.length; x++) { const ch = row[x]; if (ch === '.') continue; g.fillStyle = pal[ch]; g.fillRect(at(x), at(y), at(x + 1) - at(x), at(y + 1) - at(y)); } }); };
+    const P = 16;
     const pal = { G: '#7DF58F', g: '#2FBF5C', d: '#12572A', w: '#FFFFFF', k: '#0B0D12', y: '#FFD166', p: '#FF8AB0', r: '#FF5C5C' };
     // 개구리: 정면을 보는 모습 (눈 · 앞발 · 뒷다리)
     const frog = [
@@ -111,7 +108,7 @@ class FroggerGame {
       '..dgggggggggggd.','.dGgggggggggggGd','.dGgggddddgggGd.','.dGggggggggggGd.','..dGgggggggggd..','..ddGgggggggGdd.','.dd..dGGGGGd..dd',
       'dd....ddddd....d','................'];
     const frogHop = frog.map((r, y) => y >= 12 ? r.replace(/d/g, 'g') : r);
-    const bake = grid => { const c = mk(); px(c.getContext('2d'), grid, pal); return c; };
+    const bake = grid => FX.sprite(grid, pal, cs);
     this._fs = { frog: bake(frog), frogHop: bake(frogHop) };
     this._fsCs = cs;
   }

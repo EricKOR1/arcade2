@@ -7,8 +7,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1B2027">
 <title>교사용 대시보드</title>
-<link rel="stylesheet" href="platform.css?v=2026-10-01c">
-<link rel="stylesheet" href="style.css?v=2026-10-01c">
+<link rel="stylesheet" href="platform.css?v=2026-10-05a">
+<link rel="stylesheet" href="style.css?v=2026-10-05a">
 </head>
 <body>
 <div class="admin" id="admin-root">
@@ -17,7 +17,7 @@
     <h1>아케이드</h1>
     <span class="badge badge-lg" id="status-badge">게임 선택</span>
     <span class="badge badge-lg badge-ghost" id="count-badge">0명 접속</span>
-    <span class="badge badge-sm" style="opacity:.4">v2026-10-01c</span>
+    <span class="badge badge-sm" style="opacity:.4">v2026-10-05a</span>
   </div>
   <p class="admin-sub" id="admin-sub">플레이할 게임을 고르면 학생용 QR이 만들어집니다.</p>
 
@@ -35,7 +35,7 @@
   <!-- 1-2단계: 트랙 선택 -->
   <section id="track-panel" class="hidden">
     <div class="controls"><button id="track-back" class="btn btn-ghost btn-sm">← 게임 선택으로</button></div>
-    <h2 class="section-h">트랙을 고르세요</h2>
+    <h2 class="section-h" id="track-title">트랙을 고르세요</h2>
     <div id="track-list"></div>
   </section>
 
@@ -172,31 +172,33 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="firebase-config.js?v=2026-10-01c"></script>
-<script src="shared.js?v=2026-10-01c"></script>
-<script src="fx.js?v=2026-10-01c"></script>
-<script src="tetris-engine.js?v=2026-10-01c"></script>
-<script src="racing-engine.js?v=2026-10-01c"></script>
-<script src="snake-engine.js?v=2026-10-01c"></script>
-<script src="breakout-engine.js?v=2026-10-01c"></script>
-<script src="flappy-engine.js?v=2026-10-01c"></script>
-<script src="shooter-engine.js?v=2026-10-01c"></script>
+<script src="firebase-config.js?v=2026-10-05a"></script>
+<script src="shared.js?v=2026-10-05a"></script>
+<script src="fx.js?v=2026-10-05a"></script>
+<script src="tetris-engine.js?v=2026-10-05a"></script>
+<script src="racing-engine.js?v=2026-10-05a"></script>
+<script src="snake-engine.js?v=2026-10-05a"></script>
+<script src="breakout-engine.js?v=2026-10-05a"></script>
+<script src="flappy-engine.js?v=2026-10-05a"></script>
+<script src="shooter-engine.js?v=2026-10-05a"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="fps-engine.js?v=2026-10-01c"></script>
-<script src="fps3d-engine.js?v=2026-10-01c"></script>
-<script src="game2048-engine.js?v=2026-10-01c"></script>
-<script src="frogger-engine.js?v=2026-10-01c"></script>
-<script src="asteroids-engine.js?v=2026-10-01c"></script>
-<script src="maze-engine.js?v=2026-10-01c"></script>
-<script src="tower-engine.js?v=2026-10-01c"></script>
-<script src="missile-engine.js?v=2026-10-01c"></script>
-<script src="centipede-engine.js?v=2026-10-01c"></script>
-<script src="source-engine.js?v=2026-10-01c"></script>
-<script src="games.js?v=2026-10-01c"></script>
-<script src="app.js?v=2026-10-01c"></script>
+<script src="fps-engine.js?v=2026-10-05a"></script>
+<script src="fps3d-engine.js?v=2026-10-05a"></script>
+<script src="game2048-engine.js?v=2026-10-05a"></script>
+<script src="frogger-engine.js?v=2026-10-05a"></script>
+<script src="asteroids-engine.js?v=2026-10-05a"></script>
+<script src="maze-engine.js?v=2026-10-05a"></script>
+<script src="tower-engine.js?v=2026-10-05a"></script>
+<script src="missile-engine.js?v=2026-10-05a"></script>
+<script src="centipede-engine.js?v=2026-10-05a"></script>
+<script src="source-engine.js?v=2026-10-05a"></script>
+<script src="arena-engine.js?v=2026-10-05a"></script>
+<script src="slither-engine.js?v=2026-10-05a"></script>
+<script src="games.js?v=2026-10-05a"></script>
+<script src="app.js?v=2026-10-05a"></script>
 <script>
 (function () {
-  const CELL = { tetris: 6, snake: 5, breakout: 8, flappy: 8, shooter: 8, g2048: 26, frogger: 8, asteroids: 6, maze: 5, tower: 7, missile: 6, centipede: 5, source: 8 };
+  const CELL = { tetris: 6, snake: 5, breakout: 8, flappy: 8, shooter: 8, g2048: 26, frogger: 8, asteroids: 6, maze: 5, tower: 7, missile: 6, centipede: 5, source: 8, arena: 6, slither: 5 };
 
   const sessionRef  = db.ref('session');
   const statusRef   = db.ref('session/status');
@@ -248,13 +250,14 @@
   const STALE_MS = 30000;
   let specOn = false, specTimer = null, specAuto = null, followKey = 'lead';
   let focusId = null, focusRaf = null, focusKart = null, focusPlayers = {};
-  let focusFps = null;
+  let focusFps = null, arenaMapCache = null;
   let specTrack = null, specTrackId = null, specRaf = null;
 
   // 학생이 달리는 트랙을 별도로 구독 — 다른 상태 갱신 순서와 무관하게 항상 일치시킴
   db.ref('session/track').on('value', snap => {
     const tk = snap.val();
     if (tk && TRACKS[tk]) { currentTrack = tk; ensureSpecTrack(); }
+    else if (tk && typeof F3_MAPS !== 'undefined' && F3_MAPS[tk]) { currentTrack = tk; if (focusFps && focusFps.mapId !== tk) { focusFps = null; } }   // FPS 맵
   });
 
   function ensureSpecTrack() {
@@ -262,6 +265,16 @@
     specTrackId = currentTrack;
     specTrack = new Track(TRACKS[currentTrack]);
   }
+
+  // ── 젬 아레나 광산: 교사 화면이 젬을 솟게 합니다 (누군가 한 명이 맡아야 모두 같은 젬을 봅니다) ──
+  let gemN = 0, currentStatus = 'idle';
+  setInterval(() => {
+    if (currentGameId !== 'arena' || currentStatus !== 'playing') return;
+    db.ref('gems').once('value').then(s => { const all = s.val() || {}; const free = Object.keys(all).filter(k => !all[k].by).length;
+      if (free >= 20) return;
+      const a = Math.random() * Math.PI * 2, r = 1.2 + Math.random() * 1.4;
+      db.ref('gems/g' + (gemN++) + '_' + Date.now().toString(36)).set({ x: Math.round((10 + Math.cos(a) * r) * 10) / 10, y: Math.round((12 + Math.sin(a) * r) * 10) / 10 }); });
+  }, 4000);
 
   // ── 게임 분류 칩 ──
   $('game-filter').addEventListener('click', e => {
@@ -289,7 +302,22 @@
     $('game-list').appendChild(el);
   });
 
-  // ── 트랙 선택 카드 ──
+  // ── 트랙 / 맵 선택 카드 (게임 종류에 따라 채움) ──
+  function fillTrackPanel(gameId) {
+    $('track-list').innerHTML = '';
+    const isMap = GAMES[gameId] && GAMES[gameId].trackKind === 'map';
+    $('track-title').textContent = isMap ? '맵을 고르세요' : '트랙을 고르세요';
+    if (isMap) {
+      Object.keys(F3_MAPS).forEach(id => { const mdef = F3_MAPS[id];
+        const el = document.createElement('div'); el.className = 'card bg-base-200 shadow track-card';
+        el.innerHTML = '<div class="card-body p-5"><h3 class="card-title text-base"></h3><p class="text-sm opacity-60"></p><div class="track-meta"><span class="badge badge-sm badge-outline"></span><span class="track-spec"></span></div></div>';
+        el.querySelector('.card-title').textContent = mdef.name; el.querySelector('p').textContent = mdef.desc; el.querySelector('.badge').textContent = mdef.tag || '';
+        const built = mdef.build(); const cnt = {}; built.rows.forEach(r => { for (const c of r) cnt[c] = (cnt[c] || 0) + 1; });
+        el.querySelector('.track-spec').textContent = built.rows.length + '×' + built.rows.length + ' · 상자 ' + (cnt.X || 0) + ' · 기둥 ' + (cnt.P || 0) + ' · 나무 ' + (cnt.T || 0) + ' · 등장 ' + built.spawns.length + '곳';
+        el.addEventListener('click', () => openLobby(gameId, id, pendingStartNow));
+        $('track-list').appendChild(el); });
+      return;
+    }
   Object.keys(TRACKS).sort((a, b) => (TRACKS[a].difficulty || 0) - (TRACKS[b].difficulty || 0)).forEach(id => {   // 쉬운 트랙부터
     const t = TRACKS[id];
     const el = document.createElement('div');
@@ -305,9 +333,10 @@
     el.querySelector('.track-spec').textContent =
       '길이 ' + (tk.length/1000).toFixed(1) + 'k · 폭 ' + t.width
       + ' · ' + t.laps + '바퀴 · 출발 ' + tk.perRow + '열';
-    el.addEventListener('click', () => openLobby('kart', id, pendingStartNow));
+    el.addEventListener('click', () => openLobby(gameId, id, pendingStartNow));
     $('track-list').appendChild(el);
   });
+  }
   $('track-back').addEventListener('click', () => {
     trackPanel.classList.add('hidden');
     selectPanel.classList.remove('hidden');
@@ -319,6 +348,7 @@
     if (GAMES[id].hasTracks) {
       currentGameId = id;
       applyAccent(id);
+      fillTrackPanel(id);
       selectPanel.classList.add('hidden');
       trackPanel.classList.remove('hidden');
     } else {
@@ -452,7 +482,7 @@
     if (focusFps && focusFps.destroy) { try { focusFps.destroy(); } catch (e) {} }
     focusFps = null; focusKart = null;
     const Eng = GAMES[currentGameId].engine3d ? Fps3DGame : FpsGame;
-    focusFps = new Eng(focusCv, { myId: id, myName: names[id] || '', teamMode: (GAMES[currentGameId].name.indexOf('팀') >= 0), nameOf: k => names[k] || '' });
+    focusFps = new Eng(focusCv, { myId: id, myName: names[id] || '', trackId: currentTrack, teamMode: (GAMES[currentGameId].name.indexOf('팀') >= 0), nameOf: k => names[k] || '' });
     focusFps.spectate(id);
   }
   function startFocusKart(id) {
@@ -607,8 +637,9 @@
         if (g.hasTracks) {
           // 카트는 트랙까지 고릅니다
           gbox.classList.add('hidden'); tbox.classList.remove('hidden');
-          Object.keys(TRACKS).sort((a, b) => (TRACKS[a].difficulty || 0) - (TRACKS[b].difficulty || 0)).forEach(tid => {
-            const t = TRACKS[tid];
+          const isMap = g.trackKind === 'map', src = isMap ? F3_MAPS : TRACKS;
+          Object.keys(src).sort((a, b) => isMap ? 0 : (src[a].difficulty || 0) - (src[b].difficulty || 0)).forEach(tid => {
+            const t = src[tid];
             const tb = document.createElement('button');
             tb.className = 'move-card';
             tb.innerHTML = '<b></b><span></span>';
@@ -673,7 +704,7 @@
     stopRooms();
     sessionRef.set({ game: null, status: 'idle' });
     posRef.remove(); hazardsRef.remove(); eventsRef.remove();
-    db.ref('finishCount').remove(); db.ref('finishes').remove();
+    db.ref('finishCount').remove(); db.ref('finishes').remove(); db.ref('gems').remove();
   });
   // 결과 CSV — 이름 · 점수 · 순위 · 상세 (엑셀에서 바로 열립니다)
   $('csv-btn').addEventListener('click', () => {
@@ -702,6 +733,7 @@
   sessionRef.on('value', snap => {
     const s = snap.val() || {};
     const status = s.status || 'idle';
+    currentStatus = status;
     if (s.game && s.game !== currentGameId) { currentGameId = s.game; clearCards(); }
     if (s.track && TRACKS[s.track]) { currentTrack = s.track; ensureSpecTrack(); }
     if (currentGameId) applyAccent(currentGameId);
@@ -1418,7 +1450,9 @@
 
   // 레이저 태그 — 위에서 본 미로와 학생 위치
   function drawArena(canvas) {
-    const map = (GAMES[currentGameId] || {}).engine3d ? F3_MAP : FPS_MAP, n = map.length;
+    // 3D 레이저 태그는 선택된 맵(F3_MAPS) 을 그립니다 — 맵이 바뀌면 다시 만듭니다
+    if ((GAMES[currentGameId] || {}).engine3d && (!arenaMapCache || arenaMapCache.id !== currentTrack)) { const mid = (typeof F3_MAPS !== 'undefined' && F3_MAPS[currentTrack]) ? currentTrack : 'plaza'; arenaMapCache = { id: currentTrack, rows: F3_MAPS[mid].build().rows }; }
+    const map = (GAMES[currentGameId] || {}).engine3d ? arenaMapCache.rows : FPS_MAP, n = map.length;
     const wrap = canvas.parentElement;
     const size = Math.max(200, Math.min(wrap.clientWidth, window.innerHeight * 0.72));
     const dpr = Math.max(2, window.devicePixelRatio || 1);
@@ -1429,7 +1463,7 @@
     const ctx = canvas.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const cs = size / n;
     ctx.fillStyle = '#12141b'; ctx.fillRect(0, 0, size, size);
-    const WALLC = { '#': '#5B6C8C', '=': '#8C94A8', 'X': '#8A6238', 'B': '#8A4E46', 'H': '#3E4A66', 'L': '#6E7A8F' };
+    const WALLC = { '#': '#5B6C8C', '=': '#8C94A8', 'X': '#8A6238', 'B': '#8A4E46', 'H': '#3E4A66', 'L': '#6E7A8F' , P: '#DCE6F2', T: '#2E7D46', R: '#8A8F98', W: '#7FA8C8' };
     for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if (map[y][x] !== '.') {
       ctx.fillStyle = WALLC[map[y][x]] || '#465470'; ctx.fillRect(x * cs, y * cs, cs + 0.5, cs + 0.5);
       ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.fillRect(x * cs, y * cs, cs + 0.5, Math.max(1, cs * 0.14));

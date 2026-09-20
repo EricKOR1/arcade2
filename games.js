@@ -87,7 +87,7 @@ const GAMES = {
     primary: '75% 0.18 25', primaryContent: '100% 0 0', hex: '#FF8A56',
     fullBleed: true, grid: { cols: 24, rows: 24 },
     adminView: 'arena', realtime: true, engine3d: true,
-    needsPeers: true, hasNext: false,
+    needsPeers: true, hasTracks: true, trackKind: 'map', hasNext: false,
     stats: [{ key: 'kills', label: 'KILLS' }, { key: 'hp', label: 'HP' }],
     detail: function (g) { return g.kills + '킬 · ' + g.deaths + '데스'; },
     controls: ['fire'], padLayout: 'joystick',
@@ -105,13 +105,47 @@ const GAMES = {
     primary: '70% 0.2 350', primaryContent: '100% 0 0', hex: '#FF5C7A',
     fullBleed: true, grid: { cols: 24, rows: 24 },
     adminView: 'arena', realtime: true, engine3d: true,
-    needsPeers: true, hasNext: false,
+    needsPeers: true, hasTracks: true, trackKind: 'map', hasNext: false,
     stats: [{ key: 'kills', label: 'KILLS' }, { key: 'hp', label: 'HP' }],
     detail: function (g) { return (g.team === 'red' ? '레드 팀' : '블루 팀') + ' · ' + g.kills + '킬 ' + g.deaths + '데스'; },
     controls: ['fire'], padLayout: 'joystick',
     labels: { fire: '발사' },
     create: function (canvas, opts) { return new Fps3DGame(canvas, Object.assign({ teamMode: true }, opts)); },
     sync: function (g) { return { score: g.score, kills: g.kills, deaths: g.deaths, hp: g.hp, team: g.team }; }
+  },
+
+  arena: {
+    type: 'canvas',
+    name: '젬 아레나',
+    desc: '탑다운 팀 대전. 가운데 광산에서 솟는 젬을 모아 한 팀이 10개를 15초 동안 지키면 승리. 수풀에 숨고, 맞히면 궁극기가 찹니다',
+    howto: '왼쪽 조이스틱 이동 · 오른쪽 조이스틱 끌어서 놓으면 그 방향으로 발사(톡 = 자동 조준) · ★ 궁극기 버튼 · 수풀에 들어가면 안 보임 · 쓰러지면 젬을 떨어뜨림',
+    meta: '실시간 팀 대전 · 젬 10개 · 2팀',
+    primary: '75% 0.19 300', primaryContent: '100% 0 0', hex: '#B15DFF',
+    grid: { cols: 20, rows: 24 },
+    adminView: 'grid', fullBleed: true,
+    needsPeers: true, hasNext: false,
+    stats: [{ key: 'held', label: '◆ 젬' }, { key: 'kills', label: 'KO' }],
+    detail: function (g) { return (g.team === 'r' ? '레드 팀' : '블루 팀') + ' · 젬 ' + g.held + ' · KO ' + g.kills + (g.winner ? (g.winner === g.team ? ' · 승리' : ' · 패배') : ''); },
+    controls: [], padLayout: 'arena',
+    create: function (canvas, opts) { return new ArenaGame(canvas, Object.assign({ team: Fps3DGame.teamOf(opts.myId) === 'red' ? 'r' : 'b' }, opts)); },
+    sync: function (g) { return { score: g.score, held: g.held, kills: g.kills, team: g.team }; }
+  },
+
+  slither: {
+    type: 'canvas',
+    name: '뱀 아레나',
+    desc: '큰 뱀이 작은 뱀을 삼키며 자라는 실시간 대전. 먹이를 먹어 길이를 키우고, 1.5배 이상 크면 상대를 삼킬 수 있어요. 작으면 피하세요',
+    howto: '조이스틱으로 방향 · 부스트 버튼(꾹)으로 가속(길이 소모) · 내 머리가 상대 몸에 닿으면 큰 쪽이 이김 · 경기장 벽에 닿으면 죽음',
+    meta: '실시간 대전 · 최대 30명 · 개인전',
+    primary: '75% 0.19 160', primaryContent: '100% 0 0', hex: '#06D6A0',
+    grid: { cols: 30, rows: 30 },
+    adminView: 'grid', fullBleed: true,
+    needsPeers: true, hasNext: false,
+    stats: [{ key: 'len', label: '길이' }, { key: 'kills', label: '삼킴' }],
+    detail: function (g) { return '길이 ' + Math.round(g.len) + ' · 최고 ' + Math.round(Math.max(g.best, g.len)) + ' · 삼킴 ' + g.kills; },
+    controls: [], padLayout: 'slither',
+    create: function (canvas, opts) { return new SlitherGame(canvas, opts); },
+    sync: function (g) { return { score: Math.round(Math.max(g.best, g.len)), len: Math.round(g.len), kills: g.kills }; }
   },
 
   fpsclassic: {

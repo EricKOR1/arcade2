@@ -146,24 +146,40 @@ class MazeGame {
     if (!this._wallLayer || this._wcs !== cs) {
       this._wallLayer = document.createElement('canvas'); this._wallLayer.width = W; this._wallLayer.height = H; this._wcs = cs;
       const g = this._wallLayer.getContext('2d');
-      for (let y = 0; y < MZ_ROWS; y++) for (let x = 0; x < MZ_COLS; x++) if (this.walls[y][x]) {
-        const gate = MZ_MAP[y][x] === '=';
-        g.fillStyle = gate ? '#FF9AB8' : '#1E3A8A'; g.fillRect(x * cs + 1, y * cs + 1, cs - 2, cs - 2);
-        g.fillStyle = gate ? '#FFC0D3' : '#3B82F6'; g.fillRect(x * cs + cs * .25, y * cs + cs * .25, cs * .5, cs * .5);
-      }
+      // 바닥: 아주 어두운 격자
+      g.fillStyle = 'rgba(76,201,240,0.03)'; for (let y = 0; y < MZ_ROWS; y++) for (let x = 0; x < MZ_COLS; x++) if ((x + y) % 2) g.fillRect(x * cs, y * cs, cs, cs);
+      // 벽: 이웃과 이어지는 네온 튜브 (블록이 아니라 선으로 보이게)
+      const isW = (x, y) => y >= 0 && y < MZ_ROWS && x >= 0 && x < MZ_COLS && this.walls[y][x] && MZ_MAP[y][x] !== '=';
+      const pass = (col, width, blur) => { g.strokeStyle = col; g.lineWidth = width; g.lineCap = 'round'; g.lineJoin = 'round';
+        if (blur) { g.shadowColor = col; g.shadowBlur = blur; } else g.shadowBlur = 0;
+        for (let y = 0; y < MZ_ROWS; y++) for (let x = 0; x < MZ_COLS; x++) { if (!isW(x, y)) continue; const cx = x * cs + cs / 2, cy = y * cs + cs / 2;
+          let any = false;
+          if (isW(x + 1, y)) { g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + cs, cy); g.stroke(); any = true; }
+          if (isW(x, y + 1)) { g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx, cy + cs); g.stroke(); any = true; }
+          if (!any && !isW(x - 1, y) && !isW(x, y - 1)) { g.beginPath(); g.arc(cx, cy, width / 2, 0, Math.PI * 2); g.fillStyle = col; g.fill(); } }
+        g.shadowBlur = 0; };
+      pass('rgba(59,130,246,0.35)', cs * 0.5, cs * 0.5);     // 바깥 광채
+      pass('#1E3A8A', cs * 0.36, 0);                          // 튜브 본체
+      pass('#60A5FA', cs * 0.12, 0);                          // 가운데 밝은 선
+      // 출입문(=): 분홍 점선
+      g.setLineDash([cs * 0.25, cs * 0.18]); g.strokeStyle = '#FF9AB8'; g.lineWidth = cs * 0.14; g.shadowColor = '#FF9AB8'; g.shadowBlur = cs * 0.4;
+      for (let y = 0; y < MZ_ROWS; y++) for (let x = 0; x < MZ_COLS; x++) if (MZ_MAP[y][x] === '=') { g.beginPath(); g.moveTo(x * cs, y * cs + cs / 2); g.lineTo(x * cs + cs, y * cs + cs / 2); g.stroke(); }
+      g.setLineDash([]); g.shadowBlur = 0;
     }
     ctx.drawImage(this._wallLayer, 0, 0);
     // 셀
     for (let y = 0; y < MZ_ROWS; y++) for (let x = 0; x < MZ_COLS; x++) {
       const v = this.dots[y][x]; if (!v) continue;
-      if (v === 2) { ctx.fillStyle = 'rgba(76,201,240,' + (0.6 + Math.sin(now / 200) * 0.35).toFixed(2) + ')'; ctx.beginPath(); ctx.arc(x * cs + cs / 2, y * cs + cs / 2, cs * .3, 0, Math.PI * 2); ctx.fill(); }
-      else { ctx.fillStyle = '#FFD166'; ctx.fillRect(x * cs + cs / 2 - cs * .08, y * cs + cs / 2 - cs * .08, cs * .16, cs * .16); }
+      if (v === 2) { const px = x * cs + cs / 2, py = y * cs + cs / 2, k = 0.6 + Math.sin(now / 200) * 0.35; const g2 = ctx.createRadialGradient(px, py, 0, px, py, cs * .55); g2.addColorStop(0, 'rgba(76,201,240,' + k.toFixed(2) + ')'); g2.addColorStop(0.5, 'rgba(76,201,240,0.35)'); g2.addColorStop(1, 'rgba(76,201,240,0)'); ctx.fillStyle = g2; ctx.beginPath(); ctx.arc(px, py, cs * .55, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#E6F7FF'; ctx.beginPath(); ctx.arc(px, py, cs * .16, 0, Math.PI * 2); ctx.fill(); }
+      else { ctx.fillStyle = 'rgba(255,209,102,0.35)'; ctx.beginPath(); ctx.arc(x * cs + cs / 2, y * cs + cs / 2, cs * .16, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#FFE59A'; ctx.beginPath(); ctx.arc(x * cs + cs / 2, y * cs + cs / 2, cs * .09, 0, Math.PI * 2); ctx.fill(); }
     }
     // 드론
     this.drones.forEach(d => {
       if (d.dead) return;
       const x = d.x * cs + cs / 2, y = d.y * cs + cs / 2, r = cs * .42;
       const blink = d.scared && this.powerUntil - now < 1500 && Math.floor(now / 150) % 2 === 0;
+      ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(x, y + r * 0.95, r * 0.85, r * 0.25, 0, 0, Math.PI * 2); ctx.fill();
+      if (!d.scared) { const g4 = ctx.createRadialGradient(x, y, 0, x, y, r * 1.5); g4.addColorStop(0, FX.tint(d.color, 0) + '55'); g4.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g4; ctx.beginPath(); ctx.arc(x, y, r * 1.5, 0, Math.PI * 2); ctx.fill(); }
       ctx.fillStyle = d.scared ? (blink ? '#E6EAF0' : '#3B5BDB') : d.color;
       ctx.beginPath(); ctx.moveTo(x - r, y + r * .8); ctx.lineTo(x - r, y - r * .2); ctx.arc(x, y - r * .2, r, Math.PI, 0); ctx.lineTo(x + r, y + r * .8);
       for (let k = 3; k >= 0; k--) ctx.lineTo(x - r + (k + 0.5) * r / 2, y + r * .8 - ((k + Math.floor(now / 120)) % 2 ? r * .25 : 0)); ctx.closePath(); ctx.fill();
@@ -173,7 +189,11 @@ class MazeGame {
     // 로봇 (둥근 청소 로봇 + 방향 라이트)
     if (this.deathT <= 0) {
       const x = this.px * cs + cs / 2, y = this.py * cs + cs / 2, r = cs * .44;
-      ctx.fillStyle = '#06D6A0'; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.ellipse(x, y + r * 0.7, r * 0.9, r * 0.3, 0, 0, Math.PI * 2); ctx.fill();
+      const g3 = ctx.createRadialGradient(x, y, 0, x, y, r * 1.6); g3.addColorStop(0, 'rgba(6,214,160,0.35)'); g3.addColorStop(1, 'rgba(6,214,160,0)'); ctx.fillStyle = g3; ctx.beginPath(); ctx.arc(x, y, r * 1.6, 0, Math.PI * 2); ctx.fill();
+      const rg = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.1, x, y, r); rg.addColorStop(0, '#7FF5D2'); rg.addColorStop(1, '#049C6F');
+      ctx.fillStyle = rg; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = Math.max(1, cs * 0.05); ctx.stroke();
       ctx.fillStyle = '#0B0D12'; ctx.beginPath(); ctx.arc(x, y, r * .55, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = '#9BF6E0'; ctx.beginPath(); ctx.arc(x, y, r * .28 + Math.sin(this.mouth) * r * .08, 0, Math.PI * 2); ctx.fill();
       if (this.dir[0] || this.dir[1]) { ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.arc(x + this.dir[0] * r * .85, y + this.dir[1] * r * .85, r * .18, 0, Math.PI * 2); ctx.fill(); }

@@ -53,7 +53,14 @@ const CELL_COLORS = {
   59: '#1E2A3A', // 태화강 - 취수장
   60: '#B15DFF', // 태화강 - 오염물
   61: '#FF8A80', // (예비)
-  62: '#0B1220'  // 오염원 추적 - 지도 바탕
+  62: '#0B1220', // 오염원 추적 - 지도 바탕
+  63: '#5C6B85', // 젬 아레나 - 벽
+  64: '#8B5CF6', // 젬 아레나 - 광산
+  65: '#2E8B57', // 젬 아레나 - 수풀
+  66: '#1F2B3E', // 젬 아레나 - 바닥
+  67: '#B15DFF', // 젬 아레나 - 젬
+  68: '#FF5C7A', // 젬 아레나 - 레드
+  69: '#4CC9F0'  // 젬 아레나 - 블루
 };
 
 // 숫자 2차원 배열을 캔버스에 그림 (교사 화면 미니 보드용)
@@ -74,17 +81,33 @@ function drawBoardGrid(ctx, board, cellSize) {
 }
 
 // 입체감 있는 블록 (학생 화면용)
+// 블록 셀 — 둥근 모서리 · 세로 그라데이션 · 윗면 광택 · 안쪽 그림자.
+// 크기·색 조합마다 한 번만 그려 캐시해 두고 복사합니다 (테트리스 200칸 + 교사 미니보드 30개도 가볍게).
+const _cellCache = new Map();
+function _tintHex(hex, k) {
+  const h = String(hex).replace('#', ''); if (h.length !== 6) return hex;
+  const v = [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16));
+  return '#' + v.map(c => Math.max(0, Math.min(255, Math.round(k > 0 ? c + (255 - c) * k : c * (1 + k)))).toString(16).padStart(2, '0')).join('');
+}
+function _cellSprite(size, color) {
+  const key = size + '|' + color; let c = _cellCache.get(key); if (c) return c;
+  const S = Math.max(2, Math.round(size)); c = document.createElement('canvas'); c.width = S; c.height = S;
+  const g = c.getContext('2d'), pad = Math.max(0.5, S * 0.06), r = Math.max(1.5, S * 0.18);
+  const rr = (x, y, w, h, rad) => { g.beginPath(); if (g.roundRect) g.roundRect(x, y, w, h, rad); else g.rect(x, y, w, h); };
+  // 본체
+  const lg = g.createLinearGradient(0, pad, 0, S - pad); lg.addColorStop(0, _tintHex(color, 0.32)); lg.addColorStop(0.5, color); lg.addColorStop(1, _tintHex(color, -0.34));
+  g.fillStyle = lg; rr(pad, pad, S - pad * 2, S - pad * 2, r); g.fill();
+  // 윗면 광택
+  g.fillStyle = 'rgba(255,255,255,0.30)'; rr(pad * 2, pad * 2, S - pad * 4, (S - pad * 4) * 0.36, r * 0.7); g.fill();
+  // 안쪽 아래 그림자
+  g.fillStyle = 'rgba(0,0,0,0.22)'; rr(pad * 2, S - pad * 2 - (S - pad * 4) * 0.22, S - pad * 4, (S - pad * 4) * 0.22, r * 0.7); g.fill();
+  // 테두리
+  g.strokeStyle = 'rgba(0,0,0,0.35)'; g.lineWidth = Math.max(0.8, S * 0.04); rr(pad, pad, S - pad * 2, S - pad * 2, r); g.stroke();
+  if (_cellCache.size > 400) _cellCache.clear();
+  _cellCache.set(key, c); return c;
+}
 function drawBevelCell(ctx, px, py, size, color) {
-  const g = 1;
-  ctx.fillStyle = color;
-  ctx.fillRect(px + g, py + g, size - g * 2, size - g * 2);
-  const inset = Math.max(2, Math.floor(size * 0.16));
-  ctx.fillStyle = 'rgba(255,255,255,0.28)';
-  ctx.fillRect(px + g, py + g, size - g * 2, inset);
-  ctx.fillRect(px + g, py + g, inset, size - g * 2);
-  ctx.fillStyle = 'rgba(0,0,0,0.32)';
-  ctx.fillRect(px + g, py + size - g - inset, size - g * 2, inset);
-  ctx.fillRect(px + size - g - inset, py + g, inset, size - g * 2);
+  ctx.drawImage(_cellSprite(size, color), px, py, size, size);
 }
 
 function boardToRows(board) {

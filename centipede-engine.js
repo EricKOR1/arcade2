@@ -73,10 +73,7 @@ class CentipedeGame {
   }
 
   buildSprites(cs) {
-    const P = 16, S = Math.ceil(cs), mk = () => { const c = document.createElement('canvas'); c.width = S; c.height = S; return c; };
-    const px = (g, grid, pal) => { const u = S / P; g.imageSmoothingEnabled = false;
-      const at = v => v >= P ? S : Math.floor(v * u);
-      grid.forEach((row, y) => { for (let x = 0; x < row.length; x++) { const ch = row[x]; if (ch === '.') continue; g.fillStyle = pal[ch]; g.fillRect(at(x), at(y), at(x + 1) - at(x), at(y + 1) - at(y)); } }); };
+    const P = 16;
     // 지네 머리 h 몸통 b 밝은몸통 B 다리 l 눈 w 검은눈 k 더듬이 a
     const hp = { h: '#FFD166', H: '#E0A800', k: '#1A1D24', w: '#FFFFFF', l: '#5B3AAF', a: '#FF8AB0' };
     const bp = { b: '#8B5CF6', B: '#A78BFA', d: '#5B3AAF', l: '#4C2E96', w: '#FFFFFF' };
@@ -100,7 +97,7 @@ class CentipedeGame {
       '................','.......ss.......','.......ss.......','......ssss......','......swws......','.....ssssss.....','.....sSwwSs.....',
       '....ssSwwSss....','....sSSssSSs....','...ssSSssSSss...','...sSS.ss.SSs...','..yss..ss..ssy..','..y...yyyy...y..','......y..y......',
       '................','................'];
-    const bake = (grid, pal) => { const c = mk(); px(c.getContext('2d'), grid, pal); return c; };
+    const bake = (grid, pal) => FX.sprite(grid, pal, cs);
     this._cs2 = { head: bake(head, hp), body: bake(body, bp), mush: [bake(mush, mp), bake(mush, { ...mp, C: '#E8A05A', c: '#E8A05A' }), bake(mush, { ...mp, C: '#F6C177', c: '#F6C177' })], ship: bake(ship, sp) };
     this._cs2Cs = cs;
   }

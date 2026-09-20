@@ -713,3 +713,22 @@ body.fullgrid .spectate { grid-template-columns: 1fr 320px }
   .fjump { right: 96px; bottom: 108px; width: 52px; height: 52px; font-size: 11px }
   .froll { right: 24px; bottom: 108px; width: 52px; height: 52px; font-size: 11px }
 }
+
+/* 젬 아레나: 양손 조이스틱 */
+.arena-ctl .fjoy { opacity: .55 }
+.arena-ctl .ajoy-aim { left: auto; right: 18px; bottom: 22px }
+.arena-ctl .fjoy-base.aim { border-color: rgba(255,209,102,.6) }
+.arena-ctl .fjoy-base.aim .fjoy-knob { background: rgba(255,209,102,.85) }
+.asuper { position: absolute; right: 30px; bottom: 186px; width: 70px; height: 70px; border-radius: 50%; border: 2px solid rgba(255,255,255,.35);
+  background: rgba(8,10,16,.6); color: rgba(255,255,255,.5); font: 800 22px Pretendard, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; touch-action: none }
+.asuper small { font-size: 10px; font-weight: 700 }
+.asuper.ready { background: #FFD166; color: #1a1500; border-color: transparent; box-shadow: 0 0 24px rgba(255,209,102,.7); animation: superPulse 1s ease-in-out infinite }
+@keyframes superPulse { 0%,100% { transform: scale(1) } 50% { transform: scale(1.08) } }
+@media (orientation: landscape) and (max-height: 540px) {
+  .arena-ctl .ajoy-aim { right: 14px; bottom: 14px } .asuper { right: 24px; bottom: 132px; width: 56px; height: 56px; font-size: 18px }
+}
+
+/* 뱀 아레나: 부스트 버튼 (누르는 동안만 켜짐) */
+.aboost { bottom: 30px; right: 30px; border-color: rgba(255,209,102,.45) }
+.aboost.ready { animation: none; box-shadow: 0 0 28px rgba(255,209,102,.8) }
+@media (orientation: landscape) and (max-height: 540px) { .aboost { bottom: 18px; right: 20px } }

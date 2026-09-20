@@ -241,11 +241,14 @@ class TetrisGame {
     const ctx = this.ctx, cs = this.cellSize;
     const w = TETRIS_COLS * cs, h = TETRIS_ROWS * cs;
 
-    ctx.fillStyle = '#0B0D12';
-    ctx.fillRect(0, 0, w, h);
+    const bg = ctx.createLinearGradient(0, 0, 0, h); bg.addColorStop(0, '#121627'); bg.addColorStop(1, '#080A12');
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
+    // 아래쪽 은은한 빛 (판이 바닥에서 떠 있는 느낌)
+    const vg = ctx.createRadialGradient(w / 2, h, 0, w / 2, h, h * 0.6); vg.addColorStop(0, 'rgba(76,201,240,0.08)'); vg.addColorStop(1, 'rgba(76,201,240,0)');
+    ctx.fillStyle = vg; ctx.fillRect(0, 0, w, h);
 
     // 배경 격자
-    ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+    ctx.strokeStyle = 'rgba(255,255,255,0.045)';
     ctx.lineWidth = 1;
     ctx.beginPath();
     for (let x = 1; x < TETRIS_COLS; x++) { ctx.moveTo(x * cs, 0); ctx.lineTo(x * cs, h); }
@@ -263,6 +266,11 @@ class TetrisGame {
     if (!this.gameOver) {
       // (착지 예상 위치 표시는 뺐습니다 — 어디에 떨어질지 스스로 판단하도록)
       const m = this.piece.matrix;
+      // 현재 블록: 주변 광채
+      ctx.save(); ctx.shadowColor = CELL_COLORS[this.piece.type]; ctx.shadowBlur = cs * 0.5;
+      ctx.fillStyle = 'rgba(0,0,0,0.001)';
+      for (let y = 0; y < m.length; y++) for (let x = 0; x < m[y].length; x++) if (m[y][x] && this.piece.y + y >= 0) ctx.fillRect((this.piece.x + x) * cs, (this.piece.y + y) * cs, cs, cs);
+      ctx.restore();
       // 현재 블록
       for (let y = 0; y < m.length; y++) {
         for (let x = 0; x < m[y].length; x++) {
@@ -276,8 +284,10 @@ class TetrisGame {
 
     // 줄 삭제 순간 번쩍임
     if (performance.now() < this.flashUntil) {
-      ctx.fillStyle = 'rgba(255,255,255,0.75)';
-      this.flashRows.forEach(y => ctx.fillRect(0, y * cs, w, cs));
+      const k = Math.min(1, (this.flashUntil - performance.now()) / 130);   // 1 → 0
+      this.flashRows.forEach(y => { const g = ctx.createLinearGradient(0, y * cs, w, y * cs);
+        g.addColorStop(0, 'rgba(255,255,255,' + (0.2 * k).toFixed(2) + ')'); g.addColorStop(0.5, 'rgba(255,255,255,' + (0.95 * k).toFixed(2) + ')'); g.addColorStop(1, 'rgba(255,255,255,' + (0.2 * k).toFixed(2) + ')');
+        ctx.fillStyle = g; ctx.fillRect(0, y * cs, w, cs); });
     }
   }
 

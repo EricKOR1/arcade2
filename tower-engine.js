@@ -87,10 +87,7 @@ class TowerGame {
 
   // ── 스프라이트 (코드 생성 · 외부 파일 없음) ──
   buildSprites(cs) {
-    const P = 16, S = Math.ceil(cs), mk = () => { const c = document.createElement('canvas'); c.width = S; c.height = S; return c; };
-    const px = (g, grid, pal) => { const u = S / P; g.imageSmoothingEnabled = false;
-      const at = v => v >= P ? S : Math.floor(v * u);
-      grid.forEach((row, y) => { for (let x = 0; x < row.length; x++) { const ch = row[x]; if (ch === '.') continue; g.fillStyle = pal[ch]; g.fillRect(at(x), at(y), at(x + 1) - at(x), at(y + 1) - at(y)); } }); };
+    const P = 16;
     // s 피부 h 머리 b 상의 B 상의그늘 p 바지 P 바지그늘 k 검정 w 흰 y 노랑(장갑·신발)
     const pal = { s: '#FFD9A8', h: '#5A3A22', b: '#06D6A0', B: '#049C6F', p: '#3A6EA5', P: '#28527A', k: '#161A24', w: '#FFFFFF', y: '#FFD166' };
     // 서 있는 모습 (아래 4행은 다리)
@@ -119,7 +116,7 @@ class TowerGame {
       'kBnNNnnNNnnNNnBk','kBnNNnnNNnnNNnBk','kBnNNnnNNnnNNnBk','kBnNNnnNNnnNNnBk','.kBnnNNnnNNnnBk.','.kBnnNNnnNNnnBk.','..kBBBBBBBBBBk..',
       '...kkkkkkkkkk...','................'];
     const bpal = { k: '#5A3E1E', B: '#8A6432', n: '#C79A5A', N: '#A87C42' };
-    const bake = (grid, pl) => { const c = mk(); px(c.getContext('2d'), grid, pl || pal); return c; };
+    const bake = (grid, pl) => FX.sprite(grid, pl || pal, cs);
     this._ts = { stand: bake(stand), walk: bake(walk), climb: bake(climb), jump: bake(jump), barrel: bake(barrel, bpal) };
     this._tsCs = cs;
   }

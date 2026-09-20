@@ -96,10 +96,24 @@ class Game2048 {
     return this.grid.map(r => r.map(v => v ? 29 + Math.min(11, Math.round(Math.log2(v)) - 1) : 0));
   }
 
+  // 타일 한 장: 그림자 → 세로 그라데이션 → 윗면 광택 → 512 이상은 금빛 광채
+  tile(ctx, x0, y0, w, v, cs, sc) {
+    const col = G2048_COLORS[v] || '#3C3A32', r = w * 0.12;
+    ctx.fillStyle = 'rgba(0,0,0,0.18)'; FX.rr(ctx, x0, y0 + w * 0.06, w, w, r); ctx.fill();
+    if (v >= 512) { ctx.save(); ctx.shadowColor = '#FFD166'; ctx.shadowBlur = cs * 0.35; ctx.fillStyle = col; FX.rr(ctx, x0, y0, w, w, r); ctx.fill(); ctx.restore(); }
+    const g = ctx.createLinearGradient(0, y0, 0, y0 + w); g.addColorStop(0, FX.tint(col, 0.18)); g.addColorStop(1, FX.tint(col, -0.12));
+    ctx.fillStyle = g; FX.rr(ctx, x0, y0, w, w, r); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.22)'; FX.rr(ctx, x0 + w * 0.08, y0 + w * 0.07, w * 0.84, w * 0.3, r * 0.8); ctx.fill();
+    ctx.fillStyle = v <= 4 ? '#776E65' : '#F9F6F2';
+    const fs = v < 100 ? cs * 0.5 : v < 1000 ? cs * 0.4 : cs * 0.32;
+    ctx.font = '800 ' + Math.round(fs * (sc || 1)) + 'px Pretendard, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    if (v > 4) { ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 3; }
+    ctx.fillText(String(v), x0 + w / 2, y0 + w / 2 + 1); ctx.shadowBlur = 0;
+  }
   draw() {
     const ctx = this.ctx, cs = this.cellSize, N = G2048_N, W = cs * N, H = cs * N;
     const pad = cs * 0.06;
-    ctx.fillStyle = '#BBADA0'; ctx.fillRect(0, 0, W, H);
+    const bg = ctx.createLinearGradient(0, 0, W, H); bg.addColorStop(0, '#C9B9A8'); bg.addColorStop(1, '#AE9F90'); ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
     if (this.slide) {
       // 빈 칸 바탕
       for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
@@ -108,11 +122,7 @@ class Game2048 {
       const k = this.slide.t, e = 1 - Math.pow(1 - k, 3);
       this.slide.tiles.forEach(tl => {
         const x = tl.fx + (tl.tx - tl.fx) * e, y = tl.fy + (tl.ty - tl.fy) * e, w = cs - pad * 2;
-        ctx.fillStyle = G2048_COLORS[tl.v] || '#3C3A32'; FX.rr(ctx, x * cs + pad, y * cs + pad, w, w, cs * 0.08); ctx.fill();
-        ctx.fillStyle = tl.v <= 4 ? '#776E65' : '#F9F6F2';
-        const fs = tl.v < 100 ? cs * 0.5 : tl.v < 1000 ? cs * 0.4 : cs * 0.32;
-        ctx.font = '800 ' + Math.round(fs) + 'px Pretendard, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText(String(tl.v), x * cs + cs / 2, y * cs + cs / 2 + 1);
+        this.tile(ctx, x * cs + pad, y * cs + pad, w, tl.v, cs, 1);
       });
       ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
       return;
@@ -122,15 +132,8 @@ class Game2048 {
       const a = this.anim.find(q => q.x === x && q.y === y);
       const sc = a ? (a.kind === 'new' ? 1 - a.t * 0.6 : 1 + Math.sin(a.t * Math.PI) * 0.12) : 1;
       const w = (cs - pad * 2) * sc, x0 = x * cs + cs / 2 - w / 2, y0 = y * cs + cs / 2 - w / 2;
-      ctx.fillStyle = v ? (G2048_COLORS[v] || '#3C3A32') : 'rgba(238,228,218,0.35)';
-      FX.rr(ctx, x0, y0, w, w, cs * 0.08); ctx.fill();
-      if (v) {
-        ctx.fillStyle = v <= 4 ? '#776E65' : '#F9F6F2';
-        const fs = v < 100 ? cs * 0.5 : v < 1000 ? cs * 0.4 : cs * 0.32;
-        ctx.font = '800 ' + Math.round(fs * sc) + 'px Pretendard, sans-serif';
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText(String(v), x * cs + cs / 2, y * cs + cs / 2 + 1);
-      }
+      if (!v) { ctx.fillStyle = 'rgba(238,228,218,0.35)'; FX.rr(ctx, x0, y0, w, w, cs * 0.08); ctx.fill(); ctx.fillStyle = 'rgba(0,0,0,0.05)'; FX.rr(ctx, x0, y0, w, w * 0.5, cs * 0.08); ctx.fill(); }
+      else this.tile(ctx, x0, y0, w, v, cs, sc);
     }
     ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
     if (this.won && this.moves - (this.wonAt || 0) < 40) {

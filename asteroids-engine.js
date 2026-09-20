@@ -102,7 +102,8 @@ class AsteroidsGame {
 
   draw() {
     const ctx = this.ctx, cs = this.cellSize, W = this.W * cs, H = this.H * cs;
-    ctx.fillStyle = '#070912'; ctx.fillRect(0, 0, W, H);
+    const bg = ctx.createLinearGradient(0, 0, W, H); bg.addColorStop(0, '#05070F'); bg.addColorStop(1, '#101730'); ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+    const neb = ctx.createRadialGradient(W * 0.25, H * 0.7, 0, W * 0.25, H * 0.7, W * 0.6); neb.addColorStop(0, 'rgba(76,201,240,0.10)'); neb.addColorStop(1, 'rgba(76,201,240,0)'); ctx.fillStyle = neb; ctx.fillRect(0, 0, W, H);
     if (!this._stars) { this._stars = Array.from({ length: 50 }, () => [Math.random() * W, Math.random() * H, 0.4 + Math.random() * 0.6]); }
     this._stars.forEach(s => { ctx.fillStyle = 'rgba(255,255,255,' + (0.25 + s[2] * 0.5).toFixed(2) + ')'; ctx.fillRect(s[0], s[1], 1.5, 1.5); });
     // 소행성 (울퉁불퉁 다각형)
@@ -110,19 +111,35 @@ class AsteroidsGame {
       ctx.save(); ctx.translate(r.x * cs, r.y * cs); ctx.rotate(r.rot);
       ctx.beginPath();
       r.pts.forEach((k, i) => { const a = (i / r.pts.length) * Math.PI * 2, rr = r.r * k * cs; if (i === 0) ctx.moveTo(Math.cos(a) * rr, Math.sin(a) * rr); else ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); });
-      ctx.closePath(); ctx.fillStyle = '#4A5163'; ctx.fill(); ctx.strokeStyle = '#C9D1DC'; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.closePath();
+      // 입체 음영: 왼쪽 위가 밝고 오른쪽 아래가 어둡게
+      const rg = ctx.createRadialGradient(-r.r * cs * 0.35, -r.r * cs * 0.35, 0, 0, 0, r.r * cs * 1.05);
+      rg.addColorStop(0, '#8A93A6'); rg.addColorStop(0.6, '#4A5163'); rg.addColorStop(1, '#262B38');
+      ctx.fillStyle = rg; ctx.fill(); ctx.strokeStyle = 'rgba(201,209,220,0.7)'; ctx.lineWidth = 1.5; ctx.stroke();
+      // 크레이터 (크기에 따라 1~3개, 위치는 고정)
+      ctx.fillStyle = 'rgba(0,0,0,0.28)';
+      for (let q = 0; q < Math.min(3, r.size); q++) { const a = q * 2.1 + 0.4, d = r.r * cs * 0.45; ctx.beginPath(); ctx.arc(Math.cos(a) * d, Math.sin(a) * d, r.r * cs * (0.16 + q * 0.04), 0, Math.PI * 2); ctx.fill(); }
       ctx.restore();
     });
     // 총알
-    ctx.fillStyle = '#FFD166'; this.bullets.forEach(b => { ctx.beginPath(); ctx.arc(b.x * cs, b.y * cs, cs * 0.12, 0, Math.PI * 2); ctx.fill(); });
+    this.bullets.forEach(b => { const bx = b.x * cs, by = b.y * cs;
+      const g = ctx.createRadialGradient(bx, by, 0, bx, by, cs * 0.32); g.addColorStop(0, '#FFF3C4'); g.addColorStop(0.35, '#FFD166'); g.addColorStop(1, 'rgba(255,209,102,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(bx, by, cs * 0.32, 0, Math.PI * 2); ctx.fill(); });
     // 파편
     FX.drawParts(ctx, this.parts, cs, 3);
     // 배
     if (!(this.invul > 0 && Math.floor(this.invul / 120) % 2 === 0)) {
       ctx.save(); ctx.translate(this.x * cs, this.y * cs); ctx.rotate(this.angle);
       const r = cs * 0.5;
+      // 엔진 불꽃 (가속 중)
+      if (this.thrust) { const fl = 0.6 + Math.random() * 0.6; const fg = ctx.createLinearGradient(-r * 0.35, 0, -r * (0.35 + fl), 0);
+        fg.addColorStop(0, '#FFF3C4'); fg.addColorStop(0.5, '#FF9F43'); fg.addColorStop(1, 'rgba(255,92,50,0)');
+        ctx.fillStyle = fg; ctx.beginPath(); ctx.moveTo(-r * 0.35, r * 0.22); ctx.lineTo(-r * (0.35 + fl), 0); ctx.lineTo(-r * 0.35, -r * 0.22); ctx.closePath(); ctx.fill(); }
+      // 선체: 네온 테두리 + 안쪽 그라데이션 + 조종석
       ctx.beginPath(); ctx.moveTo(r, 0); ctx.lineTo(-r * 0.7, r * 0.6); ctx.lineTo(-r * 0.35, 0); ctx.lineTo(-r * 0.7, -r * 0.6); ctx.closePath();
-      ctx.fillStyle = '#4CC9F0'; ctx.fill(); ctx.strokeStyle = '#E6F7FF'; ctx.lineWidth = 1.5; ctx.stroke();
+      const sg = ctx.createLinearGradient(-r, 0, r, 0); sg.addColorStop(0, '#1D7FA6'); sg.addColorStop(1, '#7FE3FF');
+      ctx.fillStyle = sg; ctx.fill(); ctx.shadowColor = '#4CC9F0'; ctx.shadowBlur = 10; ctx.strokeStyle = '#E6F7FF'; ctx.lineWidth = 1.5; ctx.stroke(); ctx.shadowBlur = 0;
+      ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.beginPath(); ctx.arc(r * 0.25, 0, r * 0.14, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
     }
     for (let i = 0; i < this.lives; i++) { ctx.save(); ctx.translate(cs * (0.7 + i * 0.7), H - cs * 0.55); ctx.rotate(-Math.PI / 2); ctx.beginPath(); ctx.moveTo(cs * .22, 0); ctx.lineTo(-cs * .16, cs * .14); ctx.lineTo(-cs * .16, -cs * .14); ctx.closePath(); ctx.fillStyle = '#4CC9F0'; ctx.fill(); ctx.restore(); }

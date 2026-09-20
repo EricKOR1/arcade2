@@ -130,6 +130,18 @@ const FX = (function () {
     wrap('levelUp',  () => {});                          // 배너는 level 값 변화로 자동
   }
 
+  // 픽셀아트 스프라이트 생성기 — 문자 격자(16×16)를 셀 크기로 확대해 캔버스에 굽습니다.
+  // 4개 엔진에 복제돼 있던 코드를 모았습니다. 픽셀 경계를 정확히 나눠 셀 크기가 소수점이어도 틈이 없습니다.
+  function sprite(grid, pal, cs, P) {
+    P = P || 16;
+    const S = Math.ceil(cs), c = document.createElement('canvas'); c.width = S; c.height = S;
+    const g = c.getContext('2d'), u = S / P; g.imageSmoothingEnabled = false;
+    const at = v => v >= P ? S : Math.floor(v * u);
+    grid.forEach((row, y) => { for (let x = 0; x < row.length; x++) { const ch = row[x]; if (ch === '.') continue;
+      g.fillStyle = pal[ch] || '#f0f'; g.fillRect(at(x), at(y), at(x + 1) - at(x), at(y + 1) - at(y)); } });
+    return c;
+  }
+
   // 색 밝기 조절 — #RRGGBB 를 k 만큼 밝게(+) / 어둡게(-)
   function tint(hex, k) {
     const h = String(hex).replace('#', '');
@@ -143,6 +155,6 @@ const FX = (function () {
   function stepParts(list, f, decay) { for (const p of list) { p.x += p.vx * f; p.y += p.vy * f; if (p.g) p.vy += p.g * f; p.l -= (decay || 0.05) * f; } return list.filter(p => p.l > 0); }
   function drawParts(ctx, list, cs, size) { const s = size || 3; for (const p of list) { ctx.globalAlpha = Math.max(0, p.l); ctx.fillStyle = p.c; ctx.fillRect(p.x * cs - s / 2, p.y * cs - s / 2, s, s); } ctx.globalAlpha = 1; }
 
-  return { frame, rr, text, glass, ease, tint, Particles, stepParts, drawParts, juice, hookSound };
+  return { frame, rr, text, glass, ease, tint, sprite, Particles, stepParts, drawParts, juice, hookSound };
 })();
 if (typeof window !== 'undefined') window.FX = FX;

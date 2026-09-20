@@ -58,6 +58,12 @@
         ".write": true,
         ".validate": "newData.hasChildren(['ms'])"
       }
+    },
+    "gems": {
+      "$id": {
+        ".write": true,
+        ".validate": "newData.hasChildren(['x','y'])"
+      }
     }
   }
 }

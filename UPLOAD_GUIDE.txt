@@ -1,15 +1,18 @@
-아케이드 플랫폼 — v2026-10-01c
+아케이드 플랫폼 — v2026-10-05a
 ==============================
 
+새로 올릴 파일 1개
+  slither-engine.js    뱀 아레나 (큰 뱀이 작은 뱀을 삼키는 실시간 대전)
+
 교체할 파일 4개
-  racing-engine.js    동시 출발(카운트다운 옵션) · 자석 로직 · 주행 시간
-  index.html          공통 출발 시각 적용 · 완주 순위(주행 시간 기준)
-  admin.html          시작 시 공통 출발 시각 전송 · 완주 기록 초기화
-  firebase-rules.json ★ 'finishes' 노드 추가 — 규칙을 쓰신다면 다시 붙여 넣으세요
+  games.js             등록
+  index.html           조이스틱+부스트 조작 · 버전
+  admin.html           미니보드 셀 크기 · 버전
+  style.css            부스트 버튼
   (+ README.md)
 
 건드리지 않는 파일
   firebase-config.js  ← 본인 값 그대로 (EXAMPLE 은 올리지 마세요)
   photo.html / force.html / body.html
 
-올린 뒤 화면 아래 v2026-10-01c 를 꼭 확인하세요. 안 보이면 Ctrl+Shift+R. 학생 기기도 새로고침.
+올린 뒤 화면 아래 v2026-10-05a 를 꼭 확인하세요. 안 보이면 Ctrl+Shift+R. 학생 기기도 새로고침.

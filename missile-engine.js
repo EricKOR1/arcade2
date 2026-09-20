@@ -23,6 +23,7 @@ class MissileGame {
     if (this.now - (this.lastTap || 0) < 120) return;        // 한 번의 톡이 여러 번 들어와도 한 발만
     this.lastTap = this.now;
     const b = this.bases[0]; if (b.ammo <= 0) return;
+    this._aimA = Math.atan2(y - (this.H - 1.2), x - b.x);
     if (y > this.H - 2.5) y = this.H - 2.5;
     b.ammo--;
     const dx = x - b.x, dy = y - (this.H - 1.2), d = Math.hypot(dx, dy) || 1;
@@ -80,18 +81,27 @@ class MissileGame {
     if (!this._stars) this._stars = Array.from({ length: 40 }, () => [Math.random() * W, Math.random() * H * 0.8, Math.random()]);
     this._stars.forEach(s => { ctx.fillStyle = 'rgba(255,255,255,' + (0.3 + s[2] * 0.5).toFixed(2) + ')'; ctx.fillRect(s[0], s[1], 1.5, 1.5); });
     // 땅 · 도시
-    ctx.fillStyle = '#3A2E5A'; ctx.fillRect(0, H - cs, W, cs);
+    { const hg = ctx.createLinearGradient(0, H - cs * 2.2, 0, H - cs); hg.addColorStop(0, 'rgba(124,106,246,0)'); hg.addColorStop(1, 'rgba(124,106,246,0.25)'); ctx.fillStyle = hg; ctx.fillRect(0, H - cs * 2.2, W, cs * 1.2); }
+    ctx.fillStyle = '#2C2347'; ctx.fillRect(0, H - cs, W, cs);
+    ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fillRect(0, H - cs, W, Math.max(1, cs * 0.06));
     this.cities.forEach(c => { const x = c.x * cs, y = H - cs;
-      if (c.alive) { ctx.fillStyle = '#4CC9F0'; [[-0.7, 0.6], [-0.3, 0.9], [0.1, 0.5], [0.4, 0.8]].forEach(([o, h]) => ctx.fillRect(x + o * cs, y - h * cs, cs * 0.28, h * cs));
-        ctx.fillStyle = 'rgba(255,214,102,0.8)'; ctx.fillRect(x - 0.6 * cs, y - 0.45 * cs, cs * .1, cs * .1); ctx.fillRect(x + 0.2 * cs, y - 0.35 * cs, cs * .1, cs * .1); }
+      if (c.alive) {
+        const cg = ctx.createRadialGradient(x, y, 0, x, y, cs * 1.3); cg.addColorStop(0, 'rgba(76,201,240,0.22)'); cg.addColorStop(1, 'rgba(76,201,240,0)'); ctx.fillStyle = cg; ctx.beginPath(); ctx.arc(x, y, cs * 1.3, 0, Math.PI * 2); ctx.fill();
+        [[-0.7, 0.6], [-0.3, 0.9], [0.1, 0.5], [0.4, 0.8]].forEach(([o, h]) => { const bg2 = ctx.createLinearGradient(x + o * cs, 0, x + o * cs + cs * 0.28, 0); bg2.addColorStop(0, '#5FD8FF'); bg2.addColorStop(1, '#1D7FA6'); ctx.fillStyle = bg2; ctx.fillRect(x + o * cs, y - h * cs, cs * 0.28, h * cs);
+          ctx.fillStyle = 'rgba(255,224,150,0.85)'; for (let wy = y - h * cs + cs * 0.1; wy < y - cs * 0.12; wy += cs * 0.17) ctx.fillRect(x + o * cs + cs * 0.06, wy, cs * 0.06, cs * 0.07); }); }
       else { ctx.fillStyle = '#5A4A6A'; ctx.fillRect(x - 0.7 * cs, y - cs * 0.15, cs * 1.3, cs * 0.15); } });
     // 기지
     const b = this.bases[0], bx = b.x * cs, by = H - cs;
-    ctx.fillStyle = '#7C6AF6'; ctx.beginPath(); ctx.moveTo(bx - cs * 0.9, by); ctx.lineTo(bx, by - cs * 0.9); ctx.lineTo(bx + cs * 0.9, by); ctx.closePath(); ctx.fill();
+    { const dg = ctx.createRadialGradient(bx - cs * 0.3, by - cs * 0.6, cs * 0.1, bx, by - cs * 0.3, cs * 1.0); dg.addColorStop(0, '#B8ADFF'); dg.addColorStop(1, '#4F3FC2');
+      ctx.fillStyle = dg; ctx.beginPath(); ctx.arc(bx, by, cs * 0.95, Math.PI, 0); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#2C2347'; ctx.beginPath(); ctx.arc(bx, by, cs * 0.55, Math.PI, 0); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#C9D1DC'; ctx.save(); ctx.translate(bx, by - cs * 0.15); ctx.rotate(this._aimA != null ? this._aimA : -Math.PI / 2); ctx.fillRect(0, -cs * 0.08, cs * 0.9, cs * 0.16); ctx.restore(); }
     ctx.fillStyle = '#fff'; ctx.font = '800 ' + Math.round(cs * .45) + 'px Pretendard, sans-serif'; ctx.textAlign = 'center'; ctx.fillText(String(b.ammo), bx, by - cs * 0.15); ctx.textAlign = 'left';
     // 적 미사일 궤적
-    this.missiles.forEach(m => { ctx.strokeStyle = 'rgba(255,92,122,0.55)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(m.sx * cs, m.sy * cs); ctx.lineTo(m.x * cs, m.y * cs); ctx.stroke();
-      ctx.fillStyle = '#FF5C7A'; ctx.beginPath(); ctx.arc(m.x * cs, m.y * cs, cs * .14, 0, Math.PI * 2); ctx.fill(); });
+    this.missiles.forEach(m => { const tg = ctx.createLinearGradient(m.sx * cs, m.sy * cs, m.x * cs, m.y * cs); tg.addColorStop(0, 'rgba(255,92,122,0)'); tg.addColorStop(1, 'rgba(255,92,122,0.75)');
+      ctx.strokeStyle = tg; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(m.sx * cs, m.sy * cs); ctx.lineTo(m.x * cs, m.y * cs); ctx.stroke();
+      const mg = ctx.createRadialGradient(m.x * cs, m.y * cs, 0, m.x * cs, m.y * cs, cs * .32); mg.addColorStop(0, '#FFE1E8'); mg.addColorStop(0.4, '#FF5C7A'); mg.addColorStop(1, 'rgba(255,92,122,0)');
+      ctx.fillStyle = mg; ctx.beginPath(); ctx.arc(m.x * cs, m.y * cs, cs * .32, 0, Math.PI * 2); ctx.fill(); });
     // 요격탄
     this.shots.forEach(s => { ctx.strokeStyle = 'rgba(76,201,240,0.7)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(b.x * cs, (this.H - 1.2) * cs); ctx.lineTo(s.x * cs, s.y * cs); ctx.stroke();
       ctx.fillStyle = '#fff'; ctx.fillRect(s.tx * cs - 3, s.ty * cs - 3, 6, 6); });

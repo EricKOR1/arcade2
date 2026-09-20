@@ -46,6 +46,7 @@ class FlappyGame {
     if (this.gameOver) return;
     const dt = this.lastTime ? Math.min(40, now - this.lastTime) : 16.7;
     this.lastTime = now;
+    if (this.started) this.time = (this.time || 0) + dt;   // 배경 시차 스크롤용
     const f = dt / 16.7;
 
     if (this.started) {
@@ -112,8 +113,16 @@ class FlappyGame {
 
     // 하늘
     const sky = ctx.createLinearGradient(0, 0, 0, H);
-    sky.addColorStop(0, '#1B2A4A'); sky.addColorStop(1, '#3B5B8F');
+    sky.addColorStop(0, '#1B2A4A'); sky.addColorStop(0.55, '#3B5B8F'); sky.addColorStop(1, '#8C6BA8');
     ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
+    // 해 (살짝 빛남)
+    { const sx = W * 0.78, sy = H * 0.22, sg = ctx.createRadialGradient(sx, sy, 0, sx, sy, cs * 2.4); sg.addColorStop(0, 'rgba(255,224,150,0.9)'); sg.addColorStop(0.35, 'rgba(255,209,102,0.55)'); sg.addColorStop(1, 'rgba(255,209,102,0)');
+      ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(sx, sy, cs * 2.4, 0, Math.PI * 2); ctx.fill(); }
+    // 먼 산 (두 겹, 천천히 지나감)
+    if (!this._hills || this._hillsCs !== cs) { this._hills = [0, 1].map(k => { const c = document.createElement('canvas'); c.width = W * 2; c.height = H; const g = c.getContext('2d');
+        g.fillStyle = k ? '#2B3F6B' : '#22335A'; g.beginPath(); g.moveTo(0, H); for (let x = 0; x <= W * 2; x += cs * 0.5) { const yy = H - cs * (k ? 2.2 : 3.4) - Math.abs(Math.sin(x / (cs * (k ? 3.2 : 5.5)) + k)) * cs * (k ? 1.6 : 2.6); g.lineTo(x, yy); } g.lineTo(W * 2, H); g.closePath(); g.fill(); return c; }); this._hillsCs = cs; }
+    const scroll = (this.time || 0) / 1000 * cs;
+    this._hills.forEach((h, k) => { const off = -((scroll * (k ? 0.5 : 0.22)) % W); ctx.drawImage(h, off, 0); ctx.drawImage(h, off + W, 0); });
 
     // 구름
     ctx.fillStyle = 'rgba(255,255,255,0.12)';
@@ -131,25 +140,32 @@ class FlappyGame {
       [[0, topH], [botY, H - cs - botY]].forEach(([y, h]) => {
         if (h <= 0) return;
         const g = ctx.createLinearGradient(px, 0, px + pw, 0);
-        g.addColorStop(0, '#0AA57C'); g.addColorStop(0.5, '#06D6A0'); g.addColorStop(1, '#078F6C');
+        g.addColorStop(0, '#067A5C'); g.addColorStop(0.35, '#06D6A0'); g.addColorStop(0.6, '#3DE8B5'); g.addColorStop(1, '#067A5C');
         ctx.fillStyle = g; ctx.fillRect(px, y, pw, h);
-        // 끝단 테두리
-        ctx.fillStyle = '#0AA57C';
+        ctx.fillStyle = 'rgba(0,0,0,0.18)'; ctx.fillRect(px + pw - cs * 0.14, y, cs * 0.14, h);
+        // 끝단 캡: 둥근 모서리 + 그림자
         const capY = (y === 0) ? topH - cs * .5 : botY;
-        ctx.fillRect(px - cs * .12, capY, pw + cs * .24, cs * .5);
+        ctx.fillStyle = 'rgba(0,0,0,0.25)'; FX.rr(ctx, px - cs * .12, capY + cs * 0.08, pw + cs * .24, cs * .5, cs * 0.1); ctx.fill();
+        const cg = ctx.createLinearGradient(px - cs * .12, 0, px + pw + cs * .12, 0); cg.addColorStop(0, '#067A5C'); cg.addColorStop(0.4, '#3DE8B5'); cg.addColorStop(1, '#067A5C');
+        ctx.fillStyle = cg; FX.rr(ctx, px - cs * .12, capY, pw + cs * .24, cs * .5, cs * 0.1); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.25)'; FX.rr(ctx, px - cs * .06, capY + cs * 0.06, pw + cs * .12, cs * .12, cs * 0.06); ctx.fill();
       });
     });
 
     // 땅
     ctx.fillStyle = '#5B4636'; ctx.fillRect(0, H - cs, W, cs);
+    ctx.fillStyle = 'rgba(0,0,0,0.15)'; for (let x = ((-scroll * 1.2) % (cs * 0.8)); x < W; x += cs * 0.8) ctx.fillRect(x, H - cs * 0.55, cs * 0.35, cs * 0.12);
     ctx.fillStyle = '#7BA05B'; ctx.fillRect(0, H - cs, W, cs * .25);
+    ctx.fillStyle = '#9BC46E'; for (let x = ((-scroll * 1.2) % (cs * 0.5)); x < W; x += cs * 0.5) ctx.fillRect(x, H - cs, cs * 0.25, cs * 0.12);
 
     // 새
     const bx = this.x * cs, by = this.y * cs;
     const tilt = Math.max(-0.5, Math.min(0.9, this.vy * 3));
     ctx.save(); ctx.translate(bx, by); ctx.rotate(tilt);
-    ctx.fillStyle = CELL_COLORS[23];
-    ctx.beginPath(); ctx.ellipse(0, 0, cs * .42, cs * .34, 0, 0, Math.PI * 2); ctx.fill();
+    const bg2 = ctx.createRadialGradient(-cs * 0.12, -cs * 0.12, cs * 0.05, 0, 0, cs * 0.45); bg2.addColorStop(0, '#FFE066'); bg2.addColorStop(1, '#E0A800');
+    ctx.fillStyle = bg2; ctx.beginPath(); ctx.ellipse(0, 0, cs * .42, cs * .34, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = Math.max(1, cs * 0.04); ctx.stroke();
+    ctx.fillStyle = '#FFF3C4'; ctx.beginPath(); ctx.ellipse(cs * 0.05, cs * 0.12, cs * .22, cs * .14, 0, 0, Math.PI * 2); ctx.fill();
     // 날개
     ctx.fillStyle = '#F5A524';
     ctx.beginPath();

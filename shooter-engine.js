@@ -128,8 +128,7 @@ class ShooterGame {
       if (hit) this.hurt();
     }
 
-    this.parts.forEach(p => { p.x += p.vx * f; p.y += p.vy * f; p.l -= 0.04 * f; });
-    this.parts = this.parts.filter(p => p.l > 0);
+    this.parts = FX.stepParts(this.parts, f, 0.04);
     this.stars.forEach(s => { s.y += 0.02 * s.s * f; if (s.y > SHOT_ROWS) s.y -= SHOT_ROWS; });
     this.draw();
   }
@@ -165,61 +164,62 @@ class ShooterGame {
     return g;
   }
 
+  buildSprites(cs) {
+    const pal = { s: '#4CC9F0', S: '#2AA3CC', d: '#155E78', w: '#FFFFFF', y: '#FFD166', o: '#FF7A3D', k: '#12303F' };
+    const ship = [
+      '.......ss.......','.......ss.......','......ssss......','......swws......','.....sSwwSs.....','.....sSwwSs.....','....ssSSSSss....','...sssSSSSsss...',
+      '..ssSSSssSSSss..','..sSSSS..SSSSs..','.ssSSS....SSSss.','.sSSS......SSSs.','.dd..d....d..dd.','.....dd..dd.....','......oyyo......','.......yy.......'];
+    const ep = { a: '#B15DFF', A: '#D9B3FF', d: '#5B3AAF', w: '#FFFFFF', k: '#1A1D24', r: '#FF5C7A', R: '#FFB3C6', g: '#06D6A0', G: '#9AF0D1' };
+    // 적 3종: 삼각(정찰기) · 사각(전투기) · 원(보스급)
+    const e0 = ['................','................','.......rr.......','......rRRr......','.....rRRRRr.....','....rRRwwRRr....','...rRRRwwRRRr...','..rRRRRRRRRRRr..',
+                '.rRRRRRRRRRRRRr.','.rrrRRRRRRRRrrr.','...rrrRRRRrrr...','.....rrRRrr.....','.......rr.......','................','................','................'];
+    const e1 = ['................','..a..........a..','..aa........aa..','..aaaAAAAAAaaa..','..aAAAAAAAAAAa..','.aaAAwwAAwwAAaa.','.aAAAkwAAkwAAAa.','.aAAAAAAAAAAAAa.',
+                '.aAAAAAAAAAAAAa.','..aAAAAAAAAAAa..','..aaaAAAAAAaaa..','....a.a..a.a....','....d.d..d.d....','................','................','................'];
+    const e2 = ['................','......gggg......','....ggGGGGgg....','...gGGGGGGGGg...','..gGGwwGGwwGGg..','..gGGkwGGkwGGg..','.gGGGGGGGGGGGGg.','.gGGGGkkkkGGGGg.',
+                '.gGGGkGGGGkGGGg.','..gGGGGGGGGGGg..','..gGGGGGGGGGGg..','...gGGGGGGGGg...','....ggGGGGgg....','......gggg......','................','................'];
+    this._ss = { ship: FX.sprite(ship, pal, cs * 1.2), e: [FX.sprite(e0, ep, cs), FX.sprite(e1, ep, cs), FX.sprite(e2, ep, cs)] };
+    this._ssCs = cs;
+  }
+
   draw() {
     const ctx = this.ctx, cs = this.cellSize;
-    const W = SHOT_COLS * cs, H = SHOT_ROWS * cs;
-    ctx.fillStyle = '#070912'; ctx.fillRect(0, 0, W, H);
+    const W = SHOT_COLS * cs, H = SHOT_ROWS * cs, now = this.now || 0;
+    if (!this._ss || this._ssCs !== cs) this.buildSprites(cs);
+    const SP = this._ss;
+    // 우주 배경: 그라데이션 + 성운
+    const bg = ctx.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, '#05070F'); bg.addColorStop(0.6, '#0B1024'); bg.addColorStop(1, '#141A33');
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+    const neb = ctx.createRadialGradient(W * 0.7, H * 0.35, 0, W * 0.7, H * 0.35, W * 0.7);
+    neb.addColorStop(0, 'rgba(177,93,255,0.16)'); neb.addColorStop(1, 'rgba(177,93,255,0)'); ctx.fillStyle = neb; ctx.fillRect(0, 0, W, H);
+    this.stars.forEach(s2 => { ctx.fillStyle = 'rgba(255,255,255,' + (0.25 + s2.s * 0.5).toFixed(2) + ')'; ctx.fillRect(s2.x * cs, s2.y * cs, cs * 0.08 * s2.s + 1, cs * 0.08 * s2.s + 1); });
 
-    // 별
-    this.stars.forEach(s => {
-      ctx.fillStyle = 'rgba(255,255,255,' + (0.25 + s.s * 0.5).toFixed(2) + ')';
-      ctx.fillRect(s.x * cs, s.y * cs, cs * 0.08 * s.s + 1, cs * 0.08 * s.s + 1);
-    });
-
-    // 적
-    this.enemies.forEach(e => {
-      const x = e.x * cs, y = e.y * cs, r = cs * 0.38;
-      ctx.fillStyle = e.hp > 1 ? '#B15DFF' : CELL_COLORS[26];
-      ctx.beginPath();
-      if (e.kind === 0) { ctx.moveTo(x, y - r); ctx.lineTo(x + r, y + r * .6); ctx.lineTo(x - r, y + r * .6); }
-      else if (e.kind === 1) { ctx.rect(x - r * .8, y - r * .6, r * 1.6, r * 1.2); }
-      else { ctx.arc(x, y, r * .8, 0, Math.PI * 2); }
-      ctx.closePath(); ctx.fill();
-      ctx.fillStyle = 'rgba(255,255,255,0.7)';
-      ctx.fillRect(x - r * .35, y - r * .1, r * .25, r * .25); ctx.fillRect(x + r * .1, y - r * .1, r * .25, r * .25);
-    });
-
-    // 총알
-    ctx.fillStyle = CELL_COLORS[27];
-    this.bullets.forEach(b => ctx.fillRect(b.x * cs - cs * .06, b.y * cs - cs * .3, cs * .12, cs * .6));
-    ctx.fillStyle = CELL_COLORS[28];
-    this.enemyShots.forEach(s => { ctx.beginPath(); ctx.arc(s.x * cs, s.y * cs, cs * .12, 0, Math.PI * 2); ctx.fill(); });
-
-    // 내 우주선
+    ctx.imageSmoothingEnabled = false;
+    // 적: 스프라이트 + 강한 적은 보라 광채
+    this.enemies.forEach(e => { const x = e.x * cs, y = e.y * cs, k = Math.min(2, e.kind | 0);
+      if (e.hp > 1) { const g = ctx.createRadialGradient(x, y, 0, x, y, cs * 0.7); g.addColorStop(0, 'rgba(177,93,255,0.35)'); g.addColorStop(1, 'rgba(177,93,255,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, cs * 0.7, 0, Math.PI * 2); ctx.fill(); }
+      const bob = Math.sin(now / 300 + e.x * 2) * cs * 0.04;
+      ctx.drawImage(SP.e[k], x - cs * 0.5, y - cs * 0.5 + bob, cs, cs); });
+    // 내 탄: 빛나는 레이저
+    this.bullets.forEach(b => { const bx = b.x * cs, by = b.y * cs;
+      const g = ctx.createLinearGradient(bx, by - cs * 0.4, bx, by + cs * 0.3); g.addColorStop(0, 'rgba(76,201,240,0)'); g.addColorStop(0.6, '#9DE9FF'); g.addColorStop(1, '#FFFFFF');
+      ctx.fillStyle = g; FX.rr(ctx, bx - cs * 0.07, by - cs * 0.4, cs * 0.14, cs * 0.7, cs * 0.07); ctx.fill();
+      ctx.fillStyle = 'rgba(76,201,240,0.25)'; ctx.beginPath(); ctx.arc(bx, by, cs * 0.22, 0, Math.PI * 2); ctx.fill(); });
+    // 적 탄: 빨간 구체
+    this.enemyShots.forEach(s2 => { const sx = s2.x * cs, sy = s2.y * cs;
+      const g = ctx.createRadialGradient(sx, sy, 0, sx, sy, cs * 0.3); g.addColorStop(0, '#FFE1E8'); g.addColorStop(0.4, '#FF5C7A'); g.addColorStop(1, 'rgba(255,92,122,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(sx, sy, cs * 0.3, 0, Math.PI * 2); ctx.fill(); });
+    // 내 우주선: 스프라이트 + 엔진 불꽃 + 실드 링(무적)
     if (!(this.invul > 0 && Math.floor(this.invul / 100) % 2 === 0)) {
-      const x = this.x * cs, y = this.y * cs, r = cs * 0.5;
-      ctx.fillStyle = CELL_COLORS[25];
-      ctx.beginPath(); ctx.moveTo(x, y - r); ctx.lineTo(x + r * .8, y + r * .7); ctx.lineTo(x, y + r * .35); ctx.lineTo(x - r * .8, y + r * .7); ctx.closePath(); ctx.fill();
-      ctx.fillStyle = 'rgba(255,255,255,0.6)';
-      ctx.beginPath(); ctx.arc(x, y - r * .15, r * .18, 0, Math.PI * 2); ctx.fill();
-      // 엔진 불꽃
-      ctx.fillStyle = 'rgba(255,209,102,' + (0.5 + Math.random() * 0.4).toFixed(2) + ')';
-      ctx.beginPath(); ctx.moveTo(x - r * .25, y + r * .5); ctx.lineTo(x + r * .25, y + r * .5); ctx.lineTo(x, y + r * (0.9 + Math.random() * 0.4)); ctx.closePath(); ctx.fill();
+      const x = this.x * cs, y = this.y * cs, sw = cs * 1.2;
+      const fl = 0.7 + Math.random() * 0.5;
+      const fg = ctx.createLinearGradient(x, y + sw * 0.3, x, y + sw * 0.3 + cs * 0.7 * fl); fg.addColorStop(0, '#FFF3C4'); fg.addColorStop(0.5, '#FF9F43'); fg.addColorStop(1, 'rgba(255,92,50,0)');
+      ctx.fillStyle = fg; ctx.beginPath(); ctx.moveTo(x - cs * 0.16, y + sw * 0.3); ctx.lineTo(x + cs * 0.16, y + sw * 0.3); ctx.lineTo(x, y + sw * 0.3 + cs * 0.7 * fl); ctx.closePath(); ctx.fill();
+      ctx.drawImage(SP.ship, x - sw / 2, y - sw / 2, sw, sw);
+      if (this.invul > 0) { ctx.strokeStyle = 'rgba(76,201,240,0.7)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, cs * 0.8, 0, Math.PI * 2); ctx.stroke(); }
     }
-
-    // 파편
-    this.parts.forEach(p => {
-      ctx.globalAlpha = Math.max(0, p.l); ctx.fillStyle = p.c;
-      ctx.fillRect(p.x * cs - 2, p.y * cs - 2, 4, 4);
-    });
-    ctx.globalAlpha = 1;
-
-    // 목숨
-    for (let i = 0; i < this.lives; i++) {
-      ctx.fillStyle = CELL_COLORS[25];
-      const x = cs * (0.6 + i * 0.7), y = H - cs * .45, r = cs * .18;
-      ctx.beginPath(); ctx.moveTo(x, y - r); ctx.lineTo(x + r, y + r); ctx.lineTo(x - r, y + r); ctx.closePath(); ctx.fill();
-    }
+    for (let i = 0; i < this.lives; i++) ctx.drawImage(SP.ship, cs * (0.25 + i * 0.7), H - cs * 0.75, cs * 0.6, cs * 0.6);
+    ctx.imageSmoothingEnabled = true;
+    FX.drawParts(ctx, this.parts, cs, 4);
     if (this.gameOver) { ctx.fillStyle = 'rgba(11,13,18,0.55)'; ctx.fillRect(0, 0, W, H); }
   }
 }

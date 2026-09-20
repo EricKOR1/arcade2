@@ -34,10 +34,159 @@ function f3BuildMap() {
   set(21, 21, 'X'); set(22, 22, 'X');
   return g.map(r => r.join(''));
 }
-const F3_MAP = f3BuildMap();
-const F3_HEIGHT = { '#': 2.4, '=': 2.4, 'B': 2.4, 'H': 4.0, 'X': 1.0, 'L': 0.6 };
-// 등장 지점: 모서리 건물 안 4곳 · 네 변 중앙 4곳 · 사분면 골목 4곳
-const F3_SPAWNS = [[7.5, 7.5], [36.5, 7.5], [7.5, 36.5], [36.5, 36.5], [22, 2.5], [2.5, 22], [41.5, 22], [22, 41.5], [10.5, 16.5], [33.5, 10.5], [27.5, 33.5], [16.5, 27.5]];
+// 구조물 종류와 높이: # 콘크리트 벽 · = 금속 격벽 · B 벽돌 · H 높은 건물 · X 상자 · L 낮은 방벽
+//                    P 기둥(원통) · T 나무 · R 바위(낮고 둥긂) · W 창문벽(1.2, 위로 쏠 수 있음)
+const F3_HEIGHT = { '#': 2.4, '=': 2.4, 'B': 2.4, 'H': 4.0, 'X': 1.0, 'L': 0.6, 'P': 2.4, 'T': 3.2, 'R': 0.8, 'W': 1.2 };
+
+// ── 맵 도구 ──
+function f3Grid(N) {
+  const g = []; for (let y = 0; y < N; y++) g.push(new Array(N).fill('.'));
+  const set = (x, y, c) => { if (x >= 0 && y >= 0 && x < N && y < N) g[y][x] = c; };
+  const rect = (x0, y0, w, h, c, fill) => { for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) { const edge = x === x0 || y === y0 || x === x0 + w - 1 || y === y0 + h - 1; if (edge || fill) set(x, y, c); } };
+  const line = (x0, y0, x1, y1, c) => { const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)); for (let i = 0; i <= n; i++) set(Math.round(x0 + (x1 - x0) * i / n), Math.round(y0 + (y1 - y0) * i / n), c); };
+  const sym = (fn) => fn((x, y, c) => { set(x, y, c); set(N - 1 - x, N - 1 - y, c); });   // 점대칭 (두 팀 공평)
+  const quad = (fn) => fn((x, y, c) => { set(x, y, c); set(N - 1 - y, x, c); set(N - 1 - x, N - 1 - y, c); set(y, N - 1 - x, c); });
+  return { g, N, set, rect, line, sym, quad, rows: () => g.map(r => r.join('')) };
+}
+
+// 사막 마을 — 긴 중앙 거리(저격 라인) + 양옆 골목 두 갈래. 3갈래 통로의 정석
+function f3MapDesert() {
+  const m = f3Grid(44), { set, rect, line, sym } = m;
+  rect(0, 0, 44, 44, '#');
+  sym(put => {
+    // 팀 진영 건물 (왼쪽 위)
+    for (let y = 2; y < 10; y++) for (let x = 2; x < 12; x++) { const e = x === 2 || y === 2 || x === 11 || y === 9; if (e) put(x, y, 'H'); }
+    put(11, 5, '.'); put(11, 6, '.'); put(6, 9, '.'); put(7, 9, '.');
+    put(5, 5, 'X'); put(8, 6, 'X');
+    // 중앙 거리 양옆 건물 (긴 벽)
+    for (let x = 14; x < 30; x++) put(x, 16, 'B'); put(19, 16, '.'); put(20, 16, '.'); put(26, 16, 'W'); put(27, 16, 'W');
+    // 왼쪽 골목: 기둥 회랑
+    for (let y = 12; y < 32; y += 4) put(4, y, 'P');
+    for (let y = 14; y < 30; y += 4) put(8, y, 'P');
+    put(6, 20, 'L'); put(6, 21, 'L'); put(7, 25, 'X');
+    // 위쪽 골목: 상자와 바위
+    put(16, 5, 'X'); put(17, 5, 'X'); put(24, 4, 'R'); put(25, 4, 'R'); put(30, 6, 'L'); put(30, 7, 'L');
+    for (let x = 14; x < 20; x++) put(x, 10, 'B'); put(20, 10, '.'); for (let x = 21; x < 26; x++) put(x, 10, 'B');
+    // 진영 앞 우물·바위
+    put(12, 12, 'R'); put(13, 13, 'R');
+  });
+  // 중앙: 광장의 우물 (기둥 4개 + 낮은 벽)
+  [[20, 20], [23, 20], [20, 23], [23, 23]].forEach(([x, y]) => set(x, y, 'P'));
+  [[22, 19], [21, 24], [19, 21], [24, 22]].forEach(([x, y]) => set(x, y, 'L'));   // 네 방향에 틈
+  set(21, 21, 'X'); set(22, 22, 'X');
+  return { rows: m.rows(), spawns: [[6.5, 5.5], [37.5, 38.5], [4.5, 6.5], [39.5, 37.5], [8.5, 4.5], [35.5, 39.5], [5.5, 20.5], [38.5, 23.5], [21.5, 5.5], [22.5, 38.5], [12.5, 30.5], [31.5, 13.5]] };
+}
+// 창고 구역 — 실내. 선반(높은 벽) 줄이 통로를 만들고 상자 무더기가 엄폐. 근접전 위주
+function f3MapWarehouse() {
+  const m = f3Grid(40), { set, rect, sym } = m;
+  rect(0, 0, 40, 40, '#');
+  sym(put => {
+    // 선반 줄 (세로) 3개, 사이사이 틈
+    [8, 16, 24].forEach(cx => { for (let y = 4; y < 20; y++) { if (y === 9 || y === 10 || y === 15) continue; put(cx, y, 'H'); } });
+    // 상자 무더기
+    [[4, 4], [5, 4], [4, 5], [12, 6], [12, 7], [20, 5], [21, 5], [28, 8], [29, 8], [29, 9], [33, 4], [34, 4], [34, 5], [36, 12]].forEach(([x, y]) => put(x, y, 'X'));
+    [[11, 12], [13, 12], [19, 12], [27, 12], [5, 14], [6, 14]].forEach(([x, y]) => put(x, y, 'L'));
+    // 사무실 (벽돌) 모서리
+    for (let y = 2; y < 8; y++) put(37, y, 'B'); for (let x = 32; x < 38; x++) put(x, 8, 'B'); put(37, 4, '.'); put(35, 8, '.');
+    // 금속 격벽
+    for (let x = 30; x < 38; x++) put(x, 16, '='); put(33, 16, '.'); put(34, 16, '.');
+    put(31, 14, 'P'); put(36, 14, 'P');
+  });
+  // 중앙 하역장: 팔레트 상자 링
+  [[17, 17], [22, 17], [17, 22], [22, 22]].forEach(([x, y]) => set(x, y, 'X'));
+  [[20, 18], [19, 21], [18, 19], [21, 20]].forEach(([x, y]) => set(x, y, 'L'));   // 네 방향에 틈
+  return { rows: m.rows(), spawns: [[3.5, 3.5], [36.5, 36.5], [3.5, 8.5], [36.5, 31.5], [10.5, 3.5], [29.5, 36.5], [3.5, 30.5], [36.5, 9.5], [30.5, 3.5], [9.5, 36.5], [14.5, 9.5], [25.5, 30.5]] };
+}
+// 설원 기지 — 넓은 눈밭에 중앙 관제탑(높은 블록)과 눈 둔덕(낮은 방벽). 중거리 교전
+function f3MapArctic() {
+  const m = f3Grid(44), { set, rect, sym, quad } = m;
+  rect(0, 0, 44, 44, '#');
+  quad(put => {
+    // 모서리 격납고
+    for (let y = 3; y < 9; y++) for (let x = 3; x < 11; x++) { const e = x === 3 || y === 3 || x === 10 || y === 8; if (e) put(x, y, '='); }
+    put(10, 5, '.'); put(10, 6, '.'); put(6, 8, '.'); put(7, 8, '.');
+    // 눈 둔덕 (낮은 방벽)
+    [[13, 6], [14, 6], [15, 6], [6, 13], [6, 14], [6, 15]].forEach(([x, y]) => put(x, y, 'L'));
+    // 바위
+    [[16, 12], [12, 16], [17, 13]].forEach(([x, y]) => put(x, y, 'R'));
+    // 소나무 숲
+    [[3, 13], [4, 15], [3, 18], [13, 3], [15, 4], [18, 3]].forEach(([x, y]) => put(x, y, 'T'));
+    // 보급 상자
+    put(9, 12, 'X'); put(12, 9, 'X');
+  });
+  // 중앙 관제탑 (십자 높은 블록) + 주변 창문벽
+  [[21, 21], [22, 21], [21, 22], [22, 22]].forEach(([x, y]) => set(x, y, 'H'));
+  [[21, 18], [22, 18], [21, 25], [22, 25], [18, 21], [18, 22], [25, 21], [25, 22]].forEach(([x, y]) => set(x, y, 'W'));
+  [[19, 19], [24, 19], [19, 24], [24, 24]].forEach(([x, y]) => set(x, y, 'P'));
+  return { rows: m.rows(), spawns: [[6.5, 5.5], [37.5, 38.5], [37.5, 5.5], [6.5, 38.5], [22, 2.5], [2.5, 22], [41.5, 22], [22, 41.5], [9.5, 20.5], [34.5, 23.5], [20.5, 34.5], [23.5, 9.5]] };
+}
+// 네온 시티 — 밤. 건물 블록 사이 세 갈래 거리, 가로등 기둥과 차량(상자). 교차로 전투
+function f3MapCity() {
+  const m = f3Grid(44), { set, rect, sym } = m;
+  rect(0, 0, 44, 44, '#');
+  sym(put => {
+    // 건물 블록 (높은 벽 사각형)
+    [[3, 3, 8, 6], [14, 3, 7, 5], [3, 12, 6, 7], [12, 11, 9, 6], [24, 3, 8, 6], [35, 3, 6, 8], [3, 22, 7, 6]].forEach(([x, y, w, h]) => { for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) { const e = xx === x || yy === y || xx === x + w - 1 || yy === y + h - 1; if (e) put(xx, yy, 'H'); } });
+    // 건물 출입구 몇 개 (안으로 들어가 매복)
+    put(6, 8, '.'); put(17, 7, '.'); put(8, 15, '.'); put(20, 13, '.'); put(27, 8, '.'); put(38, 10, '.'); put(35, 6, '.'); put(9, 24, '.'); put(6, 27, '.');
+    // 가로등 기둥
+    [[11, 9], [22, 9], [11, 20], [22, 20], [33, 12], [30, 20]].forEach(([x, y]) => put(x, y, 'P'));
+    // 주차된 차량 (상자) · 화분(바위)
+    [[12, 2], [13, 2], [23, 10], [24, 10], [9, 19], [10, 19], [32, 14], [32, 15]].forEach(([x, y]) => put(x, y, 'X'));
+    [[10, 11], [22, 12], [29, 4]].forEach(([x, y]) => put(x, y, 'R'));
+    // 공사 방벽
+    [[26, 12], [27, 12], [28, 12]].forEach(([x, y]) => put(x, y, 'L'));
+  });
+  // 중앙 교차로: 분수(낮은 링) + 기둥
+  // 분수: 낮은 링에 네 방향 틈 · 가운데 기둥 하나
+  [[20, 20], [22, 20], [23, 20], [20, 23], [21, 23], [23, 23], [20, 21], [23, 22]].forEach(([x, y]) => set(x, y, 'L'));
+  set(21, 21, 'P');
+  return { rows: m.rows(), spawns: [[2.5, 10.5], [41.5, 33.5], [11.5, 1.5], [32.5, 42.5], [2.5, 20.5], [41.5, 23.5], [22.5, 1.5], [21.5, 42.5], [11.5, 30.5], [32.5, 13.5], [30.5, 30.5], [13.5, 13.5]] };
+}
+// 정글 유적 — 나무가 시야를 가르고, 중앙에 돌 신전. 매복과 우회
+function f3MapJungle() {
+  const m = f3Grid(44), { set, rect, sym, quad } = m;
+  rect(0, 0, 44, 44, '#');
+  // 나무 군락 (점대칭)
+  sym(put => {
+    [[4, 6], [6, 4], [9, 8], [13, 5], [5, 13], [10, 15], [16, 11], [3, 20], [8, 24], [14, 20], [19, 5], [24, 8], [29, 4], [34, 7], [38, 12], [12, 30], [17, 27], [6, 34], [4, 28], [21, 33]].forEach(([x, y]) => put(x, y, 'T'));
+    [[7, 10], [15, 8], [11, 12], [20, 9], [9, 20], [26, 5], [36, 10], [30, 9]].forEach(([x, y]) => put(x, y, 'R'));
+    // 무너진 돌담
+    for (let x = 2; x < 9; x++) put(x, 17, 'B'); put(5, 17, '.'); for (let y = 2; y < 9; y++) put(17, y, 'B'); put(17, 5, '.');
+    // 진영 오두막
+    for (let y = 2; y < 6; y++) for (let x = 2; x < 6; x++) { const e = x === 2 || y === 2 || x === 5 || y === 5; if (e) put(x, y, 'B'); } put(5, 3, '.'); put(3, 5, '.');
+    put(12, 24, 'W'); put(13, 24, 'W'); put(24, 13, 'W'); put(24, 12, 'W');
+  });
+  // 중앙 신전: 두 겹 돌 링 + 기둥
+  quad(put => { for (let x = 16; x < 22; x++) put(x, 16, '='); put(19, 16, '.'); put(20, 16, '.'); put(17, 18, 'P'); });
+  [[21, 21], [22, 21], [21, 22], [22, 22]].forEach(([x, y]) => set(x, y, 'H'));
+  return { rows: m.rows(), spawns: [[3.5, 3.5], [40.5, 40.5], [7.5, 3.5], [36.5, 40.5], [3.5, 8.5], [40.5, 35.5], [22, 2.5], [22, 41.5], [2.5, 22], [41.5, 22], [12.5, 12.5], [31.5, 31.5]] };
+}
+
+const F3_THEMES = {
+  plaza:     { sky: ['#5FA8FF', '#A9D3FF', '#E8F3FF'], fog: [0xCFE6FF, 28, 95], sun: 0xFFF2D6, hemi: [0xCFE8FF, 0x8A7A5A], floor: ['#C9BFA6', 'rgba(0,0,0,0.18)'], ground: 0xC9B98E,
+               walls: { '#': '#B9BFC9', '=': '#8F98A8', B: '#9A5A50', X: '#B98A55', P: '#C9CFD8', T: '#2E7D46', R: '#8A8F98', W: '#B9BFC9' }, far: 'hills', decor: 'barrels', night: false },
+  desert:    { sky: ['#FF9A6A', '#FFC98A', '#FFE9C7'], fog: [0xF2C9A0, 24, 90], sun: 0xFFE3B0, hemi: [0xFFD9B0, 0xA3703E], floor: ['#D9B78A', 'rgba(120,70,20,0.18)'], ground: 0xD4A86A,
+               walls: { '#': '#D8B98F', '=': '#9C8A70', B: '#C58C5A', X: '#B98A55', P: '#E0C8A0', T: '#5E8C3A', R: '#A8815A', W: '#D8B98F' }, far: 'mesas', decor: 'cactus', night: false },
+  warehouse: { sky: ['#0B0F1C', '#161C2E', '#232B45'], fog: [0x141A2A, 14, 60], sun: 0xB9C6E8, hemi: [0x3A4460, 0x1A1C22], floor: ['#5A5F6C', 'rgba(0,0,0,0.35)'], ground: 0x2A2E38,
+               walls: { '#': '#6C7484', '=': '#7C8798', B: '#7A4E45', X: '#A67C4E', P: '#8A93A3', T: '#2E7D46', R: '#6A6F78', W: '#6C7484' }, far: 'none', decor: 'lamps', night: true },
+  arctic:    { sky: ['#9FCBFF', '#D6E9FF', '#F4F9FF'], fog: [0xE6F0FF, 26, 80], sun: 0xFFFFFF, hemi: [0xEAF4FF, 0x9FB4C8], floor: ['#EAF0F6', 'rgba(120,150,190,0.22)'], ground: 0xE3ECF4,
+               walls: { '#': '#C9D6E6', '=': '#9FB4CC', B: '#8C9AB0', X: '#B8905C', P: '#DCE6F2', T: '#2F5F3E', R: '#B7C2CF', W: '#C9D6E6' }, far: 'peaks', decor: 'snow', night: false },
+  city:      { sky: ['#0A0C1F', '#1B1F45', '#3A2C6E'], fog: [0x1E2244, 20, 70], sun: 0xC9B8FF, hemi: [0x6E5FCC, 0x1A1B2E], floor: ['#3E4250', 'rgba(255,255,255,0.10)'], ground: 0x2B2E3A,
+               walls: { '#': '#3F4658', '=': '#586274', B: '#5A3E44', X: '#5B6CA8', P: '#9AA6B8', T: '#2E7D46', R: '#4C5262', W: '#3F4658' }, far: 'city', decor: 'neon', night: true },
+  jungle:    { sky: ['#6FB5D6', '#BFE3EE', '#E9F6F2'], fog: [0xBFDCC8, 18, 70], sun: 0xFFF4CC, hemi: [0xD6F0DC, 0x3E5A2E], floor: ['#5E7A3E', 'rgba(0,0,0,0.22)'], ground: 0x4F6A34,
+               walls: { '#': '#7E8A72', '=': '#8C9080', B: '#8A8A7A', X: '#A6804E', P: '#B4B8A6', T: '#2E7D46', R: '#7A7F70', W: '#7E8A72' }, far: 'hills', decor: 'trees', night: false }
+};
+const F3_MAPS = {
+  plaza:     { name: '중앙 광장',   tag: '★2 · 균형', desc: '모서리 건물 4채와 가운데 금속 광장. 골목과 광장을 오가는 기본 맵',       theme: 'plaza',     build: () => ({ rows: f3BuildMap(), spawns: [[7.5, 7.5], [36.5, 7.5], [7.5, 36.5], [36.5, 36.5], [22, 2.5], [2.5, 22], [41.5, 22], [22, 41.5], [10.5, 16.5], [33.5, 10.5], [27.5, 33.5], [16.5, 27.5]] }) },
+  desert:    { name: '사막 마을',   tag: '★3 · 저격', desc: '긴 중앙 거리는 스나이퍼의 무대. 양옆 기둥 회랑과 골목으로 우회하세요',   theme: 'desert',    build: f3MapDesert },
+  warehouse: { name: '창고 구역',   tag: '★2 · 근접', desc: '어두운 실내. 선반 사이 좁은 통로와 상자 무더기. 모퉁이마다 조심',         theme: 'warehouse', build: f3MapWarehouse },
+  arctic:    { name: '설원 기지',   tag: '★3 · 중거리', desc: '넓은 눈밭과 중앙 관제탑. 눈 둔덕 뒤에 엎드려 중거리 교전',            theme: 'arctic',    build: f3MapArctic },
+  city:      { name: '네온 시티',   tag: '★4 · 교차로', desc: '밤거리. 건물 안으로 들어가 매복하거나 교차로를 장악하세요',            theme: 'city',      build: f3MapCity },
+  jungle:    { name: '정글 유적',   tag: '★4 · 매복', desc: '나무가 시야를 가르고 중앙엔 돌 신전. 매복과 우회의 맵',                theme: 'jungle',    build: f3MapJungle }
+};
+const F3_MAP = F3_MAPS.plaza.build().rows;
+const F3_SPAWNS = F3_MAPS.plaza.build().spawns;
 const F3_TEAM = { red: 0xFF5C7A, blue: 0x2E9BFF };
 const F3_TEAM_CSS = { red: '#FF5C7A', blue: '#2E9BFF' };
 const F3_WEAPONS = {
@@ -55,7 +204,9 @@ class Fps3DGame {
     this.myName = this.opts.myName || '';
     this.teamMode = !!this.opts.teamMode;
     this.team = this.teamMode ? Fps3DGame.teamOf(this.myId) : null;
-    this.map = F3_MAP;
+    this.mapId = (this.opts.trackId && F3_MAPS[this.opts.trackId]) ? this.opts.trackId : 'plaza';
+    this.mapDef = F3_MAPS[this.mapId]; this.theme = F3_THEMES[this.mapDef.theme];
+    const built = this.mapDef.build(); this.map = built.rows; this.spawns = built.spawns;
     this.peers = {}; this.models = {};
     this.hp = 100; this.kills = 0; this.deaths = 0; this.score = 0; this.streak = 0;
     this.weapon = 'rifle'; this.zoomed = false; this.zoomK = 0;
@@ -65,6 +216,9 @@ class Fps3DGame {
     this.mx = 0; this.my = 0; this.firing = false; this.turn = 0; this.upHeld = false; this.fwd = 0;
     this.yaw = 0; this.pitch = 0;
     this.lastFire = 0; this.muzzle = 0; this.recoil = 0; this.hurt = 0; this.deadUntil = 0;
+    // 팀전 라운드: 5판 3선승. 죽으면 그 판이 끝날 때까지 부활 없음
+    this.round = 1; this.wins = { red: 0, blue: 0 }; this.roundEndAt = 0; this.roundWinner = null; this.matchWinner = null; this.roundStartAt = 0;
+    this.kickPitch = 0; this.kickRoll = 0; this.boltT = 0; this.shells = [];   // 반동·볼트액션·탄피
     this.hitMarker = 0; this.dmgDir = null; this.bob = 0; this.moving = 0;
     this.gameOver = false; this.toast = null; this.feed = []; this.tracers = [];
     this.lastTime = 0; this.now = 0;
@@ -75,7 +229,7 @@ class Fps3DGame {
   static teamOf(id) { let h = 0; for (const c of String(id)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return (h & 1) ? 'red' : 'blue'; }
   static parse(raw) {
     const a = String(raw).split(',');
-    return { x: +a[0], y: +a[1], angle: +a[2], hp: +a[3], kills: +a[4], deaths: +a[5], team: a[6] || null, fire: a[7] === '1', dead: a[8] === '1', moving: a[9] === '1', pitch: +a[10] || 0, z: +a[11] || 0, rollT: (a[12] === undefined ? -1 : +a[12]), roll: (a[12] !== undefined && +a[12] >= 0) };
+    return { x: +a[0], y: +a[1], angle: +a[2], hp: +a[3], kills: +a[4], deaths: +a[5], team: a[6] || null, fire: a[7] === '1', dead: a[8] === '1', moving: a[9] === '1', pitch: +a[10] || 0, z: +a[11] || 0, rollT: (a[12] === undefined ? -1 : +a[12]), roll: (a[12] !== undefined && +a[12] >= 0), round: +a[13] || 1, wr: +a[14] || 0, wb: +a[15] || 0 };
   }
   get isDead() { return this.now < this.deadUntil; }
   get reloading() { return this.now < this.reloadUntil || this.now < (this.readyUntil || 0); }   // 재장전 중이거나 무기 전환 준비 중
@@ -90,10 +244,10 @@ class Fps3DGame {
 
   spawnAt(slot) {
     let best = null, bestD = -1;
-    F3_SPAWNS.forEach((sp, i) => {
+    this.spawns.forEach((sp, i) => {
       let d = 1e9;
       Object.keys(this.peers).forEach(id => { const p = this.peers[id]; if (p.dead || (this.teamMode && p.team === this.team)) return; d = Math.min(d, Math.hypot(p.x - sp[0], p.y - sp[1])); });
-      if (d === 1e9) d = 100 + ((i + slot) % F3_SPAWNS.length);
+      if (d === 1e9) d = 100 + ((i + slot) % this.spawns.length);
       if (d > bestD) { bestD = d; best = sp; }
     });
     this.x = best[0]; this.y = best[1];
@@ -107,40 +261,60 @@ class Fps3DGame {
     const T = THREE;
     this.scene = new T.Scene();
     this.scene.background = new T.Color(0x9ED4FF);
-    this.scene.fog = new T.Fog(0xCFE6FF, 28, 95);
+    const th = this.theme || F3_THEMES.plaza;
+    this.scene.fog = new T.Fog(th.fog[0], th.fog[1], th.fog[2]);
     this.camera = new T.PerspectiveCamera(72, 1, 0.05, 140);
 
     // 조명: 하늘빛 + 태양
-    this.scene.add(new T.HemisphereLight(0xCFE8FF, 0x8A7A5A, 0.85));
-    const sun = new T.DirectionalLight(0xFFF2D6, 1.0); sun.position.set(20, 30, 10); this.scene.add(sun);
+    this.scene.add(new T.HemisphereLight(th.hemi[0], th.hemi[1], th.night ? 0.6 : 0.85));
+    const sun = new T.DirectionalLight(th.sun, th.night ? 0.55 : 1.0); sun.position.set(20, 30, 10); this.scene.add(sun);
 
     // 바닥 (모래빛 콘크리트) — 타일 텍스처
     const N = this.map.length;
-    const floorTex = new T.CanvasTexture(Fps3DGame.texCanvas('floor')); floorTex.wrapS = floorTex.wrapT = T.RepeatWrapping; floorTex.repeat.set(N, N); floorTex.encoding = T.sRGBEncoding;
+    const floorTex = new T.CanvasTexture(Fps3DGame.texCanvas('floor', th)); floorTex.wrapS = floorTex.wrapT = T.RepeatWrapping; floorTex.repeat.set(N, N); floorTex.encoding = T.sRGBEncoding;
     const floor = new T.Mesh(new T.PlaneGeometry(N, N), new T.MeshLambertMaterial({ map: floorTex }));
     floor.rotation.x = -Math.PI / 2; floor.position.set(N / 2, 0, N / 2); this.scene.add(floor);
     // 바깥 지면 (넓게)
-    const ground = new T.Mesh(new T.PlaneGeometry(400, 400), new T.MeshLambertMaterial({ color: 0xC9B98E }));
+    const ground = new T.Mesh(new T.PlaneGeometry(400, 400), new T.MeshLambertMaterial({ color: th.ground }));
     ground.rotation.x = -Math.PI / 2; ground.position.set(N / 2, -0.01, N / 2); this.scene.add(ground);
 
     // 벽 — 종류별 InstancedMesh (드로우콜 4개)
-    const kinds = {}; Object.keys(F3_HEIGHT).forEach(k => { kinds[k] = { h: F3_HEIGHT[k] }; });
-    Object.keys(kinds).forEach(k => {
-      const cells = [];
-      for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) if (this.map[y][x] === k) cells.push([x, y]);
-      if (!cells.length) return;
-      const tex = new T.CanvasTexture(Fps3DGame.texCanvas(k === 'H' ? '#' : (k === 'L' ? '=' : k))); tex.encoding = T.sRGBEncoding;
+    const cellsOf = k => { const cells = []; for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) if (this.map[y][x] === k) cells.push([x, y]); return cells; };
+    const place = (mesh, cells, h, yOff) => { const m = new T.Matrix4(); cells.forEach(([x, y], i) => { m.makeTranslation(x + 0.5, (yOff != null ? yOff : h / 2), y + 0.5); mesh.setMatrixAt(i, m); }); this.scene.add(mesh); };
+    const wc = th.walls || {};
+    // 상자형 구조물 (텍스처) — 종류별 InstancedMesh
+    ['#', '=', 'B', 'H', 'X', 'L'].forEach(k => {
+      const cells = cellsOf(k); if (!cells.length) return;
+      const tex = new T.CanvasTexture(Fps3DGame.texCanvas(k === 'H' ? '#' : (k === 'L' ? '=' : k), th)); tex.encoding = T.sRGBEncoding;
       if (k === 'H') { tex.wrapT = T.RepeatWrapping; tex.repeat.set(1, 1.7); }
-      const h = kinds[k].h;
-      const geo = new T.BoxGeometry(1, h, 1);
-      const mesh = new T.InstancedMesh(geo, new T.MeshLambertMaterial({ map: tex }), cells.length);
-      const m = new T.Matrix4();
-      cells.forEach(([x, y], i) => { m.makeTranslation(x + 0.5, h / 2, y + 0.5); mesh.setMatrixAt(i, m); });
-      this.scene.add(mesh);
+      const h = F3_HEIGHT[k];
+      place(new T.InstancedMesh(new T.BoxGeometry(1, h, 1), new T.MeshLambertMaterial({ map: tex }), cells.length), cells, h);
     });
+    // 창문벽 W: 낮은 벽 + 위쪽 창틀 (위로는 쏠 수 있음)
+    { const cells = cellsOf('W'); if (cells.length) {
+        const tex = new T.CanvasTexture(Fps3DGame.texCanvas('#', th)); tex.encoding = T.sRGBEncoding;
+        place(new T.InstancedMesh(new T.BoxGeometry(1, 1.2, 1), new T.MeshLambertMaterial({ map: tex }), cells.length), cells, 1.2);
+        place(new T.InstancedMesh(new T.BoxGeometry(1, 0.08, 0.3), new T.MeshLambertMaterial({ color: 0x3A4256 }), cells.length), cells, 0, 1.24); } }
+    // 기둥 P: 원통 + 받침
+    { const cells = cellsOf('P'); if (cells.length) {
+        const col = new T.Color(wc.P || '#C9CFD8');
+        place(new T.InstancedMesh(new T.CylinderGeometry(0.28, 0.32, 2.4, 10), new T.MeshLambertMaterial({ color: col }), cells.length), cells, 2.4);
+        place(new T.InstancedMesh(new T.CylinderGeometry(0.45, 0.5, 0.2, 10), new T.MeshLambertMaterial({ color: col.clone().multiplyScalar(0.75) }), cells.length), cells, 0, 0.1); } }
+    // 나무 T: 줄기 + 원뿔 잎 두 단
+    { const cells = cellsOf('T'); if (cells.length) {
+        const leaf = new T.Color(wc.T || '#2E7D46');
+        place(new T.InstancedMesh(new T.CylinderGeometry(0.12, 0.18, 1.2, 6), new T.MeshLambertMaterial({ color: 0x6B4A2B }), cells.length), cells, 0, 0.6);
+        place(new T.InstancedMesh(new T.ConeGeometry(0.9, 1.6, 8), new T.MeshLambertMaterial({ color: leaf }), cells.length), cells, 0, 1.6);
+        place(new T.InstancedMesh(new T.ConeGeometry(0.65, 1.3, 8), new T.MeshLambertMaterial({ color: leaf.clone().multiplyScalar(1.15) }), cells.length), cells, 0, 2.5); } }
+    // 바위 R: 낮게 눌린 구
+    { const cells = cellsOf('R'); if (cells.length) {
+        const mesh = new T.InstancedMesh(new T.DodecahedronGeometry(0.55, 0), new T.MeshLambertMaterial({ color: new T.Color(wc.R || '#8A8F98') }), cells.length);
+        const m = new T.Matrix4(), q = new T.Quaternion(), sc = new T.Vector3(1.1, 0.7, 1.0);
+        cells.forEach(([x, y], i) => { q.setFromEuler(new T.Euler(0, (x * 7 + y * 3) % 6, 0)); m.compose(new T.Vector3(x + 0.5, 0.35, y + 0.5), q, sc); mesh.setMatrixAt(i, m); });
+        this.scene.add(mesh); } }
 
     // 하늘 돔 (그라데이션) + 태양
-    const skyTex = new T.CanvasTexture(Fps3DGame.texCanvas('sky')); skyTex.encoding = T.sRGBEncoding;
+    const skyTex = new T.CanvasTexture(Fps3DGame.texCanvas('sky', th)); skyTex.encoding = T.sRGBEncoding;
     const dome = new T.Mesh(new T.SphereGeometry(180, 24, 12), new T.MeshBasicMaterial({ map: skyTex, side: T.BackSide, fog: false }));
     dome.position.set(N / 2, 0, N / 2); this.scene.add(dome);
     const sunTex = new T.CanvasTexture(Fps3DGame.texCanvas('flash')); sunTex.encoding = T.sRGBEncoding;
@@ -148,7 +322,7 @@ class Fps3DGame {
 
     // 벽 위 어두운 트림 · 바닥 접지 그림자 띠 (입체감)
     const trimMat = new T.MeshLambertMaterial({ color: 0x3A4256 });
-    const trimCells = []; for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { const k = this.map[y][x]; if (k === '#' || k === '=' || k === 'B' || k === 'H') trimCells.push([x, y, F3_HEIGHT[k]]); }
+    const trimCells = []; for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { const k = this.map[y][x]; if (k === '#' || k === '=' || k === 'B' || k === 'H' || k === 'W') trimCells.push([x, y, F3_HEIGHT[k]]); }
     const trim = new T.InstancedMesh(new T.BoxGeometry(1.04, 0.08, 1.04), trimMat, trimCells.length);
     const shadowMat = new T.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.22, depthWrite: false });
     const shadow = new T.InstancedMesh(new T.PlaneGeometry(1.6, 1.6), shadowMat, trimCells.length);
@@ -166,23 +340,18 @@ class Fps3DGame {
     }
     this.decor.add(shadow);
 
-    // 멀리 보이는 언덕 · 건물 실루엣
+    // 원경 · 소품 — 테마별
     this.farScenery = new T.Group(); this.scene.add(this.farScenery);
-    const hillMat = new T.MeshLambertMaterial({ color: 0x9CBF7A });
-    for (let i = 0; i < 10; i++) {
-      const a = i / 10 * Math.PI * 2, r = 80 + (i % 3) * 10;
-      const hill = new T.Mesh(new T.SphereGeometry(14 + (i % 4) * 5, 10, 6), hillMat);
-      hill.position.set(N / 2 + Math.cos(a) * r, -8, N / 2 + Math.sin(a) * r); hill.scale.y = 0.5; this.farScenery.add(hill);
-    }
-    const bMat = new T.MeshLambertMaterial({ color: 0xD8DEE8 });
-    for (let i = 0; i < 8; i++) {
-      const a = (i + 0.5) / 8 * Math.PI * 2, r = 62;
-      const b = new T.Mesh(new T.BoxGeometry(6 + (i % 3) * 3, 6 + (i % 4) * 4, 6), bMat);
-      b.position.set(N / 2 + Math.cos(a) * r, b.geometry.parameters.height / 2, N / 2 + Math.sin(a) * r); this.farScenery.add(b);
-    }
+    this.buildFarScenery(th, N);
+    this.buildDecor(th, N);
 
     // 총 (카메라에 붙임)
-    this.weaponModel = this.buildWeapon(); this.camera.add(this.weaponModel); this.scene.add(this.camera);
+    this.rifleModel = this.buildWeapon(); this.sniperModel = this.buildSniper();
+    this.camera.add(this.rifleModel); this.camera.add(this.sniperModel); this.sniperModel.visible = false;
+    this.weaponModel = this.rifleModel; this.scene.add(this.camera);
+    // 탄피 메시 풀 (6개)
+    this.shellMeshes = []; const shellMat = new T.MeshLambertMaterial({ color: 0xD9B24C });
+    for (let i = 0; i < 6; i++) { const m = new T.Mesh(new T.CylinderGeometry(0.008, 0.008, 0.03, 6), shellMat); m.visible = false; this.camera.add(m); this.shellMeshes.push(m); }
     // 총구 섬광
     const flashTex = new T.CanvasTexture(Fps3DGame.texCanvas('flash')); flashTex.encoding = T.sRGBEncoding;
     this.flash = new T.Sprite(new T.SpriteMaterial({ map: flashTex, transparent: true, depthWrite: false, blending: T.AdditiveBlending }));
@@ -202,20 +371,92 @@ class Fps3DGame {
     } catch (e) { this.noGL = true; }
   }
 
-  static texCanvas(kind) {
+  static texCanvas(kind, theme) {
     const S = 128, cv = document.createElement('canvas'); cv.width = S; cv.height = S; const g = cv.getContext('2d');
+    const th = theme || F3_THEMES.plaza, wc = (th.walls || {});
+    // 테마 색으로 재질을 다시 칠합니다 (기본 팔레트를 덮어씀)
+    const base = { floor: th.floor ? th.floor[0] : '#C9BFA6', '#': wc['#'] || '#B9BFC9', '=': wc['='] || '#8F98A8', X: wc.X || '#B98A55', B: wc.B || '#9A5A50' };
     const noise = (a, n) => { for (let i = 0; i < (n || 500); i++) { g.fillStyle = 'rgba(' + (Math.random() < 0.5 ? '0,0,0' : '255,255,255') + ',' + a + ')'; g.fillRect(Math.random() * S, Math.random() * S, 3, 3); } };
-    if (kind === 'floor') { g.fillStyle = '#C9BFA6'; g.fillRect(0, 0, S, S); noise(0.06, 900); g.strokeStyle = 'rgba(0,0,0,0.18)'; g.lineWidth = 3; g.strokeRect(1, 1, S - 2, S - 2); g.fillStyle = 'rgba(255,255,255,0.15)'; g.fillRect(4, 4, S - 8, 4); }
-    else if (kind === '#') { g.fillStyle = '#B9BFC9'; g.fillRect(0, 0, S, S); noise(0.07); g.strokeStyle = 'rgba(0,0,0,0.3)'; g.lineWidth = 4; g.strokeRect(3, 3, S - 6, S - 6); g.fillStyle = 'rgba(255,255,255,0.2)'; g.fillRect(6, 6, S - 12, 5); g.fillStyle = 'rgba(0,0,0,0.2)'; g.fillRect(6, S - 12, S - 12, 6); g.fillStyle = '#6B7280'; [16, 112].forEach(x => [16, 112].forEach(y => { g.beginPath(); g.arc(x, y, 4, 0, 6.3); g.fill(); })); }
-    else if (kind === '=') { g.fillStyle = '#8F98A8'; g.fillRect(0, 0, S, S); noise(0.05); for (let y = 0; y < S; y += 32) { g.fillStyle = (y / 32) % 2 ? '#8A93A3' : '#9CA5B5'; g.fillRect(0, y, S, 32); g.fillStyle = 'rgba(255,255,255,0.18)'; g.fillRect(0, y, S, 3); }
+    if (kind === 'floor') { g.fillStyle = base.floor; g.fillRect(0, 0, S, S); noise(0.06, 900); g.strokeStyle = th.floor ? th.floor[1] : 'rgba(0,0,0,0.18)'; g.lineWidth = 3; g.strokeRect(1, 1, S - 2, S - 2); g.fillStyle = 'rgba(255,255,255,0.15)'; g.fillRect(4, 4, S - 8, 4); }
+    else if (kind === '#') { g.fillStyle = base['#']; g.fillRect(0, 0, S, S); noise(0.07); g.strokeStyle = 'rgba(0,0,0,0.3)'; g.lineWidth = 4; g.strokeRect(3, 3, S - 6, S - 6); g.fillStyle = 'rgba(255,255,255,0.2)'; g.fillRect(6, 6, S - 12, 5); g.fillStyle = 'rgba(0,0,0,0.2)'; g.fillRect(6, S - 12, S - 12, 6); g.fillStyle = '#6B7280'; [16, 112].forEach(x => [16, 112].forEach(y => { g.beginPath(); g.arc(x, y, 4, 0, 6.3); g.fill(); })); }
+    else if (kind === '=') { g.fillStyle = base['=']; g.fillRect(0, 0, S, S); noise(0.05); for (let y = 0; y < S; y += 32) { g.fillStyle = (y / 32) % 2 ? '#8A93A3' : '#9CA5B5'; g.fillRect(0, y, S, 32); g.fillStyle = 'rgba(255,255,255,0.18)'; g.fillRect(0, y, S, 3); }
       g.fillStyle = '#FFC533'; for (let x = -32; x < S + 32; x += 32) { g.beginPath(); g.moveTo(x, S - 26); g.lineTo(x + 16, S - 26); g.lineTo(x, S - 8); g.lineTo(x - 16, S - 8); g.closePath(); g.fill(); }
       g.fillStyle = '#2B2F3A'; for (let x = -16; x < S + 32; x += 32) { g.beginPath(); g.moveTo(x, S - 26); g.lineTo(x + 16, S - 26); g.lineTo(x, S - 8); g.lineTo(x - 16, S - 8); g.closePath(); g.fill(); } }
-    else if (kind === 'X') { g.fillStyle = '#B98A55'; g.fillRect(0, 0, S, S); noise(0.07); g.strokeStyle = '#7A552F'; g.lineWidth = 8; g.strokeRect(6, 6, S - 12, S - 12); g.beginPath(); g.moveTo(8, 8); g.lineTo(S - 8, S - 8); g.moveTo(S - 8, 8); g.lineTo(8, S - 8); g.stroke(); g.fillStyle = 'rgba(255,255,255,0.15)'; g.fillRect(12, 12, S - 24, 4); }
-    else if (kind === 'B') { g.fillStyle = '#9A5A50'; g.fillRect(0, 0, S, S); for (let y = 0; y < S; y += 32) for (let x = ((y / 32) % 2) * 32 - 32; x < S; x += 64) { g.fillStyle = (x + y) % 3 ? '#C27A6C' : '#B36E61'; g.fillRect(x + 3, y + 3, 58, 26); } noise(0.05); }
-    else if (kind === 'sky') { const r = g.createLinearGradient(0, 0, 0, S); r.addColorStop(0, '#5FA8FF'); r.addColorStop(0.55, '#A9D6FF'); r.addColorStop(1, '#E6F1FF'); g.fillStyle = r; g.fillRect(0, 0, S, S);
+    else if (kind === 'X') { g.fillStyle = base.X; g.fillRect(0, 0, S, S); noise(0.07); g.strokeStyle = '#7A552F'; g.lineWidth = 8; g.strokeRect(6, 6, S - 12, S - 12); g.beginPath(); g.moveTo(8, 8); g.lineTo(S - 8, S - 8); g.moveTo(S - 8, 8); g.lineTo(8, S - 8); g.stroke(); g.fillStyle = 'rgba(255,255,255,0.15)'; g.fillRect(12, 12, S - 24, 4); }
+    else if (kind === 'B') { g.fillStyle = base.B; g.fillRect(0, 0, S, S); for (let y = 0; y < S; y += 32) for (let x = ((y / 32) % 2) * 32 - 32; x < S; x += 64) { g.fillStyle = (x + y) % 3 ? '#C27A6C' : '#B36E61'; g.fillRect(x + 3, y + 3, 58, 26); } noise(0.05); }
+    else if (kind === 'sky') { const sk = th.sky || ['#5FA8FF', sk[1], sk[2]]; const r = g.createLinearGradient(0, 0, 0, S); r.addColorStop(0, sk[0]); r.addColorStop(0.55, '#A9D6FF'); r.addColorStop(1, '#E6F1FF'); g.fillStyle = r; g.fillRect(0, 0, S, S);
       g.fillStyle = 'rgba(255,255,255,0.55)'; for (let i = 0; i < 8; i++) { const cx = Math.random() * S, cy = S * (0.35 + Math.random() * 0.25); [0, 10, -8, 6].forEach(o => { g.beginPath(); g.ellipse(cx + o, cy + (o % 3), 14, 6, 0, 0, Math.PI * 2); g.fill(); }); } }
     else if (kind === 'flash') { const r = g.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2); r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.3, 'rgba(160,235,255,0.9)'); r.addColorStop(1, 'rgba(160,235,255,0)'); g.fillStyle = r; g.fillRect(0, 0, S, S); }
     return cv;
+  }
+
+  // 원경: 언덕 / 사막 메사 / 도시 스카이라인 / 설산 / 없음
+  buildFarScenery(th, N) {
+    const T = THREE, G = this.farScenery, cx = N / 2, cz = N / 2;
+    if (th.far === 'hills') {
+      const hillMat = new T.MeshLambertMaterial({ color: th.night ? 0x2A3B2A : 0x9CBF7A });
+      for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2, r = 80 + (i % 3) * 10;
+        const hill = new T.Mesh(new T.SphereGeometry(14 + (i % 4) * 5, 10, 6), hillMat); hill.position.set(cx + Math.cos(a) * r, -8, cz + Math.sin(a) * r); hill.scale.y = 0.5; G.add(hill); }
+      const bMat = new T.MeshLambertMaterial({ color: 0xD8DEE8 });
+      for (let i = 0; i < 8; i++) { const a = (i + 0.5) / 8 * Math.PI * 2, r = 62;
+        const b = new T.Mesh(new T.BoxGeometry(6 + (i % 3) * 3, 6 + (i % 4) * 4, 6), bMat); b.position.set(cx + Math.cos(a) * r, b.geometry.parameters.height / 2, cz + Math.sin(a) * r); G.add(b); }
+    } else if (th.far === 'mesas') {
+      const mat = new T.MeshLambertMaterial({ color: 0xB5643B }), top = new T.MeshLambertMaterial({ color: 0xD08A5A });
+      for (let i = 0; i < 9; i++) { const a = i / 9 * Math.PI * 2 + 0.2, r = 75 + (i % 3) * 12, w = 14 + (i % 4) * 6, h = 8 + (i % 3) * 5;
+        const m = new T.Mesh(new T.CylinderGeometry(w * 0.6, w, h, 7), mat); m.position.set(cx + Math.cos(a) * r, h / 2 - 1, cz + Math.sin(a) * r); G.add(m);
+        const t = new T.Mesh(new T.CylinderGeometry(w * 0.6, w * 0.62, 0.6, 7), top); t.position.set(m.position.x, h - 0.7, m.position.z); G.add(t); }
+      const dune = new T.MeshLambertMaterial({ color: 0xE0B57A });
+      for (let i = 0; i < 12; i++) { const a = (i + 0.5) / 12 * Math.PI * 2, r = 58; const d = new T.Mesh(new T.SphereGeometry(10 + (i % 3) * 4, 8, 5), dune); d.position.set(cx + Math.cos(a) * r, -7, cz + Math.sin(a) * r); d.scale.y = 0.35; G.add(d); }
+    } else if (th.far === 'city') {
+      // 밤 도시: 불 켜진 창문 텍스처 빌딩
+      const cv = document.createElement('canvas'); cv.width = 64; cv.height = 128; const g = cv.getContext('2d');
+      g.fillStyle = '#141A2E'; g.fillRect(0, 0, 64, 128); for (let y = 6; y < 128; y += 10) for (let x = 6; x < 64; x += 10) { g.fillStyle = Math.random() < 0.55 ? (Math.random() < 0.3 ? '#FFD166' : '#CFE6FF') : '#1C2340'; g.fillRect(x, y, 5, 6); }
+      const tex = new T.CanvasTexture(cv); tex.encoding = T.sRGBEncoding; tex.wrapS = tex.wrapT = T.RepeatWrapping;
+      for (let i = 0; i < 26; i++) { const a = i / 26 * Math.PI * 2, r = 62 + (i % 4) * 9, w = 5 + (i % 3) * 3, h = 12 + ((i * 7) % 5) * 7;
+        const t2 = tex.clone(); t2.needsUpdate = true; t2.repeat.set(1, h / 12);
+        const b = new T.Mesh(new T.BoxGeometry(w, h, w), new T.MeshLambertMaterial({ map: t2 })); b.position.set(cx + Math.cos(a) * r, h / 2 - 0.5, cz + Math.sin(a) * r); G.add(b);
+        if (i % 5 === 0) { const ant = new T.Mesh(new T.CylinderGeometry(0.15, 0.15, 5, 4), new T.MeshBasicMaterial({ color: 0xFF5C7A })); ant.position.set(b.position.x, h + 2.5, b.position.z); G.add(ant); } }
+    } else if (th.far === 'peaks') {
+      const rock = new T.MeshLambertMaterial({ color: 0x8FA3BF }), snow = new T.MeshLambertMaterial({ color: 0xFFFFFF });
+      for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2, r = 85 + (i % 3) * 14, h = 26 + (i % 4) * 9, w = 16 + (i % 3) * 6;
+        const m = new T.Mesh(new T.ConeGeometry(w, h, 6), rock); m.position.set(cx + Math.cos(a) * r, h / 2 - 3, cz + Math.sin(a) * r); G.add(m);
+        const c = new T.Mesh(new T.ConeGeometry(w * 0.42, h * 0.42, 6), snow); c.position.set(m.position.x, h - h * 0.21 - 3, m.position.z); G.add(c); }
+      const bank = new T.MeshLambertMaterial({ color: 0xEAF0F6 });
+      for (let i = 0; i < 10; i++) { const a = (i + 0.5) / 10 * Math.PI * 2, r = 60; const d = new T.Mesh(new T.SphereGeometry(9 + (i % 3) * 3, 8, 5), bank); d.position.set(cx + Math.cos(a) * r, -6, cz + Math.sin(a) * r); d.scale.y = 0.35; G.add(d); }
+    }
+    // 'none' 은 원경 없음 (실내)
+  }
+
+  // 소품: 드럼통 / 선인장 / 램프 / 눈사람·얼음 / 네온 간판 / 덤불 — 벽이 아닌 칸에 무작위로, 충돌 없음
+  buildDecor(th, N) {
+    const T = THREE; this.props = new T.Group(); this.scene.add(this.props);
+    const spot = () => { let x, y, tries = 0; do { x = 2 + Math.random() * (N - 4); y = 2 + Math.random() * (N - 4); tries++; } while (this.wall(x, y) && tries < 40); return [x, y]; };
+    const nearWall = () => { let x, y, tries = 0; do { [x, y] = spot(); tries++; } while (!(this.wall(x + 1, y) || this.wall(x - 1, y) || this.wall(x, y + 1) || this.wall(x, y - 1)) && tries < 60); return [x, y]; };
+    const add = (mesh, x, y, yy) => { mesh.position.set(x, yy || 0, y); this.props.add(mesh); };
+    const n = 14;
+    if (th.decor === 'barrels' || th.decor === 'lamps') {
+      const mat = new T.MeshLambertMaterial({ color: 0x4E6BC2 }), band = new T.MeshLambertMaterial({ color: 0xD9DEE8 });
+      for (let i = 0; i < n; i++) { const [x, y] = nearWall(); const b = new T.Mesh(new T.CylinderGeometry(0.22, 0.22, 0.6, 10), mat); add(b, x, y, 0.3);
+        const r = new T.Mesh(new T.CylinderGeometry(0.23, 0.23, 0.06, 10), band); add(r, x, y, 0.45); }
+      if (th.decor === 'lamps') { // 천장 램프: 노란 원판 + 빛 스프라이트
+        const lm = new T.MeshBasicMaterial({ color: 0xFFE9A8 });
+        for (let i = 0; i < 10; i++) { const [x, y] = spot(); const l = new T.Mesh(new T.CylinderGeometry(0.35, 0.35, 0.08, 10), lm); add(l, x, y, 3.6);
+          const pt = new T.PointLight(0xFFE0A0, 0.35, 9); pt.position.set(x, 3.4, y); this.props.add(pt); } }
+    } else if (th.decor === 'cactus') {
+      const mat = new T.MeshLambertMaterial({ color: 0x4F8A3A });
+      for (let i = 0; i < n; i++) { const [x, y] = spot(); const c = new T.Mesh(new T.CylinderGeometry(0.16, 0.2, 1.4, 7), mat); add(c, x, y, 0.7);
+        const arm = new T.Mesh(new T.CylinderGeometry(0.1, 0.12, 0.6, 7), mat); arm.position.set(x + 0.28, 0.9, y); this.props.add(arm); }
+    } else if (th.decor === 'snow') {
+      const ice = new T.MeshLambertMaterial({ color: 0xBFE3FF, transparent: true, opacity: 0.85 });
+      for (let i = 0; i < n; i++) { const [x, y] = spot(); const c = new T.Mesh(new T.ConeGeometry(0.35, 0.9 + Math.random() * 0.6, 5), ice); add(c, x, y, 0.45); }
+    } else if (th.decor === 'neon') {
+      const cols = [0xFF5C7A, 0x4CC9F0, 0xB15DFF, 0xFFD166];
+      for (let i = 0; i < 16; i++) { const [x, y] = nearWall(); const sign = new T.Mesh(new T.BoxGeometry(0.9, 0.3, 0.06), new T.MeshBasicMaterial({ color: cols[i % 4] })); add(sign, x, y, 1.9);
+        const pl = new T.PointLight(cols[i % 4], 0.5, 6); pl.position.set(x, 1.9, y); this.props.add(pl); }
+    } else if (th.decor === 'trees') {
+      const mat = new T.MeshLambertMaterial({ color: 0x3F8F4F });
+      for (let i = 0; i < n; i++) { const [x, y] = spot(); const b = new T.Mesh(new T.SphereGeometry(0.4 + Math.random() * 0.25, 7, 5), mat); b.scale.y = 0.7; add(b, x, y, 0.3); }
+    }
   }
 
   buildWeapon() {
@@ -231,6 +472,28 @@ class Fps3DGame {
     add(new T.BoxGeometry(0.06, 0.06, 0.06), teamC, 0, -0.03, -0.66);  // 총구 링
     add(new T.BoxGeometry(0.08, 0.1, 0.12), new T.MeshLambertMaterial({ color: 0x6B5B4E }), 0.02, -0.1, 0.18); // 손
     g.position.set(0.28, -0.26, -0.55); g.rotation.y = -0.06;
+    return g;
+  }
+  buildSniper() {
+    const T = THREE, g = new T.Group();
+    const dark = new T.MeshLambertMaterial({ color: 0x1F2430 }), mid = new T.MeshLambertMaterial({ color: 0x3B4354 }), wood = new T.MeshLambertMaterial({ color: 0x5A4030 });
+    const teamC = new T.MeshBasicMaterial({ color: this.team ? F3_TEAM[this.team] : 0xFFD166 });
+    const add = (geo, mat, x, y, z) => { const m = new T.Mesh(geo, mat); m.position.set(x, y, z); g.add(m); return m; };
+    add(new T.BoxGeometry(0.08, 0.11, 0.55), wood, 0, -0.01, 0.05);             // 개머리판·총몸 (나무)
+    add(new T.BoxGeometry(0.06, 0.07, 0.75), mid, 0, 0.02, -0.55);              // 긴 총열 덮개
+    add(new T.CylinderGeometry(0.018, 0.018, 0.5, 8), dark, 0, 0.03, -1.05).rotation.x = Math.PI / 2;   // 총열
+    add(new T.CylinderGeometry(0.03, 0.03, 0.08, 8), dark, 0, 0.03, -1.32).rotation.x = Math.PI / 2;    // 소염기
+    const scope = add(new T.CylinderGeometry(0.035, 0.035, 0.32, 10), dark, 0, 0.11, -0.18); scope.rotation.x = Math.PI / 2;   // 조준경
+    add(new T.CylinderGeometry(0.04, 0.03, 0.05, 10), dark, 0, 0.11, -0.36).rotation.x = Math.PI / 2;
+    add(new T.CircleGeometry(0.028, 10), new T.MeshBasicMaterial({ color: 0x9DE9FF }), 0, 0.11, -0.385).rotation.y = Math.PI;   // 렌즈
+    add(new T.BoxGeometry(0.02, 0.05, 0.1), mid, 0, 0.06, -0.1); add(new T.BoxGeometry(0.02, 0.05, 0.1), mid, 0, 0.06, -0.26);   // 마운트
+    add(new T.BoxGeometry(0.05, 0.12, 0.06), dark, 0, -0.1, -0.05);              // 탄창
+    add(new T.BoxGeometry(0.08, 0.012, 0.5), teamC, 0, 0.045, -0.5);            // 팀 색 선
+    const bolt = add(new T.CylinderGeometry(0.012, 0.012, 0.08, 6), dark, 0.05, 0.03, -0.02); bolt.rotation.z = Math.PI / 2;   // 볼트 손잡이
+    add(new T.SphereGeometry(0.018, 6, 6), dark, 0.09, 0.03, -0.02).userData.knob = true;
+    add(new T.BoxGeometry(0.08, 0.1, 0.12), new T.MeshLambertMaterial({ color: 0x6B5B4E }), 0.02, -0.1, 0.22);   // 손
+    add(new T.BoxGeometry(0.07, 0.08, 0.1), new T.MeshLambertMaterial({ color: 0x6B5B4E }), -0.01, -0.03, -0.62);  // 앞손
+    g.position.set(0.28, -0.26, -0.55); g.rotation.y = -0.06; g.userData = { bolt };
     return g;
   }
 
@@ -279,6 +542,7 @@ class Fps3DGame {
   switchWeapon() {
     if (this.isDead || this.spectator) return;
     this.weapon = this.weapon === 'rifle' ? 'sniper' : 'rifle';
+    if (this.rifleModel && this.sniperModel) { this.rifleModel.visible = this.weapon === 'rifle'; this.sniperModel.visible = this.weapon === 'sniper'; this.weaponModel = this.weapon === 'sniper' ? this.sniperModel : this.rifleModel; this.swapT = 1; }
     this.zoomed = false; this.ammo = this.magSize; this.reloadUntil = 0; this.readyUntil = this.clock() + 800;
     this.showToast(this.wpn.name + (this.weapon === 'sniper' ? ' — 🔍 줌으로 조준하세요' : ''), '#FFD166');
     if (window.Sound) Sound.rotate();
@@ -329,7 +593,17 @@ class Fps3DGame {
     const base = 0.01 * this.recoil + (this.moving ? 0.012 : 0);
     const spread = this.weapon === 'sniper' ? (this.zoomed ? base * 0.15 : 0.06) : base;
     const yaw = this.yaw + (Math.random() - 0.5) * spread * 2, pitch = this.pitch + (Math.random() - 0.5) * spread;
-    this.recoil = Math.min(1, this.recoil + (this.weapon === 'sniper' ? 0.9 : 0.3)); this.pitch = Math.min(1.1, this.pitch + (this.weapon === 'sniper' ? 0.05 : 0.012));   // 반동은 발사 뒤에
+    // 반동: 라이플은 짧게 톡, 스나이퍼는 크게 걷어차고 볼트를 당깁니다
+    if (this.weapon === 'sniper') {
+      this.recoil = 1; this.kickVis = 0.13; this.pitch = Math.min(1.1, this.pitch + 0.02); this.kickRoll = (Math.random() - 0.5) * 0.08;   // 화면이 7° 확 튀었다 돌아오고, 조준은 1° 남음
+      this.boltT = 1; this.muzzle = 1.6; this.flashBig = true;
+      this.zoomFlinch = this.zoomed ? 1 : 0;                                                     // 줌 중이면 스코프가 잠깐 흔들려 시야가 튐
+      this.shells.push({ t: 0, vx: 0.9 + Math.random() * 0.4, vy: 0.9, vz: -0.2 });          // 탄피 (볼트 당길 때 튀어나옴)
+      if (window.Haptic) Haptic.big();
+    } else {
+      this.recoil = Math.min(1, this.recoil + 0.3); this.kickVis = Math.min(0.05, (this.kickVis || 0) + 0.02); this.pitch = Math.min(1.1, this.pitch + 0.004); this.kickRoll += (Math.random() - 0.5) * 0.01; this.flashBig = false;
+      this.shells.push({ t: 0, vx: 0.6 + Math.random() * 0.3, vy: 0.5, vz: -0.1 });
+    }
     // 조준선을 따라 전진하며 벽 또는 사람에 닿는 첫 지점
     const dx = Math.cos(yaw) * Math.cos(pitch), dy = Math.sin(yaw) * Math.cos(pitch), dz = Math.sin(pitch);
     let best = null, bestD = 1e9, hitZ = 0;
@@ -409,7 +683,7 @@ class Fps3DGame {
       if (window.Sound) Sound.crash();
       const who = this.nameOf(e.by);
       if (this.hp <= 0) {
-        this.deaths++; this.streak = 0; this.deadUntil = this.clock() + 3000; this.score = Math.max(0, this.score - 20); this.killer = who; this.killHead = !!e.head;
+        this.deaths++; this.streak = 0; this.deadUntil = this.clock() + (this.roundMode ? 1e12 : 3000); this.score = Math.max(0, this.score - 20); this.killer = who; this.killHead = !!e.head;
         this.pushFeed(who, this.myName, '#FF5C7A', !!e.head);
         if (this.opts.onAttack) this.opts.onAttack('kill', e.by, { victim: this.myId, head: e.head ? 1 : 0 });
         if (window.Sound) Sound.gameOver();
@@ -429,7 +703,7 @@ class Fps3DGame {
   serialize() {
     return [this.x.toFixed(2), this.y.toFixed(2), this.yaw.toFixed(2), this.hp, this.kills, this.deaths, this.team || '',
             this.muzzle > 0.5 ? 1 : 0, this.isDead ? 1 : 0, this.moving ? 1 : 0, this.pitch.toFixed(2),
-            this.z.toFixed(2), this.rollT.toFixed(2)].join(',');
+            this.z.toFixed(2), this.rollT.toFixed(2), this.round, this.wins.red, this.wins.blue].join(',');
   }
   applyPeerRaw(id, raw, name) {
     const d = Fps3DGame.parse(raw);
@@ -443,7 +717,9 @@ class Fps3DGame {
       const nvx = (d.x - p.tx) / dt, nvy = (d.y - p.ty) / dt;
       if (Math.hypot(nvx, nvy) < 12) { p.vx = nvx; p.vy = nvy; } else { p.vx = 0; p.vy = 0; } }   // 순간이동(리스폰)은 예측 안 함
     p.at = now;
-    Object.assign(p, { tx: d.x, ty: d.y, tangle: d.angle, hp: d.hp, kills: d.kills, deaths: d.deaths, team: d.team, fire: d.fire, dead: d.dead, moving: d.moving, pitch: d.pitch, z: d.z, roll: d.roll, rollT: d.rollT });
+    Object.assign(p, { tx: d.x, ty: d.y, tangle: d.angle, hp: d.hp, kills: d.kills, deaths: d.deaths, team: d.team, fire: d.fire, dead: d.dead, moving: d.moving, pitch: d.pitch, z: d.z, roll: d.roll, rollT: d.rollT, round: d.round, wr: d.wr, wb: d.wb });
+    // 라운드가 더 앞선 기기가 있으면 따라갑니다 (같은 판·같은 점수를 보도록)
+    if (this.teamMode && d.round > this.round) { this.round = d.round; this.wins.red = Math.max(this.wins.red, d.wr); this.wins.blue = Math.max(this.wins.blue, d.wb); this.beginRound(); }
     // 구르기는 신호가 드물어도 끊기지 않도록, 받은 시점을 기록해 두고 화면에서 이어서 재생합니다
     if (d.roll && !p.rollPlaying) { p.rollPlaying = true; p.rollAt = now - d.rollT * 700; }
     if (p.rollPlaying && now - (p.rollAt || 0) >= 700) p.rollPlaying = false;
@@ -476,7 +752,12 @@ class Fps3DGame {
       let da = p.tangle - p.angle; while (da > Math.PI) da -= Math.PI * 2; while (da < -Math.PI) da += Math.PI * 2; p.angle += da * sa;
       p.walk = (p.walk || 0) + (p.moving ? 0.22 * f : 0); });
     this.tracers = this.tracers.filter(t => t.until > now);
-    this.muzzle = Math.max(0, this.muzzle - 0.2 * f); this.recoil = Math.max(0, this.recoil - 0.06 * f);
+    this.muzzle = Math.max(0, this.muzzle - (this.flashBig ? 0.12 : 0.2) * f); this.recoil = Math.max(0, this.recoil - (this.weapon === 'sniper' ? 0.035 : 0.06) * f);
+    // 킥: 총구가 튀어 오른 만큼 시선이 올라갔다가 되돌아옵니다 (스나이퍼는 크고 느리게)
+    { const k = 1 - Math.pow(1 - (this.weapon === 'sniper' ? 0.07 : 0.2), f); this.kickVis = (this.kickVis || 0) * (1 - k); this.kickRoll = (this.kickRoll || 0) * (1 - k * 0.8); }
+    if (this.zoomFlinch > 0) this.zoomFlinch = Math.max(0, this.zoomFlinch - 0.05 * f);
+    if (this.boltT > 0) this.boltT = Math.max(0, this.boltT - 0.022 * f);                   // 볼트액션: 0.75초
+    for (let i = this.shells.length - 1; i >= 0; i--) { const sh = this.shells[i]; sh.t += 0.05 * f; if (sh.t > 1) this.shells.splice(i, 1); }
     this.hurt = Math.max(0, this.hurt - 0.04 * f); this.hitMarker = Math.max(0, this.hitMarker - 0.08 * f);
 
     if (this.spectator) {
@@ -484,6 +765,7 @@ class Fps3DGame {
       if (p) { this.x = p.x; this.y = p.y; this.z = p.z || 0; if (p.roll) { this.rollStart = now - p.rollT * 700; this.rollUntil = this.rollStart + 700; } else this.rollUntil = 0; this.yaw = p.angle; this.pitch = p.pitch || 0; this.hp = p.hp; this.kills = p.kills; this.deaths = p.deaths; this.team = p.team; this.myName = p.name || ''; this.deadUntil = p.dead ? now + 100 : 0; this.moving = p.moving; if (p.fire) this.muzzle = 1; }
       this.draw(); return;
     }
+    this.stepRounds(now);
     if (this.isDead) {
       if (!this._respawned && this.deadUntil - now < 50) { this._respawned = true; this.hp = 100; this.spawnAt(Math.floor(Math.random() * 12)); this.dmgDir = null; }
       this.draw(); return;
@@ -519,7 +801,7 @@ class Fps3DGame {
     this.vz -= 0.0062 * f;
     this.z += this.vz * f;
     const floor = this.floorAt(this.x, this.y);
-    if (this.z <= floor) { if (!this.onGround && this.vz < -0.03 && window.Sound) Sound.lock(); this.z = floor; this.vz = 0; this.onGround = true; }
+    if (this.z <= floor) { if (!this.onGround && this.vz < -0.03) { this.landDip = Math.min(0.35, -this.vz * 2.2); if (window.Sound) Sound.lock(); } this.z = floor; this.vz = 0; this.onGround = true; }
     else this.onGround = false;
     this.updateFov();
     if (this.firing) this.shoot();
@@ -534,6 +816,39 @@ class Fps3DGame {
     if (Math.abs(this.camera.fov - fov) > 0.02) { this.camera.fov += (fov - this.camera.fov) * this.smooth(0.35, this.lastF || 1); this.camera.updateProjectionMatrix(); }
   }
 
+  // 라운드 모드: 팀전이면서 양 팀에 최소 한 명씩 있을 때만 (혼자 연습하면 그냥 부활)
+  get roundMode() { if (!this.teamMode) return false; const c = this.teamCounts(); return c.red.total > 0 && c.blue.total > 0; }
+  teamCounts() {
+    const c = { red: { total: 0, alive: 0 }, blue: { total: 0, alive: 0 } };
+    const add = (team, dead) => { if (!c[team]) return; c[team].total++; if (!dead) c[team].alive++; };
+    if (!this.spectator) add(this.team, this.isDead);
+    Object.keys(this.peers).forEach(id => { const p = this.peers[id]; if (p.team) add(p.team, !!p.dead); });
+    return c;
+  }
+  // 새 판 시작: 전원 부활 · 위치 초기화 · 탄약 가득
+  beginRound() {
+    const now = this.clock();
+    this.roundStartAt = now; this.roundEndAt = 0; this.roundWinner = null;
+    this.hp = 100; this.deadUntil = 0; this.dmgDir = null; this.ammo = this.magSize; this.reloadUntil = 0; this.zoomed = false;
+    this.spawnAt((this.opts.slot || 0) + this.round);
+    this.showToast('ROUND ' + this.round + '  ' + this.wins.red + ' : ' + this.wins.blue, '#FFD166');
+  }
+  stepRounds(now) {
+    if (!this.roundMode || this.matchWinner) return;
+    const c = this.teamCounts();
+    // 판이 끝났다: 한 팀이 전멸 (판 시작 직후 1.5초는 판정 유예 — 신호가 아직 안 온 기기 보호)
+    if (!this.roundEndAt && now - this.roundStartAt > 1500) {
+      const redOut = c.red.alive === 0, blueOut = c.blue.alive === 0;
+      if (redOut !== blueOut) {
+        this.roundWinner = redOut ? 'blue' : 'red'; this.wins[this.roundWinner]++; this.roundEndAt = now + 3000;
+        this.showToast((this.roundWinner === 'red' ? '레드' : '블루') + ' 팀 라운드 승리!  ' + this.wins.red + ' : ' + this.wins.blue, F3_TEAM_CSS[this.roundWinner]);
+        if (window.Sound) Sound.levelUp();
+        if (this.wins[this.roundWinner] >= 3) { this.matchWinner = this.roundWinner; this.gameOver = true; if (this.opts.onFinish) this.opts.onFinish(this.matchWinner === this.team); }
+      }
+    }
+    if (this.roundEndAt && now >= this.roundEndAt && !this.matchWinner) { this.round++; this.beginRound(); }
+  }
+
   getSnapshot() { return null; }
 
   draw() {
@@ -545,17 +860,37 @@ class Fps3DGame {
     if (this._w !== W || this._h !== H) { this._w = W; this._h = H; this.renderer.setSize(W, H, false); this.camera.aspect = W / H; this.camera.updateProjectionMatrix();
       const dpr = Math.min(1.5, window.devicePixelRatio || 1); this.hud.width = Math.round(W * dpr); this.hud.height = Math.round(H * dpr); this.hctx.setTransform(dpr, 0, 0, dpr, 0, 0); }
     // 카메라
-    const bobY = this.moving ? Math.sin(this.bob) * 0.03 : 0;
+    this.landDip = Math.max(0, (this.landDip || 0) - 0.03 * (this.lastF || 1));
+    const bobY = (this.moving ? Math.sin(this.bob) * 0.03 : 0) - Math.sin(Math.min(1, this.landDip) * Math.PI) * 0.12;
     const shake = this.hurt > 0.5 ? (this.hurt - 0.5) * 0.06 : 0;
     this.camera.position.set(this.x + (Math.random() - 0.5) * shake, this.eyeZ + bobY + (Math.random() - 0.5) * shake, this.y + (Math.random() - 0.5) * shake);
     this.updateFov();
     this.camera.rotation.order = 'YXZ';
-    this.camera.rotation.y = -this.yaw - Math.PI / 2; this.camera.rotation.x = this.pitch; this.camera.rotation.z = (this.mx || 0) * -0.02;   // 시선 = 이동 방향 · 옆걸음 때 살짝 기울기
+    const fl = (this.zoomFlinch || 0);
+    this.camera.rotation.y = -this.yaw - Math.PI / 2 + Math.sin(fl * 40) * fl * 0.02; this.camera.rotation.x = this.pitch + (this.kickVis || 0) + Math.cos(fl * 33) * fl * 0.015; this.camera.rotation.z = (this.mx || 0) * -0.02 + (this.kickRoll || 0);   // 시선 = 이동 방향 · 옆걸음 기울기 · 반동 비틀림
     // 총 흔들림 · 반동 · 재장전
-    const rel = this.reloading ? Math.sin(((this.reloadUntil - now) / 1400) * Math.PI) * 0.25 : 0;
-    this.weaponModel.position.set(0.28 + (this.moving ? Math.sin(this.bob * 0.5) * 0.01 : 0), -0.26 - rel + (this.moving ? Math.abs(Math.cos(this.bob * 0.5)) * 0.01 : 0), -0.55 + this.recoil * 0.06);
-    this.weaponModel.rotation.x = -rel * 1.5 + this.recoil * 0.1; this.weaponModel.visible = !this.spectator && !this.isDead && this.zoomK < 0.5;
-    this.flash.visible = this.muzzle > 0.15; this.flash.material.opacity = this.muzzle; this.flash.scale.setScalar(0.25 + this.muzzle * 0.25);
+    const rel = this.reloading ? Math.sin(((this.reloadUntil - now) / this.wpn.reload) * Math.PI) * 0.25 : 0;
+    // 시선 흔들림(sway): 시선이 움직인 만큼 총이 살짝 늦게 따라옵니다
+    this.swayX = (this.swayX || 0) + ((this._lastYaw != null ? (this.yaw - this._lastYaw) : 0) * 0.35 - (this.swayX || 0)) * 0.15;
+    this.swayY = (this.swayY || 0) + ((this._lastPitch != null ? (this.pitch - this._lastPitch) : 0) * 0.35 - (this.swayY || 0)) * 0.15;
+    this._lastYaw = this.yaw; this._lastPitch = this.pitch;
+    const sn = this.weapon === 'sniper', bolt = this.boltT;
+    // 볼트액션: 총이 오른쪽 아래로 기울며 손이 볼트를 당기는 동작 (0 → 1 → 0 곡선)
+    const bk = bolt > 0 ? Math.sin(Math.min(1, bolt) * Math.PI) : 0;
+    const bobX = this.moving ? Math.sin(this.bob * 0.5) * (sn ? 0.006 : 0.01) : 0, bobY2 = this.moving ? Math.abs(Math.cos(this.bob * 0.5)) * (sn ? 0.006 : 0.01) : 0;
+    const kickZ = this.recoil * (sn ? 0.16 : 0.06), kickY = this.recoil * (sn ? 0.05 : 0.01);
+    this.weaponModel.position.set(0.28 + bobX - this.swayX * 0.6 + bk * 0.05, -0.26 - rel + bobY2 + kickY + this.swayY * 0.4 - bk * 0.06, -0.55 + kickZ + bk * 0.05);
+    this.weaponModel.rotation.x = -rel * 1.5 + this.recoil * (sn ? 0.22 : 0.1) + this.swayY * 0.5 - bk * 0.12;
+    this.weaponModel.rotation.z = this.recoil * (sn ? 0.06 : 0.02) + bk * 0.28;
+    this.weaponModel.rotation.y = -0.06 - this.swayX * 0.5 + bk * 0.15;
+    this.weaponModel.visible = !this.spectator && !this.isDead && this.zoomK < 0.5;
+    if (this.rifleModel && this.rifleModel !== this.weaponModel) this.rifleModel.visible = false; if (this.sniperModel && this.sniperModel !== this.weaponModel) this.sniperModel.visible = false;
+    // 볼트 손잡이 애니메이션 (스나이퍼 모델에만 있음)
+    if (this.weaponModel.userData && this.weaponModel.userData.bolt) { const b = this.weaponModel.userData.bolt; b.position.z = -0.02 + bk * 0.12; b.rotation.z = bk * 1.2; }
+    this.flash.visible = this.muzzle > 0.15; this.flash.material.opacity = Math.min(1, this.muzzle); this.flash.scale.setScalar((0.25 + this.muzzle * 0.25) * (this.flashBig ? 1.9 : 1));
+    // 탄피: 오른쪽으로 튀어 나가 떨어짐
+    if (this.shellMeshes) this.shellMeshes.forEach((m, i) => { const sh = this.shells[i]; if (!sh) { m.visible = false; return; } m.visible = true;
+      const tt = sh.t; m.position.set(0.32 + sh.vx * tt * 0.5, -0.2 + sh.vy * tt - 2.2 * tt * tt, -0.5 + sh.vz * tt); m.rotation.x = tt * 12; m.rotation.z = tt * 9; });
 
     // 궤적
     this.tracers.forEach(t => {
@@ -591,7 +926,8 @@ class Fps3DGame {
       } else { m.rotation.x = 0; m.position.set(p.x, p.z || 0, p.y); m.scale.y = 1; }
       const u = m.userData;
       const sw = p.moving ? Math.sin(p.walk) * 0.5 : 0;
-      u.legL.rotation.x = sw; u.legR.rotation.x = -sw; u.armR.rotation.x = -(p.pitch || 0);
+      u.legL.rotation.x = sw; u.legR.rotation.x = -sw; u.armR.rotation.x = -(p.pitch || 0) - (p.fire ? 0.35 : 0);
+      if (!(playing || p.roll)) { const hop = p.moving ? Math.abs(Math.sin(p.walk)) * 0.05 : 0; m.position.y = (p.z || 0) + hop; m.rotation.z = p.moving ? Math.sin(p.walk) * 0.03 : 0; }
       // 다운: 쓰러짐
       // 다운: 쓰러짐 (구르는 중에는 건드리지 않습니다 — 회전이 깎이면 한 바퀴가 안 돕니다)
       if (!(playing || p.roll)) { const fall = p.dead ? 1 : 0; m.rotation.x += (fall * -Math.PI / 2 - m.rotation.x) * 0.2; }
@@ -705,14 +1041,37 @@ class Fps3DGame {
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('⤻', cx2, cy2 + 1); ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
     }
 
+    // 팀전 라운드 점수판: 위 가운데 '레드 2 : 1 블루 · ROUND 4'
+    if (this.teamMode) {
+      const c = this.teamCounts(), w = 220, x0 = W / 2 - w / 2, y0 = 10;
+      FX.glass(ctx, x0, y0, w, 44, 14, this.roundWinner ? F3_TEAM_CSS[this.roundWinner] : undefined);
+      FX.text(ctx, String(this.wins.red), W / 2 - 46, y0 + 30, { size: 24, weight: 800, color: F3_TEAM_CSS.red, align: 'center' });
+      FX.text(ctx, ':', W / 2, y0 + 29, { size: 20, weight: 800, color: 'rgba(255,255,255,0.6)', align: 'center' });
+      FX.text(ctx, String(this.wins.blue), W / 2 + 46, y0 + 30, { size: 24, weight: 800, color: F3_TEAM_CSS.blue, align: 'center' });
+      FX.text(ctx, this.roundMode ? ('R' + this.round + '  ' + c.red.alive + 'v' + c.blue.alive) : '5판 3선승', W / 2, y0 + 41, { size: 10, weight: 700, color: 'rgba(255,255,255,0.55)', align: 'center' });
+      // 남은 인원 점: 왼쪽 레드, 오른쪽 블루
+      for (let i = 0; i < Math.min(8, c.red.total); i++) { ctx.fillStyle = i < c.red.alive ? F3_TEAM_CSS.red : 'rgba(255,255,255,0.18)'; ctx.beginPath(); ctx.arc(x0 - 10 - i * 11, y0 + 22, 3.5, 0, Math.PI * 2); ctx.fill(); }
+      for (let i = 0; i < Math.min(8, c.blue.total); i++) { ctx.fillStyle = i < c.blue.alive ? F3_TEAM_CSS.blue : 'rgba(255,255,255,0.18)'; ctx.beginPath(); ctx.arc(x0 + w + 10 + i * 11, y0 + 22, 3.5, 0, Math.PI * 2); ctx.fill(); }
+    }
+    if (this.matchWinner) {
+      ctx.fillStyle = 'rgba(8,10,16,0.7)'; ctx.fillRect(0, 0, W, H); const win = this.matchWinner === this.team;
+      FX.text(ctx, win ? '승리!' : '패배', W / 2, H * 0.42, { size: 56, weight: 800, color: win ? '#FFD166' : '#9AA3B2', align: 'center', baseline: 'middle', shadow: 14 });
+      FX.text(ctx, (this.matchWinner === 'red' ? '레드' : '블루') + ' 팀  ' + this.wins.red + ' : ' + this.wins.blue, W / 2, H * 0.42 + 48, { size: 22, weight: 800, color: F3_TEAM_CSS[this.matchWinner], align: 'center', baseline: 'middle' });
+    }
     this.drawMinimap(ctx, W, H);
     if (this.toast && now < this.toast.until) { ctx.textAlign = 'center'; ctx.font = '800 18px Pretendard, sans-serif'; ctx.fillStyle = this.toast.color; ctx.shadowColor = 'rgba(0,0,0,0.7)'; ctx.shadowBlur = 4; ctx.fillText(this.toast.text, W / 2, hy + 80); ctx.shadowBlur = 0; ctx.textAlign = 'left'; }
     if (this.isDead) {
-      ctx.fillStyle = 'rgba(8,10,16,0.55)'; ctx.fillRect(0, 0, W, H); const left = (this.deadUntil - now) / 3000;
+      ctx.fillStyle = 'rgba(8,10,16,0.55)'; ctx.fillRect(0, 0, W, H); const left = this.roundMode ? 0 : (this.deadUntil - now) / 3000;
+      if (this.roundMode) {
+        const c = this.teamCounts();
+        FX.text(ctx, '쓰러졌습니다 — 이번 판은 관전', W / 2, hy - 24, { size: 22, weight: 800, color: '#FF5C7A', align: 'center', shadow: 8 });
+        FX.text(ctx, '레드 ' + c.red.alive + '명 · 블루 ' + c.blue.alive + '명 남음', W / 2, hy + 10, { size: 16, weight: 700, color: '#fff', align: 'center', shadow: 6 });
+      } else {
       ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(W / 2, hy, 48, 0, Math.PI * 2); ctx.stroke();
       ctx.strokeStyle = '#FF5C7A'; ctx.beginPath(); ctx.arc(W / 2, hy, 48, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (1 - left)); ctx.stroke();
       ctx.textAlign = 'center'; ctx.fillStyle = '#fff'; ctx.font = '800 30px Pretendard, sans-serif'; ctx.fillText(String(Math.ceil(left * 3)), W / 2, hy + 11);
       ctx.fillStyle = '#FF5C7A'; ctx.font = '800 20px Pretendard, sans-serif'; ctx.fillText((this.killer || '누군가') + (this.killHead ? ' 의 헤드샷' : ' 에게 당했다'), W / 2, hy - 74);
+      }
       ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.font = '600 13px Pretendard, sans-serif'; ctx.fillText('잠시 후 다시 등장합니다', W / 2, hy + 78); ctx.textAlign = 'left';
     }
     if (this.spectator) { ctx.textAlign = 'center'; ctx.font = '700 13px Pretendard, sans-serif'; ctx.fillStyle = '#FFD166'; ctx.fillText('👁 ' + this.myName + ' 의 화면', W / 2, this.teamMode ? 66 : 64); ctx.textAlign = 'left'; }
