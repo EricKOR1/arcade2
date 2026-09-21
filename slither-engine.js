@@ -175,9 +175,18 @@ class SlitherGame {
     FX.glass(ctx, 12, 12, 130, 44, 12);
     FX.text(ctx, '길이 ' + Math.round(this.len), 24, 40, { size: 20, weight: 800, color: SL_COLORS[this.colorIdx] });
     if (!this.isDead && Object.keys(this.peers).length) FX.text(ctx, myRank + '위', 132, 40, { size: 13, weight: 800, color: 'rgba(255,255,255,0.7)', align: 'right' });
-    FX.glass(ctx, W - 152, 12, 140, 18 + board.length * 20, 12);
-    FX.text(ctx, '순위', W - 140, 30, { size: 12, weight: 800, color: 'rgba(255,255,255,0.6)' });
-    board.forEach((sn, i) => FX.text(ctx, (i + 1) + '. ' + (sn.name || '?').slice(0, 6) + '  ' + Math.round(sn.len), W - 140, 50 + i * 20, { size: 13, weight: sn.me ? 800 : 700, color: sn.me ? '#FFD166' : '#fff' }));
+    // 순위표: 제목 한 줄 + 최대 5줄. 줄 높이 20 · 위아래 여백 포함해 상자 높이를 글자에 맞춤
+    const lbW = 150, lbX = W - lbW - 12, lbH = 34 + board.length * 20;
+    FX.glass(ctx, lbX, 12, lbW, lbH, 12);
+    FX.text(ctx, '순위 · ' + everyone.length + '명', lbX + 12, 31, { size: 12, weight: 800, color: 'rgba(255,255,255,0.6)' });
+    board.forEach((sn, i) => { const y = 52 + i * 20;
+      if (sn.me) { ctx.fillStyle = 'rgba(255,209,102,0.14)'; FX.rr(ctx, lbX + 6, y - 14, lbW - 12, 19, 6); ctx.fill(); }
+      FX.text(ctx, (i + 1) + '. ' + (sn.name || '?').slice(0, 6), lbX + 12, y, { size: 13, weight: sn.me ? 800 : 700, color: sn.me ? '#FFD166' : '#fff' });
+      FX.text(ctx, String(Math.round(sn.len)), lbX + lbW - 12, y, { size: 13, weight: 800, color: sn.me ? '#FFD166' : 'rgba(255,255,255,0.85)', align: 'right' }); });
+    // 내가 5위 밖이면 맨 아래에 내 순위 한 줄 더
+    if (myRank > 5) { const y = 12 + lbH + 18; FX.glass(ctx, lbX, 12 + lbH + 4, lbW, 24, 10, '#FFD166');
+      FX.text(ctx, myRank + '. ' + (this.myName || '나').slice(0, 6), lbX + 12, y, { size: 13, weight: 800, color: '#FFD166' });
+      FX.text(ctx, String(Math.round(this.len)), lbX + lbW - 12, y, { size: 13, weight: 800, color: '#FFD166', align: 'right' }); }
     // 미니맵 (오른쪽 아래)
     // 미니맵: 왼쪽 위 (길이 카드 아래) — 오른쪽 아래는 부스트 버튼 자리
     { const mr = 46, mx2 = 12 + mr, my2 = 66 + mr; ctx.fillStyle = 'rgba(8,10,16,0.6)'; ctx.beginPath(); ctx.arc(mx2, my2, mr, 0, Math.PI * 2); ctx.fill();

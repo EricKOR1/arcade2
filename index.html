@@ -10,8 +10,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1B2027">
 <title>아케이드</title>
-<link rel="stylesheet" href="platform.css?v=2026-10-05a">
-<link rel="stylesheet" href="style.css?v=2026-10-05a">
+<link rel="stylesheet" href="platform.css?v=2026-10-05c">
+<link rel="stylesheet" href="style.css?v=2026-10-05c">
 </head>
 <body>
 <div class="app">
@@ -128,35 +128,35 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script src="firebase-config.js?v=2026-10-05a"></script>
-<script src="sound.js?v=2026-10-05a"></script>
-<script src="shared.js?v=2026-10-05a"></script>
-<script src="fx.js?v=2026-10-05a"></script>
-<script src="tetris-engine.js?v=2026-10-05a"></script>
-<script src="racing-engine.js?v=2026-10-05a"></script>
-<script src="snake-engine.js?v=2026-10-05a"></script>
-<script src="breakout-engine.js?v=2026-10-05a"></script>
-<script src="flappy-engine.js?v=2026-10-05a"></script>
-<script src="shooter-engine.js?v=2026-10-05a"></script>
+<script src="firebase-config.js?v=2026-10-05c"></script>
+<script src="sound.js?v=2026-10-05c"></script>
+<script src="shared.js?v=2026-10-05c"></script>
+<script src="fx.js?v=2026-10-05c"></script>
+<script src="tetris-engine.js?v=2026-10-05c"></script>
+<script src="racing-engine.js?v=2026-10-05c"></script>
+<script src="snake-engine.js?v=2026-10-05c"></script>
+<script src="breakout-engine.js?v=2026-10-05c"></script>
+<script src="flappy-engine.js?v=2026-10-05c"></script>
+<script src="shooter-engine.js?v=2026-10-05c"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="fps-engine.js?v=2026-10-05a"></script>
-<script src="fps3d-engine.js?v=2026-10-05a"></script>
-<script src="game2048-engine.js?v=2026-10-05a"></script>
-<script src="frogger-engine.js?v=2026-10-05a"></script>
-<script src="asteroids-engine.js?v=2026-10-05a"></script>
-<script src="maze-engine.js?v=2026-10-05a"></script>
-<script src="tower-engine.js?v=2026-10-05a"></script>
-<script src="missile-engine.js?v=2026-10-05a"></script>
-<script src="centipede-engine.js?v=2026-10-05a"></script>
-<script src="source-engine.js?v=2026-10-05a"></script>
-<script src="arena-engine.js?v=2026-10-05a"></script>
-<script src="slither-engine.js?v=2026-10-05a"></script>
-<script src="games.js?v=2026-10-05a"></script>
-<script src="app.js?v=2026-10-05a"></script>
+<script src="fps-engine.js?v=2026-10-05c"></script>
+<script src="fps3d-engine.js?v=2026-10-05c"></script>
+<script src="game2048-engine.js?v=2026-10-05c"></script>
+<script src="frogger-engine.js?v=2026-10-05c"></script>
+<script src="asteroids-engine.js?v=2026-10-05c"></script>
+<script src="maze-engine.js?v=2026-10-05c"></script>
+<script src="tower-engine.js?v=2026-10-05c"></script>
+<script src="missile-engine.js?v=2026-10-05c"></script>
+<script src="centipede-engine.js?v=2026-10-05c"></script>
+<script src="source-engine.js?v=2026-10-05c"></script>
+<script src="arena-engine.js?v=2026-10-05c"></script>
+<script src="slither-engine.js?v=2026-10-05c"></script>
+<script src="games.js?v=2026-10-05c"></script>
+<script src="app.js?v=2026-10-05c"></script>
 <script>
 (function () {
 
-  const BUILD = '2026-10-05a';   // 화면 아래에 표시됩니다
+  const BUILD = '2026-10-05c';   // 화면 아래에 표시됩니다
 
   const gameId = getGameId();
   const def = GAMES[gameId];
@@ -548,6 +548,8 @@
       (slither ? '<button class="asuper aboost" id="aboost">⚡<small>부스트</small></button>' : '<button class="asuper" id="asuper">★<small>궁극기</small></button>') +
       '<div class="fhint" id="fhint">' + (slither ? '조이스틱: 방향 · ⚡ 꾹: 부스트(길이 소모) · 큰 뱀에 닿지 마세요' : '왼쪽: 이동 · 오른쪽: 끌어서 놓으면 발사 (톡 = 자동 조준) · ★ 궁극기') + '</div>';
     wrap.appendChild(ctl);
+    // 안내 문구는 처음 4초만 보이고 서서히 사라집니다 (레이저 태그와 같은 방식)
+    setTimeout(() => { const h = byId('fhint'); if (h) h.classList.add('fade'); }, 4000);
     if (slither) {
       const bst = byId('aboost');
       const on = () => { if (game && game.setBoost) game.setBoost(true); bst.classList.add('ready'); }, off = () => { if (game && game.setBoost) game.setBoost(false); bst.classList.remove('ready'); };
