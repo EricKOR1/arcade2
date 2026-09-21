@@ -4,7 +4,8 @@
 //   · 머리끼리 부딪히면 20% 이상 큰 쪽이 이김(비슷하면 둘 다). 죽으면 몸을 따라 먹이를 떨어뜨리고 3초 뒤 작은 뱀으로 부활
 //   네트워크: 머리 위치·각도·길이만 보내고, 받는 쪽이 머리 자취로 몸을 복원합니다 (몸 좌표를 보내지 않아 가볍습니다)
 
-const SL_R = 30;               // 경기장 반지름(칸)
+const SL_R = 72;               // 경기장 반지름(칸) — 30명 기준 1인당 약 540칸²(이전 30칸은 약 95칸²)
+const SL_PELLETS = 1300;       // 먹이 수 — 넓이에 맞춰 밀도 유지
 const SL_SEG = 0.45;           // 몸 마디 간격(칸)
 const SL_COLORS = ['#06D6A0', '#4CC9F0', '#FFD166', '#FF5C7A', '#B15DFF', '#FF9F43', '#7DF58F', '#F78FB3'];
 
@@ -17,17 +18,27 @@ class SlitherGame {
     this.peers = {}; this.parts = []; this.now = 0; this.lastTime = 0;
     this.score = 0; this.kills = 0; this.best = 0; this.gameOver = false; this.toasts = [];
     this.mx = 0; this.my = 0; this.boost = false;
-    this.reset(6);
-    this.pellets = []; this.seed = 12345; for (let i = 0; i < 260; i++) this.spawnPellet();
+    this.reset(6, this.opts.slot);
+    this.pellets = []; this.seed = 12345; for (let i = 0; i < SL_PELLETS; i++) this.spawnPellet();
   }
   rnd() { this.seed = (this.seed * 9301 + 49297) % 233280; return this.seed / 233280; }
   spawnPellet(x, y, v) {
+    if (this.pellets && this.pellets.length > SL_PELLETS * 1.6) return;   // 먹이가 너무 쌓이지 않게
     if (x == null) { const a = this.rnd() * Math.PI * 2, r = Math.sqrt(this.rnd()) * (SL_R - 2); x = Math.cos(a) * r; y = Math.sin(a) * r; }
     this.pellets.push({ x, y, v: v || 1, c: SL_COLORS[Math.floor(this.rnd() * SL_COLORS.length)], ph: this.rnd() * 6 });
   }
-  reset(len) {
-    const a = Math.random() * Math.PI * 2, r = Math.random() * (SL_R - 8);
-    this.x = Math.cos(a) * r; this.y = Math.sin(a) * r; this.angle = Math.random() * Math.PI * 2;
+  reset(len, slot) {
+    let best = null, bd = -1;
+    if (typeof slot === 'number') {
+      // 첫 출발: 해바라기 배치(황금각). 30명이면 이웃 사이가 약 20칸 — 동시에 들어와도 서로 모르는 채로 겹치지 않음
+      const k = slot % 40, a = k * 2.39996, r = Math.sqrt((k + 0.5) / 40) * (SL_R - 12);
+      best = [Math.cos(a) * r, Math.sin(a) * r];
+    } else
+    // 부활 위치: 경기장 안쪽에서 다른 뱀 머리와 가장 먼 후보 (8곳 중)
+    for (let k = 0; k < 8; k++) { const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * (SL_R - 10), x = Math.cos(a) * r, y = Math.sin(a) * r;
+      let near = 1e9; Object.keys(this.peers || {}).forEach(id => { const p = this.peers[id]; if (!p.dead) near = Math.min(near, Math.hypot(p.x - x, p.y - y)); });
+      if (near > bd) { bd = near; best = [x, y]; } }
+    this.x = best[0]; this.y = best[1]; this.angle = Math.atan2(-this.y, -this.x) + (Math.random() - 0.5);   // 가운데 쪽을 보고 출발
     this.len = len || 6; this.trail = []; for (let i = 0; i < 40; i++) this.trail.push([this.x - Math.cos(this.angle) * i * SL_SEG, this.y - Math.sin(this.angle) * i * SL_SEG]);
     this.deadUntil = 0; this.invul = 2000; this.boostAcc = 0;
   }
@@ -157,16 +168,26 @@ class SlitherGame {
     snakes.sort((a, b) => a.len - b.len).forEach(sn => this.drawSnake(ctx, sn, tx, ty, sc, now));
     FX.drawParts(ctx, this.parts.map(p => ({ ...p, x: (p.x - camX) * zoom + W / 2 / cs, y: (p.y - camY) * zoom + H / 2 / cs })), cs, 3);
     // HUD: 길이 · 순위표
+    const everyone = Object.keys(this.peers).map(id => this.peers[id]).filter(p => !p.dead).map(p => ({ name: p.name, len: p.len, me: false }));
+    if (!this.isDead) everyone.push({ name: this.myName, len: this.len, me: true });
+    const board = everyone.sort((a, b) => b.len - a.len).slice(0, 5);
+    const myRank = everyone.findIndex(e => e.me) + 1;
     FX.glass(ctx, 12, 12, 130, 44, 12);
     FX.text(ctx, '길이 ' + Math.round(this.len), 24, 40, { size: 20, weight: 800, color: SL_COLORS[this.colorIdx] });
-    const board = snakes.slice().sort((a, b) => b.len - a.len).slice(0, 5);
+    if (!this.isDead && Object.keys(this.peers).length) FX.text(ctx, myRank + '위', 132, 40, { size: 13, weight: 800, color: 'rgba(255,255,255,0.7)', align: 'right' });
     FX.glass(ctx, W - 152, 12, 140, 18 + board.length * 20, 12);
     FX.text(ctx, '순위', W - 140, 30, { size: 12, weight: 800, color: 'rgba(255,255,255,0.6)' });
     board.forEach((sn, i) => FX.text(ctx, (i + 1) + '. ' + (sn.name || '?').slice(0, 6) + '  ' + Math.round(sn.len), W - 140, 50 + i * 20, { size: 13, weight: sn.me ? 800 : 700, color: sn.me ? '#FFD166' : '#fff' }));
     // 미니맵 (오른쪽 아래)
-    { const mr = 42, mx2 = W - 14 - mr, my2 = H - 14 - mr; ctx.fillStyle = 'rgba(8,10,16,0.55)'; ctx.beginPath(); ctx.arc(mx2, my2, mr, 0, Math.PI * 2); ctx.fill();
+    // 미니맵: 왼쪽 위 (길이 카드 아래) — 오른쪽 아래는 부스트 버튼 자리
+    { const mr = 46, mx2 = 12 + mr, my2 = 66 + mr; ctx.fillStyle = 'rgba(8,10,16,0.6)'; ctx.beginPath(); ctx.arc(mx2, my2, mr, 0, Math.PI * 2); ctx.fill();
+      // 내 시야 범위 표시
+      { const vr = Math.max(vw, vh) / 2 / zoom / SL_R * mr; ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 1; ctx.strokeRect(mx2 + this.x / SL_R * mr - vw / 2 / zoom / SL_R * mr, my2 + this.y / SL_R * mr - vh / 2 / zoom / SL_R * mr, vw / zoom / SL_R * mr, vh / zoom / SL_R * mr); }
       ctx.strokeStyle = 'rgba(255,92,122,0.6)'; ctx.lineWidth = 1.5; ctx.stroke();
-      snakes.forEach(sn => { ctx.fillStyle = sn.me ? '#FFD166' : SL_COLORS[sn.ci] + '99'; ctx.beginPath(); ctx.arc(mx2 + sn.x / SL_R * mr, my2 + sn.y / SL_R * mr, sn.me ? 3 : 2, 0, Math.PI * 2); ctx.fill(); }); }
+      // 모든 뱀 (내 화면 밖 포함) — 큰 뱀일수록 점이 큼
+      const all = Object.keys(this.peers).map(id => this.peers[id]).filter(p => !p.dead).map(p => ({ x: p.x, y: p.y, len: p.len, ci: p.ci, me: false }));
+      if (!this.isDead) all.push({ x: this.x, y: this.y, len: this.len, ci: this.colorIdx, me: true });
+      all.forEach(sn => { ctx.fillStyle = sn.me ? '#FFD166' : SL_COLORS[sn.ci] + 'AA'; ctx.beginPath(); ctx.arc(mx2 + sn.x / SL_R * mr, my2 + sn.y / SL_R * mr, sn.me ? 3.2 : Math.min(4, 1.4 + Math.sqrt(sn.len) * 0.15), 0, Math.PI * 2); ctx.fill(); }); }
     this.toasts.slice(-2).forEach((t, i) => FX.text(ctx, t.text, W / 2, H * 0.28 + i * 26, { size: 18, weight: 800, color: t.color, align: 'center', shadow: 8 }));
     if (this.isDead) { ctx.fillStyle = 'rgba(8,10,16,0.5)'; ctx.fillRect(0, 0, W, H); FX.text(ctx, '부활까지 ' + Math.ceil((this.deadUntil - now) / 1000), W / 2, H / 2, { size: 30, weight: 800, color: '#fff', align: 'center', baseline: 'middle', shadow: 10 }); FX.text(ctx, '최고 길이 ' + Math.round(this.best), W / 2, H / 2 + 34, { size: 15, weight: 700, color: '#FFD166', align: 'center', baseline: 'middle' }); }
     if (this.boost && this.len > 8 && !this.isDead) { ctx.strokeStyle = 'rgba(255,209,102,0.35)'; ctx.lineWidth = 8; ctx.strokeRect(4, 4, W - 8, H - 8); }
