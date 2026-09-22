@@ -10,8 +10,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1B2027">
 <title>아케이드</title>
-<link rel="stylesheet" href="platform.css?v=2026-10-07a">
-<link rel="stylesheet" href="style.css?v=2026-10-07a">
+<link rel="stylesheet" href="platform.css?v=2026-10-08a">
+<link rel="stylesheet" href="style.css?v=2026-10-08a">
 </head>
 <body>
 <div class="app">
@@ -128,35 +128,35 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script src="firebase-config.js?v=2026-10-07a"></script>
-<script src="sound.js?v=2026-10-07a"></script>
-<script src="shared.js?v=2026-10-07a"></script>
-<script src="fx.js?v=2026-10-07a"></script>
-<script src="tetris-engine.js?v=2026-10-07a"></script>
-<script src="racing-engine.js?v=2026-10-07a"></script>
-<script src="snake-engine.js?v=2026-10-07a"></script>
-<script src="breakout-engine.js?v=2026-10-07a"></script>
-<script src="flappy-engine.js?v=2026-10-07a"></script>
-<script src="shooter-engine.js?v=2026-10-07a"></script>
+<script src="firebase-config.js?v=2026-10-08a"></script>
+<script src="sound.js?v=2026-10-08a"></script>
+<script src="shared.js?v=2026-10-08a"></script>
+<script src="fx.js?v=2026-10-08a"></script>
+<script src="tetris-engine.js?v=2026-10-08a"></script>
+<script src="racing-engine.js?v=2026-10-08a"></script>
+<script src="snake-engine.js?v=2026-10-08a"></script>
+<script src="breakout-engine.js?v=2026-10-08a"></script>
+<script src="flappy-engine.js?v=2026-10-08a"></script>
+<script src="shooter-engine.js?v=2026-10-08a"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="fps-engine.js?v=2026-10-07a"></script>
-<script src="fps3d-engine.js?v=2026-10-07a"></script>
-<script src="game2048-engine.js?v=2026-10-07a"></script>
-<script src="frogger-engine.js?v=2026-10-07a"></script>
-<script src="asteroids-engine.js?v=2026-10-07a"></script>
-<script src="maze-engine.js?v=2026-10-07a"></script>
-<script src="tower-engine.js?v=2026-10-07a"></script>
-<script src="missile-engine.js?v=2026-10-07a"></script>
-<script src="centipede-engine.js?v=2026-10-07a"></script>
-<script src="source-engine.js?v=2026-10-07a"></script>
-<script src="arena-engine.js?v=2026-10-07a"></script>
-<script src="slither-engine.js?v=2026-10-07a"></script>
-<script src="games.js?v=2026-10-07a"></script>
-<script src="app.js?v=2026-10-07a"></script>
+<script src="fps-engine.js?v=2026-10-08a"></script>
+<script src="fps3d-engine.js?v=2026-10-08a"></script>
+<script src="game2048-engine.js?v=2026-10-08a"></script>
+<script src="frogger-engine.js?v=2026-10-08a"></script>
+<script src="asteroids-engine.js?v=2026-10-08a"></script>
+<script src="maze-engine.js?v=2026-10-08a"></script>
+<script src="tower-engine.js?v=2026-10-08a"></script>
+<script src="missile-engine.js?v=2026-10-08a"></script>
+<script src="centipede-engine.js?v=2026-10-08a"></script>
+<script src="source-engine.js?v=2026-10-08a"></script>
+<script src="arena-engine.js?v=2026-10-08a"></script>
+<script src="slither-engine.js?v=2026-10-08a"></script>
+<script src="games.js?v=2026-10-08a"></script>
+<script src="app.js?v=2026-10-08a"></script>
 <script>
 (function () {
 
-  const BUILD = '2026-10-07a';   // 화면 아래에 표시됩니다
+  const BUILD = '2026-10-08a';   // 화면 아래에 표시됩니다
 
   const gameId = getGameId();
   const def = GAMES[gameId];
@@ -338,6 +338,22 @@
   const playerRef  = db.ref('players/' + playerId);
   const rosterRef  = db.ref('roster');                 // {id: 닉네임} — 학생 기기는 이것만 구독합니다 (players 는 교사만)
   // 팀전(레이저 태그 팀전 · 젬 아레나): 대기 화면에 내 팀 표시
+  // 젬 아레나: 대기 화면에서 캐릭터 고르기 (카드를 톡 — 선택은 기기에 저장, 다음 판에도 유지)
+  (function buildCharPicker() {
+    if (!def.chars || typeof AR_CHARS === 'undefined') return;
+    const host = document.getElementById('howto-keys'); if (!host) return;
+    const wrap = document.createElement('div'); wrap.className = 'char-pick'; wrap.id = 'char-pick';
+    const cur = sessionStorage.getItem('charId') || 'bolt';
+    const maxHp = 160, maxDps = 140, maxSp = 1.25;
+    Object.keys(AR_CHARS).forEach(id => { const c = AR_CHARS[id], dps = Math.round(c.shot.n * c.shot.dmg / (c.shot.cd / 1000));
+      const el = document.createElement('button'); el.type = 'button'; el.className = 'char-card' + (id === cur ? ' on' : ''); el.dataset.id = id;
+      const bar = (label, v, max, col) => '<div class="cbar"><span>' + label + '</span><i><b style="width:' + Math.round(v / max * 100) + '%;background:' + col + '"></b></i></div>';
+      el.innerHTML = '<div class="cicon">' + c.icon + '</div><div class="cname">' + c.name + '</div><div class="crole">' + c.role + '</div>' +
+        bar('체력', c.hp, maxHp, '#06D6A0') + bar('공격', dps, maxDps, '#FF5C7A') + bar('속도', c.speed, maxSp, '#4CC9F0') + '<div class="csup">★ ' + c.sup.label + ' — ' + c.sup.desc + '</div>';
+      el.addEventListener('click', () => { sessionStorage.setItem('charId', id); wrap.querySelectorAll('.char-card').forEach(x => x.classList.toggle('on', x === el)); if (game && game.charId !== id) { /* 다음 판부터 적용 */ } });
+      wrap.appendChild(el); });
+    host.parentElement.insertBefore(wrap, host.nextSibling);
+  })();
   (function paintTeamLabel() {
     if (gameId === 'arena') {   // 젬 아레나: 참가 순서대로 번갈아 — 명단이 바뀔 때마다 다시 표시
       rosterRef.on('value', sn => { const order = Object.keys(sn.val() || {}).sort(), i = order.indexOf(playerId); if (i < 0) return;
@@ -890,7 +906,7 @@
         // (기기마다 준비 시간이 달라도 같은 순간에 출발합니다. 늦게 들어온 학생은 바로 출발)
         const cd = sessionStartAt ? Math.max(0, (sessionStartAt - serverNow()) / 1000) : undefined;
         game = def.create(canvas, {
-          countdown: cd,
+          countdown: cd, charId: (def.chars ? (sessionStorage.getItem('charId') || 'bolt') : undefined),
           cellSize: cellSize, trackId: trackId, slot: slot,
           myId: playerId, myName: myNickname,
           onDropHazard: dropHazard, onHitHazard: hitHazard, nameOf: id => names[id] || '',

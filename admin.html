@@ -7,8 +7,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1B2027">
 <title>교사용 대시보드</title>
-<link rel="stylesheet" href="platform.css?v=2026-10-07a">
-<link rel="stylesheet" href="style.css?v=2026-10-07a">
+<link rel="stylesheet" href="platform.css?v=2026-10-08a">
+<link rel="stylesheet" href="style.css?v=2026-10-08a">
 </head>
 <body>
 <div class="admin" id="admin-root">
@@ -17,7 +17,7 @@
     <h1>아케이드</h1>
     <span class="badge badge-lg" id="status-badge">게임 선택</span>
     <span class="badge badge-lg badge-ghost" id="count-badge">0명 접속</span>
-    <span class="badge badge-sm" style="opacity:.4">v2026-10-07a</span>
+    <span class="badge badge-sm" style="opacity:.4">v2026-10-08a</span>
   </div>
   <p class="admin-sub" id="admin-sub">플레이할 게임을 고르면 학생용 QR이 만들어집니다.</p>
 
@@ -172,30 +172,30 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="firebase-config.js?v=2026-10-07a"></script>
-<script src="shared.js?v=2026-10-07a"></script>
-<script src="fx.js?v=2026-10-07a"></script>
-<script src="tetris-engine.js?v=2026-10-07a"></script>
-<script src="racing-engine.js?v=2026-10-07a"></script>
-<script src="snake-engine.js?v=2026-10-07a"></script>
-<script src="breakout-engine.js?v=2026-10-07a"></script>
-<script src="flappy-engine.js?v=2026-10-07a"></script>
-<script src="shooter-engine.js?v=2026-10-07a"></script>
+<script src="firebase-config.js?v=2026-10-08a"></script>
+<script src="shared.js?v=2026-10-08a"></script>
+<script src="fx.js?v=2026-10-08a"></script>
+<script src="tetris-engine.js?v=2026-10-08a"></script>
+<script src="racing-engine.js?v=2026-10-08a"></script>
+<script src="snake-engine.js?v=2026-10-08a"></script>
+<script src="breakout-engine.js?v=2026-10-08a"></script>
+<script src="flappy-engine.js?v=2026-10-08a"></script>
+<script src="shooter-engine.js?v=2026-10-08a"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="fps-engine.js?v=2026-10-07a"></script>
-<script src="fps3d-engine.js?v=2026-10-07a"></script>
-<script src="game2048-engine.js?v=2026-10-07a"></script>
-<script src="frogger-engine.js?v=2026-10-07a"></script>
-<script src="asteroids-engine.js?v=2026-10-07a"></script>
-<script src="maze-engine.js?v=2026-10-07a"></script>
-<script src="tower-engine.js?v=2026-10-07a"></script>
-<script src="missile-engine.js?v=2026-10-07a"></script>
-<script src="centipede-engine.js?v=2026-10-07a"></script>
-<script src="source-engine.js?v=2026-10-07a"></script>
-<script src="arena-engine.js?v=2026-10-07a"></script>
-<script src="slither-engine.js?v=2026-10-07a"></script>
-<script src="games.js?v=2026-10-07a"></script>
-<script src="app.js?v=2026-10-07a"></script>
+<script src="fps-engine.js?v=2026-10-08a"></script>
+<script src="fps3d-engine.js?v=2026-10-08a"></script>
+<script src="game2048-engine.js?v=2026-10-08a"></script>
+<script src="frogger-engine.js?v=2026-10-08a"></script>
+<script src="asteroids-engine.js?v=2026-10-08a"></script>
+<script src="maze-engine.js?v=2026-10-08a"></script>
+<script src="tower-engine.js?v=2026-10-08a"></script>
+<script src="missile-engine.js?v=2026-10-08a"></script>
+<script src="centipede-engine.js?v=2026-10-08a"></script>
+<script src="source-engine.js?v=2026-10-08a"></script>
+<script src="arena-engine.js?v=2026-10-08a"></script>
+<script src="slither-engine.js?v=2026-10-08a"></script>
+<script src="games.js?v=2026-10-08a"></script>
+<script src="app.js?v=2026-10-08a"></script>
 <script>
 (function () {
   const CELL = { tetris: 6, snake: 5, breakout: 8, flappy: 8, shooter: 8, g2048: 26, frogger: 8, asteroids: 6, maze: 5, tower: 7, missile: 6, centipede: 5, source: 8, arena: 6, slither: 5 };
@@ -257,7 +257,7 @@
   db.ref('session/track').on('value', snap => {
     const tk = snap.val();
     if (tk && TRACKS[tk]) { currentTrack = tk; ensureSpecTrack(); }
-    else if (tk && typeof F3_MAPS !== 'undefined' && F3_MAPS[tk]) { currentTrack = tk; if (focusFps && focusFps.mapId !== tk) { focusFps = null; } }   // FPS 맵
+    else if (tk && ((typeof F3_MAPS !== 'undefined' && F3_MAPS[tk]) || (typeof AR_MAPS !== 'undefined' && AR_MAPS[tk]))) { currentTrack = tk; if (focusFps && focusFps.mapId !== tk) { focusFps = null; } }   // FPS·아레나 맵
   });
 
   function ensureSpecTrack() {
@@ -273,13 +273,18 @@
       if (n) eventsRef.update(up); }); }, 20000);
 
   // ── 젬 아레나 광산: 교사 화면이 젬을 솟게 합니다 (누군가 한 명이 맡아야 모두 같은 젬을 봅니다) ──
-  let gemN = 0, currentStatus = 'idle';
+  let gemN = 0, currentStatus = 'idle', gemSpotsCache = null;
   setInterval(() => {
     if (currentGameId !== 'arena' || currentStatus !== 'playing') return;
     db.ref('gems').once('value').then(s => { const all = s.val() || {}; const free = Object.keys(all).filter(k => !all[k].by).length;
       if (free >= 20) return;
-      const a = Math.random() * Math.PI * 2, r = 1.2 + Math.random() * 1.4;
-      db.ref('gems/g' + (gemN++) + '_' + Date.now().toString(36)).set({ x: Math.round((10 + Math.cos(a) * r) * 10) / 10, y: Math.round((12 + Math.sin(a) * r) * 10) / 10 }); });
+      // 젬은 '걸을 수 있는 칸' 목록(맵이 계산) 중 하나에 — 예전엔 광산 벽 안에도 생겼습니다
+      const mdef = AR_MAPS[currentTrack] || AR_MAPS.mine; if (!gemSpotsCache || gemSpotsCache.id !== currentTrack) gemSpotsCache = { id: currentTrack, spots: mdef.build().gemSpots };
+      const spots = gemSpotsCache.spots; if (!spots.length) return;
+      const taken = Object.keys(all).filter(k => !all[k].by).map(k => all[k]);
+      let pick = null; for (let t = 0; t < 8 && !pick; t++) { const c = spots[Math.floor(Math.random() * spots.length)]; if (!taken.some(g => Math.hypot(g.x - c[0], g.y - c[1]) < 0.9)) pick = c; }
+      if (!pick) return;
+      db.ref('gems/g' + (gemN++) + '_' + Date.now().toString(36)).set({ x: pick[0], y: pick[1] }); });
   }, 4000);
 
   // ── 게임 분류 칩 ──
@@ -314,12 +319,14 @@
     const isMap = GAMES[gameId] && GAMES[gameId].trackKind === 'map';
     $('track-title').textContent = isMap ? '맵을 고르세요' : '트랙을 고르세요';
     if (isMap) {
-      Object.keys(F3_MAPS).forEach(id => { const mdef = F3_MAPS[id];
+      const REG = GAMES[gameId].mapRegistry === 'arena' ? AR_MAPS : F3_MAPS;   // 게임마다 맵 등록표가 다릅니다
+      Object.keys(REG).forEach(id => { const mdef = REG[id];
         const el = document.createElement('div'); el.className = 'card bg-base-200 shadow track-card';
         el.innerHTML = '<div class="card-body p-5"><h3 class="card-title text-base"></h3><p class="text-sm opacity-60"></p><div class="track-meta"><span class="badge badge-sm badge-outline"></span><span class="track-spec"></span></div></div>';
         el.querySelector('.card-title').textContent = mdef.name; el.querySelector('p').textContent = mdef.desc; el.querySelector('.badge').textContent = mdef.tag || '';
         const built = mdef.build(); const cnt = {}; built.rows.forEach(r => { for (const c of r) cnt[c] = (cnt[c] || 0) + 1; });
-        el.querySelector('.track-spec').textContent = built.rows.length + '×' + built.rows.length + ' · 상자 ' + (cnt.X || 0) + ' · 기둥 ' + (cnt.P || 0) + ' · 나무 ' + (cnt.T || 0) + ' · 등장 ' + built.spawns.length + '곳';
+        const sp = Array.isArray(built.spawns) ? built.spawns.length : (built.spawns.r.length + built.spawns.b.length);
+        el.querySelector('.track-spec').textContent = built.rows[0].length + '×' + built.rows.length + (cnt.b ? ' · 수풀 ' + cnt.b : '') + (cnt.X ? ' · 상자 ' + cnt.X : '') + (cnt.T ? ' · 나무 ' + cnt.T : '') + ' · 등장 ' + sp + '곳';
         el.addEventListener('click', () => openLobby(gameId, id, pendingStartNow));
         $('track-list').appendChild(el); });
       return;
@@ -647,7 +654,7 @@
         if (g.hasTracks) {
           // 카트는 트랙까지 고릅니다
           gbox.classList.add('hidden'); tbox.classList.remove('hidden');
-          const isMap = g.trackKind === 'map', src = isMap ? F3_MAPS : TRACKS;
+          const isMap = g.trackKind === 'map', src = isMap ? (g.mapRegistry === 'arena' ? AR_MAPS : F3_MAPS) : TRACKS;
           Object.keys(src).sort((a, b) => isMap ? 0 : (src[a].difficulty || 0) - (src[b].difficulty || 0)).forEach(tid => {
             const t = src[tid];
             const tb = document.createElement('button');
