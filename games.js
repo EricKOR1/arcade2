@@ -248,7 +248,7 @@ const GAMES = {
     needsPeers: false, hasNext: false,
     stats: [{ key: 'climbed', label: '등반' }, { key: 'lives', label: '목숨' }],
     detail: function (g) { return g.climbed + '번 등반 · ' + g.level + '층'; },
-    controls: ['up', 'left', 'down', 'right', 'jump'],
+    controls: ['left', 'right', 'up', 'down', 'jump'], padLayout: 'climb',
     labels: { up: '▲ 오르기', down: '▼', jump: '점프' },
     create: function (canvas, opts) { return new TowerGame(canvas, opts.cellSize); },
     sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, climbed: g.climbed }; }

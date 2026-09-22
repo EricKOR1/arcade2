@@ -12,7 +12,7 @@ class TowerGame {
     this.ladders = [[11, 21, 17], [2, 17, 13], [10, 13, 9], [3, 9, 5], [7, 5, 1.5]];
     this.score = 0; this.lives = 3; this.level = 1; this.gameOver = false; this.climbed = 0;
     this.lastTime = 0; this.now = 0; this.steer = 0; this.upHeld = false;
-    this.barrels = []; this.parts = []; this.spawnT = 3000; this.invul = 1500;
+    this.barrels = []; this.parts = []; this.spawnT = 3000; this.invul = 1500; this.levelStartAt = 0; this.lastBonus = 0; this.bonusUntil = 0;
     this.resetPlayer();
   }
   resetPlayer() { this.x = 1.5; this.y = this.floors[0]; this.vy = 0; this.onLadder = false; this.jumping = false; this.face = 1; }
@@ -49,7 +49,11 @@ class TowerGame {
     }
     this.wantDown = false; this.upHeld = false;
     // 꼭대기 도달
-    if (this.y <= 1.6) { this.level++; this.climbed++; this.score += 500 * this.level; if (window.Sound) Sound.levelUp(); this.barrels = []; this.resetPlayer(); this.invul = 1500; }
+    if (this.y <= 1.6) {
+      // 층 점수 500×층 + 시간 보너스: 60초 안에 깨면 남은 1초마다 20점 (예: 20초에 깨면 +800)
+      const sec = (now - (this.levelStartAt || now)) / 1000, bonus = Math.max(0, Math.round((60 - sec) * 20));
+      this.level++; this.climbed++; this.score += 500 * this.level + bonus; this.lastBonus = bonus; this.bonusUntil = now + 2000; this.levelStartAt = now;
+      if (window.Sound) Sound.levelUp(); this.barrels = []; this.resetPlayer(); this.invul = 1500; }
     // 통 생성 · 이동 (맨 위 층 왼쪽에서 출발, 층 끝에서 아래로 떨어지고 방향 전환, 가끔 사다리로 내려감)
     // 통 생성 간격: 1층 4초 → 층마다 0.35초씩 짧아져 최소 1초. 속도: 1층 0.07 → 층마다 +0.01
     this.spawnT -= dt; if (this.spawnT <= 0) { this.spawnT = Math.max(1000, 4000 - (this.level - 1) * 350); this.barrels.push({ x: 1, y: 5, dir: 1, vy: 0, falling: false, rot: 0 }); }
@@ -123,6 +127,7 @@ class TowerGame {
 
   draw() {
     const ctx = this.ctx, cs = this.cellSize, W = this.W * cs, H = this.H * cs, now = this.now;
+    if (!this.levelStartAt) this.levelStartAt = now;
     if (!this._ts || this._tsCs !== cs) this.buildSprites(cs);
     const SP = this._ts;
 
@@ -186,6 +191,11 @@ class TowerGame {
     ctx.imageSmoothingEnabled = false;
     for (let i = 0; i < this.lives; i++) ctx.drawImage(SP.stand, cs * (0.2 + i * 0.6), H - cs * 0.72, cs * 0.55, cs * 0.55);
     ctx.imageSmoothingEnabled = true;
+    // 이번 층 경과 시간 (60초 안에 깨면 보너스) · 방금 받은 보너스
+    { const sec = Math.max(0, (now - this.levelStartAt) / 1000), left = Math.max(0, 60 - sec);
+      FX.text(ctx, '⏱ ' + sec.toFixed(0) + 's', W - cs * 0.3, cs * 0.75, { size: cs * 0.5, weight: 800, color: left > 0 ? '#FFD166' : 'rgba(255,255,255,0.5)', align: 'right', shadow: 4 });
+      if (left > 0) FX.text(ctx, '보너스 +' + Math.round(left * 20), W - cs * 0.3, cs * 1.35, { size: cs * 0.36, weight: 700, color: 'rgba(255,209,102,0.8)', align: 'right', shadow: 4 });
+      if (now < this.bonusUntil && this.lastBonus > 0) FX.text(ctx, '빠른 등반 +' + this.lastBonus, W / 2, H * 0.35, { size: cs * 0.8, weight: 800, color: '#FFD166', align: 'center', shadow: 8 }); }
     if (this.gameOver) { ctx.fillStyle = 'rgba(11,13,18,0.55)'; ctx.fillRect(0, 0, W, H); }
   }
 }

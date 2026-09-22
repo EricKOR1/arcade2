@@ -41,7 +41,8 @@ class MissileGame {
     if (this.spawnLeft > 0) { this.spawnTimer -= dt; if (this.spawnTimer <= 0) { this.spawnTimer = Math.max(350, 1400 - this.wave * 100) * (0.6 + Math.random() * 0.8); this.spawnLeft--;
       const targets = this.cities.filter(c => c.alive).map(c => c.x).concat([this.bases[0].x]);
       const tx = targets[Math.floor(Math.random() * targets.length)], sx = Math.random() * this.W;
-      const sp = 0.018 + this.wave * 0.003 + Math.random() * 0.01, d = Math.hypot(tx - sx, this.H - 1) || 1;
+      // 속도: 1웨이브 0.026 → 5웨이브 0.05 → 10웨이브 0.08 (예전엔 10웨이브에도 1.5배가 채 안 됐습니다)
+      const sp = 0.02 + this.wave * 0.006 + Math.random() * 0.01, d = Math.hypot(tx - sx, this.H - 1) || 1;
       this.missiles.push({ x: sx, y: 0, sx, sy: 0, vx: (tx - sx) / d * sp, vy: (this.H - 1) / d * sp }); } }
 
     // 요격탄

@@ -56,6 +56,18 @@ class MazeGame {
   up() { this.turn(0, -1); } down() { this.turn(0, 1); }
   rotate() { this.up(); } softDrop() { if (!this._dl) { this._dl = true; this.down(); } } hardDrop() { this.up(); }
 
+  // 목표 칸에서 모든 칸까지의 걸음 수 (터널 연결 포함). 목표 칸마다 한 번만 계산해 둡니다
+  distMap(tx, ty) {
+    tx = ((tx % MZ_COLS) + MZ_COLS) % MZ_COLS; ty = Math.max(0, Math.min(MZ_ROWS - 1, ty));
+    const key = tx + ',' + ty; if (!this._dmaps) this._dmaps = {}; if (this._dmaps[key]) return this._dmaps[key];
+    const dm = []; for (let y = 0; y < MZ_ROWS; y++) dm.push(new Array(MZ_COLS).fill(-1));
+    if (!this.free(tx, ty)) { this._dmaps[key] = dm; return dm; }
+    const q = [[tx, ty]]; dm[ty][tx] = 0;
+    while (q.length) { const [x, y] = q.shift(); const dv = dm[y][x];
+      MZ_DIRS.forEach(([dx, dy]) => { const nx = ((x + dx) % MZ_COLS + MZ_COLS) % MZ_COLS, ny = y + dy; if (ny < 0 || ny >= MZ_ROWS || dm[ny][nx] >= 0 || !this.free(nx, ny)) return; dm[ny][nx] = dv + 1; q.push([nx, ny]); }); }
+    const keys = Object.keys(this._dmaps); if (keys.length > 60) delete this._dmaps[keys[0]];
+    this._dmaps[key] = dm; return dm;
+  }
   get speed() { return 0.075 + (this.level - 1) * 0.008; }
 
   // 격자 이동 공통: 이번 프레임에 칸 중심을 만나면 거기서 방향을 정하고 남은 거리만큼 더 갑니다
@@ -113,11 +125,14 @@ class MazeGame {
       this.stepActor(actor, sp, () => {
         const dcx = d.x, dcy = d.y;
         // 갈림길: 뒤로는 안 가고, 목표(로봇 또는 도망)에 가까운 쪽 (약간의 무작위)
-        const opts = MZ_DIRS.filter(([ddx, ddy]) => !(ddx === -d.dir[0] && ddy === -d.dir[1]) && this.free(dcx + ddx, dcy + ddy) && !(dcy === 8 && ddy === 1));
+        const opts = MZ_DIRS.filter(([ddx, ddy]) => !(ddx === -d.dir[0] && ddy === -d.dir[1]) && this.free(dcx + ddx, dcy + ddy) && !(dcy === 8 && dcx === 9 && ddy === 1));   // 집 문(9,8) 으로만 못 들어감 — 예전엔 8행 전체에서 아래로 못 가 드론이 위쪽에만 몰렸습니다
         if (opts.length) {
           const tx = i === 0 ? this.px : (i === 1 ? this.px + this.dir[0] * 4 : (i === 2 ? this.px - this.dir[0] * 3 : (Math.hypot(this.px - d.x, this.py - d.y) > 6 ? this.px : 1)));
           const ty = i === 0 ? this.py : (i === 1 ? this.py + this.dir[1] * 4 : (i === 2 ? this.py - this.dir[1] * 3 : (Math.hypot(this.px - d.x, this.py - d.y) > 6 ? this.py : 19)));
-          opts.sort((a, b) => { const da = Math.hypot(dcx + a[0] - tx, dcy + a[1] - ty), db = Math.hypot(dcx + b[0] - tx, dcy + b[1] - ty); return d.scared ? db - da : da - db; });
+          // 목표까지 '실제 길 거리'(BFS) 가 짧은 쪽으로 — 직선 거리로 고르면 벽에 막혀 같은 자리를 맴돕니다
+          const dm = this.distMap(Math.round(tx), Math.round(ty));
+          const dd = (o) => { const x = ((dcx + o[0]) % MZ_COLS + MZ_COLS) % MZ_COLS, y = dcy + o[1]; const v = dm[y] && dm[y][x]; return (v == null || v < 0) ? 999 : v; };
+          opts.sort((a, b) => d.scared ? dd(b) - dd(a) : dd(a) - dd(b));
           d.dir = (Math.random() < 0.15 && opts.length > 1) ? opts[1] : opts[0];
         } else d.dir = [-d.dir[0], -d.dir[1]];
       });
@@ -186,6 +201,15 @@ class MazeGame {
       ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x - r * .35, y - r * .3, r * .22, 0, Math.PI * 2); ctx.arc(x + r * .35, y - r * .3, r * .22, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = '#1A1D24'; ctx.beginPath(); ctx.arc(x - r * .35 + d.dir[0] * r * .1, y - r * .3 + d.dir[1] * r * .1, r * .1, 0, Math.PI * 2); ctx.arc(x + r * .35 + d.dir[0] * r * .1, y - r * .3 + d.dir[1] * r * .1, r * .1, 0, Math.PI * 2); ctx.fill();
     });
+    // 잡혔을 때: 빙글 돌며 작아지는 연출 (예전엔 그냥 사라져 '캐릭터가 없어진' 것처럼 보였습니다)
+    if (this.deathT > 0) {
+      const x = this.px * cs + cs / 2, y = this.py * cs + cs / 2, k = this.deathT, r = cs * .44 * k;
+      ctx.save(); ctx.translate(x, y); ctx.rotate((1 - k) * Math.PI * 4); ctx.globalAlpha = Math.max(0, k);
+      ctx.fillStyle = '#06D6A0'; ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#FF5C7A'; ctx.lineWidth = 3; for (let q = 0; q < 6; q++) { const a = q / 6 * Math.PI * 2, d = cs * (1.4 - k) ; ctx.beginPath(); ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r); ctx.lineTo(Math.cos(a) * d, Math.sin(a) * d); ctx.stroke(); }
+      ctx.restore();
+      FX.text(ctx, '잡혔다!', x, y - cs * 1.2, { size: cs * 0.7, weight: 800, color: '#FF5C7A', align: 'center', shadow: 6 });
+    }
     // 로봇 (둥근 청소 로봇 + 방향 라이트)
     if (this.deathT <= 0) {
       const x = this.px * cs + cs / 2, y = this.py * cs + cs / 2, r = cs * .44;

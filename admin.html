@@ -7,8 +7,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1B2027">
 <title>교사용 대시보드</title>
-<link rel="stylesheet" href="platform.css?v=2026-10-06b">
-<link rel="stylesheet" href="style.css?v=2026-10-06b">
+<link rel="stylesheet" href="platform.css?v=2026-10-07a">
+<link rel="stylesheet" href="style.css?v=2026-10-07a">
 </head>
 <body>
 <div class="admin" id="admin-root">
@@ -17,7 +17,7 @@
     <h1>아케이드</h1>
     <span class="badge badge-lg" id="status-badge">게임 선택</span>
     <span class="badge badge-lg badge-ghost" id="count-badge">0명 접속</span>
-    <span class="badge badge-sm" style="opacity:.4">v2026-10-06b</span>
+    <span class="badge badge-sm" style="opacity:.4">v2026-10-07a</span>
   </div>
   <p class="admin-sub" id="admin-sub">플레이할 게임을 고르면 학생용 QR이 만들어집니다.</p>
 
@@ -172,30 +172,30 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="firebase-config.js?v=2026-10-06b"></script>
-<script src="shared.js?v=2026-10-06b"></script>
-<script src="fx.js?v=2026-10-06b"></script>
-<script src="tetris-engine.js?v=2026-10-06b"></script>
-<script src="racing-engine.js?v=2026-10-06b"></script>
-<script src="snake-engine.js?v=2026-10-06b"></script>
-<script src="breakout-engine.js?v=2026-10-06b"></script>
-<script src="flappy-engine.js?v=2026-10-06b"></script>
-<script src="shooter-engine.js?v=2026-10-06b"></script>
+<script src="firebase-config.js?v=2026-10-07a"></script>
+<script src="shared.js?v=2026-10-07a"></script>
+<script src="fx.js?v=2026-10-07a"></script>
+<script src="tetris-engine.js?v=2026-10-07a"></script>
+<script src="racing-engine.js?v=2026-10-07a"></script>
+<script src="snake-engine.js?v=2026-10-07a"></script>
+<script src="breakout-engine.js?v=2026-10-07a"></script>
+<script src="flappy-engine.js?v=2026-10-07a"></script>
+<script src="shooter-engine.js?v=2026-10-07a"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="fps-engine.js?v=2026-10-06b"></script>
-<script src="fps3d-engine.js?v=2026-10-06b"></script>
-<script src="game2048-engine.js?v=2026-10-06b"></script>
-<script src="frogger-engine.js?v=2026-10-06b"></script>
-<script src="asteroids-engine.js?v=2026-10-06b"></script>
-<script src="maze-engine.js?v=2026-10-06b"></script>
-<script src="tower-engine.js?v=2026-10-06b"></script>
-<script src="missile-engine.js?v=2026-10-06b"></script>
-<script src="centipede-engine.js?v=2026-10-06b"></script>
-<script src="source-engine.js?v=2026-10-06b"></script>
-<script src="arena-engine.js?v=2026-10-06b"></script>
-<script src="slither-engine.js?v=2026-10-06b"></script>
-<script src="games.js?v=2026-10-06b"></script>
-<script src="app.js?v=2026-10-06b"></script>
+<script src="fps-engine.js?v=2026-10-07a"></script>
+<script src="fps3d-engine.js?v=2026-10-07a"></script>
+<script src="game2048-engine.js?v=2026-10-07a"></script>
+<script src="frogger-engine.js?v=2026-10-07a"></script>
+<script src="asteroids-engine.js?v=2026-10-07a"></script>
+<script src="maze-engine.js?v=2026-10-07a"></script>
+<script src="tower-engine.js?v=2026-10-07a"></script>
+<script src="missile-engine.js?v=2026-10-07a"></script>
+<script src="centipede-engine.js?v=2026-10-07a"></script>
+<script src="source-engine.js?v=2026-10-07a"></script>
+<script src="arena-engine.js?v=2026-10-07a"></script>
+<script src="slither-engine.js?v=2026-10-07a"></script>
+<script src="games.js?v=2026-10-07a"></script>
+<script src="app.js?v=2026-10-07a"></script>
 <script>
 (function () {
   const CELL = { tetris: 6, snake: 5, breakout: 8, flappy: 8, shooter: 8, g2048: 26, frogger: 8, asteroids: 6, maze: 5, tower: 7, missile: 6, centipede: 5, source: 8, arena: 6, slither: 5 };
@@ -265,6 +265,12 @@
     specTrackId = currentTrack;
     specTrack = new Track(TRACKS[currentTrack]);
   }
+
+  // ── 오래된 이벤트 정리: 20초마다 15초 지난 것을 한 번에 삭제 (학생 기기가 개별 삭제하지 않아 신호가 절반) ──
+  setInterval(() => { if (currentStatus !== 'playing') return;
+    eventsRef.once('value').then(s => { const all = s.val() || {}, cut = Date.now() - 15000, up = {}; let n = 0;
+      Object.keys(all).forEach(k => { if (!all[k] || (all[k].t || 0) < cut) { up[k] = null; n++; } });
+      if (n) eventsRef.update(up); }); }, 20000);
 
   // ── 젬 아레나 광산: 교사 화면이 젬을 솟게 합니다 (누군가 한 명이 맡아야 모두 같은 젬을 봅니다) ──
   let gemN = 0, currentStatus = 'idle';
@@ -379,7 +385,10 @@
     // 학생 상태를 대기로 되돌려 새 게임에 바로 참여할 수 있게 합니다
     playersRef.once('value').then(snap => {
       const ps = snap.val() || {}, up = {};
-      Object.keys(ps).forEach(id => { up[id + '/status'] = 'waiting'; up[id + '/score'] = 0; });
+      // 이전 게임의 미니보드·순위·통계가 카드에 남지 않게 게임 관련 값은 전부 비웁니다 (닉네임·접속 시각만 유지)
+      Object.keys(ps).forEach(id => { up[id + '/status'] = 'waiting'; up[id + '/score'] = 0;
+        Object.keys(ps[id] || {}).forEach(k => { if (['nickname', 'name', 'joinedAt', 'lastSeen', 'status', 'score'].indexOf(k) < 0) up[id + '/' + k] = null; }); });
+      db.ref('gems').remove(); db.ref('finishes').remove(); db.ref('screens').remove();
       if (Object.keys(up).length) playersRef.update(up);
       sessionRef.set({ game: gameId, status: startNow ? 'playing' : 'waiting', track: currentTrack });
     })["catch"](() => {
@@ -434,7 +443,8 @@
   }
   let screenImg = null, screenRefOn = null, screenOk = false;
   function watchScreen(id) {
-    unwatchScreen();
+    // 이전 학생 구독만 끊고 watch 는 한 번에 새 학생으로 (해제→지정 두 번 쓰면 실제 Firebase 에서 순서가 꼬여 화면이 안 올 수 있습니다)
+    if (screenRefOn) { screenRefOn.off(); screenRefOn = null; }
     sessionRef.child('watch').set(id);
     screenImg = new Image(); screenOk = false;
     screenRefOn = db.ref('screens/' + id);
@@ -864,7 +874,9 @@
       c.wrapper.classList.toggle('over', p.status === 'gameover');
       if (p.board) drawBoardGrid(c.ctx, rowsToBoard(p.board), cs);
     });
-    const sorted = ids.slice().sort((a, b) => (players[b].score || 0) - (players[a].score || 0));
+    // 순위: 점수(완주는 1000-순위) → 같으면 카트는 트랙 진행도(달리는 중 순위) → 같으면 먼저 들어온 학생이 위
+    const prog = id => (peerPos[id] && typeof peerPos[id].progress === 'number') ? peerPos[id].progress : 0;
+    const sorted = ids.slice().sort((a, b) => ((players[b].score || 0) - (players[a].score || 0)) || (prog(b) - prog(a)) || ((players[a].joinedAt || 0) - (players[b].joinedAt || 0)));
     sorted.forEach((id, i) => {
       const c = cardByPlayer[id]; if (!c) return;
       liveGrid.appendChild(c.wrapper);

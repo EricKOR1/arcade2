@@ -736,3 +736,38 @@ body.fullgrid .spectate { grid-template-columns: 1fr 320px }
 
 /* 레이저 태그 안내 문구: 체력·탄약 카드(조이스틱 위/옆)와 겹치지 않게 화면 위쪽 가운데로 (3.5초 뒤 사라짐) */
 #fps-ctl:not(.arena-ctl) .fhint { bottom: auto; top: 24%; max-width: calc(100% - 32px); white-space: normal; text-align: center }
+
+/* 젬 아레나: 발사 버튼(오른쪽 아래) · 궁극기(그 위) */
+.arena-ctl .ffire { position: absolute; right: 30px; bottom: 34px; width: 96px; height: 96px; border-radius: 50%; border: 2px solid rgba(255,92,122,.55);
+  background: rgba(255,92,122,.85); color: #fff; font: 800 14px Pretendard, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; touch-action: none; pointer-events: auto }
+.arena-ctl .ffire span { font-size: 22px; line-height: 1 }
+.arena-ctl .ffire.on { transform: scale(.94); filter: brightness(1.15) }
+.arena-ctl .asuper { bottom: 150px }
+@media (orientation: landscape) and (max-height: 540px) { .arena-ctl .ffire { width: 74px; height: 74px; bottom: 18px; right: 22px } .arena-ctl .asuper { bottom: 112px } }
+
+/* 타워 오르기 패드: 왼쪽 ← → · 오른쪽 ↑(오르기) 점프 ↓ */
+.pad-climb { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: end }
+.pad-climb .pad-lr { display: flex; gap: 10px } .pad-climb .pad-lr button { flex: 1; min-height: 110px; font-size: 32px; border-radius: 22px }
+.pad-climb .pad-ud { display: grid; grid-template-columns: 1fr 1fr; gap: 10px }
+.pad-climb .pad-ud button { min-height: 50px; font-size: 22px; border-radius: 16px }
+.pad-climb .pad-ud .k-up { grid-column: 1 / 3; min-height: 64px; font-size: 30px; color: var(--accent) }
+
+/* ── 가로 화면(태블릿 가로·폰 가로): 게임판을 왼쪽에, 조작 패드를 오른쪽에 ──
+   세로 배치를 그대로 쓰면 패드가 화면 아래를 다 차지해 게임판이 납작해졌습니다. */
+@media (orientation: landscape) and (min-width: 640px) {
+  #screen-game.active { display: grid; grid-template-columns: 1fr minmax(240px, 34%); grid-template-rows: auto 1fr; grid-template-areas: "top top" "canvas pad" }
+  #screen-game .topbar { grid-area: top }
+  #screen-game .canvas-wrap { grid-area: canvas; min-height: 0 }
+  #screen-game .pad { grid-area: pad; align-content: center; padding: 12px 18px 12px 6px; max-height: 100%; overflow: hidden }
+  #screen-game .pad.pad-none { display: none }
+  #screen-game:has(.pad.pad-none) .canvas-wrap { grid-column: 1 / 3 }   /* 패드가 없는 게임(조이스틱·톡)만 가로 전체. 카트처럼 전체 화면 + 패드면 패드는 오른쪽 */
+  /* 폰 가로: 상단 칩을 줄여 게임판에 높이를 더 줍니다 */
+  #screen-game .topbar { padding: 4px 10px 2px; gap: 6px }
+  #screen-game .chip { padding: 4px 10px } #screen-game .chip .v { font-size: 15px } #screen-game .chip .k { font-size: 9px }
+  #screen-game .next-box { padding: 3px 8px }
+  /* 패드 버튼을 가로에 맞게 낮게 */
+  .pad button { min-height: 56px }
+  .pad-split .pad-edge button { min-height: 96px }
+  .pad-cross .dpad button { width: 60px; height: 60px }
+  .pad-climb .pad-lr button { min-height: 90px }
+}

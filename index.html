@@ -10,8 +10,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1B2027">
 <title>아케이드</title>
-<link rel="stylesheet" href="platform.css?v=2026-10-06b">
-<link rel="stylesheet" href="style.css?v=2026-10-06b">
+<link rel="stylesheet" href="platform.css?v=2026-10-07a">
+<link rel="stylesheet" href="style.css?v=2026-10-07a">
 </head>
 <body>
 <div class="app">
@@ -128,35 +128,35 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script src="firebase-config.js?v=2026-10-06b"></script>
-<script src="sound.js?v=2026-10-06b"></script>
-<script src="shared.js?v=2026-10-06b"></script>
-<script src="fx.js?v=2026-10-06b"></script>
-<script src="tetris-engine.js?v=2026-10-06b"></script>
-<script src="racing-engine.js?v=2026-10-06b"></script>
-<script src="snake-engine.js?v=2026-10-06b"></script>
-<script src="breakout-engine.js?v=2026-10-06b"></script>
-<script src="flappy-engine.js?v=2026-10-06b"></script>
-<script src="shooter-engine.js?v=2026-10-06b"></script>
+<script src="firebase-config.js?v=2026-10-07a"></script>
+<script src="sound.js?v=2026-10-07a"></script>
+<script src="shared.js?v=2026-10-07a"></script>
+<script src="fx.js?v=2026-10-07a"></script>
+<script src="tetris-engine.js?v=2026-10-07a"></script>
+<script src="racing-engine.js?v=2026-10-07a"></script>
+<script src="snake-engine.js?v=2026-10-07a"></script>
+<script src="breakout-engine.js?v=2026-10-07a"></script>
+<script src="flappy-engine.js?v=2026-10-07a"></script>
+<script src="shooter-engine.js?v=2026-10-07a"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="fps-engine.js?v=2026-10-06b"></script>
-<script src="fps3d-engine.js?v=2026-10-06b"></script>
-<script src="game2048-engine.js?v=2026-10-06b"></script>
-<script src="frogger-engine.js?v=2026-10-06b"></script>
-<script src="asteroids-engine.js?v=2026-10-06b"></script>
-<script src="maze-engine.js?v=2026-10-06b"></script>
-<script src="tower-engine.js?v=2026-10-06b"></script>
-<script src="missile-engine.js?v=2026-10-06b"></script>
-<script src="centipede-engine.js?v=2026-10-06b"></script>
-<script src="source-engine.js?v=2026-10-06b"></script>
-<script src="arena-engine.js?v=2026-10-06b"></script>
-<script src="slither-engine.js?v=2026-10-06b"></script>
-<script src="games.js?v=2026-10-06b"></script>
-<script src="app.js?v=2026-10-06b"></script>
+<script src="fps-engine.js?v=2026-10-07a"></script>
+<script src="fps3d-engine.js?v=2026-10-07a"></script>
+<script src="game2048-engine.js?v=2026-10-07a"></script>
+<script src="frogger-engine.js?v=2026-10-07a"></script>
+<script src="asteroids-engine.js?v=2026-10-07a"></script>
+<script src="maze-engine.js?v=2026-10-07a"></script>
+<script src="tower-engine.js?v=2026-10-07a"></script>
+<script src="missile-engine.js?v=2026-10-07a"></script>
+<script src="centipede-engine.js?v=2026-10-07a"></script>
+<script src="source-engine.js?v=2026-10-07a"></script>
+<script src="arena-engine.js?v=2026-10-07a"></script>
+<script src="slither-engine.js?v=2026-10-07a"></script>
+<script src="games.js?v=2026-10-07a"></script>
+<script src="app.js?v=2026-10-07a"></script>
 <script>
 (function () {
 
-  const BUILD = '2026-10-06b';   // 화면 아래에 표시됩니다
+  const BUILD = '2026-10-07a';   // 화면 아래에 표시됩니다
 
   const gameId = getGameId();
   const def = GAMES[gameId];
@@ -464,8 +464,13 @@
       if (switching) return;
       switching = true;
       try { sessionStorage.setItem('autoJoin', joined ? '1' : '0'); } catch (e) {}
+      // 페이지를 바꾸면 옛 연결이 끊기면서 '끊기면 지움' 예약이 실행돼, 새 페이지가 쓴 명단을 서버가 뒤늦게 지워 버릴 수 있습니다
+      // (일부 학생이 명단에서 사라져 '튕긴' 것처럼 보이던 원인). 의도한 이동이므로 예약을 먼저 취소합니다.
+      const cancels = [];
+      try { if (myRosterRef) cancels.push(myRosterRef.onDisconnect().cancel()); if (playerRef) cancels.push(playerRef.onDisconnect().cancel()); if (myPosRef) cancels.push(myPosRef.onDisconnect().cancel()); if (screenRef) cancels.push(screenRef.onDisconnect().cancel()); } catch (e) {}
       const url = location.pathname + '?game=' + encodeURIComponent(s.game);
-      location.replace(url);
+      Promise.all(cancels).then(() => location.replace(url), () => location.replace(url));
+      setTimeout(() => location.replace(url), 1500);         // 취소 응답이 늦어도 이동은 합니다
       return;
     }
 
@@ -519,6 +524,10 @@
   if (isHtml) { document.querySelector('.app').style.padding = '0'; }
   window.addEventListener('resize', () => { if (game) fitCanvas(); });
   window.addEventListener('orientationchange', () => setTimeout(() => { if (game) fitCanvas(); }, 350));
+  // 게임판을 담는 칸의 크기가 바뀌면(화면 회전·배치 변경·처음 나타날 때) 자동으로 다시 맞춥니다.
+  // 예전엔 배치가 자리 잡기 전에 한 번만 재서, 가로 모드에서 게임판이 실제 칸의 절반 크기로 굳는 일이 있었습니다.
+  if (typeof ResizeObserver !== 'undefined') { let fitT = null; const ro = new ResizeObserver(() => { if (!game) return; clearTimeout(fitT); fitT = setTimeout(fitCanvas, 60); });
+    const wrapEl = document.getElementById('canvas-wrap'); if (wrapEl) ro.observe(wrapEl); }
 
   // ── 조작 패드 ──
   const PAD = {
@@ -559,9 +568,9 @@
     ctl = document.createElement('div'); ctl.id = 'fps-ctl'; ctl.className = 'arena-ctl';
     ctl.innerHTML =
       '<div class="fjoy" id="fjoy"><div class="fjoy-base"><div class="fjoy-knob"></div></div></div>' +
-      (slither ? '' : '<div class="fjoy ajoy-aim" id="ajoy"><div class="fjoy-base aim"><div class="fjoy-knob"></div></div></div>') +
-      (slither ? '<button class="asuper aboost" id="aboost">⚡<small>부스트</small></button>' : '<button class="asuper" id="asuper">★<small>궁극기</small></button>') +
-      '<div class="fhint" id="fhint">' + (slither ? '조이스틱: 방향 · ⚡ 꾹: 부스트(길이 소모) · 큰 뱀에 닿지 마세요' : '왼쪽: 이동 · 오른쪽: 끌어서 놓으면 발사 (톡 = 자동 조준) · ★ 궁극기') + '</div>';
+      (slither ? '<button class="asuper aboost" id="aboost">⚡<small>부스트</small></button>'
+               : '<button class="ffire" id="afire"><span>●</span>발사</button><button class="asuper" id="asuper">★<small>궁극기</small></button>') +
+      '<div class="fhint" id="fhint">' + (slither ? '조이스틱: 방향 · ⚡ 꾹: 부스트(길이 소모) · 큰 뱀에 닿지 마세요' : '조이스틱: 이동(총구도 그 방향) · ● 발사(가까운 적 자동 조준, 꾹 누르면 연사) · ★ 궁극기') + '</div>';
     wrap.appendChild(ctl);
     // 안내 문구는 처음 4초만 보이고 서서히 사라집니다 (레이저 태그와 같은 방식)
     setTimeout(() => { const h = byId('fhint'); if (h) h.classList.add('fade'); }, 4000);
@@ -584,17 +593,23 @@
       };
     };
     const L = mk(byId('fjoy'), (x, y) => game && game.setMove && game.setMove(x, y), () => game && game.setMove && game.setMove(0, 0));
-    const A = slither ? { grab: () => false, move: () => {}, end: () => {} } : mk(byId('ajoy'), (x, y) => game && game.setAim && game.setAim(x, y), (x, y) => game && game.releaseAim && game.releaseAim(x, y));
+    const A = { grab: () => false, move: () => {}, end: () => {} };   // 조준 조이스틱 없음 — 총구는 이동 방향, 발사는 자동 조준
     const on = (ev, fn) => ctl.addEventListener(ev, e => { let used = false; for (const t of e.changedTouches) { if (t.target.closest && t.target.closest('button')) continue; fn(t); used = true; } if (used) e.preventDefault(); }, { passive: false });
     on('touchstart', t => { if (!L.grab(t)) A.grab(t); });
     on('touchmove', t => { L.move(t); A.move(t); });
     on('touchend', t => { L.end(t); A.end(t); }); on('touchcancel', t => { L.end(t); A.end(t); });
     if (!slither) { tapBtn(byId('asuper'), () => game && game.useSuper && game.useSuper());
-      setInterval(() => { const b = byId('asuper'); if (b && game) b.classList.toggle('ready', game.super >= 100); }, 200); }
+      setInterval(() => { const b = byId('asuper'); if (b && game) b.classList.toggle('ready', game.super >= 100); }, 200);
+      // 발사 버튼: 톡 = 한 번, 꾹 = 연사 (엔진의 0.48초 간격을 따름)
+      const fb = byId('afire'); let fireTimer = null;
+      const fireOn = () => { if (game && game.fire) game.fire(); fb.classList.add('on'); clearInterval(fireTimer); fireTimer = setInterval(() => { if (game && game.fire) game.fire(); }, 100); };
+      const fireOff = () => { clearInterval(fireTimer); fireTimer = null; fb.classList.remove('on'); };
+      fb.addEventListener('touchstart', e => { e.preventDefault(); fireOn(); }, { passive: false }); ['touchend', 'touchcancel'].forEach(ev => fb.addEventListener(ev, fireOff));
+      fb.addEventListener('mousedown', fireOn); ['mouseup', 'mouseleave'].forEach(ev => fb.addEventListener(ev, fireOff)); }
     // PC: WASD 이동 · 마우스 조준 · 클릭 발사 · Space 궁극기
     const cv = byId('game-canvas');
     cv.addEventListener('mousemove', e => { if (!game) return; const r = cv.getBoundingClientRect(); const dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
-      if (slither) { if (game.setMove) game.setMove(dx / 120, dy / 120); } else if (game.setAim) game.setAim(dx / 120, dy / 120); });
+      if (slither) { if (game.setMove) game.setMove(dx / 120, dy / 120); } else if (game.setAim) { game.setAim(dx / 120, dy / 120); clearTimeout(window.__aimT); window.__aimT = setTimeout(() => game.setAim && game.setAim(null), 1500); } });
     cv.addEventListener('mousedown', e => { if (!game || !game.releaseAim) return; const r = cv.getBoundingClientRect(); const dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2); game.releaseAim(dx / 120, dy / 120); });
   }
 
@@ -799,6 +814,17 @@
     const dirs = def.controls.filter(c => DIR_KEYS.indexOf(c) >= 0);
     const acts = def.controls.filter(c => DIR_KEYS.indexOf(c) < 0);
     // 상하좌우가 다 있는 게임(미로·타워·스네이크·2048·길 건너기): 왼쪽에 십자 D-패드, 오른쪽에 특수키
+    // 타워 오르기: 왼손 ← → , 오른손 ↑(오르기) ↓ + 점프 — 오르기 키가 오른쪽에
+    if (def.padLayout === 'climb') {
+      pad.classList.add('pad-climb');
+      const L = document.createElement('div'); L.className = 'pad-lr'; L.appendChild(mk('left')); L.appendChild(mk('right'));
+      const R = document.createElement('div'); R.className = 'pad-ud';
+      const up = mk('up'); up.textContent = '↑'; up.title = '오르기'; R.appendChild(up);
+      acts.forEach(c => R.appendChild(mk(c)));
+      if (dirs.indexOf('down') >= 0) R.appendChild(mk('down'));
+      pad.append(L, R);
+      return;
+    }
     // — 네 방향이 같은 크기·같은 거리에 있어 엄지 하나로 균형 있게 누를 수 있습니다
     if (dirs.indexOf('up') >= 0 && dirs.indexOf('down') >= 0 && dirs.indexOf('left') >= 0 && dirs.indexOf('right') >= 0) {
       pad.classList.add('pad-cross');
@@ -1042,8 +1068,9 @@
     if (type === 'bolt') msg.p = payload.p;
     if (type === 'swap') msg.state = payload;
     if (!isKart && payload) Object.assign(msg, payload);
-    const ref = eventsRef.push(msg);
-    setTimeout(() => ref.remove(), 3000);
+    eventsRef.push(msg);
+    // 예전엔 3초 뒤 각자 지웠는데, 그러면 이벤트 하나당 모든 기기에 '추가'와 '삭제' 두 번 전달돼 30명 교전 시 신호가 두 배였습니다.
+    // 이제 교사 화면이 20초마다 오래된 것을 한 번에 지웁니다 (10초 지난 이벤트는 받는 쪽에서 무시)
   }
 
   // 완주 순위 — '먼저 신호가 도착한 순서' 가 아니라 '실제로 먼저 들어온 순서' 로 정합니다.
@@ -1052,7 +1079,9 @@
   let finishesOff = null;
   function reportFinish(won) {
     if (def.padLayout === 'arena') { playerRef.update({ status: 'finished', score: game.score }); showResult(won ? 1 : 2); return; }
-    const ms = (game && game.raceMs) || 1;
+    // 주행 시간은 '공통 출발 시각(서버 시계)' 기준으로 잽니다. 기기 안 카운트다운 기준으로 재면
+    // 늦게 들어온 학생·준비가 느렸던 기기의 시계가 늦게 출발해, 나중에 들어오고도 더 짧은 기록이 되어 먼저 들어온 학생을 밀어냈습니다.
+    const ms = sessionStartAt ? Math.max(1, Math.round(serverNow() - sessionStartAt)) : ((game && game.raceMs) || 1);
     db.ref('finishes/' + playerId).set({ ms: ms, n: nickname });
     playerRef.update({ status: 'finished' });
     const ref = db.ref('finishes');

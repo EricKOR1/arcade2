@@ -1,11 +1,18 @@
-아케이드 플랫폼 — v2026-10-06b
+아케이드 플랫폼 — v2026-10-07a
+==============================
 
-교체할 파일 4개
-  fps3d-engine.js   체력·탄약 카드를 버튼과 안 겹치는 자리로
-  index.html        버튼 위치를 재서 엔진에 전달 · 버전
-  style.css         가로 모드 무기 칩 · 안내 문구 위치
-  admin.html        버전 표시만
+교체할 파일 9개
+  index.html          순위(서버 시계) · 이동 시 튕김 · 가로 배치 · 타워 패드 · 이벤트 정리
+  admin.html          단체 이동 시 현황 정리 · 화면 보기 · 카드 순위 · 이벤트 정리
+  style.css           가로 화면 배치 · 타워 패드
+  games.js            타워 패드 설정
+  slither-engine.js   머리끼리만 삼킴
+  maze-engine.js      드론 길 찾기 · 잡힘 연출
+  tower-engine.js     시간 보너스
+  missile-engine.js   속도 상승
+  fps3d-engine.js     이름표 최적화(30명 렉)
 
-★ v2026-10-06a 를 아직 안 올렸다면 games.js · arena-engine.js · slither-engine.js 도 함께 (이 zip 에 있음)
+★ 학생 기기 모두 새로고침 필수
+
 건드리지 않는 파일: firebase-config.js (EXAMPLE 은 올리지 마세요) · photo/force/body.html
-올린 뒤 화면 아래 v2026-10-06b 확인. 안 보이면 Ctrl+Shift+R. 학생 기기도 새로고침.
+올린 뒤 화면 아래 v2026-10-07a 확인. 안 보이면 Ctrl+Shift+R.

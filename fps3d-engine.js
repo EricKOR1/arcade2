@@ -516,15 +516,24 @@ class Fps3DGame {
     g.userData = { legL, legR, armR, tag };
     return g;
   }
+  // 이름표: 이름은 한 번만 그리고(텍스처), 체력은 색 스프라이트 두 장을 늘였다 줄이는 막대로 표시합니다.
+  // 예전엔 체력이 바뀔 때마다 이름표 그림을 통째로 다시 만들어 30명 교전 시 초당 40장 넘는 텍스처를 GPU 에 올렸습니다 (렉의 원인).
   makeTag(name, team, hp) {
-    const T = THREE, cv = document.createElement('canvas'); cv.width = 256; cv.height = 64; const g = cv.getContext('2d');
-    g.fillStyle = 'rgba(8,10,16,0.65)'; g.beginPath(); if (g.roundRect) g.roundRect(28, 6, 200, 36, 10); else g.rect(28, 6, 200, 36); g.fill();
-    g.fillStyle = team ? F3_TEAM_CSS[team] : '#FFD166'; g.font = '800 26px Pretendard, sans-serif'; g.textAlign = 'center'; g.fillText(name, 128, 33);
-    g.fillStyle = 'rgba(0,0,0,0.5)'; g.fillRect(48, 48, 160, 8); g.fillStyle = (hp == null || hp > 40) ? '#06D6A0' : '#FF5C7A'; g.fillRect(48, 48, 160 * Math.max(0, Math.min(1, (hp == null ? 100 : hp) / 100)), 8);
+    const T = THREE, g0 = new T.Group();
+    const cv = document.createElement('canvas'); cv.width = 256; cv.height = 48; const g = cv.getContext('2d');
+    g.fillStyle = 'rgba(8,10,16,0.65)'; g.beginPath(); if (g.roundRect) g.roundRect(28, 4, 200, 38, 10); else g.rect(28, 4, 200, 38); g.fill();
+    g.fillStyle = team ? F3_TEAM_CSS[team] : '#FFD166'; g.font = '800 26px Pretendard, sans-serif'; g.textAlign = 'center'; g.fillText(name, 128, 32);
     const tex = new T.CanvasTexture(cv); tex.encoding = T.sRGBEncoding;
-    const sp = new T.Sprite(new T.SpriteMaterial({ map: tex, transparent: true, depthTest: false })); sp.scale.set(1.6, 0.4, 1);
-    sp.userData = { name, team, hp: hp == null ? 100 : hp };
-    return sp;
+    const nameSp = new T.Sprite(new T.SpriteMaterial({ map: tex, transparent: true, depthTest: false })); nameSp.scale.set(1.6, 0.3, 1); nameSp.position.y = 0.12; g0.add(nameSp);
+    const back = new T.Sprite(new T.SpriteMaterial({ color: 0x1A1D24, transparent: true, opacity: 0.7, depthTest: false })); back.scale.set(1.0, 0.07, 1); back.position.y = -0.12; g0.add(back);
+    const fill = new T.Sprite(new T.SpriteMaterial({ color: 0x06D6A0, depthTest: false })); fill.scale.set(1.0, 0.05, 1); fill.position.y = -0.12; fill.center.set(0, 0.5); fill.position.x = -0.5; g0.add(fill);
+    g0.userData = { name, team, hp: hp == null ? 100 : hp, fill, material: nameSp.material };
+    this.setTagHp(g0, hp == null ? 100 : hp);
+    return g0;
+  }
+  setTagHp(tag, hp) {
+    const u = tag.userData; if (!u || !u.fill) return; const k = Math.max(0, Math.min(1, hp / 100));
+    u.fill.scale.x = Math.max(0.001, 1.0 * k); u.fill.material.color.setHex(hp > 40 ? 0x06D6A0 : 0xFF5C7A); u.hp = hp;
   }
 
   // ── 조작 (플랫폼 계약 + 조이스틱) ──
@@ -948,7 +957,10 @@ class Fps3DGame {
       // 다운: 쓰러짐 (구르는 중에는 건드리지 않습니다 — 회전이 깎이면 한 바퀴가 안 돕니다)
       if (!(playing || p.roll)) { const fall = p.dead ? 1 : 0; m.rotation.x += (fall * -Math.PI / 2 - m.rotation.x) * 0.2; }
       // 이름표 체력 갱신 (바뀔 때만)
-      if (this.teamMode && p.team === this.team && (Math.round((u.tag.userData.hp || 0) / 10) !== Math.round((p.hp || 0) / 10) || u.tag.userData.name !== p.name)) { const nt = this.makeTag(p.name || '', p.team, p.hp); nt.position.copy(u.tag.position); m.remove(u.tag); if (u.tag.material.map) u.tag.material.map.dispose(); u.tag = nt; m.add(nt); }
+      if (this.teamMode && p.team === this.team) {
+        if (u.tag.userData.name !== p.name) { const nt = this.makeTag(p.name || '', p.team, p.hp); nt.position.copy(u.tag.position); m.remove(u.tag); if (u.tag.userData.material && u.tag.userData.material.map) u.tag.userData.material.map.dispose(); u.tag = nt; m.add(nt); }
+        else if (u.tag.userData.hp !== p.hp) this.setTagHp(u.tag, p.hp || 0);
+      }
       u.tag.visible = !p.dead && this.teamMode && p.team === this.team;      // 이름표·체력은 같은 팀만 (적은 보이지 않음)
       // 피격 번쩍임
       const fl = !!(u.flash && now < u.flash);

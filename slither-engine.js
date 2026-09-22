@@ -115,8 +115,8 @@ class SlitherGame {
           return; }
         // 상대 몸
         const n = Math.min(p.trail.length, Math.round(p.len / SL_SEG));
-        for (let i = 1; i < n; i += 2) { const t = p.trail[i]; if (Math.hypot(t[0] - this.x, t[1] - this.y) < R + pr * 0.9) {
-          if (this.len >= p.len * 1.5) this.eat(id, p); else this.die(p.name + '의 몸에 부딪혔다'); return; } } });
+        // 몸에 닿으면 크기와 상관없이 닿은 쪽이 죽습니다 (삼키기는 머리끼리 부딪힐 때만)
+        for (let i = 1; i < n; i += 2) { const t = p.trail[i]; if (Math.hypot(t[0] - this.x, t[1] - this.y) < R + pr * 0.9) { this.die(p.name + '의 몸에 부딪혔다'); return; } } });
     }
     // 상대 머리 보간 + 자취 복원
     Object.keys(this.peers).forEach(id => { const p = this.peers[id]; if (p.tx == null) return;

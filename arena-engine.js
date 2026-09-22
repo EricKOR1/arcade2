@@ -73,6 +73,7 @@ class ArenaGame {
   spawnAt(slot) {
     const pts = []; AR_MAP.forEach((r, y) => { for (let x = 0; x < r.length; x++) if (r[x] === (this.team === 'r' ? '1' : '2')) pts.push([x + 0.5, y + 0.5]); });
     const p = pts[slot % pts.length] || [10, 2]; this.x = p[0]; this.y = p[1];
+    this.angle = this.team === 'r' ? Math.PI / 2 : -Math.PI / 2;   // 경기장 가운데(상대 진영)를 보고 출발 — 벽을 보고 있으면 첫 발이 벽에 박힙니다
   }
   toast(text, color) { this.toasts.push({ text, color: color || '#fff', until: this.clock() + 1600 }); }
 
@@ -90,6 +91,7 @@ class ArenaGame {
   fire() {
     const now = this.clock();
     if (this.isDead || this.gameOver || now - this.lastFire < 480) return;
+    if (!this.aim) this.autoAim();                                    // 조준 조이스틱 없이 발사 버튼만 누르면: 가까운 적을 자동 조준, 없으면 바라보는 방향
     this.lastFire = now; this.recoil = 1;
     for (let i = -1; i <= 1; i++) { const a = this.angle + i * 0.09;
       this.bullets.push({ x: this.x, y: this.y, vx: Math.cos(a) * 0.32, vy: Math.sin(a) * 0.32, life: 22, dmg: 22, big: false }); }
@@ -180,8 +182,18 @@ class ArenaGame {
 
   // ── 그리기 ──
   draw() {
-    const ctx = this.ctx, cs = this.cellSize, W = this.W * cs, H = this.H * cs, now = this.now;
+    const ctx = this.ctx, cs = this.cellSize, now = this.now;
+    // 화면(CSS 픽셀) 과 지도(월드) 를 구분합니다. 예전엔 지도 전체를 화면에 욱여넣어 캐릭터가 손톱만 했습니다.
+    const SW = this.canvas.clientWidth || this.W * cs, SH = this.canvas.clientHeight || this.H * cs;
+    const W = this.W * cs, H = this.H * cs;                        // 지도 크기 (월드 픽셀)
+    const z = Math.max(1, (Math.min(SW, SH * 0.75) / 10.5) / cs);   // 한 화면에 가로 약 10칸이 보이게 확대
+    const vw = SW / z, vh = SH / z;                                  // 화면이 담는 월드 크기
+    const camX = W <= vw ? W / 2 : Math.max(vw / 2, Math.min(W - vw / 2, this.x * cs));
+    const camY = H <= vh ? H / 2 : Math.max(vh / 2, Math.min(H - vh / 2, this.y * cs));
+    this._view = { z, camX, camY, SW, SH };
     if (!this._bg || this._bgCs !== cs) this.buildBg(cs);
+    ctx.fillStyle = '#0F1626'; ctx.fillRect(0, 0, SW, SH);          // 지도 밖 여백
+    ctx.save(); ctx.translate(SW / 2 - camX * z, SH / 2 - camY * z); ctx.scale(z, z);
     ctx.drawImage(this._bg, 0, 0);
     // 젬 (빛나는 보석)
     Object.keys(this.gems).forEach(id => { const gm = this.gems[id]; if (!gm || gm.by) return; const gx = gm.x * cs, gy = gm.y * cs + Math.sin(now / 260 + gm.x) * cs * 0.06;
@@ -208,24 +220,28 @@ class ArenaGame {
       this.drawBrawler(ctx, cs, this.x, this.y, this.angle, this.team, this.hp / this.maxHp, this.myName, this.hidden ? 0.7 : 1, true, this.held, this.super);
     }
     FX.drawParts(ctx, this.parts, cs, 3);
-    // 피격 붉은 테두리 · 명중 표시
-    if (this.hurt > 0.01) { ctx.fillStyle = 'rgba(255,60,80,' + (this.hurt * 0.35).toFixed(2) + ')'; ctx.fillRect(0, 0, W, H); }
+    ctx.restore();
+    // ── 여기부터 화면 좌표 (HUD) ──
+    const HW = SW, HH = SH;
+    // 피격 붉은 테두리
+    if (this.hurt > 0.01) { ctx.fillStyle = 'rgba(255,60,80,' + (this.hurt * 0.35).toFixed(2) + ')'; ctx.fillRect(0, 0, HW, HH); }
+    this.drawMinimap(ctx, HW, HH);
     // ── HUD: 팀 젬 · 카운트다운 ──
     const tg = this.teamGems || { r: 0, b: 0 };
-    FX.glass(ctx, W / 2 - cs * 4.2, cs * 0.3, cs * 8.4, cs * 1.5, cs * 0.5);
-    FX.text(ctx, '◆ ' + tg.r, W / 2 - cs * 2.2, cs * 1.3, { size: cs * 0.9, weight: 800, color: AR_TEAM.r.color, align: 'center' });
-    FX.text(ctx, this.countTeam ? Math.ceil((this.countUntil - now) / 1000) + '' : '10개', W / 2, cs * 1.3, { size: cs * (this.countTeam ? 1.0 : 0.6), weight: 800, color: this.countTeam ? AR_TEAM[this.countTeam].color : 'rgba(255,255,255,0.6)', align: 'center' });
-    FX.text(ctx, tg.b + ' ◆', W / 2 + cs * 2.2, cs * 1.3, { size: cs * 0.9, weight: 800, color: AR_TEAM.b.color, align: 'center' });
+    FX.glass(ctx, HW / 2 - 160, 10, 320, 44, 14);
+    FX.text(ctx, '◆ ' + tg.r, HW / 2 - 70, 31, { size: 22, weight: 800, color: AR_TEAM.r.color, align: 'center' });
+    FX.text(ctx, this.countTeam ? Math.ceil((this.countUntil - now) / 1000) + '' : '10개', HW / 2, 31, { size: (this.countTeam ? 24 : 13), weight: 800, color: this.countTeam ? AR_TEAM[this.countTeam].color : 'rgba(255,255,255,0.6)', align: 'center' });
+    FX.text(ctx, tg.b + ' ◆', HW / 2 + 70, 31, { size: 22, weight: 800, color: AR_TEAM.b.color, align: 'center' });
     // 궁극기 게이지 (아래 가운데)
-    FX.glass(ctx, W / 2 - cs * 3, H - cs * 1.5, cs * 6, cs * 1.0, cs * 0.5, this.super >= 100 ? '#FFD166' : undefined);
-    ctx.fillStyle = 'rgba(255,255,255,0.12)'; FX.rr(ctx, W / 2 - cs * 2.7, H - cs * 1.15, cs * 5.4, cs * 0.3, cs * 0.15); ctx.fill();
-    ctx.fillStyle = this.super >= 100 ? '#FFD166' : '#B15DFF'; FX.rr(ctx, W / 2 - cs * 2.7, H - cs * 1.15, cs * 5.4 * (this.super / 100), cs * 0.3, cs * 0.15); ctx.fill();
-    FX.text(ctx, this.super >= 100 ? '★ 궁극기 준비!' : '궁극기 ' + Math.round(this.super) + '%', W / 2, H - cs * 0.62, { size: cs * 0.42, weight: 800, color: '#fff', align: 'center' });
-    this.toasts.slice(-2).forEach((t, i) => { FX.text(ctx, t.text, W / 2, H * 0.3 + i * cs * 1.2, { size: cs * 0.62, weight: 800, color: t.color, align: 'center', shadow: 8 }); });
-    if (this.isDead) { ctx.fillStyle = 'rgba(8,10,16,0.55)'; ctx.fillRect(0, 0, W, H); FX.text(ctx, '부활까지 ' + Math.ceil((this.deadUntil - now) / 1000), W / 2, H / 2, { size: cs * 1.2, weight: 800, color: '#fff', align: 'center', baseline: 'middle', shadow: 10 }); }
-    if (this.gameOver) { ctx.fillStyle = 'rgba(8,10,16,0.65)'; ctx.fillRect(0, 0, W, H); const win = this.winner === this.team;
-      FX.text(ctx, win ? '승리!' : '패배', W / 2, H / 2 - cs * 0.6, { size: cs * 1.8, weight: 800, color: win ? '#FFD166' : '#9AA3B2', align: 'center', baseline: 'middle', shadow: 12 });
-      FX.text(ctx, AR_TEAM[this.winner].name + ' 팀이 젬 10개를 지켰습니다', W / 2, H / 2 + cs * 1.0, { size: cs * 0.6, weight: 700, color: '#fff', align: 'center', baseline: 'middle' }); }
+    FX.glass(ctx, HW / 2 - cs * 3, HH - 44, cs * 6, cs * 1.0, 14, this.super >= 100 ? '#FFD166' : undefined);
+    ctx.fillStyle = 'rgba(255,255,255,0.12)'; FX.rr(ctx, HW / 2 - cs * 2.7, HH - cs * 1.15, cs * 5.4, 10, cs * 0.15); ctx.fill();
+    ctx.fillStyle = this.super >= 100 ? '#FFD166' : '#B15DFF'; FX.rr(ctx, HW / 2 - cs * 2.7, HH - cs * 1.15, cs * 5.4 * (this.super / 100), 10, cs * 0.15); ctx.fill();
+    FX.text(ctx, this.super >= 100 ? '★ 궁극기 준비!' : '궁극기 ' + Math.round(this.super) + '%', HW / 2, HH - 19, { size: 12, weight: 800, color: '#fff', align: 'center' });
+    this.toasts.slice(-2).forEach((t, i) => { FX.text(ctx, t.text, HW / 2, HH * 0.3 + i * 28, { size: 18, weight: 800, color: t.color, align: 'center', shadow: 8 }); });
+    if (this.isDead) { ctx.fillStyle = 'rgba(8,10,16,0.55)'; ctx.fillRect(0, 0, HW, HH); FX.text(ctx, '부활까지 ' + Math.ceil((this.deadUntil - now) / 1000), HW / 2, HH / 2, { size: 34, weight: 800, color: '#fff', align: 'center', baseline: 'middle', shadow: 10 }); }
+    if (this.gameOver) { ctx.fillStyle = 'rgba(8,10,16,0.65)'; ctx.fillRect(0, 0, HW, HH); const win = this.winner === this.team;
+      FX.text(ctx, win ? '승리!' : '패배', HW / 2, HH / 2 - 20, { size: 52, weight: 800, color: win ? '#FFD166' : '#9AA3B2', align: 'center', baseline: 'middle', shadow: 12 });
+      FX.text(ctx, AR_TEAM[this.winner].name + ' 팀이 젬 10개를 지켰습니다', HW / 2, HH / 2 + 30, { size: 17, weight: 700, color: '#fff', align: 'center', baseline: 'middle' }); }
   }
   drawBrawler(ctx, cs, x, y, angle, team, hpK, name, alpha, isMe, gems, sup) {
     const px = x * cs, py = y * cs, T = AR_TEAM[team] || AR_TEAM.r, r = cs * 0.42;
@@ -250,6 +266,21 @@ class ArenaGame {
     if (sup >= 100) { ctx.strokeStyle = '#FFD166'; ctx.lineWidth = 2; FX.rr(ctx, bx - 1, by - 1, bw + 2, cs * 0.2 + 2, cs * 0.1); ctx.stroke(); }
     FX.text(ctx, (name || '') + (gems ? '  ◆' + gems : ''), px, by - cs * 0.12, { size: cs * 0.42, weight: 800, color: '#fff', align: 'center', shadow: 4 });
     ctx.restore();
+  }
+  // 미니맵: 지도 전체를 작게 — 벽·수풀·광산, 젬(보라), 브롤러(팀색, 나는 금색), 내 시야 사각형
+  drawMinimap(ctx, SW, SH) {
+    const u = 3.4, mw = this.W * u, mh = this.H * u, mx = 12, my = 62;   // 20×24 → 68×82px
+    if (!this._mm) { const c = document.createElement('canvas'); c.width = Math.ceil(mw); c.height = Math.ceil(mh); const g = c.getContext('2d');
+      g.fillStyle = 'rgba(8,10,16,0.75)'; g.fillRect(0, 0, mw, mh);
+      for (let y = 0; y < this.H; y++) for (let x = 0; x < this.W; x++) { const c2 = AR_MAP[y][x]; if (c2 === '.') continue;
+        g.fillStyle = c2 === 'b' ? '#2E8B57' : c2 === 'G' ? '#8B5CF6' : '#5C6B85'; g.fillRect(x * u, y * u, u, u); } this._mm = c; }
+    ctx.drawImage(this._mm, mx, my);
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 1; ctx.strokeRect(mx - 0.5, my - 0.5, mw + 1, mh + 1);
+    Object.keys(this.gems).forEach(id => { const gm = this.gems[id]; if (!gm || gm.by) return; ctx.fillStyle = '#B15DFF'; ctx.fillRect(mx + gm.x * u - 1, my + gm.y * u - 1, 2.5, 2.5); });
+    Object.keys(this.peers).forEach(id => { const p = this.peers[id]; if (p.dead) return; if (p.hidden && p.team !== this.team) return;
+      ctx.fillStyle = AR_TEAM[p.team === 'b' ? 'b' : 'r'].color; ctx.beginPath(); ctx.arc(mx + p.x * u, my + p.y * u, 2.2, 0, Math.PI * 2); ctx.fill(); });
+    if (!this.isDead) { ctx.fillStyle = '#FFD166'; ctx.beginPath(); ctx.arc(mx + this.x * u, my + this.y * u, 2.8, 0, Math.PI * 2); ctx.fill(); }
+    const v = this._view; if (v) { const cs = this.cellSize; ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.strokeRect(mx + (v.camX - v.SW / v.z / 2) / cs * u, my + (v.camY - v.SH / v.z / 2) / cs * u, v.SW / v.z / cs * u, v.SH / v.z / cs * u); }
   }
   buildBg(cs) {
     const W = this.W * cs, H = this.H * cs, cv = document.createElement('canvas'); cv.width = W; cv.height = H; const g = cv.getContext('2d');
