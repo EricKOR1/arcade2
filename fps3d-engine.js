@@ -441,7 +441,7 @@ class Fps3DGame {
       if (th.decor === 'lamps') { // 천장 램프: 노란 원판 + 빛 스프라이트
         const lm = new T.MeshBasicMaterial({ color: 0xFFE9A8 });
         for (let i = 0; i < 10; i++) { const [x, y] = spot(); const l = new T.Mesh(new T.CylinderGeometry(0.35, 0.35, 0.08, 10), lm); add(l, x, y, 3.6);
-          const pt = new T.PointLight(0xFFE0A0, 0.35, 9); pt.position.set(x, 3.4, y); this.props.add(pt); } }
+          if (i % 3 === 0) { const pt = new T.PointLight(0xFFE0A0, 0.55, 12); pt.position.set(x, 3.4, y); this.props.add(pt); } } }   // 빛은 3개 중 1개만 (점광원은 태블릿에서 무겁습니다)
     } else if (th.decor === 'cactus') {
       const mat = new T.MeshLambertMaterial({ color: 0x4F8A3A });
       for (let i = 0; i < n; i++) { const [x, y] = spot(); const c = new T.Mesh(new T.CylinderGeometry(0.16, 0.2, 1.4, 7), mat); add(c, x, y, 0.7);
@@ -452,7 +452,7 @@ class Fps3DGame {
     } else if (th.decor === 'neon') {
       const cols = [0xFF5C7A, 0x4CC9F0, 0xB15DFF, 0xFFD166];
       for (let i = 0; i < 16; i++) { const [x, y] = nearWall(); const sign = new T.Mesh(new T.BoxGeometry(0.9, 0.3, 0.06), new T.MeshBasicMaterial({ color: cols[i % 4] })); add(sign, x, y, 1.9);
-        const pl = new T.PointLight(cols[i % 4], 0.5, 6); pl.position.set(x, 1.9, y); this.props.add(pl); }
+        if (i % 4 === 0) { const pl = new T.PointLight(cols[i % 4], 0.8, 9); pl.position.set(x, 1.9, y); this.props.add(pl); } }   // 간판 16개 · 빛은 4개만
     } else if (th.decor === 'trees') {
       const mat = new T.MeshLambertMaterial({ color: 0x3F8F4F });
       for (let i = 0; i < n; i++) { const [x, y] = spot(); const b = new T.Mesh(new T.SphereGeometry(0.4 + Math.random() * 0.25, 7, 5), mat); b.scale.y = 0.7; add(b, x, y, 0.3); }
@@ -849,6 +849,22 @@ class Fps3DGame {
     if (this.roundEndAt && now >= this.roundEndAt && !this.matchWinner) { this.round++; this.beginRound(); }
   }
 
+  // 학생 화면이 조작 버튼 위치(캔버스 좌표)를 알려 줍니다: 조이스틱 위쪽 · 오른쪽, 오른쪽 아래 버튼들의 왼쪽 끝
+  setHudSafe(sf) { this.hudSafe = sf; }
+  hudLayout(W, H) {
+    const CW = 156, CH = 50, gap = 8, sf = this.hudSafe;
+    if (!sf) return { hx: 14, hy: H - 66, ax: W - CW - 14, ay: H - 66 };            // 조작 버튼이 없을 때 (관전 등)
+    const bottom = Math.min(H - 12, sf.joyBottom);
+    // 가로 여유: 조이스틱 오른쪽 ~ 오른쪽 버튼 왼쪽 사이에 카드 두 장이 들어가면 바닥에 나란히
+    if (sf.rightLeft - sf.joyRight >= CW * 2 + gap * 3) {
+      const x0 = sf.joyRight + gap * 1.5;
+      return { hx: x0, hy: bottom - CH, ax: x0 + CW + gap, ay: bottom - CH };
+    }
+    // 아니면 조이스틱 위에 세로로 (위가 체력, 아래가 탄약)
+    const ay = sf.joyTop - gap - CH, hy = ay - gap - CH;
+    return { hx: 14, hy, ax: 14, ay };
+  }
+
   getSnapshot() { return null; }
 
   draw() {
@@ -1008,16 +1024,34 @@ class Fps3DGame {
       [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([ax, ay]) => { ctx.beginPath(); ctx.moveTo(W / 2 + ax * 6, hy + ay * 6); ctx.lineTo(W / 2 + ax * 16, hy + ay * 16); ctx.stroke(); }); }
     if (this.dmgDir && now < this.dmgDir.until) { const k = (this.dmgDir.until - now) / 900; ctx.save(); ctx.translate(W / 2, hy); ctx.rotate(this.dmgDir.a); ctx.strokeStyle = 'rgba(255,60,80,' + (k * 0.9).toFixed(2) + ')'; ctx.lineWidth = 8; ctx.lineCap = 'round'; ctx.beginPath(); ctx.arc(0, 0, Math.min(W, H) * 0.22, -0.35, 0.35); ctx.stroke(); ctx.restore(); }
     if (this.hurt > 0 || (this.hp <= 30 && !this.isDead)) { const a = Math.max(this.hurt * 0.6, this.hp <= 30 && !this.isDead ? 0.25 + Math.sin(now / 180) * 0.12 : 0); const g = ctx.createRadialGradient(W / 2, hy, H * 0.25, W / 2, hy, H * 0.85); g.addColorStop(0, 'rgba(255,40,70,0)'); g.addColorStop(1, 'rgba(255,40,70,' + a.toFixed(2) + ')'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); }
-    // 체력
-    rr(14, H - 66, 168, 52, 14, 'rgba(8,10,16,0.72)');
-    ctx.fillStyle = this.hp > 40 ? '#06D6A0' : '#FF5C7A'; ctx.font = '800 26px Pretendard, sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; ctx.fillText('+', 28, H - 30); ctx.fillText(String(this.hp), 50, H - 30);
-    ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.fillRect(28, H - 24, 140, 5); ctx.fillStyle = this.hp > 40 ? '#06D6A0' : '#FF5C7A'; ctx.fillRect(28, H - 24, 140 * this.hp / 100, 5);
+    // ── 체력 · 탄약 카드: 조작 버튼을 피해 빈자리에 ──
+    // 학생 화면이 버튼 위치를 재서 알려 줍니다 (setHudSafe). 가로가 넉넉하면 조이스틱 오른쪽 바닥에 나란히,
+    // 좁으면 조이스틱 위에 세로로 쌓습니다.
+    const L = this.hudLayout(W, H), CW = 156, CH = 50;
+    const cx0 = L.hx, cy0 = L.hy, ax = L.ax, ay = L.ay;
+    // 체력 (+ 오른쪽 안에 구르기 쿨다운 링)
+    rr(cx0, cy0, CW, CH, 14, 'rgba(8,10,16,0.72)');
+    ctx.fillStyle = this.hp > 40 ? '#06D6A0' : '#FF5C7A'; ctx.font = '800 24px Pretendard, sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    ctx.fillText('+', cx0 + 12, cy0 + 32); ctx.fillText(String(this.hp), cx0 + 32, cy0 + 32);
+    ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.fillRect(cx0 + 12, cy0 + 38, 100, 5); ctx.fillStyle = this.hp > 40 ? '#06D6A0' : '#FF5C7A'; ctx.fillRect(cx0 + 12, cy0 + 38, 100 * this.hp / 100, 5);
+    { const cd = Math.max(0, (this.rollCdUntil - now) / 3000), rx = cx0 + CW - 22, ry = cy0 + CH / 2, r2 = 13;
+      ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(rx, ry, r2, 0, Math.PI * 2); ctx.stroke();
+      if (cd > 0) { ctx.strokeStyle = '#4CC9F0'; ctx.beginPath(); ctx.arc(rx, ry, r2, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (1 - cd)); ctx.stroke(); }
+      ctx.fillStyle = cd > 0 ? 'rgba(255,255,255,0.45)' : '#4CC9F0'; ctx.font = '800 13px Pretendard, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('⤻', rx, ry + 1); ctx.textBaseline = 'alphabetic'; }
     // 탄약
-    rr(W - 152, H - 66, 138, 52, 14, 'rgba(8,10,16,0.72)'); ctx.textAlign = 'right';
-    if (this.reloading) { ctx.fillStyle = '#FFD166'; ctx.font = '800 15px Pretendard, sans-serif'; ctx.fillText(this.reloadUntil > now ? '재장전 중…' : '무기 준비…', W - 28, H - 36); ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.fillRect(W - 138, H - 26, 110, 5); ctx.fillStyle = '#FFD166'; const rl = this.reloadUntil > now ? (1 - (this.reloadUntil - now) / this.wpn.reload) : (1 - ((this.readyUntil || 0) - now) / 800); ctx.fillRect(W - 138, H - 26, 110 * Math.max(0, Math.min(1, rl)), 5); }
-    else { ctx.fillStyle = this.ammo > 6 ? '#FFFFFF' : '#FF5C7A'; ctx.font = '800 28px Pretendard, sans-serif'; ctx.fillText(String(this.ammo), W - 62, H - 34); ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.font = '700 13px Pretendard, sans-serif'; ctx.fillText('/ ' + this.magSize, W - 26, H - 34);
-      ctx.fillStyle = '#FFD166'; ctx.font = '800 11px Pretendard, sans-serif'; ctx.fillText(this.wpn.name + (this.weapon === 'sniper' ? ' 🔍' : ''), W - 26, H - 52);
-      const ticks = Math.min(15, this.magSize), per = this.magSize / ticks; for (let k = 0; k < ticks; k++) { ctx.fillStyle = k < Math.ceil(this.ammo / per) ? (this.ammo > (this.magSize > 10 ? 6 : 1) ? '#FFD166' : '#FF5C7A') : 'rgba(255,255,255,0.15)'; ctx.fillRect(W - 138 + k * (110 / ticks), H - 26, Math.max(4, 110 / ticks - 2.4), 6); } }
+    rr(ax, ay, CW, CH, 14, 'rgba(8,10,16,0.72)');
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#FFD166'; ctx.font = '800 11px Pretendard, sans-serif'; ctx.fillText(this.wpn.name + (this.weapon === 'sniper' ? ' 🔍' : ''), ax + CW - 12, ay + 15);
+    if (this.reloading) {
+      ctx.fillStyle = '#FFD166'; ctx.font = '800 15px Pretendard, sans-serif'; ctx.fillText(this.reloadUntil > now ? '재장전 중…' : '무기 준비…', ax + CW - 12, ay + 34);
+      const rl = this.reloadUntil > now ? (1 - (this.reloadUntil - now) / this.wpn.reload) : (1 - ((this.readyUntil || 0) - now) / 800);
+      ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.fillRect(ax + 12, ay + 40, CW - 24, 5); ctx.fillStyle = '#FFD166'; ctx.fillRect(ax + 12, ay + 40, (CW - 24) * Math.max(0, Math.min(1, rl)), 5);
+    } else {
+      ctx.fillStyle = this.ammo > (this.magSize > 10 ? 6 : 1) ? '#FFFFFF' : '#FF5C7A'; ctx.font = '800 24px Pretendard, sans-serif'; ctx.fillText(String(this.ammo), ax + CW - 46, ay + 35);
+      ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.font = '700 12px Pretendard, sans-serif'; ctx.fillText('/ ' + this.magSize, ax + CW - 12, ay + 35);
+      const ticks = Math.min(15, this.magSize), per = this.magSize / ticks, tw = (CW - 24) / ticks;
+      for (let k = 0; k < ticks; k++) { ctx.fillStyle = k < Math.ceil(this.ammo / per) ? (this.ammo > (this.magSize > 10 ? 6 : 1) ? '#FFD166' : '#FF5C7A') : 'rgba(255,255,255,0.15)'; ctx.fillRect(ax + 12 + k * tw, ay + 41, Math.max(3, tw - 2), 5); }
+    }
     ctx.textAlign = 'left';
     // 점수판
     if (this.teamMode) {
@@ -1032,14 +1066,6 @@ class Fps3DGame {
     this.feed = this.feed.filter(x => x.until > now); ctx.font = '700 12px Pretendard, sans-serif'; ctx.textAlign = 'right';
     this.feed.forEach((x, i) => { const y = 66 + i * 20, t = x.a + (x.head ? '  🎯  ' : '  ⚡  ') + x.b; const tw = ctx.measureText(t).width + 16; rr(W - 14 - tw, y - 14, tw, 19, 8, 'rgba(8,10,16,0.6)'); ctx.fillStyle = x.color; ctx.fillText(t, W - 22, y); });
     ctx.textAlign = 'left';
-    // 구르기 쿨다운 링 (체력 카드 오른쪽)
-    {
-      const cd = Math.max(0, (this.rollCdUntil - now) / 3000), cx2 = 206, cy2 = H - 40, r2 = 17;
-      ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(cx2, cy2, r2, 0, Math.PI * 2); ctx.stroke();
-      if (cd > 0) { ctx.strokeStyle = '#4CC9F0'; ctx.beginPath(); ctx.arc(cx2, cy2, r2, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (1 - cd)); ctx.stroke(); }
-      ctx.fillStyle = cd > 0 ? 'rgba(255,255,255,0.45)' : '#4CC9F0'; ctx.font = '800 15px Pretendard, sans-serif';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('⤻', cx2, cy2 + 1); ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-    }
 
     // 팀전 라운드 점수판: 위 가운데 '레드 2 : 1 블루 · ROUND 4'
     if (this.teamMode) {

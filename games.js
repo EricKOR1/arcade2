@@ -123,12 +123,13 @@ const GAMES = {
     primary: '75% 0.19 300', primaryContent: '100% 0 0', hex: '#B15DFF',
     grid: { cols: 20, rows: 24 },
     adminView: 'grid', fullBleed: true,
-    needsPeers: true, hasNext: false,
+    needsPeers: true, realtime: true, hasNext: false,
     stats: [{ key: 'held', label: '◆ 젬' }, { key: 'kills', label: 'KO' }],
     detail: function (g) { return (g.team === 'r' ? '레드 팀' : '블루 팀') + ' · 젬 ' + g.held + ' · KO ' + g.kills + (g.winner ? (g.winner === g.team ? ' · 승리' : ' · 패배') : ''); },
     controls: [], padLayout: 'arena',
-    create: function (canvas, opts) { return new ArenaGame(canvas, Object.assign({ team: Fps3DGame.teamOf(opts.myId) === 'red' ? 'r' : 'b' }, opts)); },
-    sync: function (g) { return { score: g.score, held: g.held, kills: g.kills, team: g.team }; }
+    // 팀: 참가 순서대로 번갈아 (레드·블루·레드·…) — id 해시로 정하면 한 팀에 몰릴 수 있습니다
+    create: function (canvas, opts) { return new ArenaGame(canvas, Object.assign({ team: ((opts.slot || 0) % 2) ? 'b' : 'r' }, opts)); },
+    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, held: g.held, kills: g.kills, team: g.team }; }
   },
 
   slither: {
@@ -140,12 +141,12 @@ const GAMES = {
     primary: '75% 0.19 160', primaryContent: '100% 0 0', hex: '#06D6A0',
     grid: { cols: 30, rows: 30 },
     adminView: 'grid', fullBleed: true,
-    needsPeers: true, hasNext: false,
+    needsPeers: true, realtime: true, hasNext: false,
     stats: [{ key: 'len', label: '길이' }, { key: 'kills', label: '삼킴' }],
     detail: function (g) { return '길이 ' + Math.round(g.len) + ' · 최고 ' + Math.round(Math.max(g.best, g.len)) + ' · 삼킴 ' + g.kills; },
     controls: [], padLayout: 'slither',
     create: function (canvas, opts) { return new SlitherGame(canvas, opts); },
-    sync: function (g) { return { score: Math.round(Math.max(g.best, g.len)), len: Math.round(g.len), kills: g.kills }; }
+    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: Math.round(Math.max(g.best, g.len)), len: Math.round(g.len), kills: g.kills }; }
   },
 
   fpsclassic: {

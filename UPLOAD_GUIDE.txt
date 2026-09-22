@@ -1,18 +1,11 @@
-아케이드 플랫폼 — v2026-10-05a
-==============================
-
-새로 올릴 파일 1개
-  slither-engine.js    뱀 아레나 (큰 뱀이 작은 뱀을 삼키는 실시간 대전)
+아케이드 플랫폼 — v2026-10-06b
 
 교체할 파일 4개
-  games.js             등록
-  index.html           조이스틱+부스트 조작 · 버전
-  admin.html           미니보드 셀 크기 · 버전
-  style.css            부스트 버튼
-  (+ README.md)
+  fps3d-engine.js   체력·탄약 카드를 버튼과 안 겹치는 자리로
+  index.html        버튼 위치를 재서 엔진에 전달 · 버전
+  style.css         가로 모드 무기 칩 · 안내 문구 위치
+  admin.html        버전 표시만
 
-건드리지 않는 파일
-  firebase-config.js  ← 본인 값 그대로 (EXAMPLE 은 올리지 마세요)
-  photo.html / force.html / body.html
-
-올린 뒤 화면 아래 v2026-10-05a 를 꼭 확인하세요. 안 보이면 Ctrl+Shift+R. 학생 기기도 새로고침.
+★ v2026-10-06a 를 아직 안 올렸다면 games.js · arena-engine.js · slither-engine.js 도 함께 (이 zip 에 있음)
+건드리지 않는 파일: firebase-config.js (EXAMPLE 은 올리지 마세요) · photo/force/body.html
+올린 뒤 화면 아래 v2026-10-06b 확인. 안 보이면 Ctrl+Shift+R. 학생 기기도 새로고침.

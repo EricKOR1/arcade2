@@ -52,7 +52,9 @@ class SlitherGame {
   serialize() { return [this.x.toFixed(2), this.y.toFixed(2), this.angle.toFixed(2), Math.round(this.len), this.boost ? 1 : 0, this.isDead ? 1 : 0, this.colorIdx, this.kills].join(','); }
   static parse(raw) { const a = String(raw).split(','); return { x: +a[0], y: +a[1], angle: +a[2], len: +a[3] || 6, boost: a[4] === '1', dead: a[5] === '1', ci: +a[6] || 0, kills: +a[7] || 0 }; }
   applyPeerRaw(id, raw, name) {
+    if (typeof raw !== 'string') return;                       // 이전 게임의 옛 신호 등 형식이 다르면 무시
     const d = SlitherGame.parse(raw), now = this.clock();
+    if (!isFinite(d.x) || !isFinite(d.y) || !isFinite(d.angle)) return;   // 숫자가 아니면 무시 (그리기가 매 프레임 멈추는 것을 막음)
     if (!this.peers[id]) this.peers[id] = { x: d.x, y: d.y, angle: d.angle, trail: [[d.x, d.y]], len: d.len, dead: d.dead, ci: d.ci };
     const p = this.peers[id];
     if (p.dead && !d.dead) { p.trail = [[d.x, d.y]]; p.x = d.x; p.y = d.y; }            // 부활: 자취 새로

@@ -10,8 +10,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1B2027">
 <title>아케이드</title>
-<link rel="stylesheet" href="platform.css?v=2026-10-05c">
-<link rel="stylesheet" href="style.css?v=2026-10-05c">
+<link rel="stylesheet" href="platform.css?v=2026-10-06b">
+<link rel="stylesheet" href="style.css?v=2026-10-06b">
 </head>
 <body>
 <div class="app">
@@ -128,35 +128,35 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script src="firebase-config.js?v=2026-10-05c"></script>
-<script src="sound.js?v=2026-10-05c"></script>
-<script src="shared.js?v=2026-10-05c"></script>
-<script src="fx.js?v=2026-10-05c"></script>
-<script src="tetris-engine.js?v=2026-10-05c"></script>
-<script src="racing-engine.js?v=2026-10-05c"></script>
-<script src="snake-engine.js?v=2026-10-05c"></script>
-<script src="breakout-engine.js?v=2026-10-05c"></script>
-<script src="flappy-engine.js?v=2026-10-05c"></script>
-<script src="shooter-engine.js?v=2026-10-05c"></script>
+<script src="firebase-config.js?v=2026-10-06b"></script>
+<script src="sound.js?v=2026-10-06b"></script>
+<script src="shared.js?v=2026-10-06b"></script>
+<script src="fx.js?v=2026-10-06b"></script>
+<script src="tetris-engine.js?v=2026-10-06b"></script>
+<script src="racing-engine.js?v=2026-10-06b"></script>
+<script src="snake-engine.js?v=2026-10-06b"></script>
+<script src="breakout-engine.js?v=2026-10-06b"></script>
+<script src="flappy-engine.js?v=2026-10-06b"></script>
+<script src="shooter-engine.js?v=2026-10-06b"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="fps-engine.js?v=2026-10-05c"></script>
-<script src="fps3d-engine.js?v=2026-10-05c"></script>
-<script src="game2048-engine.js?v=2026-10-05c"></script>
-<script src="frogger-engine.js?v=2026-10-05c"></script>
-<script src="asteroids-engine.js?v=2026-10-05c"></script>
-<script src="maze-engine.js?v=2026-10-05c"></script>
-<script src="tower-engine.js?v=2026-10-05c"></script>
-<script src="missile-engine.js?v=2026-10-05c"></script>
-<script src="centipede-engine.js?v=2026-10-05c"></script>
-<script src="source-engine.js?v=2026-10-05c"></script>
-<script src="arena-engine.js?v=2026-10-05c"></script>
-<script src="slither-engine.js?v=2026-10-05c"></script>
-<script src="games.js?v=2026-10-05c"></script>
-<script src="app.js?v=2026-10-05c"></script>
+<script src="fps-engine.js?v=2026-10-06b"></script>
+<script src="fps3d-engine.js?v=2026-10-06b"></script>
+<script src="game2048-engine.js?v=2026-10-06b"></script>
+<script src="frogger-engine.js?v=2026-10-06b"></script>
+<script src="asteroids-engine.js?v=2026-10-06b"></script>
+<script src="maze-engine.js?v=2026-10-06b"></script>
+<script src="tower-engine.js?v=2026-10-06b"></script>
+<script src="missile-engine.js?v=2026-10-06b"></script>
+<script src="centipede-engine.js?v=2026-10-06b"></script>
+<script src="source-engine.js?v=2026-10-06b"></script>
+<script src="arena-engine.js?v=2026-10-06b"></script>
+<script src="slither-engine.js?v=2026-10-06b"></script>
+<script src="games.js?v=2026-10-06b"></script>
+<script src="app.js?v=2026-10-06b"></script>
 <script>
 (function () {
 
-  const BUILD = '2026-10-05c';   // 화면 아래에 표시됩니다
+  const BUILD = '2026-10-06b';   // 화면 아래에 표시됩니다
 
   const gameId = getGameId();
   const def = GAMES[gameId];
@@ -333,17 +333,22 @@
   if (!playerId) {
     playerId = 'p_' + Math.random().toString(36).slice(2, 10);
     sessionStorage.setItem('playerId', playerId);
-  // 팀전(레이저 태그 팀전 · 젬 아레나): 대기 화면에 내 팀 표시
-  (function paintTeamLabel() {
-    if ((gameId === 'fpsteam' || gameId === 'arena') && typeof Fps3DGame !== 'undefined') {
-      const red = Fps3DGame.teamOf(playerId) === 'red';
-      document.getElementById('howto-name').textContent = def.name + (red ? '  ·  🔴 나는 레드 팀' : '  ·  🔵 나는 블루 팀');
-    }
-  })();
   }
 
   const playerRef  = db.ref('players/' + playerId);
   const rosterRef  = db.ref('roster');                 // {id: 닉네임} — 학생 기기는 이것만 구독합니다 (players 는 교사만)
+  // 팀전(레이저 태그 팀전 · 젬 아레나): 대기 화면에 내 팀 표시
+  (function paintTeamLabel() {
+    if (gameId === 'arena') {   // 젬 아레나: 참가 순서대로 번갈아 — 명단이 바뀔 때마다 다시 표시
+      rosterRef.on('value', sn => { const order = Object.keys(sn.val() || {}).sort(), i = order.indexOf(playerId); if (i < 0) return;
+        document.getElementById('howto-name').textContent = def.name + (i % 2 ? '  ·  🔵 나는 블루 팀' : '  ·  🔴 나는 레드 팀'); });
+      return;
+    }
+    if (gameId === 'fpsteam' && typeof Fps3DGame !== 'undefined') {
+      const red = Fps3DGame.teamOf(playerId) === 'red';
+      document.getElementById('howto-name').textContent = def.name + (red ? '  ·  🔴 나는 레드 팀' : '  ·  🔵 나는 블루 팀');
+    }
+  })();
   const myRosterRef = rosterRef.child(playerId);
   const playersRef = db.ref('players');
   // 서버 시계와의 차이 — 기기 시계가 달라도 같은 순간에 출발하도록
@@ -536,6 +541,16 @@
   try { const o = JSON.parse(localStorage.getItem('fpsOpt') || '{}'); Object.assign(fpsOpt, o); } catch (e) {}
   function saveOpt() { try { localStorage.setItem('fpsOpt', JSON.stringify(fpsOpt)); } catch (e) {} }
 
+  // 화면 위 버튼용 공용 도우미 — 터치는 touchend 에서 한 번만, 마우스는 click (둘이 겹쳐 두 번 눌리지 않게).
+  // 레이저 태그·젬 아레나·뱀 아레나 조작이 함께 씁니다. (예전엔 레이저 태그 함수 안에만 있어 젬 아레나에서 예외가 났습니다)
+  function tapBtn(el, fn) {
+    if (!el) return;
+    let touched = 0;
+    el.addEventListener('touchstart', e => { e.stopPropagation(); }, { passive: true });
+    el.addEventListener('touchend', e => { e.preventDefault(); e.stopPropagation(); touched = Date.now(); fn(); }, { passive: false });
+    el.addEventListener('click', () => { if (Date.now() - touched > 500) fn(); });
+  }
+
   // 젬 아레나: 왼쪽 조이스틱 = 이동, 오른쪽 조이스틱 = 조준(놓으면 발사), ★ = 궁극기
   function buildArenaControls(mode) {
     const slither = mode === 'slither';
@@ -607,6 +622,22 @@
     wrap.appendChild(ctl);
     const joy = byId('fjoy'), base = joy.querySelector('.fjoy-base'), knob = joy.querySelector('.fjoy-knob');
     setTimeout(() => { const h = byId('fhint'); if (h) h.classList.add('fade'); }, 3500);
+    // HUD(체력·탄약)가 버튼과 겹치지 않도록 버튼 위치를 재서 엔진에 알려 줍니다
+    const measureHud = () => {
+      if (!game || !game.setHudSafe) return;
+      const cv = byId('game-canvas').getBoundingClientRect(), jb = byId('fjoy').querySelector('.fjoy-base').getBoundingClientRect();
+      const bandTop = jb.top - 8;                                  // 조이스틱 높이의 바닥 띠 안에 있는 오른쪽 버튼들
+      let rightLeft = cv.right;
+      ['ffire', 'fzoom', 'fjump', 'froll', 'freload', 'fwpns'].forEach(id => { const el = byId(id); if (!el) return; const r = el.getBoundingClientRect();
+        if (r.width > 0 && r.bottom > bandTop) rightLeft = Math.min(rightLeft, r.left); });
+      // 줌 버튼은 스나이퍼일 때만 보이지만 자리를 미리 비워 둡니다
+      const zb = byId('fzoom'); if (zb) { const cs = getComputedStyle(zb); const right = parseFloat(cs.right) || 0, w = parseFloat(cs.width) || 0; rightLeft = Math.min(rightLeft, cv.right - right - w); }
+      game.setHudSafe({ joyTop: jb.top - cv.top, joyBottom: jb.bottom - cv.top, joyRight: jb.right - cv.left, rightLeft: rightLeft - cv.left });
+    };
+    window.__measureHud = measureHud;                     // 게임이 만들어진 뒤에도 한 번 더 부릅니다 (startGame)
+    requestAnimationFrame(measureHud);
+    window.addEventListener('resize', () => setTimeout(measureHud, 60));
+    window.addEventListener('orientationchange', () => setTimeout(measureHud, 400));
 
     // 터치 배분: 조이스틱은 왼쪽 아래에 '고정' — 그 근처를 짚으면 조이스틱, 나머지는 조준 (버튼 위는 버튼)
     let joyId = null, jcx = 0, jcy = 0, R = 46, lookId = null, lx = 0, ly = 0;
@@ -631,12 +662,6 @@
       if (used) e.preventDefault();
     };
     // 버튼: 터치는 touchend 에서 바로 실행(브라우저 click 지연·누락 없이), 마우스는 click
-    const tapBtn = (el, fn) => {
-      let touched = 0;
-      el.addEventListener('touchstart', e => { e.stopPropagation(); }, { passive: true });
-      el.addEventListener('touchend', e => { e.preventDefault(); e.stopPropagation(); touched = Date.now(); fn(); }, { passive: false });
-      el.addEventListener('click', () => { if (Date.now() - touched > 500) fn(); });
-    };
     const onMove = e => {
       for (const t of e.changedTouches) {
         if (t.identifier === joyId) setJoy(t.clientX - jcx, t.clientY - jcy);
@@ -853,6 +878,7 @@
         qFrames = 0; qSum = 0; qLast = 0;
         if (window.FX) { FX.juice.reset(); if (window.Sound) FX.hookSound(Sound); } juiceScore = null; juicePopAt = 0;
         window.__game = game;                               // 검사·디버깅용
+        if (window.__measureHud) { window.__measureHud(); setTimeout(window.__measureHud, 300); }   // HUD 가 버튼을 피하도록
         if (def.hasNext) { game.onNextChange = drawNextPreview; drawNextPreview(); }
         game.draw();
         bindControls();

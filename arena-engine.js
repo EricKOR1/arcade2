@@ -53,7 +53,9 @@ class ArenaGame {
   }
   serialize() { return [this.x.toFixed(2), this.y.toFixed(2), this.angle.toFixed(2), this.hp, this.held, this.team, this.isDead ? 1 : 0, this.hidden ? 1 : 0, Math.round(this.super), this.kills].join(','); }
   applyPeerRaw(id, raw, name) {
+    if (typeof raw !== 'string') return;                       // 이전 게임의 옛 신호 등 형식이 다르면 무시
     const d = ArenaGame.parse(raw);
+    if (!isFinite(d.x) || !isFinite(d.y) || !isFinite(d.angle)) return;   // 숫자가 아니면 무시 (그리기가 매 프레임 멈추는 것을 막음)
     if (!this.peers[id]) this.peers[id] = { x: d.x, y: d.y, angle: d.angle, buf: [] };
     const p = this.peers[id]; const now = this.clock();
     const last = p.buf[p.buf.length - 1];

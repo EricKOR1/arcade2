@@ -699,7 +699,7 @@ body.fullgrid .spectate { grid-template-columns: 1fr 320px }
 .fzoom.on { background: rgba(255,209,102,.9); color: #1a1500; border-color: transparent }
 .fzoom.hidden { display: none }
 @media (orientation: landscape) and (max-height: 540px) {
-  .fwpns { bottom: 206px; right: 14px; gap: 4px } .fwpn { padding: 5px 8px; font-size: 10px }
+  .fwpns { bottom: 168px; right: 92px; gap: 4px; flex-direction: row } .fwpn { padding: 5px 8px; font-size: 10px }   /* 옵션 버튼과 안 겹치게 가로 줄 */
   .fzoom { right: 102px; bottom: 16px; width: 50px; height: 50px; font-size: 19px }
 }
 
@@ -733,3 +733,6 @@ body.fullgrid .spectate { grid-template-columns: 1fr 320px }
 .aboost { bottom: 30px; right: 30px; border-color: rgba(255,209,102,.45) }
 .aboost.ready { animation: none; box-shadow: 0 0 28px rgba(255,209,102,.8) }
 @media (orientation: landscape) and (max-height: 540px) { .aboost { bottom: 18px; right: 20px } }
+
+/* 레이저 태그 안내 문구: 체력·탄약 카드(조이스틱 위/옆)와 겹치지 않게 화면 위쪽 가운데로 (3.5초 뒤 사라짐) */
+#fps-ctl:not(.arena-ctl) .fhint { bottom: auto; top: 24%; max-width: calc(100% - 32px); white-space: normal; text-align: center }
