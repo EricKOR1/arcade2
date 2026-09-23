@@ -64,6 +64,12 @@
         ".write": true,
         ".validate": "newData.hasChildren(['x','y'])"
       }
+    },
+    "picks": {
+      "$id": {
+        ".write": true,
+        ".validate": "newData.isString() && newData.val().length < 20"
+      }
     }
   }
 }

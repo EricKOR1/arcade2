@@ -31,8 +31,10 @@ const FX = (function () {
   // ── 글자 ──
   function text(ctx, str, x, y, o) {
     o = o || {};
-    ctx.font = (o.weight || 700) + ' ' + Math.round(o.size || 14) + 'px Pretendard, sans-serif';
+    ctx.font = (o.weight || 700) + ' ' + Math.round(o.size || 14) + 'px ' + (o.font || 'Pretendard, sans-serif');
     ctx.textAlign = o.align || 'left'; ctx.textBaseline = o.baseline || 'alphabetic';
+    // 굵은 테두리 글자: 먼저 두껍게 윤곽을 칠하고 위에 본색 (게임 UI 에서 배경과 상관없이 읽힘)
+    if (o.stroke) { ctx.lineJoin = 'round'; ctx.lineWidth = o.strokeW || Math.max(2, (o.size || 14) * 0.22); ctx.strokeStyle = o.stroke; ctx.strokeText(str, x, y + (o.drop || 0)); if (o.drop) ctx.strokeText(str, x, y); }
     if (o.shadow) { ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = o.shadow; }
     ctx.fillStyle = o.color || '#fff'; ctx.fillText(str, x, y);
     ctx.shadowBlur = 0; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';

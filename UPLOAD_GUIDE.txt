@@ -1,13 +1,12 @@
-아케이드 플랫폼 — v2026-10-08a
-==============================
+아케이드 플랫폼 — v2026-10-10a
 
-교체할 파일 5개
-  arena-engine.js   맵 3종(30명 규모) · 캐릭터 6종 스킬 · 젬 위치 · 그래픽
-  games.js          맵 선택 · 캐릭터 · 설명
-  index.html        캐릭터 선택 카드 · 버전
-  admin.html        맵 선택 화면(게임별 등록표) · 젬을 빈 칸에만 생성
-  style.css         캐릭터 카드
+교체할 파일 4개
+  index.html          캐릭터 선택 화면(10초)
+  admin.html          시작 → 선택 단계 → 전원 선택/10초 뒤 시작 판정
+  style.css           선택 화면
+  firebase-rules.json ★ 'picks' 노드 추가 — 규칙을 쓰신다면 다시 붙여 넣으세요
 
-★ 학생 기기 모두 새로고침 필수 (신호에 캐릭터 정보 추가)
+★ 학생 기기 모두 새로고침
+★ assets/arena/ 폴더를 아직 안 올렸다면 함께 (이 zip 에 있음)
 건드리지 않는 파일: firebase-config.js (EXAMPLE 은 올리지 마세요) · photo/force/body.html
-올린 뒤 화면 아래 v2026-10-08a 확인. 안 보이면 Ctrl+Shift+R.
+올린 뒤 화면 아래 v2026-10-10a 확인. 안 보이면 Ctrl+Shift+R.

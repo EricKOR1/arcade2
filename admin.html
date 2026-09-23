@@ -7,8 +7,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1B2027">
 <title>교사용 대시보드</title>
-<link rel="stylesheet" href="platform.css?v=2026-10-08a">
-<link rel="stylesheet" href="style.css?v=2026-10-08a">
+<link rel="stylesheet" href="platform.css?v=2026-10-10a">
+<link rel="stylesheet" href="style.css?v=2026-10-10a">
 </head>
 <body>
 <div class="admin" id="admin-root">
@@ -17,7 +17,7 @@
     <h1>아케이드</h1>
     <span class="badge badge-lg" id="status-badge">게임 선택</span>
     <span class="badge badge-lg badge-ghost" id="count-badge">0명 접속</span>
-    <span class="badge badge-sm" style="opacity:.4">v2026-10-08a</span>
+    <span class="badge badge-sm" style="opacity:.4">v2026-10-10a</span>
   </div>
   <p class="admin-sub" id="admin-sub">플레이할 게임을 고르면 학생용 QR이 만들어집니다.</p>
 
@@ -172,30 +172,30 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="firebase-config.js?v=2026-10-08a"></script>
-<script src="shared.js?v=2026-10-08a"></script>
-<script src="fx.js?v=2026-10-08a"></script>
-<script src="tetris-engine.js?v=2026-10-08a"></script>
-<script src="racing-engine.js?v=2026-10-08a"></script>
-<script src="snake-engine.js?v=2026-10-08a"></script>
-<script src="breakout-engine.js?v=2026-10-08a"></script>
-<script src="flappy-engine.js?v=2026-10-08a"></script>
-<script src="shooter-engine.js?v=2026-10-08a"></script>
+<script src="firebase-config.js?v=2026-10-10a"></script>
+<script src="shared.js?v=2026-10-10a"></script>
+<script src="fx.js?v=2026-10-10a"></script>
+<script src="tetris-engine.js?v=2026-10-10a"></script>
+<script src="racing-engine.js?v=2026-10-10a"></script>
+<script src="snake-engine.js?v=2026-10-10a"></script>
+<script src="breakout-engine.js?v=2026-10-10a"></script>
+<script src="flappy-engine.js?v=2026-10-10a"></script>
+<script src="shooter-engine.js?v=2026-10-10a"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="fps-engine.js?v=2026-10-08a"></script>
-<script src="fps3d-engine.js?v=2026-10-08a"></script>
-<script src="game2048-engine.js?v=2026-10-08a"></script>
-<script src="frogger-engine.js?v=2026-10-08a"></script>
-<script src="asteroids-engine.js?v=2026-10-08a"></script>
-<script src="maze-engine.js?v=2026-10-08a"></script>
-<script src="tower-engine.js?v=2026-10-08a"></script>
-<script src="missile-engine.js?v=2026-10-08a"></script>
-<script src="centipede-engine.js?v=2026-10-08a"></script>
-<script src="source-engine.js?v=2026-10-08a"></script>
-<script src="arena-engine.js?v=2026-10-08a"></script>
-<script src="slither-engine.js?v=2026-10-08a"></script>
-<script src="games.js?v=2026-10-08a"></script>
-<script src="app.js?v=2026-10-08a"></script>
+<script src="fps-engine.js?v=2026-10-10a"></script>
+<script src="fps3d-engine.js?v=2026-10-10a"></script>
+<script src="game2048-engine.js?v=2026-10-10a"></script>
+<script src="frogger-engine.js?v=2026-10-10a"></script>
+<script src="asteroids-engine.js?v=2026-10-10a"></script>
+<script src="maze-engine.js?v=2026-10-10a"></script>
+<script src="tower-engine.js?v=2026-10-10a"></script>
+<script src="missile-engine.js?v=2026-10-10a"></script>
+<script src="centipede-engine.js?v=2026-10-10a"></script>
+<script src="source-engine.js?v=2026-10-10a"></script>
+<script src="arena-engine.js?v=2026-10-10a"></script>
+<script src="slither-engine.js?v=2026-10-10a"></script>
+<script src="games.js?v=2026-10-10a"></script>
+<script src="app.js?v=2026-10-10a"></script>
 <script>
 (function () {
   const CELL = { tetris: 6, snake: 5, breakout: 8, flappy: 8, shooter: 8, g2048: 26, frogger: 8, asteroids: 6, maze: 5, tower: 7, missile: 6, centipede: 5, source: 8, arena: 6, slither: 5 };
@@ -395,11 +395,11 @@
       // 이전 게임의 미니보드·순위·통계가 카드에 남지 않게 게임 관련 값은 전부 비웁니다 (닉네임·접속 시각만 유지)
       Object.keys(ps).forEach(id => { up[id + '/status'] = 'waiting'; up[id + '/score'] = 0;
         Object.keys(ps[id] || {}).forEach(k => { if (['nickname', 'name', 'joinedAt', 'lastSeen', 'status', 'score'].indexOf(k) < 0) up[id + '/' + k] = null; }); });
-      db.ref('gems').remove(); db.ref('finishes').remove(); db.ref('screens').remove();
+      db.ref('gems').remove(); db.ref('finishes').remove(); db.ref('screens').remove(); db.ref('picks').remove();
       if (Object.keys(up).length) playersRef.update(up);
-      sessionRef.set({ game: gameId, status: startNow ? 'playing' : 'waiting', track: currentTrack });
+      sessionRef.set(Object.assign({ game: gameId, status: startNow ? 'playing' : 'waiting', track: currentTrack }, startNow ? { startAt: serverNow() + 4200 } : {}));   // 곧바로 시작해도 공통 출발 시각을 함께
     })["catch"](() => {
-      sessionRef.set({ game: gameId, status: startNow ? 'playing' : 'waiting', track: currentTrack });
+      sessionRef.set(Object.assign({ game: gameId, status: startNow ? 'playing' : 'waiting', track: currentTrack }, startNow ? { startAt: serverNow() + 4200 } : {}));   // 곧바로 시작해도 공통 출발 시각을 함께
     });
     renderQR(gameId);
   }
@@ -420,11 +420,28 @@
       Object.keys(ps).forEach(id => { up[id + '/status'] = 'waiting'; up[id + '/score'] = 0; up[id + '/rank'] = null; });
       return Object.keys(up).length ? playersRef.update(up) : null;
     })["catch"](() => {}).then(() => {
+      // 캐릭터를 고르는 게임(젬 아레나): 먼저 10초 캐릭터 선택 → 모두 고르거나 시간이 끝나면 시작 (selectWatch)
+      if ((GAMES[currentGameId] || {}).chars) { db.ref('picks').remove(); sessionRef.update({ status: 'select', selectUntil: serverNow() + SELECT_MS, startAt: null }); return; }
       // 모든 기기가 게임을 준비할 시간을 주고, 같은 순간에 출발하도록 출발 시각을 함께 알립니다
       sessionRef.child('startAt').set(serverNow() + 4200);
       statusRef.set('playing');
     });
   });
+
+  // ── 캐릭터 선택 단계 감시 (교사 화면이 판정합니다 — 한 곳에서만 정해야 모두 같은 순간에 시작) ──
+  const SELECT_MS = 10000;
+  let selectUntil = 0, picks = {};
+  db.ref('picks').on('value', sn => { picks = sn.val() || {}; });
+  sessionRef.child('selectUntil').on('value', sn => { selectUntil = +sn.val() || 0; });
+  setInterval(() => {
+    if (currentStatus !== 'select') return;
+    const ids = Object.keys(focusPlayers || {});                 // 지금 접속해 있는 학생
+    const done = ids.length > 0 && ids.every(id => picks[id]);
+    if (done || (selectUntil && serverNow() >= selectUntil)) {
+      currentStatus = 'playing';                                // 두 번 시작하지 않게 먼저 표시
+      sessionRef.update({ status: 'playing', startAt: serverNow() + 1500, selectUntil: null });
+    }
+  }, 250);
   $('end-btn').addEventListener('click', () => statusRef.set('ended'));
   $('lobby-btn').addEventListener('click', () => statusRef.set('waiting'));
 
@@ -433,10 +450,18 @@
   //  · 카트: 엔진을 관전 모드로 띄워 그 학생 시점의 3D 화면을 그대로 보여 줌
   const focusEl = $('focus'); let focusCv = $('focus-canvas');
 
+  // 카트 순위 정렬: 완주자(서버의 완주 순위 rank)가 먼저, 그 안에서 rank 오름차순 → 달리는 중이면 트랙 진행도.
+  // 예전엔 진행도만 봐서, 완주 뒤 카트 위치에 따라 교사 화면 순위가 학생 화면과 달랐습니다.
+  function kartRankSort(ids) {
+    const rk = id => { const pl = focusPlayers[id]; return (pl && pl.rank) ? pl.rank : 0; };
+    return ids.sort((a, b) => { const ra = rk(a), rb = rk(b);
+      if (ra && rb) return ra - rb; if (ra) return -1; if (rb) return 1;
+      return (peerPos[b].progress || 0) - (peerPos[a].progress || 0); });
+  }
   function focusOrder() {
     const g = GAMES[currentGameId] || {};
     if (g.adminView === 'shared' || g.adminView === 'arena') {
-      return Object.keys(peerPos).filter(k => k !== '__hz').sort((a, b) => (peerPos[b].progress || 0) - (peerPos[a].progress || 0));
+      return kartRankSort(Object.keys(peerPos).filter(k => k !== '__hz'));
     }
     return Object.keys(focusPlayers).sort((a, b) => (focusPlayers[b].score || 0) - (focusPlayers[a].score || 0));
   }
@@ -757,7 +782,7 @@
 
     const g = GAMES[currentGameId];
     const gname = g ? g.name : '';
-    const labels = { idle: '게임 선택', waiting: '입장 대기 중', playing: '진행 중', ended: '종료됨' };
+    const labels = { idle: '게임 선택', waiting: '입장 대기 중', select: '캐릭터 선택 중', playing: '진행 중', ended: '종료됨' };
     const subs = {
       idle: '플레이할 게임을 고르면 학생용 QR이 만들어집니다.',
       waiting: gname + ' — 학생들이 QR로 입장하는 중입니다.',
@@ -1436,8 +1461,7 @@
   }
 
   function renderStandings() {
-    const ids = Object.keys(peerPos).filter(k => k !== '__hz');
-    ids.sort((a, b) => (peerPos[b].progress || 0) - (peerPos[a].progress || 0));
+    const ids = kartRankSort(Object.keys(peerPos).filter(k => k !== '__hz'));
     const ul = $('standings');
     ul.innerHTML = '';
     ids.forEach((id, i) => {

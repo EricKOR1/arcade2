@@ -1,0 +1,4 @@
+Arena sprites: Kenney (www.kenney.nl) — CC0 1.0 Universal (public domain)
+  Topdown Shooter pack: bolt/rock/hawk/sprout/owl/spark.png
+  Topdown Tanks Remastered pack: grass*, sand*, tree*, crate*.png
+Attribution is not required but appreciated: "Kenney.nl"

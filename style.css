@@ -179,7 +179,7 @@ p { margin: 0 }
 .roster { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 16px; max-width: 460px }
 
 /* ── 게임 화면 ── */
-#screen-game { padding: 0 }
+#screen-game { padding: 0; position: relative }
 .topbar { display: flex; align-items: center; gap: 8px; padding: 10px 14px 6px; flex-shrink: 0 }
 .chip {
   display: flex; flex-direction: column; gap: 2px; line-height: 1.05; padding: 8px 12px;
@@ -762,7 +762,7 @@ body.fullgrid .spectate { grid-template-columns: 1fr 320px }
   #screen-game .pad.pad-none { display: none }
   #screen-game:has(.pad.pad-none) .canvas-wrap { grid-column: 1 / 3 }   /* 패드가 없는 게임(조이스틱·톡)만 가로 전체. 카트처럼 전체 화면 + 패드면 패드는 오른쪽 */
   /* 폰 가로: 상단 칩을 줄여 게임판에 높이를 더 줍니다 */
-  #screen-game .topbar { padding: 4px 10px 2px; gap: 6px }
+  #screen-game .topbar { padding: 4px 10px 2px 64px; gap: 6px }   /* 왼쪽 64px 는 뒤로 가기 버튼 자리 */
   #screen-game .chip { padding: 4px 10px } #screen-game .chip .v { font-size: 15px } #screen-game .chip .k { font-size: 9px }
   #screen-game .next-box { padding: 3px 8px }
   /* 패드 버튼을 가로에 맞게 낮게 */
@@ -780,3 +780,43 @@ body.fullgrid .spectate { grid-template-columns: 1fr 320px }
 .cbar { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--a-dim); margin: 2px 0 } .cbar i { flex: 1; height: 5px; border-radius: 3px; background: rgba(255,255,255,.08); overflow: hidden; display: block } .cbar b { display: block; height: 100% }
 .char-card .csup { font-size: 10px; color: #FFD166; margin-top: 6px; line-height: 1.3 }
 @media (max-width: 400px) { .char-pick { grid-template-columns: repeat(2, 1fr) } }
+
+/* ── 타워 오르기, 가로 화면: 게임판 가운데 · 왼손 ← → 왼쪽 끝 · 오른손 ↑ 점프 ↓ 오른쪽 끝 ── */
+@media (orientation: landscape) and (min-width: 640px) {
+  #screen-game:has(.pad-climb) { grid-template-columns: 1fr; grid-template-areas: "top" "canvas" }
+  #screen-game:has(.pad-climb) .canvas-wrap { grid-column: 1; padding: 6px 200px }        /* 양옆 200px 는 버튼 자리 */
+  #screen-game .pad.pad-climb { position: absolute; left: 0; right: 0; bottom: 0; top: 60px; display: flex; justify-content: space-between; align-items: center; padding: 0 22px; pointer-events: none; background: none }
+  #screen-game .pad.pad-climb .pad-lr, #screen-game .pad.pad-climb .pad-ud { pointer-events: auto; width: 160px }
+  #screen-game .pad.pad-climb .pad-lr { display: grid; grid-template-columns: 1fr 1fr; gap: 10px }
+  #screen-game .pad.pad-climb .pad-lr button { min-height: 120px; font-size: 32px }
+  #screen-game .pad.pad-climb .pad-ud { display: grid; grid-template-columns: 1fr 1fr; gap: 10px }
+  #screen-game .pad.pad-climb .pad-ud .k-up { grid-column: 1 / 3; min-height: 88px; font-size: 34px }
+  #screen-game .pad.pad-climb .pad-ud button { min-height: 62px }
+}
+
+/* 젬 아레나 버튼 — 브롤 스타일: 빨간 발사(탄약 3점) · 노란 궁극기(충전 링) */
+.arena-ctl .ffire { background: radial-gradient(circle at 35% 30%, #FF8AA0, #E63E5E 70%); border: 3px solid rgba(255,255,255,.55); box-shadow: 0 6px 0 #9E1F38, 0 10px 22px rgba(0,0,0,.45) }
+.arena-ctl .ffire.on { transform: translateY(4px); box-shadow: 0 2px 0 #9E1F38 }
+.arena-ctl .ffire .pips { display: flex; gap: 4px; margin-top: 4px } .arena-ctl .pip { width: 12px; height: 6px; border-radius: 3px; background: rgba(0,0,0,.35) } .arena-ctl .pip.on { background: #FFD166 }
+.arena-ctl .asuper { --sup: 0%; width: 76px; height: 76px; border: 3px solid rgba(255,255,255,.35); color: rgba(255,255,255,.65);
+  background: radial-gradient(circle, rgba(8,10,16,.9) 58%, transparent 60%), conic-gradient(#FFD166 var(--sup), rgba(255,255,255,.12) 0); box-shadow: 0 6px 0 rgba(0,0,0,.5) }
+.arena-ctl .asuper.ready { background: radial-gradient(circle at 35% 30%, #FFE599, #F5B62A 70%); color: #3A2A00; border-color: rgba(255,255,255,.7); box-shadow: 0 6px 0 #A9761A, 0 0 28px rgba(255,209,102,.8); animation: superPulse 1s ease-in-out infinite }
+.arena-ctl .asuper small { font-size: 10px; font-weight: 800 }
+
+.char-card .cicon img { height: 34px; image-rendering: auto; transform: rotate(-90deg); filter: drop-shadow(0 2px 0 rgba(0,0,0,.35)) }   /* 위를 보게 세워서 */
+
+/* 캐릭터 선택 화면 (10초) */
+.char-select { position: fixed; inset: 0; z-index: 60; background: radial-gradient(ellipse at 50% 20%, #243158, #0B0F1E 70%); display: flex; flex-direction: column; align-items: center; padding: max(16px, env(safe-area-inset-top)) 14px 16px; overflow-y: auto }
+.char-select.hidden { display: none }
+.cs-head { display: flex; align-items: center; gap: 14px; margin: 6px 0 8px }
+.cs-title { font: 400 26px 'Lilita One', Pretendard, sans-serif; color: #fff; -webkit-text-stroke: 1px #1B1B2F; text-shadow: 0 3px 0 #1B1B2F }
+.cs-time { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; background: #FFD166; color: #3A2A00; font: 400 28px 'Lilita One', Pretendard, sans-serif; border: 3px solid #1B1B2F; box-shadow: 0 4px 0 #1B1B2F }
+.cs-time.hurry { background: #F24E4E; color: #fff; animation: superPulse .5s ease-in-out infinite }
+.cs-bar { width: min(520px, 100%); height: 8px; border-radius: 4px; background: rgba(255,255,255,.12); overflow: hidden; margin-bottom: 12px } .cs-bar i { display: block; height: 100%; background: #FFD166; transition: width .1s linear }
+.char-select .char-pick { margin: 0 auto; max-width: 560px }
+.char-select .char-card { background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.14) }
+.char-select .char-card.on { background: rgba(63,169,245,.22); border-color: #3FA9F5 }
+.char-select .char-card.on::after { content: '선택 ✓'; position: absolute; top: 6px; right: 8px; font-size: 11px; font-weight: 800; color: #3FA9F5 }
+.char-select .char-card { position: relative }
+.cs-foot { margin-top: 14px; color: rgba(255,255,255,.8); font-size: 14px; font-weight: 700; text-align: center }
+@media (orientation: landscape) and (min-width: 640px) { .char-select .char-pick { grid-template-columns: repeat(6, 1fr); max-width: 1100px } }
