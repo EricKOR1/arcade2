@@ -1,17 +1,9 @@
-아케이드 플랫폼 — v2026-10-12a (카트 레이싱 3D)
+아케이드 플랫폼 — v2026-10-12b
 
-새로 올릴 파일 (아직 안 올렸다면)
-  three.min.js       ★ 이제 사이트가 이 파일로 3D 를 그립니다 (외부 CDN 대신). 꼭 올려 주세요
-  kart3d-engine.js   3D 카트 엔진
-  kart3d.html        혼자 해 보는 연습 페이지 (CPU 5명)
+교체할 파일 4개
+  style.css      세로 폰에서 3D 카트 버튼 겹침 해결 (오른손 버튼 세로로 쌓기)
+  kart3d.html    연습 페이지도 같은 수정
+  index.html · admin.html   버전 표시
 
-교체할 파일
-  games.js           '카트 레이싱 3D' 등록
-  index.html         3D 카트 조작 버튼 · 저장소 Three.js 사용 · 버전
-  admin.html         저장소 Three.js 사용 · 미니보드 · 버전
-  style.css          3D 카트 버튼
-
-★ three.min.js 를 빼먹으면 레이저 태그 3D 와 카트 3D 가 뜨지 않습니다
-★ 학생 기기 모두 새로고침
-건드리지 않는 파일: firebase-config.js (EXAMPLE 은 올리지 마세요) · photo/force/body.html
-올린 뒤 화면 아래 v2026-10-12a 확인. 안 보이면 Ctrl+Shift+R.
+★ v2026-10-12a 를 아직 안 올렸다면 three.min.js · kart3d-engine.js · games.js 도 함께 (이 zip 에 있음)
+올린 뒤 화면 아래 v2026-10-12b 확인. 안 보이면 Ctrl+Shift+R. 학생 기기도 새로고침.

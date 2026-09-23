@@ -839,3 +839,10 @@ body.fullgrid .spectate { grid-template-columns: 1fr 320px }
 .k3b.item { border-radius: 50%; background: rgba(255,209,102,.35); font-size: 22px } .k3b.brake { width: 64px; height: 64px; font-size: 16px; border-radius: 18px }
 .k3-ctl .fhint { bottom: auto; top: 22%; max-width: calc(100% - 32px); white-space: normal; text-align: center }
 @media (orientation: landscape) and (max-height: 540px) { .k3b { width: 68px; height: 68px; font-size: 24px } .k3b.drift { width: 84px; height: 84px } .k3b.brake { width: 54px; height: 54px } }
+
+/* 3D 카트 · 세로 폰: 두 손 버튼을 합친 너비가 화면보다 넓어 겹쳤습니다 → 오른손 버튼을 세로로 쌓음 (위부터 브레이크·아이템·드리프트) */
+@media (orientation: portrait) and (max-width: 600px) {
+  .k3-left { gap: 10px } .k3-left .k3b { width: 76px; height: 76px; font-size: 26px }
+  .k3-right { flex-direction: column; align-items: center; gap: 10px }
+  .k3b.drift { width: 88px; height: 88px; font-size: 15px } .k3b.item { width: 66px; height: 66px; font-size: 20px } .k3b.brake { width: 58px; height: 52px; font-size: 14px }
+}
