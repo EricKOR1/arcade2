@@ -42,7 +42,7 @@ class KartGame3D extends KartGame {
     this.renderer = new T.WebGLRenderer({ canvas: this.glCanvas, antialias: (window.devicePixelRatio || 1) < 2 });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.opts.maxDpr || 1.25));
     this.scene = new T.Scene();
-    this.scene.fog = new T.Fog(new T.Color(sky.haze || sky.low || '#BFE0F5'), 90, 420);
+    this.scene.fog = new T.Fog(new T.Color(sky.haze || sky.low || '#BFE0F5'), 180, 820);   // 안개를 멀리 — 먼 도로가 보이게
     this.camera = new T.PerspectiveCamera(68, 1, 0.5, 1600);
     this.scene.add(new T.HemisphereLight(night ? 0x8090D0 : 0xEAF4FF, night ? 0x202030 : 0x6A7A4A, night ? 0.75 : 0.95));
     const sun = new T.DirectionalLight(new T.Color(sky.sun || '#FFF3C4'), night ? 0.35 : 0.7); sun.position.set(120, 260, 80); this.scene.add(sun);
@@ -156,7 +156,8 @@ class KartGame3D extends KartGame {
     // 체크무늬 출발선
     const fc = document.createElement('canvas'); fc.width = 64; fc.height = 8; const f = fc.getContext('2d'); for (let x = 0; x < 16; x++) for (let y = 0; y < 2; y++) { f.fillStyle = (x + y) % 2 ? '#111' : '#fff'; f.fillRect(x * 4, y * 4, 4, 4); }
     const c0 = tr.center[0], [tx, ty] = tr.tangent[0], line = new T.Mesh(new T.PlaneGeometry(tr.halfW * 2 * this.S, 1.6), new T.MeshBasicMaterial({ map: new T.CanvasTexture(fc) }));
-    line.rotation.x = -Math.PI / 2; line.rotation.z = Math.atan2(ty, tx) + Math.PI / 2; line.position.copy(this.P(c0[0], c0[1], tr.elev[0])); line.position.y += 0.06; this.scene.add(line);
+    // 평면의 가로(X)가 도로의 옆 방향(-ty, tx)을 향하게: 눕힌(x=-90°) 뒤 z 회전 θ 는 atan2(-tx, -ty) (예전 식은 좌우가 뒤집혀 선이 비스듬했음)
+    line.rotation.x = -Math.PI / 2; line.rotation.z = Math.atan2(-tx, -ty); line.position.copy(this.P(c0[0], c0[1], tr.elev[0])); line.position.y += 0.06; this.scene.add(line);
   }
   // ── 아이템 상자 · 부스터 발판 · 장애물 · 점프대 ──
   buildTrackItems() {
@@ -170,7 +171,7 @@ class KartGame3D extends KartGame {
     a.fillStyle = '#FFE066'; [0, 26].forEach(o => { a.beginPath(); a.moveTo(12, 30 + o - 10); a.lineTo(32, 10 + o); a.lineTo(52, 30 + o - 10); a.lineTo(52, 40 + o - 10); a.lineTo(32, 20 + o); a.lineTo(12, 40 + o - 10); a.fill(); });
     const aTex = new T.CanvasTexture(ac); this.pads = [];
     tr.boostPads.forEach(bp => { const m = new T.Mesh(new T.PlaneGeometry(tr.halfW * 0.3 * this.S, tr.halfW * 0.4 * this.S), new T.MeshBasicMaterial({ map: aTex, transparent: true }));
-      m.rotation.x = -Math.PI / 2; m.rotation.z = bp.angle - Math.PI / 2; m.position.copy(this.P(bp.x, bp.y, tr.elev[bp.i])); m.position.y += 0.08; this.scene.add(m); this.pads.push(m); });
+      m.rotation.x = -Math.PI / 2; m.rotation.z = Math.atan2(-Math.cos(bp.angle), -Math.sin(bp.angle)); m.position.copy(this.P(bp.x, bp.y, tr.elev[bp.i])); m.position.y += 0.08; this.scene.add(m); this.pads.push(m); });
     // 장애물 (2D 판과 같은 자리 · 맞으면 잠시 사라짐)
     const OBS = { cone: [new T.ConeGeometry(0.55, 1.4, 10), 0xFF7A1A, 0.7], barrel: [new T.CylinderGeometry(0.7, 0.7, 1.5, 12), 0x4CC9F0, 0.75], rock: [new T.DodecahedronGeometry(1.2, 0), 0x8A8F98, 0.8], puddle: [new T.CircleGeometry(1.8, 16), 0x3B82F6, 0.05] };
     this.obsMeshes = tr.obstacles.map(o => { const spec = OBS[o.kind] || OBS.barrel; const m = new T.Mesh(spec[0], new T.MeshLambertMaterial(o.kind === 'puddle' ? { color: spec[1], transparent: true, opacity: 0.7 } : { color: spec[1] }));
@@ -346,7 +347,8 @@ class KartGame3D extends KartGame {
     const base = this.moveA != null && !this.spectator ? this.moveA : this.angle; let dca = this.angle - base; while (dca > Math.PI) dca -= Math.PI * 2; while (dca < -Math.PI) dca += Math.PI * 2;
     const me = this.karts.__me.g.position, ca = base + dca * 0.35, fwd = new T.Vector3(Math.cos(ca), 0, Math.sin(ca));   // 드리프트 중엔 미끄러져 가는 방향을 따라가 옆모습이 보임
     // 시점: 조금 더 높고 멀리서, 더 앞을 보게 (예전엔 도로에 붙어 앞이 잘 안 보임)
-    const want = me.clone().addScaledVector(fwd, -8.4); want.y = Math.max(want.y + 5.0, this.groundY + 2.5); const look = me.clone().addScaledVector(fwd, 10); look.y += 0.6;
+    // 내려다보는 각도 약 13° → 23° (카메라를 높이고 조금 더 앞을 봄) — 먼 도로까지 보이게
+    const want = me.clone().addScaledVector(fwd, -8.4); want.y = Math.max(want.y + 8.6, this.groundY + 2.5); const look = me.clone().addScaledVector(fwd, 11); look.y += 0.6;
     if (!this.camPos) { this.camPos = want.clone(); this.camLook = look.clone(); }
     this.camPos.lerp(want, 0.15); this.camLook.lerp(look, 0.25); this.camera.position.copy(this.camPos);
     if (this.shake3d > 0) { this.camera.position.x += (Math.random() - 0.5) * this.shake3d; this.camera.position.y += (Math.random() - 0.5) * this.shake3d; this.shake3d = Math.max(0, this.shake3d - dtf * 1.5); }

@@ -26,6 +26,12 @@ class ArenaGame3D extends ArenaGame {
     if (this.renderer) { this.renderer.setSize(W, H, false); this.glCanvas.style.width = '100%'; this.glCanvas.style.height = '100%'; this.camera.aspect = W / H; this.camera.updateProjectionMatrix(); }
     this.vw = W; this.vh = H;
   }
+  captureTo(g, w, h) {
+    if (!this.renderer) return;
+    this.renderer.render(this.scene, this.camera);                 // 그린 직후 같은 순간에 복사해야 빈 화면이 아님
+    g.drawImage(this.glCanvas, 0, 0, w, h);
+    if (this.hudCanvas && this.hudCanvas.width) g.drawImage(this.hudCanvas, 0, 0, w, h);
+  }
   destroy() { try { this.renderer.dispose(); if (this.hudCanvas.parentNode) this.hudCanvas.parentNode.removeChild(this.hudCanvas); } catch (e) {} }
 
   initThree() {

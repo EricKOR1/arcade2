@@ -18,6 +18,12 @@ class FroggerGame3D extends FroggerGame {
     this.hudCanvas.width = Math.round(W * dpr); this.hudCanvas.height = Math.round(H * dpr); this.vw = W; this.vh = H;
     if (this.renderer) { this.renderer.setSize(W, H, false); this.glCanvas.style.width = '100%'; this.glCanvas.style.height = '100%'; this.fitCamera(); }
   }
+  captureTo(g, w, h) {
+    if (!this.renderer) return;
+    this.renderer.render(this.scene, this.camera);                 // 그린 직후 같은 순간에 복사해야 빈 화면이 아님
+    g.drawImage(this.glCanvas, 0, 0, w, h);
+    if (this.hudCanvas && this.hudCanvas.width) g.drawImage(this.hudCanvas, 0, 0, w, h);
+  }
   destroy() { try { this.renderer.dispose(); this.hudCanvas.remove(); } catch (e) {} }
 
   // 화면 톡 = 앞으로 · 쓸기 = 그 방향 (방향 버튼 외에 크로시 로드식 조작)

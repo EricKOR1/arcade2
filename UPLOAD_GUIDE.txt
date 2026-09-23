@@ -1,13 +1,11 @@
-아케이드 플랫폼 — v2026-10-15d
+아케이드 플랫폼 — v2026-10-15e
 
 교체할 파일
-  racing-engine.js    2D 카트 시점 · 드리프트 회전 보정
-  kart3dx-engine.js   3D 카트 시점
-  kart3d-engine.js    연습 페이지 시점
-  fps3d-engine.js     라이플 반동
-  fps-engine.js       레이저 태그 2D: 체력·탄약·미니맵이 버튼에 가리지 않게
-  style.css           카트 폰 세로 아이템 칸 · 방향키 글자
-  index.html · admin.html   버전
+  kart3dx-engine.js    3D 카트 시점 · 출발선 일자 · 부스터 화살표
+  arena3d-engine.js    관전용 화면 캡처
+  frogger3d-engine.js  관전용 화면 캡처
+  index.html           뱀·젬 아레나 등도 관전 화면 전송 · 버전
+  admin.html           관전 창을 실제 화면 비율로 · 버전
+  style.css            카트 아이템 창 위치
 
-★ 학생 기기 모두 새로고침
-올린 뒤 화면 아래 v2026-10-15d 확인.
+★ 학생 기기 새로고침 · 교사 화면 Ctrl+Shift+R

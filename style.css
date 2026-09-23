@@ -938,3 +938,8 @@ body.fullgrid .spectate { grid-template-columns: 1fr 320px }
   /* 방향 십자 글자(▲ 전진 등)가 버튼 밖으로 넘치지 않게 */
   #screen-game .pad .dpad button { font-size: 12px; line-height: 1.05; white-space: normal; overflow: hidden; padding: 2px }
 }
+@media (orientation: landscape) and (min-width: 640px) {
+  /* 카트 아이템 창: 오른쪽은 미니맵(위)·버튼(아래)이 차지하므로 왼쪽 위 순위·랩 아래로 */
+  .k3x-on .kart-hud .hud-br { left: 12px !important; right: auto !important; top: 128px !important; bottom: auto !important; align-items: flex-start }
+}
+@media (orientation: landscape) and (min-width: 640px) and (max-height: 480px) { .k3x-on .kart-hud .hud-br { top: 108px !important } }
