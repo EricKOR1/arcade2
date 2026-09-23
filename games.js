@@ -235,6 +235,23 @@ const GAMES = {
     sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, crossed: g.crossed }; }
   },
 
+  frogger3d: {
+    type: 'canvas',
+    name: '길 건너기 3D',
+    desc: '차와 강을 피해 위쪽 집까지. 다섯 집을 다 채우면 다음 단계',
+    howto: '화면을 톡 = 앞으로 · 쓸면 그 방향으로 · 방향 버튼도 가능 · ← → ↑ ↓ 한 칸씩 · 차를 피하고 통나무를 타고 위쪽 집으로',
+    meta: '개인전 · 점수 경쟁',
+    primary: '82% 0.16 165', primaryContent: '18% 0.05 165', hex: '#2E7D46',
+    grid: { cols: 13, rows: 15 },
+    adminView: 'grid', engine3d: true, fullBleed: true,
+    needsPeers: false, hasNext: false,
+    stats: [{ key: 'crossed', label: '도착' }, { key: 'lives', label: '목숨' }],
+    detail: function (g) { return g.crossed + '번 도착 · ' + g.level + '단계'; },
+    controls: ['up', 'left', 'down', 'right'],
+    create: function (canvas, opts) { return new FroggerGame3D(canvas, opts); },
+    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, crossed: g.crossed }; }
+  },
+
   asteroids: {
     type: 'canvas',
     name: '소행성',

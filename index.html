@@ -10,8 +10,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1B2027">
 <title>아케이드</title>
-<link rel="stylesheet" href="platform.css?v=2026-10-13a">
-<link rel="stylesheet" href="style.css?v=2026-10-13a">
+<link rel="stylesheet" href="platform.css?v=2026-10-13b">
+<link rel="stylesheet" href="style.css?v=2026-10-13b">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Lilita+One&display=swap" rel="stylesheet">
 </head>
@@ -130,37 +130,38 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script src="firebase-config.js?v=2026-10-13a"></script>
-<script src="sound.js?v=2026-10-13a"></script>
-<script src="shared.js?v=2026-10-13a"></script>
-<script src="fx.js?v=2026-10-13a"></script>
-<script src="tetris-engine.js?v=2026-10-13a"></script>
-<script src="racing-engine.js?v=2026-10-13a"></script>
-<script src="snake-engine.js?v=2026-10-13a"></script>
-<script src="breakout-engine.js?v=2026-10-13a"></script>
-<script src="flappy-engine.js?v=2026-10-13a"></script>
-<script src="shooter-engine.js?v=2026-10-13a"></script>
+<script src="firebase-config.js?v=2026-10-13b"></script>
+<script src="sound.js?v=2026-10-13b"></script>
+<script src="shared.js?v=2026-10-13b"></script>
+<script src="fx.js?v=2026-10-13b"></script>
+<script src="tetris-engine.js?v=2026-10-13b"></script>
+<script src="racing-engine.js?v=2026-10-13b"></script>
+<script src="snake-engine.js?v=2026-10-13b"></script>
+<script src="breakout-engine.js?v=2026-10-13b"></script>
+<script src="flappy-engine.js?v=2026-10-13b"></script>
+<script src="shooter-engine.js?v=2026-10-13b"></script>
 <script src="three.min.js"></script>
-<script src="fps-engine.js?v=2026-10-13a"></script>
-<script src="fps3d-engine.js?v=2026-10-13a"></script>
-<script src="game2048-engine.js?v=2026-10-13a"></script>
-<script src="frogger-engine.js?v=2026-10-13a"></script>
-<script src="asteroids-engine.js?v=2026-10-13a"></script>
-<script src="maze-engine.js?v=2026-10-13a"></script>
-<script src="tower-engine.js?v=2026-10-13a"></script>
-<script src="missile-engine.js?v=2026-10-13a"></script>
-<script src="centipede-engine.js?v=2026-10-13a"></script>
-<script src="source-engine.js?v=2026-10-13a"></script>
-<script src="arena-engine.js?v=2026-10-13a"></script>
-<script src="arena3d-engine.js?v=2026-10-13a"></script>
-<script src="slither-engine.js?v=2026-10-13a"></script>
-<script src="kart3d-engine.js?v=2026-10-13a"></script>
-<script src="games.js?v=2026-10-13a"></script>
-<script src="app.js?v=2026-10-13a"></script>
+<script src="fps-engine.js?v=2026-10-13b"></script>
+<script src="fps3d-engine.js?v=2026-10-13b"></script>
+<script src="game2048-engine.js?v=2026-10-13b"></script>
+<script src="frogger-engine.js?v=2026-10-13b"></script>
+<script src="frogger3d-engine.js?v=2026-10-13b"></script>
+<script src="asteroids-engine.js?v=2026-10-13b"></script>
+<script src="maze-engine.js?v=2026-10-13b"></script>
+<script src="tower-engine.js?v=2026-10-13b"></script>
+<script src="missile-engine.js?v=2026-10-13b"></script>
+<script src="centipede-engine.js?v=2026-10-13b"></script>
+<script src="source-engine.js?v=2026-10-13b"></script>
+<script src="arena-engine.js?v=2026-10-13b"></script>
+<script src="arena3d-engine.js?v=2026-10-13b"></script>
+<script src="slither-engine.js?v=2026-10-13b"></script>
+<script src="kart3d-engine.js?v=2026-10-13b"></script>
+<script src="games.js?v=2026-10-13b"></script>
+<script src="app.js?v=2026-10-13b"></script>
 <script>
 (function () {
 
-  const BUILD = '2026-10-13a';   // 화면 아래에 표시됩니다
+  const BUILD = '2026-10-13b';   // 화면 아래에 표시됩니다
 
   const gameId = getGameId();
   const def = GAMES[gameId];
@@ -1231,7 +1232,7 @@
     qLast = ts;
     if (qFrames >= 120) { if (qSum / qFrames > 21) lowerQuality(); qFrames = 0; qSum = 0; }   // 평균 48fps 밑이면 낮춤
     // 손맛 층: 2D 캔버스 게임은 흔들림·섬광·배너를 공통으로 덧입힙니다 (카트·3D 는 자체 연출)
-    const juiceOn = window.FX && def.type === 'canvas' && !isRealtime && def.padLayout !== 'joystick';
+    const juiceOn = window.FX && def.type === 'canvas' && !isRealtime && !def.engine3d && def.padLayout !== 'joystick';   // 3D 캔버스엔 2D 효과층을 그릴 수 없음
     let jctx = null, shook = false;
     if (juiceOn) { const cv = byId('game-canvas'); jctx = cv.getContext('2d'); shook = FX.juice.applyShake(jctx); }
     game.tick(ts);
