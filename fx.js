@@ -12,8 +12,9 @@ const FX = (function () {
   // ── 프레임 간격 ──
   // 한 프레임이 오래 걸려도 최대 50ms 로 잘라 물리가 튀지 않게 합니다. f = 60fps 기준 배율
   function frame(game, now) {
-    const dt = game.lastTime ? Math.min(50, now - game.lastTime) : 16.7;
-    game.lastTime = now; game.now = now;
+    // 시간이 뒤로 가면(기기 시계 흔들림·탭 전환 등) 간격을 0 으로 — 음수 간격이면 '줄어야 할' 효과가 오히려 커집니다
+    const dt = game.lastTime ? Math.max(0, Math.min(50, now - game.lastTime)) : 16.7;
+    if (now >= (game.lastTime || 0)) { game.lastTime = now; game.now = now; }
     return { dt, f: dt / 16.7 };
   }
 

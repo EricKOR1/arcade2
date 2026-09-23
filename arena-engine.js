@@ -265,6 +265,7 @@ class ArenaGame {
           if (this.opts.onAttack) this.opts.onAttack('hit', id, { dmg: b.dmg }); gain(); pop(p.x, p.y, b.dmg, '#FFD166'); this.burst(b.x, b.y, 5, '#FFD166'); } });
       if (done) { if (b.big) this.burst(b.x, b.y, 24, '#FFD166'); this.bullets.splice(i, 1); }
     }
+    this.followPeers();
     this.parts = FX.stepParts(this.parts, f, 0.05);
     this.recoil = Math.max(0, (this.recoil || 0) - 0.08 * f); this.hurt = Math.max(0, (this.hurt || 0) - 0.05 * f);
     // 승리 판정: 팀 젬 10개 → 15초 카운트다운
@@ -285,6 +286,8 @@ class ArenaGame {
   solidMove(x, y) { const c = this.cell(x, y); return c === '#' || c === 'G' || c === 'w'; }   // 물은 걸을 수 없지만 탄은 넘어갑니다
   blocked(x, y) { const r = 0.32; return this.solidMove(x - r, y - r) || this.solidMove(x + r, y - r) || this.solidMove(x - r, y + r) || this.solidMove(x + r, y + r); }
 
+  // 상대 위치를 신호 쪽으로 부드럽게 따라감 (2D·3D 공용 — 명중 판정도 이 위치를 씀)
+  followPeers() { Object.keys(this.peers).forEach(id => { const p = this.peers[id]; if (p.tx == null) return; p.x += (p.tx - p.x) * 0.5; p.y += (p.ty - p.y) * 0.5; if (p.tangle != null) p.angle = p.tangle; }); }
   getSnapshot() { return this.snapshotScaled(36, 48); }
   snapshotScaled(SW, SH) {
     const g = []; for (let y = 0; y < SH; y++) { g.push([]); for (let x = 0; x < SW; x++) { const c = this.map[Math.floor(y * this.H / SH)][Math.floor(x * this.W / SW)]; g[y].push(c === '#' ? 63 : c === 'G' ? 64 : c === 'b' ? 65 : c === 'w' ? 58 : 66); } }
@@ -315,6 +318,7 @@ class ArenaGame {
     const camX = W <= vw ? W / 2 : Math.max(vw / 2, Math.min(W - vw / 2, this.x * cs));
     const camY = H <= vh ? H / 2 : Math.max(vh / 2, Math.min(H - vh / 2, this.y * cs));
     this._view = { z, camX, camY, SW, SH };
+    if (!this.world3d) {                                              // 3D 판(ArenaGame3D)은 월드를 Three.js 로 그리고 여기선 HUD 만
     if (!this._bg || this._bgCs !== cs) this.buildBg(cs);
     ctx.fillStyle = (AR_THEMES[this.mapId] || AR_THEMES.mine).wallFront; ctx.fillRect(0, 0, SW, SH);          // 지도 밖 여백
     ctx.save(); ctx.translate(SW / 2 - camX * z, SH / 2 - camY * z); ctx.scale(z, z);
@@ -327,7 +331,7 @@ class ArenaGame {
     // 상대 (수풀 은신은 가까울 때만)
     Object.keys(this.peers).forEach(id => { const p = this.peers[id];
       const k = FX.ease.outCubic(1); const b = p.buf; let px = p.tx != null ? p.tx : p.x, py = p.ty != null ? p.ty : p.y;
-      p.x += (px - p.x) * 0.5; p.y += (py - p.y) * 0.5; p.angle = p.tangle != null ? p.tangle : p.angle;
+      // (위치 따라가기는 followPeers() 에서 — 3D 판도 같은 계산을 쓰도록 분리)
       if (p.dead) return;
       if (p.hidden && p.team !== this.team && Math.hypot(p.x - this.x, p.y - this.y) > 2.2) return;
       this.drawBrawler(ctx, cs, p.x, p.y, p.angle, p.team, p.hp / ((AR_CHARS[p.ch] || AR_CHARS.bolt).hp), p.name, p.hidden ? 0.55 : 1, false, p.gems, p.sup, p.ch, p.dash); });
@@ -351,6 +355,8 @@ class ArenaGame {
     this.dmgNums.forEach(d => { const k = FX.ease.outCubic(d.t); ctx.globalAlpha = 1 - d.t; FX.text(ctx, String(d.v), d.x * cs, (d.y - 1.1) * cs - k * cs * 1.2, { size: cs * (0.6 + 0.3 * (1 - d.t)), weight: 400, font: AR_FONT, color: d.c, align: 'center', stroke: '#1B1B2F' }); ctx.globalAlpha = 1; });
     FX.drawParts(ctx, this.parts, cs, 3);
     ctx.restore();
+    } else ctx.clearRect(0, 0, SW, SH);
+    if (this.world3d && this.drawLabels3D) this.drawLabels3D(ctx, SW, SH);   // 3D: 이름·체력·피해 숫자를 화면 좌표로
     // ── 여기부터 화면 좌표 (HUD) ──
     const HW = SW, HH = SH;
     // 피격 붉은 테두리
@@ -445,7 +451,7 @@ class ArenaGame {
     Object.keys(this.peers).forEach(id => { const p = this.peers[id]; if (p.dead) return; if (p.hidden && p.team !== this.team) return;
       ctx.fillStyle = p.team === this.team ? AR_ALLY : AR_ENEMY; ctx.beginPath(); ctx.arc(mx + p.x * u, my + p.y * u, 2.4, 0, Math.PI * 2); ctx.fill(); });
     if (!this.isDead) { ctx.fillStyle = '#FFD166'; ctx.beginPath(); ctx.arc(mx + this.x * u, my + this.y * u, 2.8, 0, Math.PI * 2); ctx.fill(); }
-    const v = this._view; if (v) { const cs = this.cellSize; ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.strokeRect(mx + (v.camX - v.SW / v.z / 2) / cs * u, my + (v.camY - v.SH / v.z / 2) / cs * u, v.SW / v.z / cs * u, v.SH / v.z / cs * u); }
+    const v = this.world3d ? null : this._view; if (v) { const cs = this.cellSize; ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.strokeRect(mx + (v.camX - v.SW / v.z / 2) / cs * u, my + (v.camY - v.SH / v.z / 2) / cs * u, v.SW / v.z / cs * u, v.SH / v.z / cs * u); }
   }
   buildBg(cs) {
     const th = AR_THEMES[this.mapId] || AR_THEMES.mine, W = this.W * cs, H = this.H * cs, LIFT = cs * 0.45;   // 벽 높이만큼 윗면을 올려 그림

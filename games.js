@@ -148,6 +148,24 @@ const GAMES = {
     sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, held: g.held, kills: g.kills, team: g.team }; }
   },
 
+  arena3d: {
+    type: 'canvas',
+    name: '젬 아레나 3D',
+    desc: '탑다운 팀 대전. 캐릭터 6종 중 하나를 골라, 가운데 광산에서 솟는 젬을 모아 한 팀이 10개를 15초 동안 지키면 승리. 수풀에 숨고, 맞히면 궁극기가 찹니다',
+    howto: '아래 카드에서 캐릭터 선택 · 조이스틱 이동(총구도 그 방향) · ● 발사(가까운 적 자동 조준, 꾹 = 연사) · ★ 궁극기 · 수풀에 들어가면 안 보임 · 쓰러지면 젬을 떨어뜨림',
+    meta: '실시간 팀 대전 · 3D · 캐릭터 6종 · 맵 3종 · 최대 30명',
+    primary: '75% 0.19 300', primaryContent: '100% 0 0', hex: '#B15DFF',
+    grid: { cols: 36, rows: 48 },   // 미니보드용 (맵마다 실제 크기는 엔진이 알려줌)
+    adminView: 'grid', fullBleed: true, engine3d: true,
+    needsPeers: true, realtime: true, hasNext: false, hasTracks: true, trackKind: 'map', mapRegistry: 'arena', chars: true,
+    stats: [{ key: 'held', label: '◆ 젬' }, { key: 'kills', label: 'KO' }],
+    detail: function (g) { return (g.team === 'r' ? '레드 팀' : '블루 팀') + ' · ' + (g.ch ? g.ch.name : '') + ' · 젬 ' + g.held + ' · KO ' + g.kills + (g.winner ? (g.winner === g.team ? ' · 승리' : ' · 패배') : ''); },
+    controls: [], padLayout: 'arena',
+    // 팀: 참가 순서대로 번갈아 (레드·블루·레드·…) — id 해시로 정하면 한 팀에 몰릴 수 있습니다
+    create: function (canvas, opts) { const ti = opts.teamInfo; return new ArenaGame3D(canvas, Object.assign({ maxDpr: 1.25 }, opts, { team: ti ? ti.team : (((opts.slot || 0) % 2) ? 'b' : 'r'), teamSlot: ti ? ti.teamSlot : undefined, charId: opts.charId })); },
+    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, held: g.held, kills: g.kills, team: g.team }; }
+  },
+
   slither: {
     type: 'canvas',
     name: '뱀 아레나',

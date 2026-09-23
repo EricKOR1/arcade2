@@ -252,6 +252,15 @@ class Kart3DGame {
     const turn = (k.driftDir ? (steer * 0.9 + k.driftDir * 0.55) * 1.35 : steer) * 1.9 * grip * (k.speed < 0 ? -1 : 1);
     k.head += turn * dt;
     k.pos.x += Math.sin(k.head) * k.speed * dt; k.pos.z += Math.cos(k.head) * k.speed * dt;
+    // 도로 복귀: 도로 위에 잘 있을 때 자리를 기억해 두고, 벗어난 채로 시간이 지나면 그 자리로 되돌립니다
+    //   완전히 벗어남(차체가 연석 밖) 0.6초 · 연석·잔디 가장자리에 걸친 채 1.5초
+    const alat = Math.abs(k.lat);
+    if (alat <= K3.W / 2 - 1 && k.speed > 2 && !k.resetUntil) k.safe = { idx: k.idx, lat: k.lat, lap: k.lap, half: k.half, prog: k.prog };
+    if (this.state === 'race' && !k.finished && k.safe) {
+      if (alat > K3.W / 2 + 2.5) k.offHard = (k.offHard || 0) + dt; else k.offHard = 0;
+      if (alat > K3.W / 2 + 1.3) k.offSoft = (k.offSoft || 0) + dt; else k.offSoft = 0;
+      if (k.offHard > 0.6 || k.offSoft > 1.5) { this.respawn(k, now); return; }
+    }
     // 벽: 길에서 너무 벗어나면 밀어 넣고 감속
     const lim = K3.W / 2 + 6;
     if (Math.abs(k.lat) > lim) { const back = Math.abs(k.lat) - lim; k.pos.x -= S.n.x * Math.sign(k.lat) * back; k.pos.z -= S.n.z * Math.sign(k.lat) * back; k.speed *= 0.6; if (k === this.me && window.Sound) Sound.bump(); }
@@ -262,12 +271,24 @@ class Kart3DGame {
     // 모델
     k.tilt += ((k.driftDir ? -k.driftDir * 0.12 : -steer * 0.05) - k.tilt) * Math.min(1, dt * 8);
     k.g.position.set(k.pos.x, k.y, k.pos.z); k.g.rotation.set(0, k.head + (k.driftDir ? k.driftDir * 0.35 : 0), k.tilt, 'YXZ');
+    if (k.resetUntil) { if (now < k.resetUntil) k.g.visible = Math.floor(now / 90) % 2 === 0; else { k.g.visible = true; k.resetUntil = 0; } }
     k.wheels.forEach(w => { w.rotation.x += k.speed * dt * 2.2; });
     if (k.driftDir && k.charge > 0.7 && Math.random() < 0.6) this.burst(k.g.position, k.charge > 1.5 ? 0xFF6BD6 : 0x5BC8FF, 1, 0.4);
     if (boosting && Math.random() < 0.7) this.burst(new THREE.Vector3(k.pos.x - Math.sin(k.head) * 1.8, k.y + 0.6, k.pos.z - Math.cos(k.head) * 1.8), 0xFFB347, 1, 0.5);
     // 완주
     if (!k.finished && k.lap >= K3.LAPS) { k.finished = true; k.time = this.raceT; this.finishOrder.push(k); k.place = this.finishOrder.length;
       if (k === this.me) { this.flash = { text: '완주!', until: now + 1e9 }; if (window.Sound) { Sound.finish(); Sound.engineStop(); Sound.skidSet(0); } if (this.opts.onFinish) this.opts.onFinish(); } }
+  }
+  respawn(k, now) {
+    const sf = k.safe, S = this.samp[sf.idx], lat = Math.max(-K3.W / 4, Math.min(K3.W / 4, sf.lat));
+    this.burst(new THREE.Vector3(k.pos.x, k.y + 0.8, k.pos.z), 0xFFFFFF, 10, 0.6);
+    // 진행도 되돌리기: 지금 자리에서 안전한 자리까지 샘플 차이만큼 (결승선을 넘었다가 돌아가면 바퀴 수도 되돌림)
+    let di = sf.idx - k.idx; if (di > K3.N / 2) di -= K3.N; if (di < -K3.N / 2) di += K3.N;
+    k.prog += di * this.segLen; if (k.lap > sf.lap) { k.lap = sf.lap; } k.half = sf.half;
+    k.idx = sf.idx; k.pos.set(S.p.x, S.p.y, S.p.z).addScaledVector(S.n, lat); k.y = S.p.y; k.lat = lat;
+    k.head = Math.atan2(S.t.x, S.t.z); k.speed = K3.MAX * 0.4; k.driftDir = 0; k.charge = 0; k.boostUntil = 0; k.tilt = 0;
+    k.offHard = 0; k.offSoft = 0; k.resetUntil = now + 1000; k.resets = (k.resets || 0) + 1;
+    if (k === this.me) { this.flash = { text: '도로로 복귀!', until: now + 900 }; if (window.Sound) Sound.jump(); if (window.Haptic) Haptic.tap(); }
   }
   // CPU 가 너무 앞서거나 뒤처지지 않게 (뒤처지면 조금 빨라짐)
   rubber(k) { const gap = (this.me.prog + this.me.lap * 0) - k.prog; return Math.max(0.9, Math.min(1.12, 1 + gap / 900)); }

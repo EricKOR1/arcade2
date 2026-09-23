@@ -1,9 +1,15 @@
-아케이드 플랫폼 — v2026-10-12b
+아케이드 플랫폼 — v2026-10-13a (젬 아레나 3D)
 
-교체할 파일 4개
-  style.css      세로 폰에서 3D 카트 버튼 겹침 해결 (오른손 버튼 세로로 쌓기)
-  kart3d.html    연습 페이지도 같은 수정
-  index.html · admin.html   버전 표시
+새로 올릴 파일
+  arena3d-engine.js   젬 아레나 3D
 
-★ v2026-10-12a 를 아직 안 올렸다면 three.min.js · kart3d-engine.js · games.js 도 함께 (이 zip 에 있음)
-올린 뒤 화면 아래 v2026-10-12b 확인. 안 보이면 Ctrl+Shift+R. 학생 기기도 새로고침.
+교체할 파일
+  arena-engine.js     상대 위치 따라가기 분리 (2D·3D 공용)
+  fx.js               프레임 간격 안정화 (모든 게임)
+  games.js            '젬 아레나 3D' 등록
+  index.html · admin.html   3D 판 포함 · 버전
+
+★ v2026-10-12 를 아직 안 올렸다면 three.min.js 도 꼭 함께 (없으면 3D 게임이 뜨지 않음)
+★ 학생 기기 모두 새로고침
+건드리지 않는 파일: firebase-config.js (EXAMPLE 은 올리지 마세요) · photo/force/body.html
+올린 뒤 화면 아래 v2026-10-13a 확인. 안 보이면 Ctrl+Shift+R.
