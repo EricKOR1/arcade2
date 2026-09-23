@@ -453,18 +453,22 @@ class FpsGame {
       ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
     }
     // 왼쪽 아래: 체력
+    const hp = this.avoidPos(14, H - 66, 168, 52, 'left'); ctx.save(); ctx.translate(hp.x - 14, hp.y - (H - 66));   // 버튼과 겹치면 위나 옆으로
     rr(14, H - 66, 168, 52, 14, 'rgba(8,10,16,0.72)');
     ctx.fillStyle = this.hp > 40 ? '#06D6A0' : '#FF5C7A'; ctx.font = '800 26px Pretendard, sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
     ctx.fillText('+', 28, H - 30); ctx.fillText(String(this.hp), 50, H - 30);
     ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.fillRect(28, H - 24, 140, 5);
     ctx.fillStyle = this.hp > 40 ? '#06D6A0' : '#FF5C7A'; ctx.fillRect(28, H - 24, 140 * this.hp / 100, 5);
+    ctx.restore();
     // 오른쪽 아래: 탄약
+    const am = this.avoidPos(W - 152, H - 66, 138, 52, 'right'); ctx.save(); ctx.translate(am.x - (W - 152), am.y - (H - 66));
     rr(W - 152, H - 66, 138, 52, 14, 'rgba(8,10,16,0.72)');
     ctx.textAlign = 'right';
     if (this.reloading) { ctx.fillStyle = '#FFD166'; ctx.font = '800 15px Pretendard, sans-serif'; ctx.fillText('재장전 중…', W - 28, H - 36);
       ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.fillRect(W - 138, H - 26, 110, 5); ctx.fillStyle = '#FFD166'; ctx.fillRect(W - 138, H - 26, 110 * (1 - (this.reloadUntil - now) / 1400), 5); }
     else { ctx.fillStyle = this.ammo > 6 ? '#FFFFFF' : '#FF5C7A'; ctx.font = '800 28px Pretendard, sans-serif'; ctx.fillText(String(this.ammo), W - 62, H - 30);
       ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.font = '700 13px Pretendard, sans-serif'; ctx.fillText('/ ' + FPS_MAG, W - 26, H - 30); }
+    ctx.restore();                                    // (탄약 카드 위치 이동 끝)
     ctx.textAlign = 'left';
     // 위쪽 가운데: 점수판 (팀전은 팀 점수, 개인전은 내 K/D)
     if (this.teamMode) {
@@ -504,8 +508,24 @@ class FpsGame {
     if (this.spectator) { ctx.textAlign = 'center'; ctx.font = '700 13px Pretendard, sans-serif'; ctx.fillStyle = '#FFD166'; ctx.fillText('👁 ' + this.myName + ' 의 화면', W / 2, this.teamMode ? 66 : 64); ctx.textAlign = 'left'; }
   }
 
+  // 화면에 겹친 조작 버튼 묶음(가로 화면에서 커짐)의 위치를 캔버스 좌표로 — 정보 카드·미니맵이 가려지지 않게 피해 그림
+  keepOut() {
+    const now = Date.now(); if (this._ko && now - this._koT < 400) return this._ko;
+    const out = []; try { const cv = this.canvas.getBoundingClientRect();
+      document.querySelectorAll('#pad > *').forEach(e => { const r = e.getBoundingClientRect(); if (r.width > 2 && r.height > 2) out.push({ x: r.left - cv.left, y: r.top - cv.top, w: r.width, h: r.height }); }); } catch (e) {}
+    this._ko = out; this._koT = now; return out;
+  }
+  // (x, y, w, h) 가 버튼과 겹치면: 버튼 윗줄 위로 올림. 위 공간이 모자라면(폰 가로처럼 버튼이 큼) 버튼 옆으로 비킴
+  avoidPos(x, y, w, h, side) {
+    const hit = this.keepOut().filter(k => x < k.x + k.w && k.x < x + w && y < k.y + k.h && k.y < y + h); if (!hit.length) return { x, y };
+    const up = Math.min(...hit.map(k => k.y - h - 8)); if (up >= 56) return { x, y: up };
+    if (side === 'left') return { x: Math.max(...hit.map(k => k.x + k.w)) + 10, y };        // 왼쪽 카드 → 버튼 오른쪽 옆
+    return { x: Math.min(...hit.map(k => k.x)) - w - 10, y };                              // 오른쪽 카드 → 버튼 왼쪽 옆
+  }
+  hitsKeys(x, y, w, h) { return this.keepOut().some(k => x < k.x + k.w && k.x < x + w && y < k.y + k.h && k.y < y + h); }
   drawMinimap(ctx, W, H) {
-    const n = this.map.length, size = Math.min(104, W * 0.28), cs = size / n, x0 = 14, y0 = this.teamMode ? 34 : 14;
+    const n = this.map.length, size = Math.min(104, W * 0.28), cs = size / n, y0 = this.teamMode ? 34 : 14;
+    let x0 = 14; if (this.hitsKeys(x0, y0, size + 8, size + 8)) x0 = W - size - 22;   // 왼쪽 위가 버튼에 가리면 오른쪽 위로
     if (!this._mm || this._mmSize !== size) {
       this._mm = document.createElement('canvas'); this._mm.width = Math.ceil(size + 8); this._mm.height = Math.ceil(size + 8); this._mmSize = size;
       const g = this._mm.getContext('2d');

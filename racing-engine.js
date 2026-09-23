@@ -1075,7 +1075,7 @@ class KartGame {
 
     if (spinning)      this.angle += 0.34 * f;
     else if (sliding)  this.angle += (this.slideDrift || 0.02) * f;                 // 핸들이 안 듣고 슬슬 밀림
-    else if (this.drifting) this.angle += (this.steer * 0.9 + this.driftDir * 0.45) * this.turnRate * 1.55 * Math.min(1, this.speed/3) * f;   // 드리프트: 약 1.5배 빠른 회전
+    else if (this.drifting) this.angle += (this.steer * 0.9 + this.driftDir * 0.45) * this.turnRate * 1.12 * Math.min(1, this.speed/3) * f;   // 드리프트: 약 1.5배 빠른 회전 (1.35 × 1.12)
     else if (!stunned && !this.airborne) this.angle += this.steer * this.turnRate * Math.min(1, this.speed/3) * f;
     // 자석: 상대를 '직선으로' 향하면 코너에서 벽에 박습니다.
     // 대신 ① 도로를 따라가도록 진행 방향을 잡아 주고 ② 상대가 달리는 도로 옆쪽(안/바깥)으로만 조금씩 옮깁니다.
@@ -1456,7 +1456,7 @@ class KartGame {
     const spd = Math.min(1, this.speed / (this.maxSpeed * 1.4));
     this.spdView = (this.spdView == null) ? spd : this.spdView + (spd - this.spdView) * this.smooth(0.08, this.lastF);
     const f = (W * (0.78 - 0.08 * this.spdView)) * back / t.halfW;
-    const height = (H * (0.50 - 0.07 * this.spdView)) * back / f;
+    const height = (H * (0.58 - 0.07 * this.spdView)) * back / f;          // 카메라 기울기 약 1.16배 — 더 내려다보며 앞 도로가 멀리 보이게
 
     // 경사를 따라 시선이 부드럽게 따라감 (구간 사이 위치까지 반영)
     const fi = fi0;
@@ -1464,7 +1464,7 @@ class KartGame {
     const g = this.track.gradeAt(fi, 8);
     this.viewGrade = (this.viewGrade === undefined) ? g : this.viewGrade + (g - this.viewGrade) * this.smooth(0.08, this.lastF);
     const horizonY = Math.max(H * 0.14, Math.min(H * 0.56,
-                       H * 0.33 + f * this.viewGrade * 1.35));
+                       H * 0.25 + f * this.viewGrade * 1.35));        // 지평선을 위로(33%→25%) — 기울기를 키워도 내 카트는 원래 높이(화면 83%), 앞 도로는 16% 더 넓게
 
     const myElev = t.elevAtF(fi) + (this.airZ || 0) * 0.6;   // 실제 위치의 높이 + 공중일 때 카메라도 따라 오름
 

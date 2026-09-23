@@ -345,7 +345,8 @@ class KartGame3D extends KartGame {
     // 카메라: 뒤에서 따라감 · 빠를수록 시야 넓게 (2D 판처럼 코너에서 살짝 늦게 돔)
     const base = this.moveA != null && !this.spectator ? this.moveA : this.angle; let dca = this.angle - base; while (dca > Math.PI) dca -= Math.PI * 2; while (dca < -Math.PI) dca += Math.PI * 2;
     const me = this.karts.__me.g.position, ca = base + dca * 0.35, fwd = new T.Vector3(Math.cos(ca), 0, Math.sin(ca));   // 드리프트 중엔 미끄러져 가는 방향을 따라가 옆모습이 보임
-    const want = me.clone().addScaledVector(fwd, -7.5); want.y = Math.max(want.y + 3.4, this.groundY + 2.5); const look = me.clone().addScaledVector(fwd, 5); look.y += 1.2;
+    // 시점: 조금 더 높고 멀리서, 더 앞을 보게 (예전엔 도로에 붙어 앞이 잘 안 보임)
+    const want = me.clone().addScaledVector(fwd, -8.4); want.y = Math.max(want.y + 5.0, this.groundY + 2.5); const look = me.clone().addScaledVector(fwd, 10); look.y += 0.6;
     if (!this.camPos) { this.camPos = want.clone(); this.camLook = look.clone(); }
     this.camPos.lerp(want, 0.15); this.camLook.lerp(look, 0.25); this.camera.position.copy(this.camPos);
     if (this.shake3d > 0) { this.camera.position.x += (Math.random() - 0.5) * this.shake3d; this.camera.position.y += (Math.random() - 0.5) * this.shake3d; this.shake3d = Math.max(0, this.shake3d - dtf * 1.5); }

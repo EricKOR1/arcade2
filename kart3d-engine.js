@@ -327,8 +327,8 @@ class Kart3DGame {
       if (p.t > p.l) { this.scene.remove(p.m); p.m.material.dispose(); this.parts.splice(i, 1); } }
     // 카메라: 뒤에서 따라감 · 빠를수록 시야가 넓어져 속도감
     const me = this.me, fwd = new THREE.Vector3(Math.sin(me.head), 0, Math.cos(me.head));
-    const want = new THREE.Vector3(me.pos.x, me.y, me.pos.z).addScaledVector(fwd, -7.5); want.y += 3.4;
-    const look = new THREE.Vector3(me.pos.x, me.y + 1.2, me.pos.z).addScaledVector(fwd, 5);
+    const want = new THREE.Vector3(me.pos.x, me.y, me.pos.z).addScaledVector(fwd, -8.4); want.y += 5.0;
+    const look = new THREE.Vector3(me.pos.x, me.y + 0.6, me.pos.z).addScaledVector(fwd, 10);
     if (this.snapCam) { this.camPos.copy(want); this.camLook.copy(look); this.snapCam = false; }
     this.camPos.lerp(want, Math.min(1, dt * 6)); this.camLook.lerp(look, Math.min(1, dt * 10));
     this.camera.position.copy(this.camPos); this.camera.lookAt(this.camLook);

@@ -610,7 +610,14 @@ class Fps3DGame {
       this.shells.push({ t: 0, vx: 0.9 + Math.random() * 0.4, vy: 0.9, vz: -0.2 });          // 탄피 (볼트 당길 때 튀어나옴)
       if (window.Haptic) Haptic.big();
     } else {
-      this.recoil = Math.min(1, this.recoil + 0.3); this.kickVis = Math.min(0.05, (this.kickVis || 0) + 0.02); this.pitch = Math.min(1.1, this.pitch + 0.004); this.kickRoll += (Math.random() - 0.5) * 0.01; this.flashBig = false;
+      // 라이플: 한 발마다 화면이 약 2° 튀었다 돌아오고(kickVis), 조준은 0.7° 위로 · 좌우 조금(연사할수록 누적).
+      // 쏘기를 멈추면 누적된 만큼 0.4초 안에 대부분 되돌아옴(아래 tick) — 학생이 매번 조준을 끌어내리지 않아도 되게
+      const climb = 0.012, side = (Math.random() - 0.35) * 0.009;           // 살짝 오른쪽으로 치우친 좌우 흔들림
+      this.recoil = Math.min(1, this.recoil + 0.45); this.kickVis = Math.min(0.09, (this.kickVis || 0) + 0.035);
+      const before = this.pitch; this.pitch = Math.min(1.1, this.pitch + climb); this.yaw += side;
+      this.sprayPitch = (this.sprayPitch || 0) + (this.pitch - before); this.sprayYaw = (this.sprayYaw || 0) + side;
+      this.kickRoll += (Math.random() - 0.5) * 0.02; this.flashBig = false;
+      if (window.Haptic && Haptic.tap) Haptic.tap();
       this.shells.push({ t: 0, vx: 0.6 + Math.random() * 0.3, vy: 0.5, vz: -0.1 });
     }
     // 조준선을 따라 전진하며 벽 또는 사람에 닿는 첫 지점
@@ -764,6 +771,12 @@ class Fps3DGame {
     this.muzzle = Math.max(0, this.muzzle - (this.flashBig ? 0.12 : 0.2) * f); this.recoil = Math.max(0, this.recoil - (this.weapon === 'sniper' ? 0.035 : 0.06) * f);
     // 킥: 총구가 튀어 오른 만큼 시선이 올라갔다가 되돌아옵니다 (스나이퍼는 크고 느리게)
     { const k = 1 - Math.pow(1 - (this.weapon === 'sniper' ? 0.07 : 0.2), f); this.kickVis = (this.kickVis || 0) * (1 - k); this.kickRoll = (this.kickRoll || 0) * (1 - k * 0.8); }
+    // 라이플 연사 반동 회복: 마지막 발사 0.22초 뒤부터 누적 반동의 대부분을 되돌림 (조준을 직접 움직인 만큼은 그대로)
+    if ((this.sprayPitch || this.sprayYaw) && now - this.lastFire > 220) {
+      const k = 1 - Math.pow(1 - 0.12, f), dp = this.sprayPitch * k * 0.85, dy = this.sprayYaw * k * 0.85;
+      this.pitch -= dp; this.yaw -= dy; this.sprayPitch -= this.sprayPitch * k; this.sprayYaw -= this.sprayYaw * k;
+      if (Math.abs(this.sprayPitch) < 0.0005) { this.sprayPitch = 0; this.sprayYaw = 0; }
+    }
     if (this.zoomFlinch > 0) this.zoomFlinch = Math.max(0, this.zoomFlinch - 0.05 * f);
     if (this.boltT > 0) this.boltT = Math.max(0, this.boltT - 0.022 * f);                   // 볼트액션: 0.75초
     for (let i = this.shells.length - 1; i >= 0; i--) { const sh = this.shells[i]; sh.t += 0.05 * f; if (sh.t > 1) this.shells.splice(i, 1); }
@@ -903,9 +916,9 @@ class Fps3DGame {
     // 볼트액션: 총이 오른쪽 아래로 기울며 손이 볼트를 당기는 동작 (0 → 1 → 0 곡선)
     const bk = bolt > 0 ? Math.sin(Math.min(1, bolt) * Math.PI) : 0;
     const bobX = this.moving ? Math.sin(this.bob * 0.5) * (sn ? 0.006 : 0.01) : 0, bobY2 = this.moving ? Math.abs(Math.cos(this.bob * 0.5)) * (sn ? 0.006 : 0.01) : 0;
-    const kickZ = this.recoil * (sn ? 0.16 : 0.06), kickY = this.recoil * (sn ? 0.05 : 0.01);
+    const kickZ = this.recoil * (sn ? 0.16 : 0.1), kickY = this.recoil * (sn ? 0.05 : 0.022);   // 라이플도 총이 뒤로·위로 밀림
     this.weaponModel.position.set(0.28 + bobX - this.swayX * 0.6 + bk * 0.05, -0.26 - rel + bobY2 + kickY + this.swayY * 0.4 - bk * 0.06, -0.55 + kickZ + bk * 0.05);
-    this.weaponModel.rotation.x = -rel * 1.5 + this.recoil * (sn ? 0.22 : 0.1) + this.swayY * 0.5 - bk * 0.12;
+    this.weaponModel.rotation.x = -rel * 1.5 + this.recoil * (sn ? 0.22 : 0.16) + this.swayY * 0.5 - bk * 0.12;
     this.weaponModel.rotation.z = this.recoil * (sn ? 0.06 : 0.02) + bk * 0.28;
     this.weaponModel.rotation.y = -0.06 - this.swayX * 0.5 + bk * 0.15;
     this.weaponModel.visible = !this.spectator && !this.isDead && this.zoomK < 0.5;

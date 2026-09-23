@@ -1,13 +1,13 @@
-아케이드 플랫폼 — v2026-10-15c (주소창 없이 전체 화면)
-
-새로 올릴 파일 4개 (index.html 과 같은 곳에)
-  manifest.webmanifest   홈 화면에 추가했을 때 주소창 없이 열리게
-  icon-180.png · icon-192.png · icon-512.png   홈 화면 아이콘
+아케이드 플랫폼 — v2026-10-15d
 
 교체할 파일
-  index.html   입장·첫 터치 때 자동 전체 화면 · 아이폰 안내 · 버전
-  style.css    아이폰 안내 모양
-  admin.html   버전
+  racing-engine.js    2D 카트 시점 · 드리프트 회전 보정
+  kart3dx-engine.js   3D 카트 시점
+  kart3d-engine.js    연습 페이지 시점
+  fps3d-engine.js     라이플 반동
+  fps-engine.js       레이저 태그 2D: 체력·탄약·미니맵이 버튼에 가리지 않게
+  style.css           카트 폰 세로 아이템 칸 · 방향키 글자
+  index.html · admin.html   버전
 
-★ 학생 기기 새로고침
-올린 뒤 화면 아래 v2026-10-15c 확인.
+★ 학생 기기 모두 새로고침
+올린 뒤 화면 아래 v2026-10-15d 확인.
