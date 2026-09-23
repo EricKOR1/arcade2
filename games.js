@@ -128,7 +128,7 @@ const GAMES = {
     detail: function (g) { return (g.team === 'r' ? '레드 팀' : '블루 팀') + ' · ' + (g.ch ? g.ch.name : '') + ' · 젬 ' + g.held + ' · KO ' + g.kills + (g.winner ? (g.winner === g.team ? ' · 승리' : ' · 패배') : ''); },
     controls: [], padLayout: 'arena',
     // 팀: 참가 순서대로 번갈아 (레드·블루·레드·…) — id 해시로 정하면 한 팀에 몰릴 수 있습니다
-    create: function (canvas, opts) { return new ArenaGame(canvas, Object.assign({ team: ((opts.slot || 0) % 2) ? 'b' : 'r', charId: opts.charId }, opts)); },
+    create: function (canvas, opts) { const ti = opts.teamInfo; return new ArenaGame(canvas, Object.assign({}, opts, { team: ti ? ti.team : (((opts.slot || 0) % 2) ? 'b' : 'r'), teamSlot: ti ? ti.teamSlot : undefined, charId: opts.charId })); },
     sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, held: g.held, kills: g.kills, team: g.team }; }
   },
 

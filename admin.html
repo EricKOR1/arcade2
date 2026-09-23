@@ -7,8 +7,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1B2027">
 <title>교사용 대시보드</title>
-<link rel="stylesheet" href="platform.css?v=2026-10-10a">
-<link rel="stylesheet" href="style.css?v=2026-10-10a">
+<link rel="stylesheet" href="platform.css?v=2026-10-10b">
+<link rel="stylesheet" href="style.css?v=2026-10-10b">
 </head>
 <body>
 <div class="admin" id="admin-root">
@@ -17,7 +17,7 @@
     <h1>아케이드</h1>
     <span class="badge badge-lg" id="status-badge">게임 선택</span>
     <span class="badge badge-lg badge-ghost" id="count-badge">0명 접속</span>
-    <span class="badge badge-sm" style="opacity:.4">v2026-10-10a</span>
+    <span class="badge badge-sm" style="opacity:.4">v2026-10-10b</span>
   </div>
   <p class="admin-sub" id="admin-sub">플레이할 게임을 고르면 학생용 QR이 만들어집니다.</p>
 
@@ -172,30 +172,30 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="firebase-config.js?v=2026-10-10a"></script>
-<script src="shared.js?v=2026-10-10a"></script>
-<script src="fx.js?v=2026-10-10a"></script>
-<script src="tetris-engine.js?v=2026-10-10a"></script>
-<script src="racing-engine.js?v=2026-10-10a"></script>
-<script src="snake-engine.js?v=2026-10-10a"></script>
-<script src="breakout-engine.js?v=2026-10-10a"></script>
-<script src="flappy-engine.js?v=2026-10-10a"></script>
-<script src="shooter-engine.js?v=2026-10-10a"></script>
+<script src="firebase-config.js?v=2026-10-10b"></script>
+<script src="shared.js?v=2026-10-10b"></script>
+<script src="fx.js?v=2026-10-10b"></script>
+<script src="tetris-engine.js?v=2026-10-10b"></script>
+<script src="racing-engine.js?v=2026-10-10b"></script>
+<script src="snake-engine.js?v=2026-10-10b"></script>
+<script src="breakout-engine.js?v=2026-10-10b"></script>
+<script src="flappy-engine.js?v=2026-10-10b"></script>
+<script src="shooter-engine.js?v=2026-10-10b"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="fps-engine.js?v=2026-10-10a"></script>
-<script src="fps3d-engine.js?v=2026-10-10a"></script>
-<script src="game2048-engine.js?v=2026-10-10a"></script>
-<script src="frogger-engine.js?v=2026-10-10a"></script>
-<script src="asteroids-engine.js?v=2026-10-10a"></script>
-<script src="maze-engine.js?v=2026-10-10a"></script>
-<script src="tower-engine.js?v=2026-10-10a"></script>
-<script src="missile-engine.js?v=2026-10-10a"></script>
-<script src="centipede-engine.js?v=2026-10-10a"></script>
-<script src="source-engine.js?v=2026-10-10a"></script>
-<script src="arena-engine.js?v=2026-10-10a"></script>
-<script src="slither-engine.js?v=2026-10-10a"></script>
-<script src="games.js?v=2026-10-10a"></script>
-<script src="app.js?v=2026-10-10a"></script>
+<script src="fps-engine.js?v=2026-10-10b"></script>
+<script src="fps3d-engine.js?v=2026-10-10b"></script>
+<script src="game2048-engine.js?v=2026-10-10b"></script>
+<script src="frogger-engine.js?v=2026-10-10b"></script>
+<script src="asteroids-engine.js?v=2026-10-10b"></script>
+<script src="maze-engine.js?v=2026-10-10b"></script>
+<script src="tower-engine.js?v=2026-10-10b"></script>
+<script src="missile-engine.js?v=2026-10-10b"></script>
+<script src="centipede-engine.js?v=2026-10-10b"></script>
+<script src="source-engine.js?v=2026-10-10b"></script>
+<script src="arena-engine.js?v=2026-10-10b"></script>
+<script src="slither-engine.js?v=2026-10-10b"></script>
+<script src="games.js?v=2026-10-10b"></script>
+<script src="app.js?v=2026-10-10b"></script>
 <script>
 (function () {
   const CELL = { tetris: 6, snake: 5, breakout: 8, flappy: 8, shooter: 8, g2048: 26, frogger: 8, asteroids: 6, maze: 5, tower: 7, missile: 6, centipede: 5, source: 8, arena: 6, slither: 5 };
@@ -421,7 +421,16 @@
       return Object.keys(up).length ? playersRef.update(up) : null;
     })["catch"](() => {}).then(() => {
       // 캐릭터를 고르는 게임(젬 아레나): 먼저 10초 캐릭터 선택 → 모두 고르거나 시간이 끝나면 시작 (selectWatch)
-      if ((GAMES[currentGameId] || {}).chars) { db.ref('picks').remove(); sessionRef.update({ status: 'select', selectUntil: serverNow() + SELECT_MS, startAt: null }); return; }
+      if ((GAMES[currentGameId] || {}).chars) {
+        // 팀: 지금 접속한 학생을 무작위로 섞어 반반. 홀수면 한 팀이 1명 많고, 어느 팀이 많을지도 무작위
+        const ids = Object.keys(focusPlayers || {});
+        for (let i = ids.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [ids[i], ids[j]] = [ids[j], ids[i]]; }
+        const big = Math.random() < 0.5 ? 'r' : 'b', small = big === 'r' ? 'b' : 'r', nBig = Math.ceil(ids.length / 2), teams = {};
+        ids.forEach((id, i) => { teams[id] = i < nBig ? big : small; });
+        db.ref('picks').remove();
+        sessionRef.update({ status: 'select', selectUntil: serverNow() + SELECT_MS, startAt: null, teams: teams });
+        return;
+      }
       // 모든 기기가 게임을 준비할 시간을 주고, 같은 순간에 출발하도록 출발 시각을 함께 알립니다
       sessionRef.child('startAt').set(serverNow() + 4200);
       statusRef.set('playing');
@@ -429,13 +438,14 @@
   });
 
   // ── 캐릭터 선택 단계 감시 (교사 화면이 판정합니다 — 한 곳에서만 정해야 모두 같은 순간에 시작) ──
-  const SELECT_MS = 10000;
-  let selectUntil = 0, picks = {};
+  const SELECT_MS = 20000;   // 캐릭터 선택 시간
+  let selectUntil = 0, picks = {}, sessionTeams = null;
+  sessionRef.child('teams').on('value', sn => { sessionTeams = sn.val() || null; });
   db.ref('picks').on('value', sn => { picks = sn.val() || {}; });
   sessionRef.child('selectUntil').on('value', sn => { selectUntil = +sn.val() || 0; });
   setInterval(() => {
     if (currentStatus !== 'select') return;
-    const ids = Object.keys(focusPlayers || {});                 // 지금 접속해 있는 학생
+    const ids = Object.keys(sessionTeams || focusPlayers || {}).filter(id => (focusPlayers || {})[id]);   // 팀을 배정받고 지금도 접속해 있는 학생
     const done = ids.length > 0 && ids.every(id => picks[id]);
     if (done || (selectUntil && serverNow() >= selectUntil)) {
       currentStatus = 'playing';                                // 두 번 시작하지 않게 먼저 표시

@@ -1,12 +1,14 @@
-아케이드 플랫폼 — v2026-10-10a
+아케이드 플랫폼 — v2026-10-10b
 
-교체할 파일 4개
-  index.html          캐릭터 선택 화면(10초)
-  admin.html          시작 → 선택 단계 → 전원 선택/10초 뒤 시작 판정
-  style.css           선택 화면
-  firebase-rules.json ★ 'picks' 노드 추가 — 규칙을 쓰신다면 다시 붙여 넣으세요
+교체할 파일 5개
+  index.html      대기 화면 카드 삭제 · 선택 화면(내 팀 표시·가독성) · 팀 정보 적용
+  admin.html      시작 시 팀 무작위 반반 · 선택 20초
+  games.js        배정된 팀으로 게임 생성
+  arena-engine.js 팀 안 순번으로 출발 자리
+  style.css       선택 화면 가독성
 
 ★ 학생 기기 모두 새로고침
+★ firebase-rules.json 은 v2026-10-10a 에서 바뀐 그대로 (picks) — 이미 붙여 넣었다면 그대로
 ★ assets/arena/ 폴더를 아직 안 올렸다면 함께 (이 zip 에 있음)
 건드리지 않는 파일: firebase-config.js (EXAMPLE 은 올리지 마세요) · photo/force/body.html
-올린 뒤 화면 아래 v2026-10-10a 확인. 안 보이면 Ctrl+Shift+R.
+올린 뒤 화면 아래 v2026-10-10b 확인. 안 보이면 Ctrl+Shift+R.

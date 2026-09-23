@@ -809,7 +809,7 @@ body.fullgrid .spectate { grid-template-columns: 1fr 320px }
 .char-select { position: fixed; inset: 0; z-index: 60; background: radial-gradient(ellipse at 50% 20%, #243158, #0B0F1E 70%); display: flex; flex-direction: column; align-items: center; padding: max(16px, env(safe-area-inset-top)) 14px 16px; overflow-y: auto }
 .char-select.hidden { display: none }
 .cs-head { display: flex; align-items: center; gap: 14px; margin: 6px 0 8px }
-.cs-title { font: 400 26px 'Lilita One', Pretendard, sans-serif; color: #fff; -webkit-text-stroke: 1px #1B1B2F; text-shadow: 0 3px 0 #1B1B2F }
+.cs-title { font: 900 26px Pretendard, sans-serif; color: #fff; letter-spacing: -0.5px; text-shadow: 0 3px 0 #1B1B2F, 0 0 12px rgba(0,0,0,.5) }   /* Lilita One 은 한글이 없어 흐리게 보였습니다 */
 .cs-time { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; background: #FFD166; color: #3A2A00; font: 400 28px 'Lilita One', Pretendard, sans-serif; border: 3px solid #1B1B2F; box-shadow: 0 4px 0 #1B1B2F }
 .cs-time.hurry { background: #F24E4E; color: #fff; animation: superPulse .5s ease-in-out infinite }
 .cs-bar { width: min(520px, 100%); height: 8px; border-radius: 4px; background: rgba(255,255,255,.12); overflow: hidden; margin-bottom: 12px } .cs-bar i { display: block; height: 100%; background: #FFD166; transition: width .1s linear }
@@ -820,3 +820,11 @@ body.fullgrid .spectate { grid-template-columns: 1fr 320px }
 .char-select .char-card { position: relative }
 .cs-foot { margin-top: 14px; color: rgba(255,255,255,.8); font-size: 14px; font-weight: 700; text-align: center }
 @media (orientation: landscape) and (min-width: 640px) { .char-select .char-pick { grid-template-columns: repeat(6, 1fr); max-width: 1100px } }
+
+.cs-team { margin: -2px 0 10px; padding: 6px 14px; border-radius: 999px; font: 800 14px Pretendard, sans-serif; color: #fff; border: 2px solid rgba(255,255,255,.3) }
+.cs-team.r { background: rgba(242,78,78,.35); border-color: #F24E4E } .cs-team.b { background: rgba(63,169,245,.35); border-color: #3FA9F5 }
+/* 선택 카드: 캐릭터 그림을 크게, 밝은 원 배경 위에 (위에서 본 그림이라 작으면 알아보기 어려웠습니다) */
+.char-select .char-card .cicon { width: 64px; height: 64px; border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,.95), rgba(210,225,245,.85)); display: grid; place-items: center; margin-bottom: 4px; box-shadow: inset 0 -3px 0 rgba(0,0,0,.15) }
+.char-select .char-card .cicon img { height: 50px; transform: rotate(-90deg) }
+.char-select .char-card .cname { font-size: 17px } .char-select .char-card .crole { color: rgba(255,255,255,.7) }
+.char-select .cbar span { color: rgba(255,255,255,.75) } .char-select .char-card .csup { font-size: 11px }

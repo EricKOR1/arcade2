@@ -10,8 +10,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1B2027">
 <title>아케이드</title>
-<link rel="stylesheet" href="platform.css?v=2026-10-10a">
-<link rel="stylesheet" href="style.css?v=2026-10-10a">
+<link rel="stylesheet" href="platform.css?v=2026-10-10b">
+<link rel="stylesheet" href="style.css?v=2026-10-10b">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Lilita+One&display=swap" rel="stylesheet">
 </head>
@@ -130,35 +130,35 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script src="firebase-config.js?v=2026-10-10a"></script>
-<script src="sound.js?v=2026-10-10a"></script>
-<script src="shared.js?v=2026-10-10a"></script>
-<script src="fx.js?v=2026-10-10a"></script>
-<script src="tetris-engine.js?v=2026-10-10a"></script>
-<script src="racing-engine.js?v=2026-10-10a"></script>
-<script src="snake-engine.js?v=2026-10-10a"></script>
-<script src="breakout-engine.js?v=2026-10-10a"></script>
-<script src="flappy-engine.js?v=2026-10-10a"></script>
-<script src="shooter-engine.js?v=2026-10-10a"></script>
+<script src="firebase-config.js?v=2026-10-10b"></script>
+<script src="sound.js?v=2026-10-10b"></script>
+<script src="shared.js?v=2026-10-10b"></script>
+<script src="fx.js?v=2026-10-10b"></script>
+<script src="tetris-engine.js?v=2026-10-10b"></script>
+<script src="racing-engine.js?v=2026-10-10b"></script>
+<script src="snake-engine.js?v=2026-10-10b"></script>
+<script src="breakout-engine.js?v=2026-10-10b"></script>
+<script src="flappy-engine.js?v=2026-10-10b"></script>
+<script src="shooter-engine.js?v=2026-10-10b"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="fps-engine.js?v=2026-10-10a"></script>
-<script src="fps3d-engine.js?v=2026-10-10a"></script>
-<script src="game2048-engine.js?v=2026-10-10a"></script>
-<script src="frogger-engine.js?v=2026-10-10a"></script>
-<script src="asteroids-engine.js?v=2026-10-10a"></script>
-<script src="maze-engine.js?v=2026-10-10a"></script>
-<script src="tower-engine.js?v=2026-10-10a"></script>
-<script src="missile-engine.js?v=2026-10-10a"></script>
-<script src="centipede-engine.js?v=2026-10-10a"></script>
-<script src="source-engine.js?v=2026-10-10a"></script>
-<script src="arena-engine.js?v=2026-10-10a"></script>
-<script src="slither-engine.js?v=2026-10-10a"></script>
-<script src="games.js?v=2026-10-10a"></script>
-<script src="app.js?v=2026-10-10a"></script>
+<script src="fps-engine.js?v=2026-10-10b"></script>
+<script src="fps3d-engine.js?v=2026-10-10b"></script>
+<script src="game2048-engine.js?v=2026-10-10b"></script>
+<script src="frogger-engine.js?v=2026-10-10b"></script>
+<script src="asteroids-engine.js?v=2026-10-10b"></script>
+<script src="maze-engine.js?v=2026-10-10b"></script>
+<script src="tower-engine.js?v=2026-10-10b"></script>
+<script src="missile-engine.js?v=2026-10-10b"></script>
+<script src="centipede-engine.js?v=2026-10-10b"></script>
+<script src="source-engine.js?v=2026-10-10b"></script>
+<script src="arena-engine.js?v=2026-10-10b"></script>
+<script src="slither-engine.js?v=2026-10-10b"></script>
+<script src="games.js?v=2026-10-10b"></script>
+<script src="app.js?v=2026-10-10b"></script>
 <script>
 (function () {
 
-  const BUILD = '2026-10-10a';   // 화면 아래에 표시됩니다
+  const BUILD = '2026-10-10b';   // 화면 아래에 표시됩니다
 
   const gameId = getGameId();
   const def = GAMES[gameId];
@@ -354,14 +354,6 @@
       el.addEventListener('click', () => { sessionStorage.setItem('charId', id); wrap.querySelectorAll('.char-card').forEach(x => x.classList.toggle('on', x === el)); if (onPick) onPick(id); });
       wrap.appendChild(el); });
   }
-  // 대기 화면에도 미리 볼 수 있게 (여기서 고르면 선택 화면에서 그 카드가 미리 선택돼 있음)
-  (function buildCharPicker() {
-    if (!def.chars || typeof AR_CHARS === 'undefined') return;
-    const host = document.getElementById('howto-keys'); if (!host) return;
-    const wrap = document.createElement('div'); wrap.className = 'char-pick'; wrap.id = 'char-pick';
-    makeCharCards(wrap, null);
-    host.parentElement.insertBefore(wrap, host.nextSibling);
-  })();
 
   // ── 캐릭터 선택 화면 (교사가 [게임 시작] 을 누르면 10초) ──
   let selectOverlay = null, selectTimer = null, picksRef = null;
@@ -369,7 +361,7 @@
     if (!def.chars || typeof AR_CHARS === 'undefined') return;
     if (!selectOverlay) {
       selectOverlay = document.createElement('div'); selectOverlay.id = 'char-select'; selectOverlay.className = 'char-select';
-      selectOverlay.innerHTML = '<div class="cs-head"><div class="cs-title">캐릭터를 고르세요</div><div class="cs-time" id="cs-time">10</div></div>' +
+      selectOverlay.innerHTML = '<div class="cs-head"><div class="cs-title">캐릭터를 고르세요</div><div class="cs-time" id="cs-time">20</div></div><div class="cs-team" id="cs-team"></div>' +
         '<div class="cs-bar"><i id="cs-bar"></i></div><div class="char-pick" id="cs-cards"></div><div class="cs-foot" id="cs-foot">모두 고르면 바로 시작해요</div>';
       document.body.appendChild(selectOverlay);
       makeCharCards(document.getElementById('cs-cards'), id => {
@@ -385,7 +377,9 @@
         const f = document.getElementById('cs-foot'); if (f && !pk[playerId]) f.textContent = '선택 완료 ' + n + ' / ' + all.length + '명 · 모두 고르면 바로 시작해요';
         else if (f && pk[playerId]) f.textContent = AR_CHARS[pk[playerId]].name + ' 선택! 선택 완료 ' + n + ' / ' + all.length + '명'; }); }); }
     clearInterval(selectTimer);
-    const total = 10000;
+    const total = 20000;
+    { const ti = myTeamInfo(), el = document.getElementById('cs-team'), T = sessionTeams || {}; const n = t => Object.values(T).filter(v => v === t).length;
+      if (el) { el.className = 'cs-team ' + ti.team; el.textContent = (ti.team === 'r' ? '🔴 나는 레드 팀' : '🔵 나는 블루 팀') + '  ·  레드 ' + n('r') + '명 vs 블루 ' + n('b') + '명'; } }
     const tickSel = () => { const left = Math.max(0, (selectUntilTs || 0) - serverNow());
       const t = document.getElementById('cs-time'), b = document.getElementById('cs-bar');
       if (t) t.textContent = String(Math.ceil(left / 1000)); if (b) b.style.width = Math.max(0, Math.min(100, left / total * 100)) + '%';
@@ -394,9 +388,8 @@
   }
   function closeCharSelect() { if (selectOverlay) selectOverlay.classList.add('hidden'); clearInterval(selectTimer); if (picksRef) { picksRef.off(); picksRef = null; } }
   (function paintTeamLabel() {
-    if (gameId === 'arena') {   // 젬 아레나: 참가 순서대로 번갈아 — 명단이 바뀔 때마다 다시 표시
-      rosterRef.on('value', sn => { const order = Object.keys(sn.val() || {}).sort(), i = order.indexOf(playerId); if (i < 0) return;
-        document.getElementById('howto-name').textContent = def.name + (i % 2 ? '  ·  🔵 나는 블루 팀' : '  ·  🔴 나는 레드 팀'); });
+    if (gameId === 'arena') {   // 젬 아레나: 팀은 선생님이 시작할 때 무작위 반반으로 정해집니다
+      document.getElementById('howto-name').textContent = def.name + '  ·  팀은 시작할 때 무작위로 나눠요';
       return;
     }
     if (gameId === 'fpsteam' && typeof Fps3DGame !== 'undefined') {
@@ -410,7 +403,15 @@
   let serverOffset = 0;
   db.ref('.info/serverTimeOffset').on('value', s2 => { serverOffset = s2.val() || 0; });
   const serverNow = () => Date.now() + serverOffset;
-  let sessionStartAt = 0;
+  let sessionStartAt = 0, sessionTeams = null;
+  // 내 팀과 팀 안 순번(출발 자리). 시작 뒤 들어온 학생은 인원이 적은 팀으로
+  function myTeamInfo() {
+    const T = sessionTeams || {};
+    let team = T[playerId];
+    if (!team) { const nR = Object.values(T).filter(v => v === 'r').length, nB = Object.values(T).filter(v => v === 'b').length; team = nR <= nB ? 'r' : 'b'; }
+    const mates = Object.keys(T).filter(id => T[id] === team).sort(); let k = mates.indexOf(playerId); if (k < 0) k = mates.length;
+    return { team: team, teamSlot: k };
+  }
   const posRef     = db.ref('pos');
   const myPosRef   = db.ref('pos/' + playerId);
   const hazardsRef = db.ref('hazards');
@@ -511,6 +512,7 @@
     // (이미 진행 중인 수업에 뒤늦게 QR로 들어와도 닉네임 화면을 먼저 거칩니다)
     const st = s.status || 'idle';
     sessionStartAt = +s.startAt || 0;
+    sessionTeams = s.teams || null;
     setWatched(s.watch === playerId);
 
     // 선생님이 다른 게임을 골랐으면 그 게임으로 옮겨 갑니다.
@@ -954,7 +956,7 @@
         // (기기마다 준비 시간이 달라도 같은 순간에 출발합니다. 늦게 들어온 학생은 바로 출발)
         const cd = sessionStartAt ? Math.max(0, (sessionStartAt - serverNow()) / 1000) : undefined;
         game = def.create(canvas, {
-          countdown: cd, charId: (def.chars ? (sessionStorage.getItem('charId') || 'bolt') : undefined),
+          countdown: cd, charId: (def.chars ? (sessionStorage.getItem('charId') || 'bolt') : undefined), teamInfo: (def.chars ? myTeamInfo() : undefined),
           cellSize: cellSize, trackId: trackId, slot: slot,
           myId: playerId, myName: myNickname,
           onDropHazard: dropHazard, onHitHazard: hitHazard, nameOf: id => names[id] || '',

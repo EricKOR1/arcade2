@@ -131,7 +131,7 @@ class ArenaGame {
     this.mx = 0; this.my = 0; this.aim = null; this.angle = -Math.PI / 2; this.lastFire = 0; this.lastHurt = 0;
     this.deadUntil = 0; this.hidden = false; this.toasts = []; this.winner = null; this.countUntil = 0; this.countTeam = null;
     this.now = 0; this.lastTime = 0; this.face = 1;
-    this.spawnAt(this.opts.slot || 0);
+    this.spawnAt(this.opts.teamSlot != null ? this.opts.teamSlot * 2 : (this.opts.slot || 0));   // 팀 안 순번 → 팀 출발점 15곳 중 하나
   }
   static parse(raw) {
     const a = String(raw).split(',');
