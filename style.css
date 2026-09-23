@@ -846,3 +846,89 @@ body.fullgrid .spectate { grid-template-columns: 1fr 320px }
   .k3-right { flex-direction: column; align-items: center; gap: 10px }
   .k3b.drift { width: 88px; height: 88px; font-size: 15px } .k3b.item { width: 66px; height: 66px; font-size: 20px } .k3b.brake { width: 58px; height: 52px; font-size: 14px }
 }
+
+/* 교사 관전: 3D 카트는 학생과 같은 3D 화면 (엔진이 HUD 를 겹칠 수 있게 전용 틀) */
+.focus-wrap3d { position: relative; border-radius: 16px; overflow: hidden; box-shadow: 0 0 0 1px var(--a-line2), 0 40px 90px -40px rgba(0,0,0,.95); background: #000 }
+.focus-wrap3d canvas { display: block; width: 100%; height: 100% }
+
+/* 3D 카트(겹친 조작 버튼): 속도계·아이템 칸을 버튼 위로 */
+.k3x-on .kart-hud .hud-bl { bottom: calc(var(--k3-btn, 96px) + 18px) !important; left: 14px }
+.k3x-on .kart-hud .hud-br { bottom: calc(var(--k3-btn, 110px) + 22px) !important; right: 14px }
+
+/* ── 가로 화면(태블릿·폰 가로) 공통 배치 ──
+   버튼판을 오른쪽 칸에 따로 두면 게임 화면이 60% 대로 줄어듭니다. → 게임 화면은 가로 전체, 버튼은 화면 위에 겹쳐 양손 위치로:
+   왼쪽 = 방향키 · 오른쪽 = 동작 버튼. 세로로 긴 판(테트리스 등)은 판을 최대 높이로 가운데, 양옆 여백에 버튼 */
+@media (orientation: landscape) and (min-width: 640px) {
+  #screen-game.active { grid-template-columns: 1fr !important; grid-template-areas: "top" "canvas" !important }
+  #screen-game .canvas-wrap { grid-column: 1 !important }
+  #screen-game:not(:has(.pad.pad-none)) .canvas-wrap:not(.bleed) { padding: 6px var(--side, 214px) }     /* 판이 버튼에 가리지 않게 양옆 비움 */
+  #screen-game .pad:not(.pad-none) { position: absolute !important; left: 0; right: 0; bottom: 0; top: auto; max-height: none; overflow: visible; background: none;
+    display: flex !important; justify-content: space-between; align-items: flex-end; gap: 12px; padding: 0 max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); pointer-events: none; z-index: 5 }
+  #screen-game .pad:not(.pad-none) > * { pointer-events: auto }
+  /* 좌·중·우 분할(← 동작 →): ← → 는 왼쪽에 나란히, 동작은 오른쪽 */
+  #screen-game .pad.pad-split { display: grid !important; grid-template-columns: auto auto 1fr auto; align-items: end }
+  #screen-game .pad.pad-split > .pad-edge:first-child { grid-column: 1 } #screen-game .pad.pad-split > .pad-edge:last-child { grid-column: 2; grid-row: 1 }
+  #screen-game .pad.pad-split > .pad-mid { grid-column: 4; grid-row: 1 }
+  #screen-game .pad.pad-split .pad-edge button { min-height: 96px; min-width: 86px }
+  /* 방향 십자만 있는 게임: 왼손 쪽 */
+  #screen-game .pad.pad-single { justify-content: flex-start }
+  /* 버튼 크기: 양옆 여백(--side) 안에 들어가게 */
+  #screen-game .pad .dpad button { width: 62px; height: 62px }
+  #screen-game .pad .pad-r button, #screen-game .pad .pad-mid button { min-height: 64px; min-width: 76px }
+}
+@media (orientation: landscape) and (min-width: 640px) and (max-height: 480px) {          /* 폰 가로: 버튼을 조금 작게 */
+  #screen-game { --side: 196px }
+  #screen-game .pad .dpad button { width: 54px; height: 54px }
+  #screen-game .pad.pad-split .pad-edge button { min-height: 76px; min-width: 70px }
+  #screen-game .pad .pad-r button, #screen-game .pad .pad-mid button { min-height: 54px; min-width: 66px; font-size: 14px }
+}
+@media (orientation: landscape) and (min-width: 640px) {
+  #screen-game { --side: 226px }
+  #screen-game .pad:not(.pad-none) > * { flex: 0 0 auto; margin: 0; width: auto }
+  #screen-game .pad.pad-single > .dpad { margin-right: auto }                  /* 방향 십자만: 왼손 쪽 끝 */
+  #screen-game .pad.pad-single > .pad-r { margin-left: auto }                  /* 동작 버튼만(점프 등): 오른손 쪽 끝 */
+  #screen-game .pad.pad-single > .pad-r button { min-width: 170px; min-height: 120px; font-size: 22px; border-radius: 28px }
+  #screen-game .pad .dpad { width: auto }
+  #screen-game .pad .dpad button { width: 58px; height: 58px }
+}
+@media (orientation: landscape) and (min-width: 640px) and (max-height: 480px) {
+  #screen-game { --side: 200px }
+  #screen-game .pad .dpad button { width: 50px; height: 50px }
+  #screen-game .pad.pad-single > .pad-r button { min-width: 150px; min-height: 96px; font-size: 19px }
+}
+
+/* ── 가로 화면: 방향키 · 스킬(동작) 키 1.5배 (2026-10-15b) ──
+   버튼 묶음은 zoom 으로 통째 확대(배치 계산에 반영돼 서로 밀어냄), 조이스틱은 크기를 직접 키움(터치 계산이 실제 크기를 재므로 그대로 맞음).
+   판을 가리지 않게 양옆 여백(--side)도 1.5배 */
+@media (orientation: landscape) and (min-width: 640px) {
+  #screen-game { --side: 318px; --kz: 1.5 }
+  #screen-game .pad:not(.pad-none) > * { zoom: var(--kz) }
+  /* 화면에 겹친 조작판(레이저 태그·아레나·카트): 판 전체를 한 덩어리로 확대 — 모서리에서의 거리도 함께 커져 배치가 그대로 유지됨
+     (크기를 1/배율로 줄여 두고 확대하므로 결과적으로 화면을 정확히 덮음) */
+  #screen-game #fps-ctl { inset: auto; left: 0; top: 0; width: calc(100vw / var(--kz)); height: calc(100vh / var(--kz)); zoom: var(--kz) }   /* %는 zoom 에 곱해지지 않아 vw·vh 로 */
+  .k3x-on { --k3-btn: 165px }
+}
+@media (orientation: landscape) and (min-width: 640px) and (max-height: 480px) {
+  #screen-game { --side: 270px }
+  .k3x-on { --k3-btn: 132px }
+}
+@media (orientation: landscape) and (min-width: 640px) {
+  /* 한쪽에만 버튼이 있는 게임: 버튼 쪽만 비우고 판을 반대쪽으로 붙여 크게 (방향 십자만 → 왼쪽만 비움 · 동작 버튼만 → 오른쪽만 비움) */
+  #screen-game:has(.pad.pad-single > .dpad) .canvas-wrap:not(.bleed) { padding-right: 16px }
+  #screen-game:has(.pad.pad-single > .pad-r) .canvas-wrap:not(.bleed) { padding-left: 16px }
+}
+@media (orientation: landscape) and (min-width: 640px) and (max-height: 480px) {
+  /* 레이저 태그(버튼 12개)는 폰 가로 높이(≈390px)에 1.5배가 들어가지 않아 1.25배 */
+  #screen-game:has(#fps-ctl:not(.k3-ctl):not(.arena-ctl)) { --kz: 1.25 }
+}
+@media (orientation: landscape) and (min-width: 640px) {
+  /* 레이저 태그 설정 칩(자이로·감도)은 조작 키가 아니라 원래 크기·자리 그대로 (확대하면 재장전·구르기와 부딪힘) */
+  #screen-game #fps-ctl .fopt { zoom: calc(1 / var(--kz)) }
+}
+@media (orientation: landscape) and (min-width: 640px) and (max-height: 480px) {
+  /* 폰 가로: 설정 칩을 오른쪽 맨 위 가로 한 줄로 (세로로 쌓으면 커진 재장전·구르기와 부딪힘) */
+  #screen-game #fps-ctl .fopts { top: 6px; right: 10px; flex-direction: row; gap: 4px; zoom: calc(1 / var(--kz)) }
+  #screen-game #fps-ctl .fopts .fopt { zoom: 1 }
+}
+
+.a2hs-tip { margin: 12px 0 0; padding: 10px 12px; border-radius: 12px; background: rgba(255,209,102,.12); border: 1px solid rgba(255,209,102,.35); color: var(--a-text, #E8ECF5); font-size: 13px; line-height: 1.5 }

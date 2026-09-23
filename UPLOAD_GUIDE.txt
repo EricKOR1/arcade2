@@ -1,15 +1,13 @@
-아케이드 플랫폼 — v2026-10-13b (길 건너기 3D)
+아케이드 플랫폼 — v2026-10-15c (주소창 없이 전체 화면)
 
-새로 올릴 파일
-  frogger3d-engine.js   길 건너기 3D (크로시 로드 스타일)
+새로 올릴 파일 4개 (index.html 과 같은 곳에)
+  manifest.webmanifest   홈 화면에 추가했을 때 주소창 없이 열리게
+  icon-180.png · icon-192.png · icon-512.png   홈 화면 아이콘
 
 교체할 파일
-  games.js              '길 건너기 3D' 등록
-  index.html            3D 게임에서 2D 효과층 끄기 (오류 수정) · 버전
-  admin.html            미니보드 크기 · 버전
+  index.html   입장·첫 터치 때 자동 전체 화면 · 아이폰 안내 · 버전
+  style.css    아이폰 안내 모양
+  admin.html   버전
 
-★ 3D 게임 3종(카트·젬 아레나·길 건너기)은 three.min.js 가 저장소에 있어야 뜹니다
-★ v2026-10-13a(젬 아레나 3D)를 아직 안 올렸다면 arena3d-engine.js · arena-engine.js · fx.js 도 함께 (이 zip 에 있음)
-★ 학생 기기 모두 새로고침
-건드리지 않는 파일: firebase-config.js (EXAMPLE 은 올리지 마세요) · photo/force/body.html
-올린 뒤 화면 아래 v2026-10-13b 확인. 안 보이면 Ctrl+Shift+R.
+★ 학생 기기 새로고침
+올린 뒤 화면 아래 v2026-10-15c 확인.

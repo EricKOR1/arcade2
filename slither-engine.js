@@ -4,8 +4,8 @@
 //   · 머리끼리 부딪히면 20% 이상 큰 쪽이 이김(비슷하면 둘 다). 죽으면 몸을 따라 먹이를 떨어뜨리고 3초 뒤 작은 뱀으로 부활
 //   네트워크: 머리 위치·각도·길이만 보내고, 받는 쪽이 머리 자취로 몸을 복원합니다 (몸 좌표를 보내지 않아 가볍습니다)
 
-const SL_R = 72;               // 경기장 반지름(칸) — 30명 기준 1인당 약 540칸²(이전 30칸은 약 95칸²)
-const SL_PELLETS = 1300;       // 먹이 수 — 넓이에 맞춰 밀도 유지
+const SL_R = 144;              // 경기장 반지름(칸) — 지름 2배(72→144), 30명 기준 1인당 약 2,170칸²
+const SL_PELLETS = 5200;       // 먹이 수 — 넓이가 4배라 먹이도 4배(밀도 유지)
 const SL_SEG = 0.45;           // 몸 마디 간격(칸)
 const SL_COLORS = ['#06D6A0', '#4CC9F0', '#FFD166', '#FF5C7A', '#B15DFF', '#FF9F43', '#7DF58F', '#F78FB3'];
 
@@ -174,9 +174,10 @@ class SlitherGame {
     if (!this.isDead) everyone.push({ name: this.myName, len: this.len, me: true });
     const board = everyone.sort((a, b) => b.len - a.len).slice(0, 5);
     const myRank = everyone.findIndex(e => e.me) + 1;
-    FX.glass(ctx, 12, 12, 130, 44, 12);
-    FX.text(ctx, '길이 ' + Math.round(this.len), 24, 40, { size: 20, weight: 800, color: SL_COLORS[this.colorIdx] });
-    if (!this.isDead && Object.keys(this.peers).length) FX.text(ctx, myRank + '위', 132, 40, { size: 13, weight: 800, color: 'rgba(255,255,255,0.7)', align: 'right' });
+    const LX = 62;                                    // 왼쪽 위 뒤로 가기 버튼(←) 자리를 비움
+    FX.glass(ctx, LX, 12, 130, 44, 12);
+    FX.text(ctx, '길이 ' + Math.round(this.len), LX + 12, 40, { size: 20, weight: 800, color: SL_COLORS[this.colorIdx] });
+    if (!this.isDead && Object.keys(this.peers).length) FX.text(ctx, myRank + '위', LX + 120, 40, { size: 13, weight: 800, color: 'rgba(255,255,255,0.7)', align: 'right' });
     // 순위표: 제목 한 줄 + 최대 5줄. 줄 높이 20 · 위아래 여백 포함해 상자 높이를 글자에 맞춤
     const lbW = 150, lbX = W - lbW - 12, lbH = 34 + board.length * 20;
     FX.glass(ctx, lbX, 12, lbW, lbH, 12);

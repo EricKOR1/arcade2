@@ -77,23 +77,6 @@ const GAMES = {
     create: function (canvas, opts) { return new FlappyGame(canvas, opts.cellSize); },
     sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, passed: g.passed }; }
   },
-
-  kart3d: {
-    type: 'canvas',
-    name: '카트 레이싱 3D',
-    desc: '진짜 3D 트랙을 친구들과 동시에 달려요. 오르막 헤어핀·S자·가속 발판·? 아이템 상자, 드리프트로 터보를 모아 3바퀴 먼저 들어오면 승리',
-    howto: '자동으로 달려요 · ◀ ▶ 조향 · 꺾으면서 드리프트를 꾹 → 불꽃이 차면 놓아서 터보 · 🚀 아이템 · ■ 브레이크',
-    meta: '실시간 레이싱 · 3D · 최대 30명',
-    primary: '72% 0.16 240', primaryContent: '100% 0 0', hex: '#3FA9F5',
-    fullBleed: true, grid: { cols: 30, rows: 30 },
-    adminView: 'grid', realtime: true, engine3d: true, needsPeers: true, hasNext: false,
-    stats: [{ key: 'lapNo', label: 'LAP' }, { key: 'place', label: '순위' }],
-    detail: function (g) { return (g.me && g.me.finished ? '완주 · ' : g.lapNo + '/3바퀴 · ') + g.place + '위'; },
-    controls: [], padLayout: 'kart3d',
-    create: function (canvas, opts) { return new Kart3DGame(canvas, Object.assign({ bots: 0, maxDpr: 1.25 }, opts)); },
-    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, lapNo: g.lapNo, place: g.place }; }
-  },
-
   fps: {
     type: 'canvas',
     name: '레이저 태그 3D (개인전)',
@@ -387,8 +370,25 @@ const GAMES = {
     needsPeers: true, hasNext: false, hasTracks: true,
     detail: function (g) { const fmt = ms => { const s2 = ms / 1000; return Math.floor(s2 / 60) + ':' + (s2 % 60).toFixed(1).padStart(4, '0'); };
       return (g.finishRank ? g.finishRank + '위로 완주' : Math.max(1, g.lap + 1) + '바퀴째') + (g.bestLap ? ' · 최고 랩 ' + fmt(g.bestLap) : ''); },
-    controls: ['left', 'item', 'right', 'discard'],
+    controls: [], padLayout: 'kart3dx',
     create: function (canvas, opts) { return new KartGame(canvas, opts); },
+    sync: function (g) { return { score: g.score }; }
+  },
+
+  kart3d: {
+    type: 'canvas',
+    name: '카트 레이싱 3D',
+    desc: '모두 함께 출발해 아이템을 쓰며 3바퀴를 먼저 도세요',
+    howto: '← → 조향 · 상자를 먹으면 아이템 · 아이템 버튼으로 사용 · 3바퀴',
+    meta: '실시간 대전 · 순위 경쟁',
+    primary: '77.5% 0.154 71', primaryContent: '18% 0.03 71', hex: '#F5A524',
+    fullBleed: true, engine3d: true,
+    adminView: 'shared',
+    needsPeers: true, hasNext: false, hasTracks: true,
+    detail: function (g) { const fmt = ms => { const s2 = ms / 1000; return Math.floor(s2 / 60) + ':' + (s2 % 60).toFixed(1).padStart(4, '0'); };
+      return (g.finishRank ? g.finishRank + '위로 완주' : Math.max(1, g.lap + 1) + '바퀴째') + (g.bestLap ? ' · 최고 랩 ' + fmt(g.bestLap) : ''); },
+    controls: [], padLayout: 'kart3dx',
+    create: function (canvas, opts) { return new KartGame3D(canvas, Object.assign({ maxDpr: 1.25 }, opts)); },
     sync: function (g) { return { score: g.score }; }
   },
 
@@ -405,8 +405,25 @@ const GAMES = {
     needsPeers: true, hasNext: false, hasTracks: true,
     detail: function (g) { const fmt = ms => { const s2 = ms / 1000; return Math.floor(s2 / 60) + ':' + (s2 % 60).toFixed(1).padStart(4, '0'); };
       return (g.finishRank ? g.finishRank + '위로 완주' : Math.max(1, g.lap + 1) + '바퀴째') + (g.bestLap ? ' · 최고 랩 ' + fmt(g.bestLap) : ''); },
-    controls: ['left', 'right'],
+    controls: [], padLayout: 'kart3dx',
     create: function (canvas, opts) { return new KartGame(canvas, Object.assign({ noItems: true }, opts)); },
+    sync: function (g) { return { score: g.score }; }
+  },
+
+  kartpure3d: {
+    type: 'canvas',
+    name: '카트 레이싱 3D (노템전)',
+    desc: '아이템 없이 주행 실력만으로 3바퀴. 부스터 발판과 코너 공략이 승부처',
+    howto: '← → 조향만 · 아이템 없음 · 부스터 발판을 밟고 코너에서 안쪽을 노리세요',
+    meta: '실시간 대전 · 순위 경쟁 · 노템전',
+    primary: '78% 0.13 230', primaryContent: '20% 0.04 230', hex: '#4CC9F0',
+    fullBleed: true, engine3d: true,
+    adminView: 'shared',
+    needsPeers: true, hasNext: false, hasTracks: true,
+    detail: function (g) { const fmt = ms => { const s2 = ms / 1000; return Math.floor(s2 / 60) + ':' + (s2 % 60).toFixed(1).padStart(4, '0'); };
+      return (g.finishRank ? g.finishRank + '위로 완주' : Math.max(1, g.lap + 1) + '바퀴째') + (g.bestLap ? ' · 최고 랩 ' + fmt(g.bestLap) : ''); },
+    controls: [], padLayout: 'kart3dx',
+    create: function (canvas, opts) { return new KartGame3D(canvas, Object.assign({ noItems: true, maxDpr: 1.25 }, opts)); },
     sync: function (g) { return { score: g.score }; }
   },
 

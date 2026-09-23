@@ -8,10 +8,14 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0B0F1E">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
 <meta name="theme-color" content="#1B2027">
 <title>아케이드</title>
-<link rel="stylesheet" href="platform.css?v=2026-10-13b">
-<link rel="stylesheet" href="style.css?v=2026-10-13b">
+<link rel="stylesheet" href="platform.css?v=2026-10-15c">
+<link rel="stylesheet" href="style.css?v=2026-10-15c">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Lilita+One&display=swap" rel="stylesheet">
 </head>
@@ -130,38 +134,39 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script src="firebase-config.js?v=2026-10-13b"></script>
-<script src="sound.js?v=2026-10-13b"></script>
-<script src="shared.js?v=2026-10-13b"></script>
-<script src="fx.js?v=2026-10-13b"></script>
-<script src="tetris-engine.js?v=2026-10-13b"></script>
-<script src="racing-engine.js?v=2026-10-13b"></script>
-<script src="snake-engine.js?v=2026-10-13b"></script>
-<script src="breakout-engine.js?v=2026-10-13b"></script>
-<script src="flappy-engine.js?v=2026-10-13b"></script>
-<script src="shooter-engine.js?v=2026-10-13b"></script>
+<script src="firebase-config.js?v=2026-10-15c"></script>
+<script src="sound.js?v=2026-10-15c"></script>
+<script src="shared.js?v=2026-10-15c"></script>
+<script src="fx.js?v=2026-10-15c"></script>
+<script src="tetris-engine.js?v=2026-10-15c"></script>
+<script src="racing-engine.js?v=2026-10-15c"></script>
+<script src="snake-engine.js?v=2026-10-15c"></script>
+<script src="breakout-engine.js?v=2026-10-15c"></script>
+<script src="flappy-engine.js?v=2026-10-15c"></script>
+<script src="shooter-engine.js?v=2026-10-15c"></script>
 <script src="three.min.js"></script>
-<script src="fps-engine.js?v=2026-10-13b"></script>
-<script src="fps3d-engine.js?v=2026-10-13b"></script>
-<script src="game2048-engine.js?v=2026-10-13b"></script>
-<script src="frogger-engine.js?v=2026-10-13b"></script>
-<script src="frogger3d-engine.js?v=2026-10-13b"></script>
-<script src="asteroids-engine.js?v=2026-10-13b"></script>
-<script src="maze-engine.js?v=2026-10-13b"></script>
-<script src="tower-engine.js?v=2026-10-13b"></script>
-<script src="missile-engine.js?v=2026-10-13b"></script>
-<script src="centipede-engine.js?v=2026-10-13b"></script>
-<script src="source-engine.js?v=2026-10-13b"></script>
-<script src="arena-engine.js?v=2026-10-13b"></script>
-<script src="arena3d-engine.js?v=2026-10-13b"></script>
-<script src="slither-engine.js?v=2026-10-13b"></script>
-<script src="kart3d-engine.js?v=2026-10-13b"></script>
-<script src="games.js?v=2026-10-13b"></script>
-<script src="app.js?v=2026-10-13b"></script>
+<script src="fps-engine.js?v=2026-10-15c"></script>
+<script src="fps3d-engine.js?v=2026-10-15c"></script>
+<script src="game2048-engine.js?v=2026-10-15c"></script>
+<script src="frogger-engine.js?v=2026-10-15c"></script>
+<script src="frogger3d-engine.js?v=2026-10-15c"></script>
+<script src="asteroids-engine.js?v=2026-10-15c"></script>
+<script src="maze-engine.js?v=2026-10-15c"></script>
+<script src="tower-engine.js?v=2026-10-15c"></script>
+<script src="missile-engine.js?v=2026-10-15c"></script>
+<script src="centipede-engine.js?v=2026-10-15c"></script>
+<script src="source-engine.js?v=2026-10-15c"></script>
+<script src="arena-engine.js?v=2026-10-15c"></script>
+<script src="arena3d-engine.js?v=2026-10-15c"></script>
+<script src="slither-engine.js?v=2026-10-15c"></script>
+<script src="kart3d-engine.js?v=2026-10-15c"></script>
+<script src="kart3dx-engine.js?v=2026-10-15c"></script>
+<script src="games.js?v=2026-10-15c"></script>
+<script src="app.js?v=2026-10-15c"></script>
 <script>
 (function () {
 
-  const BUILD = '2026-10-13b';   // 화면 아래에 표시됩니다
+  const BUILD = '2026-10-15c';   // 화면 아래에 표시됩니다
 
   const gameId = getGameId();
   const def = GAMES[gameId];
@@ -190,10 +195,11 @@
     document.querySelector('.topbar').classList.add('kart-mode');
     document.getElementById('kart-hud').classList.remove('hidden');
   }
-  if (isKart && !(GAMES[gameId].controls || []).includes('item')) {
+  // 노템전: 이름(…pure…)으로 판단 — 3D 카트는 버튼을 화면에 직접 겹쳐 조작 목록이 비어 있어도 아이템전입니다
+  if (isKart && (/pure/.test(gameId) || (!(GAMES[gameId].controls || []).includes('item') && GAMES[gameId].padLayout !== 'kart3dx'))) {
     const rack = document.querySelector('.item-rack'); if (rack) rack.classList.add('hidden');   // 노템전
   }
-  if (GAMES[gameId] && GAMES[gameId].padLayout === 'joystick') {
+  if (GAMES[gameId] && ['joystick', 'arena', 'slither'].indexOf(GAMES[gameId].padLayout) >= 0) {   // 레이저 태그·젬 아레나·뱀 아레나: 게임 안 HUD 가 정보를 보여 주므로 위 막대 없이 전체 화면
     document.querySelector('.topbar').classList.add('kart-mode');   // 게임 안 HUD 가 점수·체력을 보여 주므로 위 칩은 숨김
   }
 
@@ -245,6 +251,7 @@
 
   // 종료 화면에서 다시 참여하기
   document.getElementById('rejoin-btn').addEventListener('click', function () {
+    if (window.goFullscreen) window.goFullscreen();
     started = false;
     if (joined && myNickname) {
       // 이미 이름이 있으면 자리만 되살리고 대기실로
@@ -437,7 +444,28 @@
   });
 
   // ── 입장 ──
-  document.getElementById('join-btn').addEventListener('click', join);
+  // ── 주소창 없이: 전체 화면 ──
+  // 브라우저 정책상 '학생이 누른 순간'에만 켤 수 있어 ① 입장 버튼 ② 게임 화면을 처음 누를 때(게임을 옮기느라 페이지가 새로 열린 뒤) 켭니다.
+  // 홈 화면에 추가해 연 경우(주소창이 원래 없음)와 PC(마우스)는 건드리지 않음. 아이폰 사파리는 전체 화면을 지원하지 않아 홈 화면 추가 안내를 띄웁니다.
+  const isStandalone = () => (window.matchMedia && matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches) || navigator.standalone === true;
+  const isTouch = () => window.matchMedia && matchMedia('(pointer: coarse)').matches;
+  function goFullscreen() {
+    const d = document, el = d.documentElement;
+    if (!isTouch() || isStandalone() || d.fullscreenElement || d.webkitFullscreenElement) return;
+    const req = el.requestFullscreen || el.webkitRequestFullscreen; if (!req) return;
+    try { const r = req.call(el, { navigationUI: 'hide' }); if (r && r.catch) r.catch(() => {}); } catch (e) {}
+  }
+  window.goFullscreen = goFullscreen;
+  document.addEventListener('pointerdown', () => { if (joined) goFullscreen(); }, { passive: true, capture: true });
+  (function iphoneHint() {                           // 아이폰(사파리)은 홈 화면에 추가해야 주소창이 사라짐
+    const ua = navigator.userAgent, iPhone = /iPhone|iPod/.test(ua) && !/iPad/.test(ua);
+    if (!iPhone || isStandalone() || (document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen)) return;
+    const card = document.getElementById('join-btn'); if (!card) return;
+    const tip = document.createElement('p'); tip.className = 'a2hs-tip';
+    tip.innerHTML = '📱 주소창 없이 크게 하려면: 아래 <b>공유 ⎋</b> → <b>홈 화면에 추가</b> → 홈 화면의 <b>아케이드</b> 아이콘으로 열기';
+    card.parentElement.appendChild(tip);
+  })();
+  document.getElementById('join-btn').addEventListener('click', () => { goFullscreen(); join(); });
   document.getElementById('nickname-input').addEventListener('keydown', e => {
     if (e.key === 'Enter') { e.target.blur(); join(); }
   });
@@ -564,7 +592,8 @@
   function fitCanvas() {
     const canvas = document.getElementById('game-canvas');
     const wrap = canvas.parentElement;
-    const availW = wrap.clientWidth, availH = wrap.clientHeight;
+    const wcs = getComputedStyle(wrap);                  // 틀의 안쪽 여백(가로 화면 양옆 버튼 자리)은 빼고 잼
+    const availW = wrap.clientWidth - (parseFloat(wcs.paddingLeft) || 0) - (parseFloat(wcs.paddingRight) || 0), availH = wrap.clientHeight - (parseFloat(wcs.paddingTop) || 0) - (parseFloat(wcs.paddingBottom) || 0);
     if (availW <= 0 || availH <= 0) return;
     // 해상도 배율 상한 — 태블릿(2~3배)에서 그리기 면적이 4~9배가 되는 것을 막습니다
     const dpr = Math.min(DPR_BY_Q[quality], window.devicePixelRatio || 1);
@@ -653,6 +682,34 @@
       if (e.code === 'Space') game.input.drift = false; if (e.code === 'ArrowDown' || e.code === 'KeyS') game.input.brake = false; });
   }
 
+  // 3D 카트(2D 카트 규칙) 조작: 게임 화면 위에 겹침 — 왼손 ◀ ▶ · 오른손 드리프트(크게) · 아이템 · 버리기
+  function buildKart3DXControls() {
+    const wrap = byId('canvas-wrap'); let ctl = byId('fps-ctl'); if (ctl) ctl.remove();
+    const items = !/pure/.test(gameId);
+    ctl = document.createElement('div'); ctl.id = 'fps-ctl'; ctl.className = 'k3-ctl';
+    ctl.innerHTML = '<div class="k3-left"><button class="k3b" id="k3l">◀</button><button class="k3b" id="k3r">▶</button></div>' +
+      '<div class="k3-right">' + (items ? '<button class="k3b brake" id="k3x">✕<small>버리기</small></button><button class="k3b item" id="k3i">🎁<small>아이템</small></button>' : '') +
+      '<button class="k3b drift" id="k3d">드리프트</button></div>' +
+      '<div class="fhint" id="fhint">◀ ▶ 조향 · 꺾으면서 드리프트를 누르면 미끄러지며 빠르게 회전 · 놓으면 부스터' + (items ? ' · 🎁 아이템' : '') + '</div>';
+    wrap.appendChild(ctl); document.body.classList.add('k3x-on');           // 속도계·아이템 칸을 버튼 위로 올림 (style.css)
+    setTimeout(() => { const h = byId('fhint'); if (h) h.classList.add('fade'); }, 4500);
+    const hold = (id, on, off) => { const el = byId(id); if (!el) return;
+      const a = e => { e.preventDefault(); el.classList.add('on'); on(); }, b = e => { e.preventDefault(); el.classList.remove('on'); off(); };
+      el.addEventListener('touchstart', a, { passive: false }); el.addEventListener('touchend', b); el.addEventListener('touchcancel', b);
+      el.addEventListener('mousedown', a); el.addEventListener('mouseup', b); el.addEventListener('mouseleave', e => { if (el.classList.contains('on')) b(e); }); };
+    hold('k3l', () => game && game.move(-1), () => game && game.releaseSteer(-1));
+    hold('k3r', () => game && game.move(1), () => game && game.releaseSteer(1));
+    hold('k3d', () => game && game.drift && game.drift(true), () => game && game.drift && game.drift(false));
+    hold('k3i', () => game && game.useItem(), () => {});
+    hold('k3x', () => game && game.dropItem(), () => {});
+    // PC 키보드: Shift · X 드리프트 (방향키·아이템 키는 기존 카트 단축키 그대로)
+    addEventListener('keydown', e => { if (!game || !game.drift) return; if (e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyX') game.drift(true); });
+    addEventListener('keyup', e => { if (!game || !game.drift) return; if (e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyX') game.drift(false); });
+  }
+
+  // 요소와 조상들의 CSS zoom 을 곱한 배율 — 버튼판을 통째로 확대했을 때 조이스틱 손잡이가 너무 멀리 가지 않게
+  function zoomOf(el) { let z = 1; for (let e = el; e && e !== document.documentElement; e = e.parentElement) { const v = parseFloat(getComputedStyle(e).zoom); if (v && v !== 1) z *= v; } return z; }
+
   function buildArenaControls(mode) {
     const slither = mode === 'slither';
     const wrap = byId('canvas-wrap');
@@ -675,7 +732,7 @@
     const mk = (el, onMove, onEnd) => {
       const base = el.querySelector('.fjoy-base'), knob = el.querySelector('.fjoy-knob');
       let id = null, cx = 0, cy = 0, R = 46, lx = 0, ly = 0;
-      const set = (dx, dy) => { const d = Math.hypot(dx, dy), k = d > R ? R / d : 1; knob.style.transform = 'translate(' + (dx * k) + 'px,' + (dy * k) + 'px)'; lx = dx * k / R; ly = dy * k / R; onMove(lx, ly); };
+      const set = (dx, dy) => { const d = Math.hypot(dx, dy), k = d > R ? R / d : 1; knob.style.transform = 'translate(' + (dx * k / zoomOf(knob)) + 'px,' + (dy * k / zoomOf(knob)) + 'px)'; lx = dx * k / R; ly = dy * k / R; onMove(lx, ly); };
       return {
         grab(t) { const br = base.getBoundingClientRect(); cx = br.left + br.width / 2; cy = br.top + br.height / 2; R = br.width * 0.31;
           const near = Math.hypot(t.clientX - cx, t.clientY - cy) < br.width * 0.85; if (!near || id !== null) return false;
@@ -752,7 +809,7 @@
 
     // 터치 배분: 조이스틱은 왼쪽 아래에 '고정' — 그 근처를 짚으면 조이스틱, 나머지는 조준 (버튼 위는 버튼)
     let joyId = null, jcx = 0, jcy = 0, R = 46, lookId = null, lx = 0, ly = 0;
-    const setJoy = (dx, dy) => { const d = Math.hypot(dx, dy), k = d > R ? R / d : 1; knob.style.transform = 'translate(' + (dx * k) + 'px,' + (dy * k) + 'px)'; if (game && game.setMove) game.setMove(dx * k / R, -dy * k / R); };
+    const setJoy = (dx, dy) => { const d = Math.hypot(dx, dy), k = d > R ? R / d : 1; knob.style.transform = 'translate(' + (dx * k / zoomOf(knob)) + 'px,' + (dy * k / zoomOf(knob)) + 'px)'; if (game && game.setMove) game.setMove(dx * k / R, -dy * k / R); };
     // 버튼 위 터치는 버튼에 맡깁니다 (여기서 preventDefault 하면 버튼의 click 이 안 생깁니다)
     const onStart = e => {
       let used = false;
@@ -868,7 +925,7 @@
     let id = null, cx = 0, cy = 0, R = 44;
     const set = (dx, dy) => {
       const d = Math.hypot(dx, dy), k = d > R ? R / d : 1;
-      knob.style.transform = 'translate(' + (dx * k) + 'px,' + (dy * k) + 'px)';
+      knob.style.transform = 'translate(' + (dx * k / zoomOf(knob)) + 'px,' + (dy * k / zoomOf(knob)) + 'px)';
       if (game && game.setMove) game.setMove(dx * k / R, -dy * k / R);
     };
     base.addEventListener('touchstart', e => {
@@ -906,7 +963,8 @@
     }
     if (def.padLayout === 'arena') { pad.classList.add('pad-none'); buildArenaControls('arena'); return; }   // 양손 조이스틱
     if (def.padLayout === 'slither') { pad.classList.add('pad-none'); buildArenaControls('slither'); return; }  // 조이스틱 + 부스트
-    if (def.padLayout === 'kart3d') { pad.classList.add('pad-none'); buildKart3DControls(); return; }      // 3D 카트: 왼손 ◀ ▶ · 오른손 브레이크·아이템·드리프트
+    if (def.padLayout === 'kart3d') { pad.classList.add('pad-none'); buildKart3DControls(); return; }
+    if (def.padLayout === 'kart3dx') { pad.classList.add('pad-none'); buildKart3DXControls(); return; }   // 3D 카트(2D 규칙): 왼쪽 ◀ ▶ · 오른쪽 드리프트·아이템·버리기      // 3D 카트: 왼손 ◀ ▶ · 오른손 브레이크·아이템·드리프트
     if (def.padLayout === 'tap') { pad.classList.add('pad-none'); return; }   // 화면을 직접 누르는 게임
     const dirs = def.controls.filter(c => DIR_KEYS.indexOf(c) >= 0);
     const acts = def.controls.filter(c => DIR_KEYS.indexOf(c) < 0);

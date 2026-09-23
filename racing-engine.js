@@ -616,6 +616,8 @@ class KartGame {
     // 카운트다운은 기기별로 따로 재면 출발이 어긋납니다.
     // 학생 화면이 '공통 출발 시각'을 계산해 넘겨 주면 그 값을 씁니다 (opts.countdown).
     this.countdown = (typeof this.opts.countdown === 'number') ? Math.max(0, this.opts.countdown) : 3.6;
+    // 출발 시각은 '만든 순간' 기준으로 고정 (3D 월드를 짓느라 첫 프레임이 늦어도 공통 출발 시각을 지킴)
+    this.goAt = (typeof performance !== 'undefined' ? performance.now() : Date.now()) + this.countdown * 1000;
     this.startedAt = null;
     this.toast = null;
     this.fx = [];
@@ -656,6 +658,13 @@ class KartGame {
 
   // ── 조작 ──
   move(dir) { this.steer = dir; }
+  drift(on) { this.driftHeld = !!on; }
+  // 화면에 겹친 카트 버튼이 있으면 그 윗줄까지의 높이 (속도계·아이템 칸을 버튼 위로 그리기 위해)
+  k3Lift(H) {
+    if (this.spectator || typeof document === 'undefined' || !document.body.classList.contains('k3x-on')) return 0;
+    const el = document.querySelector('.k3-left'), cv = this.canvas; if (!el || !cv) return H < 480 ? 88 : 112;
+    const top = el.getBoundingClientRect().top, cb = cv.getBoundingClientRect().bottom; return Math.max(0, Math.round(cb - top + 10));
+  }               // 드리프트 버튼 (누르는 동안)
   releaseSteer(dir) { if (this.steer === dir) this.steer = 0; }
   softDrop() {}
   rotate() { this.useItem(); }
@@ -1003,13 +1012,16 @@ class KartGame {
 
     if (this.countdown > 0) {
       const cdPrev = Math.ceil(this.countdown);
-      this.countdown -= dt/1000;
+      // 카운트다운은 '실제 시각' 기준 — 프레임마다 dt 를 빼면 느린 기기(dt 상한에 걸림)에서 카운트다운이 늦게 흘러 늦게 출발합니다
+      if (this.goAt == null) this.goAt = now + this.countdown * 1000;
+      this.countdown = Math.max(0, (this.goAt - now) / 1000);
       // 카운트다운 삑 · 삑 · 삑 · 빵! (3·2·1 그리고 출발)
       if (!this.spectator && window.Sound && Sound.countdown) { const cdNow = Math.ceil(this.countdown); if (cdNow !== cdPrev && cdNow >= 1 && cdNow <= 3) Sound.countdown(cdNow); if (this.countdown <= 0) Sound.countdown(0); }
       if (this.countdown <= 0) { this.startedAt = now; if (!this.spectator && window.Sound && Sound.engineStart) Sound.engineStart(); }
       this.draw(); return;
     }
     if (!this.spectator && window.Sound && Sound.engineSet) Sound.engineSet(Math.min(1, this.speed / (this.maxSpeed * 1.4)), now < this.boostUntil);
+    if (!this.spectator && window.Sound && Sound.skidSet) Sound.skidSet(this.drifting ? 0.45 + Math.min(0.4, (this.driftCharge || 0) / 3) : 0);
     // 급하게 꺾으면 타이어 끼익 (속도가 빠르고 조향 중일 때 · 미끄러질 때는 더 크게)
     if (!this.spectator && window.Sound && Sound.skidSet) { const sp = Math.min(1, this.speed / this.maxSpeed); Sound.skidSet(this.finished || this.airborne ? 0 : Math.max(this.steer ? Math.max(0, sp - 0.55) * 1.6 : 0, now < (this.slideUntil || 0) ? 0.8 : 0)); }
     if (!this.finished) this.updateCar(now, f);
@@ -1047,11 +1059,23 @@ class KartGame {
     if (slowed && !starring) target *= 0.45;
     if (spinning) target = 0.8;
     if (stunned)  target = 0;
+    // ── 드리프트 (카트라이더식): 꺾으면서 누르면 미끄러지며 더 빨리 돎 · 속도는 조금 줄어듦 · 놓으면 짧은 부스터 ──
+    const canDrift = this.driftHeld && this.steer && !stunned && !spinning && !sliding && !this.airborne && !this.finished && this.speed > this.maxSpeed * 0.45;
+    if (canDrift && !this.drifting) { this.drifting = true; this.driftDir = Math.sign(this.steer); this.driftCharge = 0; }
+    if (this.drifting && !canDrift) {
+      if (this.driftCharge > 0.5 && !this.airborne && !stunned) {
+        this.boostUntil = Math.max(this.boostUntil, now + 350 + Math.min(1.2, this.driftCharge) * 350);
+        this.addFx('boost'); this.showToast(this.driftCharge > 1.2 ? '드리프트 부스터!!' : '드리프트 부스터!', '#5BC8FF'); if (window.Sound && Sound.boost) Sound.boost();
+      }
+      this.drifting = false; this.recoverUntil = now + 260;
+    }
+    if (this.drifting) { target *= 0.92; this.driftCharge += f * 0.0167; }
 
     this.speed += (target - this.speed) * (stunned ? 0.3 : 0.055) * f;
 
     if (spinning)      this.angle += 0.34 * f;
     else if (sliding)  this.angle += (this.slideDrift || 0.02) * f;                 // 핸들이 안 듣고 슬슬 밀림
+    else if (this.drifting) this.angle += (this.steer * 0.9 + this.driftDir * 0.45) * this.turnRate * 1.55 * Math.min(1, this.speed/3) * f;   // 드리프트: 약 1.5배 빠른 회전
     else if (!stunned && !this.airborne) this.angle += this.steer * this.turnRate * Math.min(1, this.speed/3) * f;
     // 자석: 상대를 '직선으로' 향하면 코너에서 벽에 박습니다.
     // 대신 ① 도로를 따라가도록 진행 방향을 잡아 주고 ② 상대가 달리는 도로 옆쪽(안/바깥)으로만 조금씩 옮깁니다.
@@ -1118,8 +1142,17 @@ class KartGame {
         }
       }
     }
-    this.x += Math.cos(this.angle) * this.speed * f;
-    this.y += Math.sin(this.angle) * this.speed * f;
+    // 달리는 방향(moveA): 평소엔 보는 방향과 같고, 드리프트 중엔 늦게 따라와 차가 옆으로 미끄러짐
+    if (this.moveA == null) this.moveA = this.angle;
+    { let dm = this.angle - this.moveA; while (dm > Math.PI) dm -= Math.PI * 2; while (dm < -Math.PI) dm += Math.PI * 2;
+      if (this.drifting) this.moveA += dm * this.smooth(0.075, f);
+      else if (now < (this.recoverUntil || 0)) this.moveA += dm * this.smooth(0.3, f);
+      else this.moveA = this.angle; }
+    if (this.drifting && Math.random() < 0.6) {           // 타이어 연기
+      const bx = this.x - Math.cos(this.angle) * this.track.carLen * 0.45, by = this.y - Math.sin(this.angle) * this.track.carLen * 0.45;
+      this.spawn(1, bx, by, 0, { colors: ['#E6E6E6', '#C9C9C9'], speed: 1.2, up: 0.8, decay: 1.6, size: 10, spread: this.track.carLen * 0.4 }); }
+    this.x += Math.cos(this.moveA) * this.speed * f;
+    this.y += Math.sin(this.moveA) * this.speed * f;
 
     // ── 트랙 벽: 밖으로 못 나감 ──
     const near = this.track.nearestIndex(this.x, this.y, this.segIdx);
@@ -1404,7 +1437,7 @@ class KartGame {
     if (now < this.boostUntil) this.drawSpeedLines(ctx, W, H, 1);
     else if (fast > 0 && !this.finished) this.drawSpeedLines(ctx, W, H, fast * 0.45);
     this.drawMinimap(ctx, W, H);
-    this.drawCanvasOverlay(ctx, W, H, now);
+    this.drawCanvasOverlay(ctx, W, H - this.k3Lift(H), now);   // 겹친 버튼 위로
   }
 
   setupCamera(W, H) {
@@ -2985,7 +3018,7 @@ class KartGame {
       if (this.airborne) this.drawSpeedLines(ctx, W, H, 0.5);
       // 큰 JUMP! 배너 (튀어 올랐다 사라짐)
       if (now < (this.jumpBanner || 0)) {
-        const k = 1 - (this.jumpBanner - now) / 1200;
+        const k = Math.max(0, Math.min(1, 1 - (this.jumpBanner - now) / 1200));   // 0~1 로 제한 (시계가 흔들리면 글자가 화면을 덮을 만큼 커지던 것 방지)
         const sc = 0.6 + 0.4 * FX.ease.outBack(Math.min(1, k * 4)), al = k > 0.7 ? (1 - k) / 0.3 : 1;
         ctx.save(); ctx.globalAlpha = Math.max(0, al); ctx.translate(W / 2, H * 0.3); ctx.scale(sc, sc);
         ctx.font = '800 54px Pretendard, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
