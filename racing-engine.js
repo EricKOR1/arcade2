@@ -264,7 +264,33 @@ class Track {
     }), { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity });
 
     this.buildScenery();
+    this.buildDriftZones();
     this.sprite = null;
+  }
+  // 드리프트 구간: 코스에서 가장 급한 코너 2~3곳. 이 구간은 노면이 미끄러워 보통 조향이 절반 — 드리프트해야 깔끔하게 빠져나감
+  buildDriftZones() {
+    const n = this.n, w = Math.max(3, Math.round(this.halfW * 1.2 / this.stepLen)), wrap = i => ((i % n) + n) % n;
+    const hd = i => Math.atan2(this.tangent[wrap(i)][1], this.tangent[wrap(i)][0]);
+    const turn = new Float32Array(n);
+    for (let i = 0; i < n; i++) { let a = hd(i + w) - hd(i - w); while (a > Math.PI) a -= Math.PI * 2; while (a < -Math.PI) a += Math.PI * 2; turn[i] = a; }
+    const order = Array.from({ length: n }, (_, i) => i).sort((a, b) => Math.abs(turn[b]) - Math.abs(turn[a]));
+    this.driftZone = new Uint8Array(n); this.driftZones = [];
+    const far = (i, j) => { const d = Math.abs(i - j); return Math.min(d, n - d); };
+    const nearGap = i => { for (let k = -w * 2; k <= w * 2; k++) if (this.gapSeg[wrap(i + k)]) return true; return false; };
+    for (const pk of order) {
+      const maxZ = n > 2000 ? 4 : 3;                                                            // 긴 트랙(한 바퀴 40초 이상)은 4곳까지
+      if (this.driftZones.length >= maxZ) break;
+      const peak = Math.abs(turn[pk]); if (peak < 0.3) break;                                  // 17° 미만이면 코너라 보기 어려움
+      if (this.driftZones.length >= 2 && peak < (n > 2000 ? 0.4 : 0.55)) break;                // 세 번째부터는 꽤 급할 때만
+      if (this.driftZones.some(z => far(z.mid, pk) < n / 6) || far(pk, 0) < w * 3 || nearGap(pk)) continue;   // 서로 떨어지게 · 출발선·점프 근처 제외
+      // 코너 핵심부만: 곡률이 최고의 70% 이상인 곳, 길이는 도로 폭의 약 3배(한 바퀴의 일부)까지
+      let a = pk, b = pk; const lim = Math.max(w, Math.min(w * 1.6, Math.round(n * 0.035)));
+      while (far(a, pk) < lim && Math.abs(turn[wrap(a - 1)]) >= peak * 0.7 && Math.sign(turn[wrap(a - 1)]) === Math.sign(turn[pk])) a--;
+      while (far(b, pk) < lim && Math.abs(turn[wrap(b + 1)]) >= peak * 0.7 && Math.sign(turn[wrap(b + 1)]) === Math.sign(turn[pk])) b++;
+      a -= Math.round(w * 0.4); b += Math.round(w * 0.2);                                      // 코너 조금 앞부터
+      for (let i = a; i <= b; i++) this.driftZone[wrap(i)] = 1;
+      this.driftZones.push({ from: wrap(a), to: wrap(b), mid: pk, dir: Math.sign(turn[pk]), deg: Math.round(peak * 57.3) });
+    }
   }
 
   // ── 고도: 진행률 기준 제어점을 부드럽게 보간 ──
@@ -1070,13 +1096,21 @@ class KartGame {
       this.drifting = false; this.recoverUntil = now + 260;
     }
     if (this.drifting) { target *= 0.92; this.driftCharge += f * 0.0167; }
+    // 드리프트 구간(미끄러운 급커브)에서 드리프트 없이 꺾으면 타이어가 미끄러져 크게 감속 → 이 구간은 드리프트해야 빠름
+    else if (this.track.driftZone && this.track.driftZone[this.segIdx] && Math.abs(this.steer) > 0.3 && !this.airborne) { target *= 0.72; this.zoneSkid = now; }
 
     this.speed += (target - this.speed) * (stunned ? 0.3 : 0.055) * f;
 
     if (spinning)      this.angle += 0.34 * f;
     else if (sliding)  this.angle += (this.slideDrift || 0.02) * f;                 // 핸들이 안 듣고 슬슬 밀림
     else if (this.drifting) this.angle += (this.steer * 0.9 + this.driftDir * 0.45) * this.turnRate * 1.12 * Math.min(1, this.speed/3) * f;   // 드리프트: 약 1.5배 빠른 회전 (1.35 × 1.12)
-    else if (!stunned && !this.airborne) this.angle += this.steer * this.turnRate * Math.min(1, this.speed/3) * f;
+    else if (!stunned && !this.airborne) {
+      // 속도 감응 조향(카트라이더식): 최고 속도의 60% 까지는 그대로, 그 이상은 점점 무뎌져 최고 속도에서 hiSpeedSteer 배
+      // → 완만한 코너는 보통 조향으로 충분하지만 급한 코너는 드리프트를 써야 바깥으로 밀려나지 않음 (드리프트 회전은 그대로)
+      const hs = this.hiSpeedSteer != null ? this.hiSpeedSteer : 0.62, sr = Math.max(0, Math.min(1, (this.speed / this.maxSpeed - 0.6) / 0.4));
+      const zk = (this.track.driftZone && this.track.driftZone[this.segIdx]) ? 0.6 : 1;   // 드리프트 구간(미끄러운 노면): 보통 조향 60%
+      this.angle += this.steer * this.turnRate * (1 - (1 - hs) * sr) * zk * Math.min(1, this.speed/3) * f;
+    }
     // 자석: 상대를 '직선으로' 향하면 코너에서 벽에 박습니다.
     // 대신 ① 도로를 따라가도록 진행 방향을 잡아 주고 ② 상대가 달리는 도로 옆쪽(안/바깥)으로만 조금씩 옮깁니다.
     if (now < this.magnetUntil && this.magnetTarget && this.peers[this.magnetTarget]) {
@@ -1147,8 +1181,9 @@ class KartGame {
     { let dm = this.angle - this.moveA; while (dm > Math.PI) dm -= Math.PI * 2; while (dm < -Math.PI) dm += Math.PI * 2;
       if (this.drifting) this.moveA += dm * this.smooth(0.075, f);
       else if (now < (this.recoverUntil || 0)) this.moveA += dm * this.smooth(0.3, f);
+      else if (this.track.driftZone && this.track.driftZone[this.segIdx] && this.steer) this.moveA += dm * this.smooth(0.22, f);   // 미끄러운 구간: 드리프트 없이 꺾으면 바깥으로 밀림
       else this.moveA = this.angle; }
-    if (this.drifting && Math.random() < 0.6) {           // 타이어 연기
+    if ((this.drifting || now - (this.zoneSkid || -1e9) < 60) && Math.random() < 0.6) {           // 타이어 연기 (드리프트 · 구간에서 미끄러질 때)
       const bx = this.x - Math.cos(this.angle) * this.track.carLen * 0.45, by = this.y - Math.sin(this.angle) * this.track.carLen * 0.45;
       this.spawn(1, bx, by, 0, { colors: ['#E6E6E6', '#C9C9C9'], speed: 1.2, up: 0.8, decay: 1.6, size: 10, spread: this.track.carLen * 0.4 }); }
     this.x += Math.cos(this.moveA) * this.speed * f;
@@ -1847,6 +1882,16 @@ class KartGame {
       stripe(run, 1, -1, d.road, toBottom);            // 도로
     });
 
+    // 드리프트 구간: 노면에 주황·흰 줄무늬 (가까운 구간만)
+    if (t.driftZones && t.driftZones.length) {
+      const mk2 = i => { const ii = ((i % n) + n) % n; const [tx, ty] = t.tangent[ii]; return { cx: t.center[ii][0], cy: t.center[ii][1], nx: -ty, ny: tx, e: t.elevAt(ii) }; };
+      for (let k = -2; k < 140; k += 2) { const i = this.segIdx + k, ii = ((i % n) + n) % n; if (!t.driftZone[ii]) continue;
+        const s1 = mk2(i), s2 = mk2(i + 1);
+        const p1 = this.project(cam, s1.cx + s1.nx * t.halfW * 0.92, s1.cy + s1.ny * t.halfW * 0.92, s1.e), p2 = this.project(cam, s1.cx - s1.nx * t.halfW * 0.92, s1.cy - s1.ny * t.halfW * 0.92, s1.e);
+        const p3 = this.project(cam, s2.cx - s2.nx * t.halfW * 0.92, s2.cy - s2.ny * t.halfW * 0.92, s2.e), p4 = this.project(cam, s2.cx + s2.nx * t.halfW * 0.92, s2.cy + s2.ny * t.halfW * 0.92, s2.e);
+        if (!p1 || !p2 || !p3 || !p4) continue;
+        ctx.fillStyle = (ii % 4 < 2) ? 'rgba(255,140,30,0.32)' : 'rgba(255,255,255,0.16)'; ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.lineTo(p3.x, p3.y); ctx.lineTo(p4.x, p4.y); ctx.closePath(); ctx.fill(); }
+    }
     // 끊긴 구간: 어두운 협곡 + 점프대 (빨간·노란 빗금 램프)
     t.jumps.forEach(jp => {
       if (Math.hypot(jp.x - this.x, jp.y - this.y) > t.stepLen * 220) return;
@@ -2880,7 +2925,7 @@ class KartGame {
 
   drawMinimap(ctx, W, H) {
     const t = this.track, c = t.center, b = t.bounds;
-    const size = Math.min(118, W*0.3), pad = 12;
+    const size = Math.min(118, W*0.3, H < 480 ? H * 0.24 : 999), pad = 12;           // 폰 가로(높이 낮음): 미니맵을 작게 — 오른쪽 아이템 창과 겹치지 않게
     const sc = (size-22) / Math.max(b.maxX-b.minX, b.maxY-b.minY);
     const ox = W - size - pad, oy = pad + 46;
     const mx = v => ox + 11 + (v - b.minX)*sc;
@@ -2929,6 +2974,18 @@ class KartGame {
   }
 
   drawCanvasOverlay(ctx, W, H, now) {
+    // 드리프트 구간 안내 (다가올 때 · 구간 안에서 드리프트하지 않을 때)
+    if (this.track.driftZone && this.countdown <= 0 && !this.finished && !this.spectator) {
+      const t = this.track, n = t.n; let ahead = -1;
+      for (let k = 0; k < 70; k++) if (t.driftZone[(this.segIdx + k) % n]) { ahead = k; break; }
+      if (ahead >= 0 && !(this.drifting)) {
+        const z = t.driftZones.find(z => { const i = (this.segIdx + ahead) % n; return z.from <= z.to ? (i >= z.from && i <= z.to) : (i >= z.from || i <= z.to); });
+        const inZone = ahead === 0, blink = inZone ? (Math.floor(now / 160) % 2 === 0) : true;
+        if (blink) { ctx.save(); ctx.textAlign = 'center'; ctx.font = '900 ' + Math.round(Math.min(34, W * 0.05)) + 'px Pretendard, sans-serif';
+          const txt = (inZone ? '드리프트!' : '드리프트 구간') + (z ? (z.dir > 0 ? '  ⟳' : '  ⟲') : '');
+          ctx.lineWidth = 6; ctx.strokeStyle = 'rgba(20,10,0,0.75)'; ctx.strokeText(txt, W / 2, H * 0.2); ctx.fillStyle = inZone ? '#FF9F1C' : '#FFD166'; ctx.fillText(txt, W / 2, H * 0.2); ctx.restore(); }
+      }
+    }
     // 다음 코너 방향
     if (this.cornerHint && this.countdown <= 0 && !this.finished) {
       ctx.save();
@@ -3038,7 +3095,9 @@ class KartGame {
     // 랩 타임 (미니맵 아래 오른쪽)
     if (!this.spectator && this.countdown <= 0 && this.lapStartAt != null && !this.finished) {
       const fmt = ms => { const s2 = ms / 1000; return Math.floor(s2 / 60) + ':' + (s2 % 60).toFixed(1).padStart(4, '0'); };
-      const size = Math.min(118, W * 0.3), x1 = W - 12, y1 = 12 + 46 + size + 10;
+      const low = H < 480, size = Math.min(118, W * 0.3, low ? H * 0.24 : 999);       // 미니맵과 같은 크기 계산
+      // 폰 가로(높이 낮음): 미니맵 아래는 아이템 창 자리라, 랩 시간은 미니맵 왼쪽 옆에
+      const x1 = low ? W - 12 - size - 10 : W - 12, y1 = low ? 12 + 46 : 12 + 46 + size + 10;
       ctx.save(); ctx.textAlign = 'right'; ctx.textBaseline = 'alphabetic';
       ctx.font = '700 12px Pretendard, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.85)';
       ctx.shadowColor = 'rgba(0,0,0,0.7)'; ctx.shadowBlur = 4;

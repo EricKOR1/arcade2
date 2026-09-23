@@ -940,6 +940,8 @@ body.fullgrid .spectate { grid-template-columns: 1fr 320px }
 }
 @media (orientation: landscape) and (min-width: 640px) {
   /* 카트 아이템 창: 오른쪽은 미니맵(위)·버튼(아래)이 차지하므로 왼쪽 위 순위·랩 아래로 */
-  .k3x-on .kart-hud .hud-br { left: 12px !important; right: auto !important; top: 128px !important; bottom: auto !important; align-items: flex-start }
+  #screen-game .k3-ctl .k3-right { zoom: 0.77 }                                  /* 오른쪽 버튼: 전체 1.5배 중 0.77 → 약 1.15배 (아이템 창을 위에 둘 자리) */
 }
-@media (orientation: landscape) and (min-width: 640px) and (max-height: 480px) { .k3x-on .kart-hud .hud-br { top: 108px !important } }
+
+/* 카트 아이템 창: 오른쪽 버튼 바로 위 (index.html 이 실제 버튼 위치를 재서 bottom/right 지정) */
+.k3x-on .kart-hud .hud-br.k3-placed { top: auto !important; left: auto !important }

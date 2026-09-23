@@ -176,6 +176,27 @@ class KartGame3D extends KartGame {
     const OBS = { cone: [new T.ConeGeometry(0.55, 1.4, 10), 0xFF7A1A, 0.7], barrel: [new T.CylinderGeometry(0.7, 0.7, 1.5, 12), 0x4CC9F0, 0.75], rock: [new T.DodecahedronGeometry(1.2, 0), 0x8A8F98, 0.8], puddle: [new T.CircleGeometry(1.8, 16), 0x3B82F6, 0.05] };
     this.obsMeshes = tr.obstacles.map(o => { const spec = OBS[o.kind] || OBS.barrel; const m = new T.Mesh(spec[0], new T.MeshLambertMaterial(o.kind === 'puddle' ? { color: spec[1], transparent: true, opacity: 0.7 } : { color: spec[1] }));
       if (o.kind === 'puddle') m.rotation.x = -Math.PI / 2; m.position.copy(this.P(o.x, o.y, tr.elev[o.i])); m.position.y += spec[2]; this.scene.add(m); return { o, m }; });
+    // 드리프트 구간: 노면에 주황·흰 줄무늬 띠 + 코너 바깥쪽에 화살표 표지판(도는 방향)
+    if (tr.driftZones && tr.driftZones.length) {
+      const zc = document.createElement('canvas'); zc.width = 16; zc.height = 32; const zg = zc.getContext('2d'); zg.fillStyle = 'rgba(255,140,30,0.55)'; zg.fillRect(0, 0, 16, 16); zg.fillStyle = 'rgba(255,255,255,0.28)'; zg.fillRect(0, 16, 16, 16);
+      const zt = new T.CanvasTexture(zc); zt.wrapS = zt.wrapT = T.RepeatWrapping;
+      const pos = [], uv = [], idx = []; let q = 0;
+      for (let i = 0; i < tr.n; i++) { if (!tr.driftZone[i] || !tr.driftZone[(i + 1) % tr.n]) continue;
+        [i, (i + 1) % tr.n].forEach((j, jj) => { const c = tr.center[j], [tx, ty] = tr.tangent[j], nx = -ty, ny = tx, e = tr.elev[j] * this.S + 0.05, hw = tr.halfW * 0.92;
+          pos.push((c[0] + nx * hw) * this.S, e, (c[1] + ny * hw) * this.S, (c[0] - nx * hw) * this.S, e, (c[1] - ny * hw) * this.S); uv.push(0, (i + jj) * 0.5, 1, (i + jj) * 0.5); });
+        idx.push(q, q + 2, q + 1, q + 1, q + 2, q + 3); q += 4; }
+      const zgeo = new T.BufferGeometry(); zgeo.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); zgeo.setAttribute('uv', new T.Float32BufferAttribute(uv, 2)); zgeo.setIndex(idx);
+      this.scene.add(new T.Mesh(zgeo, new T.MeshBasicMaterial({ map: zt, transparent: true, depthWrite: false, side: T.DoubleSide })));
+      const ac2 = document.createElement('canvas'); ac2.width = 128; ac2.height = 64; const ag = ac2.getContext('2d');
+      tr.driftZones.forEach(z => {
+        ag.clearRect(0, 0, 128, 64); ag.fillStyle = '#1B1B2F'; ag.fillRect(0, 0, 128, 64); ag.fillStyle = '#FF9F1C'; ag.font = '900 40px sans-serif'; ag.textAlign = 'center'; ag.fillText(z.dir > 0 ? '》》' : '《《', 64, 48);
+        const tex = new T.CanvasTexture((() => { const c = document.createElement('canvas'); c.width = 128; c.height = 64; c.getContext('2d').drawImage(ac2, 0, 0); return c; })());
+        const mat = new T.MeshLambertMaterial({ map: tex });
+        for (let k = 0; k < 4; k++) { const i = (z.from + Math.round(k * ((z.to - z.from + tr.n) % tr.n) / 3)) % tr.n, c = tr.center[i], [tx, ty] = tr.tangent[i], nx = -ty, ny = tx, side = -z.dir;   // 코너 바깥쪽
+          const b = new T.Mesh(new T.BoxGeometry(4.2, 2.1, 0.3), mat); b.position.copy(this.P(c[0] + nx * tr.halfW * 1.18 * side, c[1] + ny * tr.halfW * 1.18 * side, tr.elev[i])); b.position.y += 1.6;
+          b.rotation.y = Math.PI / 2 - Math.atan2(-ny * side, -nx * side); this.scene.add(b); }
+      });
+    }
     // 점프대: 도로 끝의 경사로
     tr.jumps.forEach(j => { const c = tr.center[j.i], [tx, ty] = tr.tangent[j.i], w = tr.halfW * 2 * this.S;
       const ramp = new T.Mesh(new T.BoxGeometry(w, 0.4, 5), new T.MeshLambertMaterial({ color: 0xFFB347 })); ramp.position.copy(this.P(c[0], c[1], tr.elev[j.i])); ramp.position.y += 0.9;
