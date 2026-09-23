@@ -828,3 +828,14 @@ body.fullgrid .spectate { grid-template-columns: 1fr 320px }
 .char-select .char-card .cicon img { height: 50px; transform: rotate(-90deg) }
 .char-select .char-card .cname { font-size: 17px } .char-select .char-card .crole { color: rgba(255,255,255,.7) }
 .char-select .cbar span { color: rgba(255,255,255,.75) } .char-select .char-card .csup { font-size: 11px }
+
+/* 3D 카트 조작 버튼 */
+.k3-ctl { position: absolute; inset: 0; pointer-events: none; z-index: 4 }
+.k3-left, .k3-right { position: absolute; bottom: max(14px, env(safe-area-inset-bottom)); display: flex; gap: 12px; pointer-events: auto; align-items: flex-end }
+.k3-left { left: max(14px, env(safe-area-inset-left)) } .k3-right { right: max(14px, env(safe-area-inset-right)) }
+.k3b { width: 84px; height: 84px; border-radius: 22px; border: 3px solid rgba(255,255,255,.55); background: rgba(10,14,28,.45); color: #fff; font: 900 28px Pretendard, sans-serif; display: grid; place-items: center; touch-action: none; white-space: nowrap; line-height: 1.1; -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px) }
+.k3b small { display: block; font-size: 11px; font-weight: 800; margin-top: -4px } .k3b.on { background: rgba(63,169,245,.55); transform: scale(.95) }
+.k3b.drift { width: 100px; height: 100px; border-radius: 50%; background: rgba(255,107,214,.35); font-size: 16px } .k3b.drift.on { background: rgba(255,107,214,.7) }
+.k3b.item { border-radius: 50%; background: rgba(255,209,102,.35); font-size: 22px } .k3b.brake { width: 64px; height: 64px; font-size: 16px; border-radius: 18px }
+.k3-ctl .fhint { bottom: auto; top: 22%; max-width: calc(100% - 32px); white-space: normal; text-align: center }
+@media (orientation: landscape) and (max-height: 540px) { .k3b { width: 68px; height: 68px; font-size: 24px } .k3b.drift { width: 84px; height: 84px } .k3b.brake { width: 54px; height: 54px } }

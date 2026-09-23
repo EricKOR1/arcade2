@@ -546,7 +546,7 @@ class Fps3DGame {
   rotate() { this.fire(); }
   hardDrop() { this.fire(); }
   fire() { this.shoot(); }
-  reload() { if (this.reloading || this.ammo === this.magSize || this.isDead) return; this.reloadUntil = this.clock() + this.wpn.reload; if (window.Sound) Sound.softDrop(); }
+  reload() { if (this.reloading || this.ammo === this.magSize || this.isDead) return; this.reloadUntil = this.clock() + this.wpn.reload; if (window.Sound) Sound.reload(this.wpn.reload); }
   // 무기 전환: 라이플 ↔ 스나이퍼 (전환에 0.8초, 탄약은 새 탄창)
   switchWeapon() {
     if (this.isDead || this.spectator) return;
@@ -563,7 +563,7 @@ class Fps3DGame {
   jump() {
     if (this.isDead || this.spectator || !this.onGround || this.now < this.rollUntil) return;
     this.vz = 0.115; this.onGround = false; this.zoomed = false;
-    if (window.Sound) Sound.rotate(); if (window.Haptic) Haptic.tap();
+    if (window.Sound) Sound.jump(); if (window.Haptic) Haptic.tap();
   }
   // 구르기 — 0.45초간 빠르게 미끄러지며 총알 판정이 낮아집니다. 3초 쿨다운
   roll() {
@@ -577,7 +577,7 @@ class Fps3DGame {
                     (Math.sin(this.yaw) * sy + Math.cos(this.yaw) * sx) / l2];
     this.rollSide = sx >= 0 ? 1 : -1;
     this.rollUntil = now + 700; this.rollStart = now; this.rollCdUntil = now + 3000; this.zoomed = false;
-    this.showToast('회피!', '#4CC9F0'); if (window.Sound) Sound.softDrop(); if (window.Haptic) Haptic.good();
+    this.showToast('회피!', '#4CC9F0'); if (window.Sound) Sound.roll(); if (window.Haptic) Haptic.good();
   }
   get rolling() { return this.now < this.rollUntil; }
   // 구르기 진행률 0~1
@@ -597,7 +597,7 @@ class Fps3DGame {
     if (now - this.lastFire < this.wpn.rate) return;
     this.lastFire = now; this.muzzle = 1; this.ammo--;
     if (this.ammo <= 0) this.reload();
-    if (window.Sound) Sound.hardDrop();
+    if (window.Sound) { if (this.weapon === 'sniper') { Sound.sniper(); Sound.bolt(0.32); } else Sound.rifle(); }   // 총소리 · 스나이퍼는 이어서 볼트 철컥
     // 산탄: 스나이퍼는 줌 상태면 거의 정확, 줌 없이 쏘면 많이 튐
     const base = 0.01 * this.recoil + (this.moving ? 0.012 : 0);
     const spread = this.weapon === 'sniper' ? (this.zoomed ? base * 0.15 : 0.06) : base;
@@ -645,7 +645,7 @@ class Fps3DGame {
       if (this.opts.onAttack) this.opts.onAttack('hit', best, { dmg: dmg, head: head ? 1 : 0 });
       this.hitMarker = head ? 1.4 : 1; this.score += head ? 5 : 3;
       if (this.models[best]) this.models[best].userData.flash = now + 150;
-      if (window.Sound) Sound.lock();
+      if (window.Sound) (head ? Sound.headshot() : Sound.hitmark());   // 명중 확인음
     }
   }
   // 서 있는 자리의 바닥 높이 — 낮은 구조물(상자 1m · 방벽 0.6m) 위에는 올라설 수 있습니다
@@ -688,14 +688,14 @@ class Fps3DGame {
       this.hp = Math.max(0, this.hp - (e.dmg || 26)); this.hurt = 1;
       if (window.Haptic) Haptic.hit();
       const p = this.peers[e.by];
+      if (window.Sound) Sound.hurt();
       if (p) { let da = Math.atan2(p.y - this.y, p.x - this.x) - this.yaw; while (da > Math.PI) da -= Math.PI * 2; while (da < -Math.PI) da += Math.PI * 2; this.dmgDir = { a: da, until: this.clock() + 900 }; }
-      if (window.Sound) Sound.crash();
       const who = this.nameOf(e.by);
       if (this.hp <= 0) {
         this.deaths++; this.streak = 0; this.deadUntil = this.clock() + (this.roundMode ? 1e12 : 3000); this.score = Math.max(0, this.score - 20); this.killer = who; this.killHead = !!e.head;
         this.pushFeed(who, this.myName, '#FF5C7A', !!e.head);
         if (this.opts.onAttack) this.opts.onAttack('kill', e.by, { victim: this.myId, head: e.head ? 1 : 0 });
-        if (window.Sound) Sound.gameOver();
+        if (window.Sound) Sound.death();
       }
     } else if (e.type === 'kill' && e.target === this.myId) {
       this.kills++; this.streak++; this.score += 100 + (e.head ? 50 : 0) + (this.streak >= 3 ? 50 : 0);
@@ -780,7 +780,7 @@ class Fps3DGame {
       this.draw(); return;
     }
     this._respawned = false;
-    if (this.reloadUntil && now >= this.reloadUntil && this.ammo < this.magSize) { this.ammo = this.magSize; this.reloadUntil = 0; if (window.Sound) Sound.rotate(); }
+    if (this.reloadUntil && now >= this.reloadUntil && this.ammo < this.magSize) { this.ammo = this.magSize; this.reloadUntil = 0; }
 
     this.yaw += this.turn * 0.05 * f;
     // 이동: 조이스틱(mx: 옆, my: 앞) + 키보드
@@ -810,7 +810,7 @@ class Fps3DGame {
     this.vz -= 0.0062 * f;
     this.z += this.vz * f;
     const floor = this.floorAt(this.x, this.y);
-    if (this.z <= floor) { if (!this.onGround && this.vz < -0.03) { this.landDip = Math.min(0.35, -this.vz * 2.2); if (window.Sound) Sound.lock(); } this.z = floor; this.vz = 0; this.onGround = true; }
+    if (this.z <= floor) { if (!this.onGround && this.vz < -0.03) { this.landDip = Math.min(0.35, -this.vz * 2.2); if (window.Sound) Sound.land(-this.vz * 3); } this.z = floor; this.vz = 0; this.onGround = true; }
     else this.onGround = false;
     this.updateFov();
     if (this.firing) this.shoot();

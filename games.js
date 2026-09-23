@@ -78,6 +78,22 @@ const GAMES = {
     sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, passed: g.passed }; }
   },
 
+  kart3d: {
+    type: 'canvas',
+    name: '카트 레이싱 3D',
+    desc: '진짜 3D 트랙을 친구들과 동시에 달려요. 오르막 헤어핀·S자·가속 발판·? 아이템 상자, 드리프트로 터보를 모아 3바퀴 먼저 들어오면 승리',
+    howto: '자동으로 달려요 · ◀ ▶ 조향 · 꺾으면서 드리프트를 꾹 → 불꽃이 차면 놓아서 터보 · 🚀 아이템 · ■ 브레이크',
+    meta: '실시간 레이싱 · 3D · 최대 30명',
+    primary: '72% 0.16 240', primaryContent: '100% 0 0', hex: '#3FA9F5',
+    fullBleed: true, grid: { cols: 30, rows: 30 },
+    adminView: 'grid', realtime: true, engine3d: true, needsPeers: true, hasNext: false,
+    stats: [{ key: 'lapNo', label: 'LAP' }, { key: 'place', label: '순위' }],
+    detail: function (g) { return (g.me && g.me.finished ? '완주 · ' : g.lapNo + '/3바퀴 · ') + g.place + '위'; },
+    controls: [], padLayout: 'kart3d',
+    create: function (canvas, opts) { return new Kart3DGame(canvas, Object.assign({ bots: 0, maxDpr: 1.25 }, opts)); },
+    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, lapNo: g.lapNo, place: g.place }; }
+  },
+
   fps: {
     type: 'canvas',
     name: '레이저 태그 3D (개인전)',

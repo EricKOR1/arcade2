@@ -7,8 +7,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1B2027">
 <title>교사용 대시보드</title>
-<link rel="stylesheet" href="platform.css?v=2026-10-10b">
-<link rel="stylesheet" href="style.css?v=2026-10-10b">
+<link rel="stylesheet" href="platform.css?v=2026-10-12a">
+<link rel="stylesheet" href="style.css?v=2026-10-12a">
 </head>
 <body>
 <div class="admin" id="admin-root">
@@ -17,7 +17,7 @@
     <h1>아케이드</h1>
     <span class="badge badge-lg" id="status-badge">게임 선택</span>
     <span class="badge badge-lg badge-ghost" id="count-badge">0명 접속</span>
-    <span class="badge badge-sm" style="opacity:.4">v2026-10-10b</span>
+    <span class="badge badge-sm" style="opacity:.4">v2026-10-12a</span>
   </div>
   <p class="admin-sub" id="admin-sub">플레이할 게임을 고르면 학생용 QR이 만들어집니다.</p>
 
@@ -69,6 +69,7 @@
       <button id="full-btn" class="btn btn-primary">⛶ 전체 화면 (학생 화면 보기)</button>
       <button class="btn btn-ghost move-open">⇄ 모두 다른 게임 대기실로 이동</button>
       <button id="lobby-btn" class="btn btn-ghost">대기실로 되돌리기</button>
+      <button id="sound-all-btn" class="btn btn-ghost" title="학생 기기 전체의 효과음을 한 번에 켜고 끕니다">🔊 학생 소리 켜짐</button>
       <button id="end-btn" class="btn btn-outline btn-error">게임 종료</button>
       <button id="csv-btn" class="btn btn-ghost" title="현재 명단의 점수·순위를 CSV 로 저장">⬇ 결과 CSV</button>
       <button id="force-btn" class="btn btn-error">강제 종료</button>
@@ -172,33 +173,34 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="firebase-config.js?v=2026-10-10b"></script>
-<script src="shared.js?v=2026-10-10b"></script>
-<script src="fx.js?v=2026-10-10b"></script>
-<script src="tetris-engine.js?v=2026-10-10b"></script>
-<script src="racing-engine.js?v=2026-10-10b"></script>
-<script src="snake-engine.js?v=2026-10-10b"></script>
-<script src="breakout-engine.js?v=2026-10-10b"></script>
-<script src="flappy-engine.js?v=2026-10-10b"></script>
-<script src="shooter-engine.js?v=2026-10-10b"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="fps-engine.js?v=2026-10-10b"></script>
-<script src="fps3d-engine.js?v=2026-10-10b"></script>
-<script src="game2048-engine.js?v=2026-10-10b"></script>
-<script src="frogger-engine.js?v=2026-10-10b"></script>
-<script src="asteroids-engine.js?v=2026-10-10b"></script>
-<script src="maze-engine.js?v=2026-10-10b"></script>
-<script src="tower-engine.js?v=2026-10-10b"></script>
-<script src="missile-engine.js?v=2026-10-10b"></script>
-<script src="centipede-engine.js?v=2026-10-10b"></script>
-<script src="source-engine.js?v=2026-10-10b"></script>
-<script src="arena-engine.js?v=2026-10-10b"></script>
-<script src="slither-engine.js?v=2026-10-10b"></script>
-<script src="games.js?v=2026-10-10b"></script>
-<script src="app.js?v=2026-10-10b"></script>
+<script src="firebase-config.js?v=2026-10-12a"></script>
+<script src="shared.js?v=2026-10-12a"></script>
+<script src="fx.js?v=2026-10-12a"></script>
+<script src="tetris-engine.js?v=2026-10-12a"></script>
+<script src="racing-engine.js?v=2026-10-12a"></script>
+<script src="snake-engine.js?v=2026-10-12a"></script>
+<script src="breakout-engine.js?v=2026-10-12a"></script>
+<script src="flappy-engine.js?v=2026-10-12a"></script>
+<script src="shooter-engine.js?v=2026-10-12a"></script>
+<script src="three.min.js"></script>
+<script src="fps-engine.js?v=2026-10-12a"></script>
+<script src="fps3d-engine.js?v=2026-10-12a"></script>
+<script src="game2048-engine.js?v=2026-10-12a"></script>
+<script src="frogger-engine.js?v=2026-10-12a"></script>
+<script src="asteroids-engine.js?v=2026-10-12a"></script>
+<script src="maze-engine.js?v=2026-10-12a"></script>
+<script src="tower-engine.js?v=2026-10-12a"></script>
+<script src="missile-engine.js?v=2026-10-12a"></script>
+<script src="centipede-engine.js?v=2026-10-12a"></script>
+<script src="source-engine.js?v=2026-10-12a"></script>
+<script src="arena-engine.js?v=2026-10-12a"></script>
+<script src="slither-engine.js?v=2026-10-12a"></script>
+<script src="kart3d-engine.js?v=2026-10-12a"></script>
+<script src="games.js?v=2026-10-12a"></script>
+<script src="app.js?v=2026-10-12a"></script>
 <script>
 (function () {
-  const CELL = { tetris: 6, snake: 5, breakout: 8, flappy: 8, shooter: 8, g2048: 26, frogger: 8, asteroids: 6, maze: 5, tower: 7, missile: 6, centipede: 5, source: 8, arena: 6, slither: 5 };
+  const CELL = { tetris: 6, snake: 5, breakout: 8, flappy: 8, shooter: 8, g2048: 26, frogger: 8, asteroids: 6, maze: 5, tower: 7, missile: 6, centipede: 5, source: 8, arena: 6, slither: 5, kart3d: 6 };
 
   const sessionRef  = db.ref('session');
   const statusRef   = db.ref('session/status');
@@ -397,9 +399,9 @@
         Object.keys(ps[id] || {}).forEach(k => { if (['nickname', 'name', 'joinedAt', 'lastSeen', 'status', 'score'].indexOf(k) < 0) up[id + '/' + k] = null; }); });
       db.ref('gems').remove(); db.ref('finishes').remove(); db.ref('screens').remove(); db.ref('picks').remove();
       if (Object.keys(up).length) playersRef.update(up);
-      sessionRef.set(Object.assign({ game: gameId, status: startNow ? 'playing' : 'waiting', track: currentTrack }, startNow ? { startAt: serverNow() + 4200 } : {}));   // 곧바로 시작해도 공통 출발 시각을 함께
+      sessionRef.set(Object.assign({ game: gameId, status: startNow ? 'playing' : 'waiting', track: currentTrack, soundOff: !!teacherSoundOff }, startNow ? { startAt: serverNow() + 4200 } : {}));   // 곧바로 시작해도 공통 출발 시각을 함께
     })["catch"](() => {
-      sessionRef.set(Object.assign({ game: gameId, status: startNow ? 'playing' : 'waiting', track: currentTrack }, startNow ? { startAt: serverNow() + 4200 } : {}));   // 곧바로 시작해도 공통 출발 시각을 함께
+      sessionRef.set(Object.assign({ game: gameId, status: startNow ? 'playing' : 'waiting', track: currentTrack, soundOff: !!teacherSoundOff }, startNow ? { startAt: serverNow() + 4200 } : {}));   // 곧바로 시작해도 공통 출발 시각을 함께
     });
     renderQR(gameId);
   }
@@ -453,6 +455,11 @@
     }
   }, 250);
   $('end-btn').addEventListener('click', () => statusRef.set('ended'));
+  // 학생 소리 전체 켜기/끄기 — 교실이 시끄러울 때 한 번에
+  var teacherSoundOff = false;   // var: 페이지를 열 때 대기실이 먼저 열려도 안전하게
+  const paintSoundBtn = () => { const b = $('sound-all-btn'); if (b) { b.textContent = teacherSoundOff ? '🔇 학생 소리 꺼짐' : '🔊 학생 소리 켜짐'; b.classList.toggle('btn-warning', teacherSoundOff); } };
+  sessionRef.child('soundOff').on('value', sn => { teacherSoundOff = !!sn.val(); paintSoundBtn(); });
+  $('sound-all-btn').addEventListener('click', () => { teacherSoundOff = !teacherSoundOff; sessionRef.child('soundOff').set(teacherSoundOff); paintSoundBtn(); });
   $('lobby-btn').addEventListener('click', () => statusRef.set('waiting'));
 
   // ══ 학생 개별 화면 보기 ══

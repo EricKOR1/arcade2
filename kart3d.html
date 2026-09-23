@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>3D 카트 (시제품)</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0B0F1E; overflow: hidden; font-family: Pretendard, system-ui, sans-serif; touch-action: none; -webkit-user-select: none; user-select: none }
+  #stage { position: fixed; inset: 0 }
+  .ctl { position: fixed; bottom: max(16px, env(safe-area-inset-bottom)); display: flex; gap: 12px; z-index: 5 }
+  .ctl.left { left: max(16px, env(safe-area-inset-left)) } .ctl.right { right: max(16px, env(safe-area-inset-right)); align-items: flex-end }
+  .b { width: 86px; height: 86px; border-radius: 22px; border: 3px solid rgba(255,255,255,.55); background: rgba(10,14,28,.45); color: #fff; font: 900 30px Pretendard, sans-serif;
+       display: grid; place-items: center; touch-action: none; backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px) }
+  .b small { display: block; font-size: 11px; font-weight: 800; margin-top: -4px; white-space: nowrap } .b { white-space: nowrap; line-height: 1.1 } .b.on { background: rgba(63,169,245,.55); transform: scale(.95) }
+  .b.drift { width: 104px; height: 104px; border-radius: 50%; background: rgba(255,107,214,.35); font-size: 16px } .b.drift.on { background: rgba(255,107,214,.7) }
+  .b.item { border-radius: 50%; background: rgba(255,209,102,.35); font-size: 24px } .b.brake { width: 66px; height: 66px; font-size: 16px; border-radius: 18px }
+  #start { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; background: radial-gradient(ellipse at 50% 30%, #2A3F7A, #0B0F1E 70%); color: #fff; text-align: center }
+  #start h1 { font-size: 34px; margin: 0 0 8px } #start p { margin: 4px 0; color: #C9D6EE; font-size: 15px; line-height: 1.6 }
+  #start button { margin-top: 18px; font: 900 22px Pretendard, sans-serif; padding: 16px 36px; border-radius: 18px; border: 0; background: #FFD166; color: #3A2A00; box-shadow: 0 6px 0 #A9761A }
+  #again { position: fixed; left: 50%; bottom: 22%; transform: translateX(-50%); z-index: 6; display: none; font: 900 20px Pretendard, sans-serif; padding: 14px 30px; border-radius: 16px; border: 0; background: #FFD166; color: #3A2A00; box-shadow: 0 5px 0 #A9761A }
+  @media (orientation: landscape) and (max-height: 520px) { .b { width: 70px; height: 70px; font-size: 26px } .b.drift { width: 86px; height: 86px } .b.brake { width: 54px; height: 54px } }
+</style></head>
+<body>
+<div id="stage"></div>
+<div class="ctl left"><button class="b" id="bl">◀</button><button class="b" id="br">▶</button></div>
+<div class="ctl right"><button class="b brake" id="bb">■<small>브레이크</small></button><button class="b item" id="bi">🚀<small>아이템</small></button><button class="b drift" id="bd">드리프트</button></div>
+<div id="start"><div>
+  <h1>🏁 3D 카트 (시제품)</h1>
+  <p>자동으로 달려요 · ◀ ▶ 로 조향<br>꺾으면서 <b>드리프트</b>를 꾹 누르면 불꽃이 차오르고, 놓으면 <b>터보!</b><br>? 상자 = 부스트 아이템 · 주황 화살표 = 가속 발판 · 3바퀴</p>
+  <p style="font-size:13px;opacity:.7">키보드: ← → 조향 · Space 드리프트 · Shift 아이템 · ↓ 브레이크</p>
+  <button id="go">시작하기</button>
+</div></div>
+<button id="again">다시 하기</button>
+<script src="three.min.js"></script>
+<script src="sound.js"></script>
+<script src="kart3d-engine.js"></script>
+<script>
+  let game = null;
+  const stage = document.getElementById('stage');
+  function begin() {
+    if (window.Sound) Sound.resume();
+    document.getElementById('start').style.display = 'none'; document.getElementById('again').style.display = 'none';
+    if (game) { if (window.Sound) Sound.engineStop(); stage.innerHTML = ''; }
+    game = new Kart3DGame(stage, { myName: '나' }); window.__game = game;
+  }
+  document.getElementById('go').onclick = begin; document.getElementById('again').onclick = begin;
+  // 누르는 동안 켜지는 버튼
+  const hold = (id, on, off) => { const el = document.getElementById(id);
+    const a = e => { e.preventDefault(); el.classList.add('on'); on(); }, b = e => { e.preventDefault(); el.classList.remove('on'); off(); };
+    el.addEventListener('touchstart', a, { passive: false }); el.addEventListener('touchend', b); el.addEventListener('touchcancel', b);
+    el.addEventListener('mousedown', a); el.addEventListener('mouseup', b); el.addEventListener('mouseleave', e => { if (el.classList.contains('on')) b(e); }); };
+  const I = () => game ? game.input : {};
+  let L = false, R = false; const steer = () => { if (game) game.input.steer = (R ? -1 : 0) + (L ? 1 : 0); };
+  hold('bl', () => { L = true; steer(); }, () => { L = false; steer(); });
+  hold('br', () => { R = true; steer(); }, () => { R = false; steer(); });
+  hold('bd', () => { I().drift = true; }, () => { I().drift = false; });
+  hold('bb', () => { I().brake = true; }, () => { I().brake = false; });
+  hold('bi', () => { if (game) game.useItem(game.me, game.now); }, () => {});
+  const keys = { ArrowLeft: 'L', KeyA: 'L', ArrowRight: 'R', KeyD: 'R' };
+  addEventListener('keydown', e => { if (!game) return; if (keys[e.code] === 'L') L = true; if (keys[e.code] === 'R') R = true; steer();
+    if (e.code === 'Space') game.input.drift = true; if (e.code === 'ArrowDown' || e.code === 'KeyS') game.input.brake = true; if (e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyE') game.useItem(game.me, game.now); });
+  addEventListener('keyup', e => { if (!game) return; if (keys[e.code] === 'L') L = false; if (keys[e.code] === 'R') R = false; steer();
+    if (e.code === 'Space') game.input.drift = false; if (e.code === 'ArrowDown' || e.code === 'KeyS') game.input.brake = false; });
+  addEventListener('resize', () => game && game.resize());
+  (function loop(t) { requestAnimationFrame(loop); if (!game) return; game.tick(t); if (game.me.finished) document.getElementById('again').style.display = 'block'; })(0);
+</script>
+</body></html>

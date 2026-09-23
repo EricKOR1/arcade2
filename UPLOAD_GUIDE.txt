@@ -1,14 +1,17 @@
-아케이드 플랫폼 — v2026-10-10b
+아케이드 플랫폼 — v2026-10-12a (카트 레이싱 3D)
 
-교체할 파일 5개
-  index.html      대기 화면 카드 삭제 · 선택 화면(내 팀 표시·가독성) · 팀 정보 적용
-  admin.html      시작 시 팀 무작위 반반 · 선택 20초
-  games.js        배정된 팀으로 게임 생성
-  arena-engine.js 팀 안 순번으로 출발 자리
-  style.css       선택 화면 가독성
+새로 올릴 파일 (아직 안 올렸다면)
+  three.min.js       ★ 이제 사이트가 이 파일로 3D 를 그립니다 (외부 CDN 대신). 꼭 올려 주세요
+  kart3d-engine.js   3D 카트 엔진
+  kart3d.html        혼자 해 보는 연습 페이지 (CPU 5명)
 
+교체할 파일
+  games.js           '카트 레이싱 3D' 등록
+  index.html         3D 카트 조작 버튼 · 저장소 Three.js 사용 · 버전
+  admin.html         저장소 Three.js 사용 · 미니보드 · 버전
+  style.css          3D 카트 버튼
+
+★ three.min.js 를 빼먹으면 레이저 태그 3D 와 카트 3D 가 뜨지 않습니다
 ★ 학생 기기 모두 새로고침
-★ firebase-rules.json 은 v2026-10-10a 에서 바뀐 그대로 (picks) — 이미 붙여 넣었다면 그대로
-★ assets/arena/ 폴더를 아직 안 올렸다면 함께 (이 zip 에 있음)
 건드리지 않는 파일: firebase-config.js (EXAMPLE 은 올리지 마세요) · photo/force/body.html
-올린 뒤 화면 아래 v2026-10-10b 확인. 안 보이면 Ctrl+Shift+R.
+올린 뒤 화면 아래 v2026-10-12a 확인. 안 보이면 Ctrl+Shift+R.

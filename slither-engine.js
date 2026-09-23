@@ -77,7 +77,7 @@ class SlitherGame {
   die(reason) {
     this.deadUntil = this.clock() + 3000; this.best = Math.max(this.best, this.len);
     this.dropPellets(this.trail, this.len); this.burst(this.x, this.y, 24, SL_COLORS[this.colorIdx]);
-    this.toast(reason + ' · 3초 뒤 부활', '#FF5C7A'); if (window.Sound) Sound.gameOver(); if (window.Haptic) Haptic.big();
+    this.toast(reason + ' · 3초 뒤 부활', '#FF5C7A'); if (window.Sound) Sound.death(); if (window.Haptic) Haptic.big();
   }
   burst(x, y, n, c) { for (let i = 0; i < n; i++) { const a = Math.random() * Math.PI * 2, v = 0.04 + Math.random() * 0.1; this.parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, l: 1, c }); } }
 
@@ -105,7 +105,7 @@ class SlitherGame {
       const R = this.radius;
       for (let i = this.pellets.length - 1; i >= 0; i--) { const pl = this.pellets[i]; const d = Math.hypot(pl.x - this.x, pl.y - this.y);
         if (d < R + 0.6) { pl.x += (this.x - pl.x) * 0.35; pl.y += (this.y - pl.y) * 0.35; }             // 빨려 들어옴
-        if (d < R + 0.15) { this.len += pl.v; this.score = Math.max(this.score, Math.round(this.len)); this.pellets.splice(i, 1); this.spawnPellet(); if (window.Sound) Sound.move(); } }
+        if (d < R + 0.15) { this.len += pl.v; this.score = Math.max(this.score, Math.round(this.len)); this.pellets.splice(i, 1); this.spawnPellet(); if (window.Sound) Sound.nom(); } }
       // 충돌: 상대 몸 · 머리
       if (this.invul <= 0) Object.keys(this.peers).forEach(id => { const p = this.peers[id]; if (p.dead || this.isDead) return;
         const pr = SlitherGame.radiusOf(p.len);
@@ -130,7 +130,7 @@ class SlitherGame {
   eat(id, p) {
     const gain = Math.round(p.len / 2); this.len += gain; this.kills++; this.score = Math.max(this.score, Math.round(this.len));
     this.toast(p.name + ' 을(를) 삼켰다! +' + gain, '#FFD166'); this.burst(p.x, p.y, 20, SL_COLORS[p.ci || 0]);
-    if (this.opts.onAttack) this.opts.onAttack('eaten', id, {}); if (window.Sound) Sound.levelUp(); if (window.Haptic) Haptic.good();
+    if (this.opts.onAttack) this.opts.onAttack('eaten', id, {}); if (window.Sound) Sound.kill(); if (window.Haptic) Haptic.good();
     p.dead = true;                                                     // 신호가 오기 전까지 내 화면에서 미리 치움
   }
 

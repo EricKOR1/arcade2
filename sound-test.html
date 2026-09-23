@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>효과음 미리듣기</title>
+<style>
+  body { margin: 0; font-family: Pretendard, system-ui, sans-serif; background: #0E1322; color: #E8ECF5; padding: 18px; }
+  h1 { font-size: 20px; margin: 0 0 4px } p.sub { margin: 0 0 16px; color: #9AA3B8; font-size: 13px }
+  section { background: #161D33; border: 1px solid #26304F; border-radius: 14px; padding: 14px; margin-bottom: 14px }
+  h2 { font-size: 15px; margin: 0 0 10px; color: #FFD166 }
+  .grid { display: flex; flex-wrap: wrap; gap: 8px }
+  button { background: #23305A; color: #fff; border: 1px solid #34457A; border-radius: 10px; padding: 10px 12px; font: 700 14px inherit; cursor: pointer; min-width: 96px }
+  button:active { transform: translateY(1px); background: #2E3F75 }
+  button small { display: block; font-weight: 500; font-size: 11px; color: #9AA3B8; margin-top: 2px }
+  label { display: flex; align-items: center; gap: 10px; margin: 8px 0; font-size: 14px } input[type=range] { flex: 1 }
+  .unlock { background: #FFD166; color: #3A2A00; border: 0; font-size: 16px; padding: 14px 18px; width: 100% }
+</style></head><body>
+<h1>🔊 효과음 미리듣기</h1>
+<p class="sub">게임에 들어간 소리를 하나씩 들어보는 페이지입니다. 음원 파일 없이 브라우저가 직접 합성합니다. (휴대폰은 무음 모드를 꺼 주세요)</p>
+<button class="unlock" id="unlock">여기를 먼저 눌러 소리 켜기</button>
+<section><h2>레이저 태그 (FPS)</h2><div class="grid" data-g="rifle:라이플 사격,sniper:스나이퍼 사격,bolt:볼트 철컥,reload:재장전,hitmark:명중,headshot:헤드샷,hurt:피격,death:쓰러짐,jump:점프,land:착지,roll:구르기,empty:탄약 없음"></div>
+  <div class="grid" style="margin-top:8px"><button id="burst">라이플 연사 1초<small>연사 시 소리 겹침 확인</small></button><button id="snipeseq">스나이퍼 한 발 전체<small>탕 + 볼트</small></button></div></section>
+<section><h2>카트 레이싱</h2><div class="grid" data-g="countdown3:카운트다운 삑,countdown0:출발!,item:아이템,boost:부스트,crash:충돌,bump:미끄러짐,kartJump:점프대,kartLand:착지,pass:추월,finish:완주,throwBomb:미사일 발사"></div>
+  <label>엔진 <input type="range" id="eng" min="0" max="100" value="0"><span id="engv">정지</span></label>
+  <label><input type="checkbox" id="boost"> 부스트 중</label>
+  <label>타이어 끼익 <input type="range" id="skid" min="0" max="100" value="0"></label>
+  <div class="grid"><button id="engdemo">출발 → 최고속도 가속<small>3단 기어 변속</small></button><button id="engoff">엔진 끄기</button></div></section>
+<section><h2>젬 아레나 · 뱀 아레나</h2><div class="grid" data-g="pistol:볼트 권총,shotgun:바위 산탄,sniper:매 저격,smg:번개 기관단총,throwBomb:부엉 폭탄 던지기,explosion:폭발,dash:돌진,heal:치유,gem:젬 줍기,kill:처치,superReady:궁극기 준비,nom:뱀 먹이"></div></section>
+<section><h2>공통 · 기타 게임</h2><div class="grid" data-g="move:이동,rotate:회전,hardDrop:바로 내리기,clear:줄 지우기,levelUp:레벨 업,gameOver:게임 오버,start:시작"></div>
+  <label>전체 음량 <input type="range" id="vol" min="0" max="100" value="32"></label></section>
+<script src="sound.js"></script>
+<script>
+  const U = () => Sound.resume();
+  document.getElementById('unlock').onclick = e => { U(); e.target.textContent = '소리 켜짐 ✓ — 아래 버튼을 눌러 보세요'; };
+  document.querySelectorAll('[data-g]').forEach(box => box.dataset.g.split(',').forEach(pair => { const [k, label] = pair.split(':');
+    const b = document.createElement('button'); b.innerHTML = label + '<small>' + k + '</small>';
+    b.onclick = () => { U(); if (k === 'countdown3') Sound.countdown(3); else if (k === 'countdown0') Sound.countdown(0); else if (k === 'clear') Sound.clear(4); else if (k === 'reload') Sound.reload(1400); else if (k === 'kartLand') Sound.kartLand(1200); else Sound[k](); };
+    box.appendChild(b); }));
+  document.getElementById('burst').onclick = () => { U(); let n = 0; const t = setInterval(() => { Sound.rifle(); if (++n >= 10) clearInterval(t); }, 110); };
+  document.getElementById('snipeseq').onclick = () => { U(); Sound.sniper(); Sound.bolt(0.32); };
+  let engOn = false; const setEng = () => { U(); const v = +document.getElementById('eng').value / 100; if (v > 0 && !engOn) { Sound.engineStart(); engOn = true; }
+    Sound.engineSet(v, document.getElementById('boost').checked); document.getElementById('engv').textContent = v ? Math.round(v * 100) + '%' : '공회전'; };
+  document.getElementById('eng').oninput = setEng; document.getElementById('boost').onchange = setEng;
+  document.getElementById('skid').oninput = e => { U(); Sound.skidSet(+e.target.value / 100); };
+  document.getElementById('engoff').onclick = () => { Sound.engineStop(); engOn = false; document.getElementById('eng').value = 0; document.getElementById('engv').textContent = '정지'; };
+  document.getElementById('engdemo').onclick = () => { U(); if (!engOn) { Sound.engineStart(); engOn = true; } let v = 0; const t = setInterval(() => { v += 0.02; document.getElementById('eng').value = Math.min(100, v * 100); setEng(); if (v >= 1) clearInterval(t); }, 80); };
+  document.getElementById('vol').oninput = e => Sound.setVolume(+e.target.value / 100);
+</script></body></html>

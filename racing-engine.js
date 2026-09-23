@@ -733,7 +733,7 @@ class KartGame {
       const target = this.nextBehind();
       if (this.opts.onAttack) this.opts.onAttack('turtle', target, null);
       this.addFx('missile');
-      if (window.Sound) Sound.hardDrop();
+      if (window.Sound) Sound.throwBomb();
       this.showToast('등껍질을 뒤로!', '#06D6A0');
 
     } else if (it === 'shield') {
@@ -745,7 +745,7 @@ class KartGame {
       const target = this.nextAhead();
       if (this.opts.onAttack) this.opts.onAttack('missile', target, null);
       this.addFx('missile');
-      if (window.Sound) Sound.hardDrop();
+      if (window.Sound) Sound.throwBomb();
       this.showToast('미사일 발사!', '#EF476F');
 
     } else if (it === 'swap') {
@@ -837,7 +837,7 @@ class KartGame {
     if (now < this.slideUntil || this.finished || this.guarded()) return;
     this.slideUntil = now + 1000;
     this.slideDrift = (Math.random() < 0.5 ? -1 : 1) * 0.02;
-    if (window.Sound) Sound.softDrop();
+    if (window.Sound) Sound.bump();
     this.showToast('미끄러진다!', '#9AA3B2');
   }
 
@@ -858,7 +858,7 @@ class KartGame {
   dropItem() {
     if (!this.items.length || this.finished) return;
     const it = this.items.shift();
-    if (window.Sound) Sound.lock();
+    if (window.Sound) Sound.item();
     this.showToast(ITEMS[it].name + ' 버림', '#9AA3B2');
   }
 
@@ -942,7 +942,7 @@ class KartGame {
   // 화질 단계 (2 최고 · 0 최저) — 시야 거리 · 지물 · 입자 · 정밀 모델 범위를 줄입니다
   setQuality(q) { this.q = Math.max(0, Math.min(2, q | 0)); this.pts = null; }
 
-  destroy() { if (window.Sound && Sound.engineStop) Sound.engineStop(); }
+  destroy() { if (window.Sound && Sound.engineStop) { Sound.engineStop(); if (Sound.skidSet) Sound.skidSet(0); } }
 
   // 교사 관전: 특정 학생 시점으로 봅니다. 그 학생은 peers 에 있어야 하며 '나'로 그려집니다.
   spectate(followId) {
@@ -1002,11 +1002,16 @@ class KartGame {
     }
 
     if (this.countdown > 0) {
+      const cdPrev = Math.ceil(this.countdown);
       this.countdown -= dt/1000;
+      // 카운트다운 삑 · 삑 · 삑 · 빵! (3·2·1 그리고 출발)
+      if (!this.spectator && window.Sound && Sound.countdown) { const cdNow = Math.ceil(this.countdown); if (cdNow !== cdPrev && cdNow >= 1 && cdNow <= 3) Sound.countdown(cdNow); if (this.countdown <= 0) Sound.countdown(0); }
       if (this.countdown <= 0) { this.startedAt = now; if (!this.spectator && window.Sound && Sound.engineStart) Sound.engineStart(); }
       this.draw(); return;
     }
     if (!this.spectator && window.Sound && Sound.engineSet) Sound.engineSet(Math.min(1, this.speed / (this.maxSpeed * 1.4)), now < this.boostUntil);
+    // 급하게 꺾으면 타이어 끼익 (속도가 빠르고 조향 중일 때 · 미끄러질 때는 더 크게)
+    if (!this.spectator && window.Sound && Sound.skidSet) { const sp = Math.min(1, this.speed / this.maxSpeed); Sound.skidSet(this.finished || this.airborne ? 0 : Math.max(this.steer ? Math.max(0, sp - 0.55) * 1.6 : 0, now < (this.slideUntil || 0) ? 0.8 : 0)); }
     if (!this.finished) this.updateCar(now, f);
     this.updateRank();
     if (this.rank < this.lastRank && !this.finished && this.countdown <= 0) {
@@ -1082,7 +1087,7 @@ class KartGame {
           this.lastJumpAt = jp.i; this.jumpFrom = jp; this.airStart = now; this.airBest = 0;
           this.jumpBanner = now + 1200;                 // 큰 'JUMP!' 배너
           this.shakeT = 0.45;                            // 발판을 차고 오르는 충격
-          if (window.Sound) { Sound.rotate(); Sound.boost && Sound.boost(); } if (window.Haptic) Haptic.big();
+          if (window.Sound) Sound.kartJump(); if (window.Haptic) Haptic.big();
           // 흙먼지 · 불꽃
           this.spawn(30, this.x, this.y, this.track.carLen * 0.45,
             { speed: 6, up: 4.5, size: 9, colors: ['#FFD166', '#FF9F43', '#FFFFFF', this.track.def.grass], gravity: 2.2 });
@@ -1109,7 +1114,7 @@ class KartGame {
             { speed: 5, up: 2.2, size: 8, colors: ['#FFFFFF', '#FFD166', this.track.def.grass], gravity: 2.4 });
           const airSec = (now - (this.airStart || now)) / 1000;
           this.showToast(airSec > 1.1 ? '★ 멋진 점프! ' + airSec.toFixed(1) + '초' : '착지! ' + airSec.toFixed(1) + '초', '#FFD166');
-          if (window.Sound) Sound.clear(1); if (window.Haptic) Haptic.hit();
+          if (window.Sound) Sound.kartLand(airSec * 1000); if (window.Haptic) Haptic.hit();
         }
       }
     }
@@ -1302,7 +1307,7 @@ class KartGame {
       // 실제 주행 시간(출발 신호부터 결승선까지). 네트워크와 무관하므로 순위의 기준이 됩니다.
       this.raceMs = Math.max(1, Math.round(now - (this.startedAt || now)));
       if (window.Haptic) Haptic.big();
-      if (window.Sound && Sound.engineStop) Sound.engineStop();
+      if (window.Sound && Sound.engineStop) { Sound.engineStop(); if (Sound.skidSet) Sound.skidSet(0); if (Sound.finish) Sound.finish(); }
       this.spawn(70, this.x, this.y, this.track.carLen * 1.2,
         { speed: 10.1, up: 9, size: 8, spread: this.track.carLen,
           colors: ['#FFD166', '#EF476F', '#06D6A0', '#4CC9F0', '#B15DFF', '#FFFFFF'], decay: 0.55, gravity: 4 });

@@ -185,7 +185,7 @@ class ArenaGame {
       // 폭탄(로브)은 자동 조준한 적의 거리만큼만 날아가 그 자리에 떨어집니다 (최대 사거리 안에서)
       const life = sh.lob && this.aimDist ? Math.max(6, Math.min(sh.life, Math.round(this.aimDist / sh.speed))) : sh.life;
       this.bullets.push({ x: this.x, y: this.y, vx: Math.cos(a) * sh.speed, vy: Math.sin(a) * sh.speed, life: life, dmg: sh.dmg, big: false, lob: !!sh.lob, radius: sh.radius || 0, t0: life }); }
-    if (window.Sound) Sound.hardDrop(); if (window.Haptic) Haptic.tap();
+    if (window.Sound) { const k = { rock: 'shotgun', hawk: 'sniper', owl: 'throwBomb', spark: 'smg' }[this.charId] || 'pistol'; Sound[k](); } if (window.Haptic) Haptic.tap();   // 캐릭터별 총소리
   }
   useSuper() {
     const now = this.clock(), k = this.ch.sup.kind;
@@ -197,16 +197,16 @@ class ArenaGame {
     else if (k === 'dash') { const long = this.charId === 'spark'; this.dashUntil = now + (long ? 500 : 700); this.invulUntil = this.dashUntil; this.dashDir = [Math.cos(this.angle), Math.sin(this.angle)]; this.dashHit = {}; this.dashDmg = long ? 25 : 30; }
     else if (k === 'heal') { this.hp = Math.min(this.maxHp, this.hp + 25); this.burst(this.x, this.y, 20, '#7DF58F'); this.healRing = now + 900;
       Object.keys(this.peers).forEach(id => { const p = this.peers[id]; if (p.team !== this.team || p.dead) return; if (Math.hypot(p.x - this.x, p.y - this.y) <= 4 && this.opts.onAttack) this.opts.onAttack('heal', id, { amt: 40 }); }); }
-    this.toast(this.ch.sup.label + '!', '#FFD166'); if (window.Sound) Sound.boost && Sound.boost(); if (window.Haptic) Haptic.big();
+    this.toast(this.ch.sup.label + '!', '#FFD166'); if (window.Sound) { const k = { dash: 'dash', heal: 'heal', volley: 'throwBomb', pierce: 'sniper', blast: 'shotgun' }[this.ch.sup.kind] || 'boost'; Sound[k](); } if (window.Haptic) Haptic.big();
   }
   onEvent(e) {
     if (!e) return;
-    if (e.type === 'kill' && e.target === this.myId) { const v = this.peers[e.victim]; this.feed.unshift({ a: this.myName || '나', b: v ? v.name : '상대', t: this.clock() + 4000, me: true }); this.feed.length = Math.min(3, this.feed.length); this.kills++; this.score += 50; this.toast('처치!', '#FFD166'); }
+    if (e.type === 'kill' && e.target === this.myId) { const v = this.peers[e.victim]; this.feed.unshift({ a: this.myName || '나', b: v ? v.name : '상대', t: this.clock() + 4000, me: true }); this.feed.length = Math.min(3, this.feed.length); this.kills++; this.score += 50; this.toast('처치!', '#FFD166'); if (window.Sound) Sound.kill(); }
     if (e.type === 'heal' && e.target === this.myId && !this.isDead) { this.hp = Math.min(this.maxHp, this.hp + (e.amt || 40)); this.burst(this.x, this.y, 12, '#7DF58F'); this.toast('치유 +' + (e.amt || 40), '#7DF58F'); return; }
     if (e.type === 'hit' && e.target === this.myId) {
       if (this.isDead || this.clock() < this.invulUntil) return;
       this.hp = Math.max(0, this.hp - (e.dmg || 22)); this.lastHurt = this.clock(); this.hurt = 1; this.dmgNums.push({ x: this.x, y: this.y, v: e.dmg || 22, c: '#FF5C7A', t: 0 });
-      if (window.Haptic) Haptic.hit(); if (window.Sound) Sound.crash();
+      if (window.Haptic) Haptic.hit(); if (window.Sound) Sound.hurt();
       if (this.hp <= 0) this.die(e.by);
     }
   }
@@ -216,7 +216,7 @@ class ArenaGame {
     // 들고 있던 젬을 그 자리에 떨어뜨림
     if (this.held > 0 && this.opts.onDropGems) { const drops = []; for (let i = 0; i < this.held; i++) { const a = Math.random() * Math.PI * 2, r = 0.4 + Math.random() * 0.9; drops.push([this.x + Math.cos(a) * r, this.y + Math.sin(a) * r]); } this.opts.onDropGems(drops); }
     this.held = 0; this.super = 0;
-    this.burst(this.x, this.y, 18, AR_TEAM[this.team].color);
+    this.burst(this.x, this.y, 18, AR_TEAM[this.team].color); if (window.Sound) Sound.death();
     const who = this.peers[byId] && this.peers[byId].name; this.toast((who ? who + '에게 ' : '') + '쓰러졌다 · 3초 뒤 부활', '#FF5C7A');
     this.feed.unshift({ a: who || '상대', b: this.myName || '나', t: this.clock() + 4000, me: false }); this.feed.length = Math.min(3, this.feed.length);
     if (this.opts.onAttack) this.opts.onAttack('kill', byId, { victim: this.myId });
@@ -248,7 +248,7 @@ class ArenaGame {
       // 젬 줍기
       Object.keys(this.gems).forEach(id => { const g = this.gems[id]; if (!g || g.by) return;
         if (Math.hypot(g.x - this.x, g.y - this.y) < 0.62) { g.by = this.myId; this.held++; this.score += 10; this.burst(g.x, g.y, 6, '#B15DFF');
-          if (this.opts.onGem) this.opts.onGem(id); if (window.Sound) Sound.clear(1); } });
+          if (this.opts.onGem) this.opts.onGem(id); if (window.Sound) Sound.gem(); } });
     }
     // 탄
     for (let i = this.bullets.length - 1; i >= 0; i--) { const b = this.bullets[i];
@@ -256,10 +256,10 @@ class ArenaGame {
       // 로브탄(폭탄): 벽을 넘어 날아가 착지점에서 터짐. 관통탄: 벽·적을 뚫음
       let done = b.life <= 0 || (!b.lob && !b.pierce && this.wall(b.x, b.y));
       const pop = (x, y, v, c) => this.dmgNums.push({ x, y, v, c, t: 0 });
-      const gain = () => { this.super = Math.min(100, this.super + (b.big ? 0 : (this.ch.shot.n >= 3 ? 25 : this.ch.shot.n === 2 ? 35 : 60))); this.hitMark = now + 250; this.score += 2; if (window.Sound) Sound.lock(); };
+      const gain = () => { const wasReady = this.super >= 100; if (window.Sound) Sound.hitmark(); this.super = Math.min(100, this.super + (b.big ? 0 : (this.ch.shot.n >= 3 ? 25 : this.ch.shot.n === 2 ? 35 : 60))); this.hitMark = now + 250; this.score += 2; if (!wasReady && this.super >= 100 && window.Sound) Sound.superReady(); };
       if (b.lob) { if (b.life <= 0) { // 착지 → 범위 피해
           Object.keys(this.peers).forEach(id => { const p = this.peers[id]; if (p.dead || p.team === this.team) return; if (Math.hypot(p.x - b.x, p.y - b.y) < b.radius) { if (this.opts.onAttack) this.opts.onAttack('hit', id, { dmg: b.dmg }); gain(); pop(p.x, p.y, b.dmg, '#FFD166'); } });
-          this.burst(b.x, b.y, 18, '#FF9F43'); done = true; } }
+          this.burst(b.x, b.y, 18, '#FF9F43'); if (window.Sound) Sound.explosion(); done = true; } }
       else if (!done) Object.keys(this.peers).forEach(id => { const p = this.peers[id]; if ((done && !b.pierce) || p.dead || p.team === this.team || (b.pierce && b.hit[id])) return;
         if (Math.hypot(p.x - b.x, p.y - b.y) < (b.big ? (b.radius || 0.9) : 0.55)) { if (!b.pierce) done = true; else b.hit[id] = 1;
           if (this.opts.onAttack) this.opts.onAttack('hit', id, { dmg: b.dmg }); gain(); pop(p.x, p.y, b.dmg, '#FFD166'); this.burst(b.x, b.y, 5, '#FFD166'); } });
