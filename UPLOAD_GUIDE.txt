@@ -1,9 +1,11 @@
-아케이드 플랫폼 — v2026-10-16g (게임 오버 멈춤 해결)
+아케이드 플랫폼 — v2026-10-16i (울산 환경 수사대 3D)
+
+새로 올릴 파일
+  ulsan-case.js         사건 생성 · 증거 계산
+  ulsan-rpg-engine.js   3D 세계 · 인물 · 조사 · 수첩/지도/보고서
 
 교체할 파일
-  index.html        게임 오버가 되면 바로 결과 처리 · GAME OVER 안내 · 버전
-  style.css         GAME OVER 안내 모양
-  slither-engine.js 죽은 이유가 빠졌을 때 표시
-  admin.html        버전
+  games.js · index.html · admin.html · style.css
 
-★ 학생 기기 모두 새로고침
+★ three-quality.js 가 없다면 함께 (10-16f)
+교사 화면: '울산 환경 수사대 3D' 선택 → 게임 시작. 반 전체가 같은 사건을 풉니다

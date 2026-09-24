@@ -953,3 +953,33 @@ body.fullgrid .spectate { grid-template-columns: 1fr 320px }
 .gameover-flash span { display: block; margin-top: 12px; font: 800 clamp(16px, 3vw, 26px) Pretendard, sans-serif; color: #fff; text-shadow: 0 2px 6px rgba(0,0,0,.6) }
 @keyframes goDim { to { background: rgba(8,10,16,.62) } }
 @keyframes goPop { to { transform: scale(1); opacity: 1 } }
+
+/* ── 울산 환경 수사대 3D: 화면 ── */
+.urpg-ui { position: absolute; inset: 0; pointer-events: none; z-index: 6; font-family: Pretendard, sans-serif }
+.urpg-ui .u-top { position: absolute; left: 60px; right: 10px; top: 8px; display: flex; justify-content: space-between; gap: 8px; align-items: flex-start }
+.urpg-ui .u-clock { background: rgba(10,14,24,.72); color: #fff; border-radius: 14px; padding: 8px 14px; display: flex; flex-direction: column; gap: 2px; backdrop-filter: blur(4px) }
+.urpg-ui .u-clock b { font-size: 17px; font-weight: 900 } .urpg-ui .u-clock span { font-size: 12px; opacity: .85 } .urpg-ui .u-clock span.warn { color: #FF8A8A; opacity: 1 }
+.urpg-ui .u-btns { display: flex; gap: 6px; pointer-events: auto; flex-wrap: wrap; justify-content: flex-end }
+.urpg-ui .u-btns button { background: rgba(10,14,24,.78); color: #fff; border: 1px solid rgba(255,255,255,.25); border-radius: 12px; padding: 9px 12px; font: 800 14px Pretendard, sans-serif }
+.urpg-ui .u-btns em { font-style: normal; background: #1FBF6A; border-radius: 8px; padding: 0 6px; margin-left: 2px }
+.urpg-ui .u-prompt { position: absolute; left: 50%; bottom: 24%; transform: translate(-50%, 10px); background: rgba(10,14,24,.8); color: #FFD166; border-radius: 14px; padding: 9px 16px; font: 800 15px Pretendard, sans-serif; opacity: 0; transition: .2s; white-space: nowrap }
+.urpg-ui .u-prompt.on { opacity: 1; transform: translate(-50%, 0) }
+.urpg-ui .u-toast { position: absolute; left: 50%; top: 70px; transform: translateX(-50%); background: #1FBF6A; color: #06220F; border-radius: 12px; padding: 8px 14px; font: 800 14px Pretendard, sans-serif; opacity: 0; transition: .25s; max-width: 86%; text-align: center }
+.urpg-ui .u-toast.on { opacity: 1 }
+.urpg-ui .u-modal { position: absolute; inset: 0; background: rgba(5,8,16,.55); display: grid; place-items: center; pointer-events: auto; z-index: 30 }
+.urpg-ui .u-modal.hidden { display: none }
+.urpg-ui .u-box { width: min(560px, 92%); max-height: 86%; overflow: auto; background: #F7F9FC; color: #1B1B2F; border-radius: 18px; padding: 16px 18px; box-shadow: 0 20px 60px rgba(0,0,0,.45) }
+.urpg-ui .u-box.wide { width: min(760px, 95%) }
+.urpg-ui .u-box h3 { margin: 0 0 10px; font: 900 18px Pretendard, sans-serif; display: flex; gap: 8px; align-items: center } .urpg-ui .u-box h3 span { font-size: 24px }
+.urpg-ui .u-body { font-size: 14.5px; line-height: 1.55 } .urpg-ui .u-body p { margin: 6px 0 } .urpg-ui .dim { color: #5A6272; font-size: 12.5px }
+.urpg-ui .u-body table { border-collapse: collapse; margin: 6px 0; width: 100% } .urpg-ui .u-body th, .urpg-ui .u-body td { border-bottom: 1px solid #E1E6EE; padding: 4px 6px; text-align: left; font-size: 13.5px }
+.urpg-ui .u-opts { display: flex; flex-direction: column; gap: 6px; margin-top: 12px } .urpg-ui .u-opts button { text-align: left; background: #1B2A44; color: #fff; border: 0; border-radius: 12px; padding: 11px 14px; font: 800 14px Pretendard, sans-serif }
+.urpg-ui .u-opts button:last-child { background: #E1E6EE; color: #1B1B2F }
+.urpg-ui details { border: 1px solid #E1E6EE; border-radius: 12px; padding: 8px 10px; margin: 6px 0; background: #fff } .urpg-ui summary { font-weight: 800; cursor: pointer } .urpg-ui summary small { float: right; color: #8A93A6; font-weight: 600 }
+.urpg-ui .bars { display: flex; gap: 3px; align-items: flex-end; height: 90px; margin-top: 6px } .urpg-ui .bar { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; position: relative }
+.urpg-ui .bar i { width: 100%; background: #5BB0E6; border-radius: 3px 3px 0 0 } .urpg-ui .bar.bad i { background: #FF5C7A } .urpg-ui .bar em { font: 700 9px Pretendard; font-style: normal; color: #1B1B2F } .urpg-ui .bar span { font-size: 9px; color: #5A6272 }
+.urpg-ui .rec { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 } .urpg-ui .rec span { background: #EEF2F8; border-radius: 6px; padding: 2px 6px; font-size: 12px } .urpg-ui .rec span.bad { background: #FFD6DE; color: #B00020; font-weight: 800 }
+.urpg-ui .sample { border: 1px solid #E1E6EE; border-radius: 10px; padding: 6px 8px; margin: 6px 0; background: #fff } .urpg-ui .sample label, .urpg-ui .u-evs label { display: block; font-size: 13.5px; margin: 3px 0 }
+.urpg-ui .u-body > label { display: flex; justify-content: space-between; gap: 8px; align-items: center; margin: 6px 0; font-weight: 800 } .urpg-ui select { flex: 1; max-width: 70%; padding: 6px; border-radius: 8px; border: 1px solid #C9D1DE; font: 600 13.5px Pretendard }
+.urpg-ui .u-map { width: 100%; height: auto; border-radius: 12px; border: 1px solid #C9D1DE } .urpg-ui .u-travel { display: flex; flex-wrap: wrap; gap: 5px } .urpg-ui .u-travel button { background: #EEF2F8; border: 1px solid #C9D1DE; border-radius: 9px; padding: 5px 8px; font: 700 12px Pretendard }
+.urpg-ui .u-grade { font: 900 64px/1 Pretendard; color: #1FBF6A; text-align: center } .urpg-ui .u-grade small { display: block; font-size: 16px; color: #5A6272 } .urpg-ui .ok { color: #12925A } .urpg-ui .no { color: #D62839 }

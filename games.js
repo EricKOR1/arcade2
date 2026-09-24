@@ -154,11 +154,11 @@ const GAMES = {
     name: '뱀 아레나',
     desc: '큰 뱀이 작은 뱀을 삼키며 자라는 실시간 대전. 먹이를 먹어 길이를 키우고, 1.5배 이상 크면 상대를 삼킬 수 있어요. 작으면 피하세요',
     howto: '조이스틱으로 방향 · 부스트 버튼(꾹)으로 가속(길이 소모) · 내 머리가 상대 몸에 닿으면 큰 쪽이 이김 · 경기장 벽에 닿으면 죽음',
-    meta: '실시간 대전 · 최대 30명 · 개인전',
+    meta: '실시간 대전 · 최대 30명 · 개인전 · 맵 5종(인원별 크기)',
     primary: '75% 0.19 160', primaryContent: '100% 0 0', hex: '#06D6A0',
     grid: { cols: 30, rows: 30 },
     adminView: 'grid', fullBleed: true,
-    needsPeers: true, realtime: true, hasNext: false,
+    needsPeers: true, realtime: true, hasNext: false, hasTracks: true, trackKind: 'map', mapRegistry: 'slither',   // 맵(인원별 크기) 선택
     stats: [{ key: 'len', label: '길이' }, { key: 'kills', label: '삼킴' }],
     detail: function (g) { return '길이 ' + Math.round(g.len) + ' · 최고 ' + Math.round(Math.max(g.best, g.len)) + ' · 삼킴 ' + g.kills; },
     controls: [], padLayout: 'slither',
@@ -325,7 +325,7 @@ const GAMES = {
 
   source: {
     type: 'canvas',
-    name: '오염원 추적',
+    name: '오염원 추적 퍼즐',
     desc: '센서 몇 개의 값과 물·바람의 흐름으로 오염이 어디서 시작됐는지 알아맞히세요. 수질 사건과 악취 사건이 번갈아 나옵니다',
     howto: '화면을 톡 → 센서 설치(값 0~100) · 핀을 두 번 톡 → 지목 · 수질: 하류로 퍼지고 상류는 0 · 악취: 바람 방향으로 퍼짐 → 거슬러 올라가기 · 센서를 적게 쓰고 빨리 맞힐수록 고득점 · 틀리면 ♥ 하나',
     meta: '개인전 · 환경 × AI 추리 · 울산 특강 연계',
@@ -338,6 +338,23 @@ const GAMES = {
     controls: [], padLayout: 'tap',
     create: function (canvas, opts) { return new SourceHuntGame(canvas, opts.cellSize); },
     sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, solved: g.solved }; }
+  },
+
+  ulsan: {
+    type: 'canvas',
+    name: '울산 환경 수사대 3D',
+    desc: '울산을 돌아다니며 직접 조사한 사실로 오염물질·범인 시설·정확한 배출 지점·배출 시각을 밝히는 추리 롤플레잉. 반 전체가 같은 사건을 풉니다 (어려움)',
+    howto: '조이스틱(WASD) 이동 · 🔍 조사/대화(E) · 강가: 현장 측정·시료 채취 · 연구원: 정밀분석(2시간 뒤) · 센서: 밤사이 기록 · 사람·시설: 증언·서류 · 저녁 8시 전에 📝 보고서',
+    meta: '개인 추리 RPG · 3D · 어려움 · 울산 특강 연계',
+    primary: '70% 0.16 150', primaryContent: '100% 0 0', hex: '#1FBF6A',
+    grid: { cols: 30, rows: 30 },
+    adminView: 'grid', fullBleed: true, engine3d: true,
+    needsPeers: false, hasNext: false, overText: '수사 종료',
+    stats: [{ key: 'evidenceCount', label: '증거' }, { key: 'score', label: '점수' }],
+    detail: function (g) { return g.report ? ('보고서 ' + g.report.grade + ' · ' + g.report.score + '점') : ('증거 ' + g.evidenceCount + '건 · 남은 ' + Math.floor(g.timeLeft) + '시간'); },
+    controls: [], padLayout: 'rpg',
+    create: function (canvas, opts) { return new UlsanRpgGame(canvas, opts); },
+    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, ev: g.evidenceCount }; }
   },
 
   shooter: {

@@ -6,6 +6,26 @@
 
 const SL_R = 144;              // 경기장 반지름(칸) — 지름 2배(72→144), 30명 기준 1인당 약 2,170칸²
 const SL_PELLETS = 5200;       // 먹이 수 — 넓이가 4배라 먹이도 4배(밀도 유지)
+// 맵: 인원에 맞춘 크기 — 1인당 넓이를 30명 맵(반지름 144)과 같게: 반지름 ∝ √인원, 먹이 ∝ 인원
+//   '자동'은 교사가 시작하는 순간의 접속 인원으로 정해 세션에 'auto:N' 으로 기록 → 모든 학생이 같은 크기
+const SL_MAPS = {
+  auto:   { name: '자동 · 인원에 맞춤', tag: '추천', desc: '시작할 때 접속한 학생 수에 맞춰 경기장 크기를 정해요 (4~30명)', players: 0, theme: 'space' },
+  galaxy: { name: '은하 광장', tag: '30명 · 대형', desc: '가장 넓은 우주 경기장. 반 전체(25~30명)가 함께할 때', players: 30, theme: 'space' },
+  reef:   { name: '산호 바다', tag: '20명 · 중형', desc: '푸른 바닷속 경기장. 15~20명', players: 20, theme: 'sea' },
+  forest: { name: '반딧불 숲', tag: '10명 · 소형', desc: '밤숲 경기장. 8~12명 모둠 대전', players: 10, theme: 'forest' },
+  lava:   { name: '용암 분지', tag: '5명 · 초소형', desc: '좁고 뜨거운 경기장. 3~6명이 빠르게 승부', players: 5, theme: 'lava' }
+};
+const SL_THEMES = {
+  space:  { bg: ['#16213A', '#0A0F1E'], grid: 'rgba(120,170,255,0.07)', edge: 'rgba(255,92,122,0.55)', glow: 'rgba(255,92,122,0.18)' },
+  sea:    { bg: ['#0F4466', '#06233A'], grid: 'rgba(120,220,255,0.09)', edge: 'rgba(255,209,102,0.65)', glow: 'rgba(255,209,102,0.2)' },
+  forest: { bg: ['#17361F', '#08160E'], grid: 'rgba(150,255,170,0.07)', edge: 'rgba(124,255,120,0.6)', glow: 'rgba(124,255,120,0.18)' },
+  lava:   { bg: ['#43190F', '#1C0905'], grid: 'rgba(255,140,80,0.09)', edge: 'rgba(255,120,40,0.8)', glow: 'rgba(255,90,30,0.32)' }
+};
+function slMapSize(trackId) {
+  const t = String(trackId || 'galaxy'), m = t.match(/^auto:(\d+)/), base = SL_MAPS[t.split(':')[0]] || SL_MAPS.galaxy;
+  const n = m ? Math.max(4, Math.min(30, +m[1])) : (base.players || 30);
+  return { R: Math.round(SL_R * Math.sqrt(n / 30)), pellets: Math.round(SL_PELLETS * n / 30), theme: SL_THEMES[base.theme] || SL_THEMES.space, players: n, name: base.name };
+}
 const SL_SEG = 0.45;           // 몸 마디 간격(칸)
 const SL_COLORS = ['#06D6A0', '#4CC9F0', '#FFD166', '#FF5C7A', '#B15DFF', '#FF9F43', '#7DF58F', '#F78FB3'];
 
@@ -13,29 +33,30 @@ class SlitherGame {
   constructor(canvas, opts) {
     this.canvas = canvas; this.ctx = canvas.getContext('2d'); this.opts = opts || {};
     this.cellSize = this.opts.cellSize || 20;
+    { const ms = slMapSize(this.opts.trackId); this.R = ms.R; this.pelletN = ms.pellets; this.theme = ms.theme; this.mapPlayers = ms.players; }   // 맵(인원)에 맞춘 경기장
     this.myId = this.opts.myId || 'me'; this.myName = this.opts.myName || '';
     this.colorIdx = Math.abs(String(this.myId).split('').reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 7)) % SL_COLORS.length;
     this.peers = {}; this.parts = []; this.now = 0; this.lastTime = 0;
     this.score = 0; this.kills = 0; this.best = 0; this.gameOver = false; this.toasts = [];
     this.mx = 0; this.my = 0; this.boost = false;
     this.reset(6, this.opts.slot);
-    this.pellets = []; this.seed = 12345; for (let i = 0; i < SL_PELLETS; i++) this.spawnPellet();
+    this.pellets = []; this.seed = 12345; for (let i = 0; i < this.pelletN; i++) this.spawnPellet();
   }
   rnd() { this.seed = (this.seed * 9301 + 49297) % 233280; return this.seed / 233280; }
   spawnPellet(x, y, v) {
-    if (this.pellets && this.pellets.length > SL_PELLETS * 1.6) return;   // 먹이가 너무 쌓이지 않게
-    if (x == null) { const a = this.rnd() * Math.PI * 2, r = Math.sqrt(this.rnd()) * (SL_R - 2); x = Math.cos(a) * r; y = Math.sin(a) * r; }
+    if (this.pellets && this.pellets.length > this.pelletN * 1.6) return;   // 먹이가 너무 쌓이지 않게
+    if (x == null) { const a = this.rnd() * Math.PI * 2, r = Math.sqrt(this.rnd()) * (this.R - 2); x = Math.cos(a) * r; y = Math.sin(a) * r; }
     this.pellets.push({ x, y, v: v || 1, c: SL_COLORS[Math.floor(this.rnd() * SL_COLORS.length)], ph: this.rnd() * 6 });
   }
   reset(len, slot) {
     let best = null, bd = -1;
     if (typeof slot === 'number') {
       // 첫 출발: 해바라기 배치(황금각). 30명이면 이웃 사이가 약 20칸 — 동시에 들어와도 서로 모르는 채로 겹치지 않음
-      const k = slot % 40, a = k * 2.39996, r = Math.sqrt((k + 0.5) / 40) * (SL_R - 12);
+      const k = slot % 40, a = k * 2.39996, r = Math.sqrt((k + 0.5) / 40) * (this.R - 12);
       best = [Math.cos(a) * r, Math.sin(a) * r];
     } else
     // 부활 위치: 경기장 안쪽에서 다른 뱀 머리와 가장 먼 후보 (8곳 중)
-    for (let k = 0; k < 8; k++) { const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * (SL_R - 10), x = Math.cos(a) * r, y = Math.sin(a) * r;
+    for (let k = 0; k < 8; k++) { const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * (this.R - 10), x = Math.cos(a) * r, y = Math.sin(a) * r;
       let near = 1e9; Object.keys(this.peers || {}).forEach(id => { const p = this.peers[id]; if (!p.dead) near = Math.min(near, Math.hypot(p.x - x, p.y - y)); });
       if (near > bd) { bd = near; best = [x, y]; } }
     this.x = best[0]; this.y = best[1]; this.angle = Math.atan2(-this.y, -this.x) + (Math.random() - 0.5);   // 가운데 쪽을 보고 출발
@@ -97,7 +118,7 @@ class SlitherGame {
       if (canBoost) { this.boostAcc += dt; if (this.boostAcc > 800) { this.boostAcc = 0; this.len -= 1; this.spawnPellet(this.trail[this.trail.length - 1][0], this.trail[this.trail.length - 1][1], 1); } }
       this.x += Math.cos(this.angle) * sp; this.y += Math.sin(this.angle) * sp;
       // 경기장 밖으로 나가면 죽음
-      if (Math.hypot(this.x, this.y) > SL_R) { this.die('경기장 벽에 부딪혔다'); }
+      if (Math.hypot(this.x, this.y) > this.R) { this.die('경기장 벽에 부딪혔다'); }
       // 자취 기록 (마디 간격마다)
       const h = this.trail[0]; if (Math.hypot(this.x - h[0], this.y - h[1]) >= SL_SEG) this.trail.unshift([this.x, this.y]);
       const maxPts = Math.round(this.len / SL_SEG) + 2; if (this.trail.length > maxPts) this.trail.length = maxPts;
@@ -136,8 +157,8 @@ class SlitherGame {
   }
 
   getSnapshot() {
-    const N = 30, g = []; for (let y = 0; y < N; y++) { g.push([]); for (let x = 0; x < N; x++) { const wx = (x + .5) / N * 2 * SL_R - SL_R, wy = (y + .5) / N * 2 * SL_R - SL_R; g[y].push(Math.hypot(wx, wy) > SL_R ? 63 : 66); } }
-    const put = (x, y, v) => { const gx = Math.floor((x + SL_R) / (2 * SL_R) * N), gy = Math.floor((y + SL_R) / (2 * SL_R) * N); if (g[gy] && g[gy][gx] != null) g[gy][gx] = v; };
+    const N = 30, g = []; for (let y = 0; y < N; y++) { g.push([]); for (let x = 0; x < N; x++) { const wx = (x + .5) / N * 2 * this.R - this.R, wy = (y + .5) / N * 2 * this.R - this.R; g[y].push(Math.hypot(wx, wy) > this.R ? 63 : 66); } }
+    const put = (x, y, v) => { const gx = Math.floor((x + this.R) / (2 * this.R) * N), gy = Math.floor((y + this.R) / (2 * this.R) * N); if (g[gy] && g[gy][gx] != null) g[gy][gx] = v; };
     Object.keys(this.peers).forEach(id => { const p = this.peers[id]; if (p.dead) return; p.trail.forEach(t => put(t[0], t[1], 68)); });
     if (!this.isDead) this.trail.forEach(t => put(t[0], t[1], 23));
     return g;
@@ -152,14 +173,14 @@ class SlitherGame {
     const zoom = Math.max(0.6, 1 - Math.min(0.4, this.len / 400));         // 커질수록 살짝 멀어짐
     const tx = wx => (wx - camX) * cs * zoom + W / 2, ty = wy => (wy - camY) * cs * zoom + H / 2, sc = cs * zoom;
     // 배경: 어두운 격자 + 경기장 경계
-    const bg = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, Math.max(W, H) * 0.7); bg.addColorStop(0, '#16213A'); bg.addColorStop(1, '#0A0F1E'); ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
-    ctx.strokeStyle = 'rgba(120,170,255,0.07)'; ctx.lineWidth = 1;
+    const bg = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, Math.max(W, H) * 0.7); bg.addColorStop(0, this.theme.bg[0]); bg.addColorStop(1, this.theme.bg[1]); ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = this.theme.grid; ctx.lineWidth = 1;
     const g0x = ((-camX * sc + W / 2) % (sc * 2) + sc * 2) % (sc * 2), g0y = ((-camY * sc + H / 2) % (sc * 2) + sc * 2) % (sc * 2);
     for (let x = g0x; x < W; x += sc * 2) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
     for (let y = g0y; y < H; y += sc * 2) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
-    ctx.strokeStyle = 'rgba(255,92,122,0.55)'; ctx.lineWidth = 6; ctx.setLineDash([sc * 0.6, sc * 0.4]); ctx.beginPath(); ctx.arc(tx(0), ty(0), SL_R * sc, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
-    const outer = ctx.createRadialGradient(tx(0), ty(0), SL_R * sc, tx(0), ty(0), SL_R * sc + sc * 6); outer.addColorStop(0, 'rgba(255,92,122,0.18)'); outer.addColorStop(1, 'rgba(255,92,122,0)');
-    ctx.fillStyle = outer; ctx.beginPath(); ctx.arc(tx(0), ty(0), SL_R * sc + sc * 6, 0, Math.PI * 2); ctx.arc(tx(0), ty(0), SL_R * sc, 0, Math.PI * 2, true); ctx.fill();
+    ctx.strokeStyle = this.theme.edge; ctx.lineWidth = 6; ctx.setLineDash([sc * 0.6, sc * 0.4]); ctx.beginPath(); ctx.arc(tx(0), ty(0), this.R * sc, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+    const outer = ctx.createRadialGradient(tx(0), ty(0), this.R * sc, tx(0), ty(0), this.R * sc + sc * 6); outer.addColorStop(0, this.theme.glow); outer.addColorStop(1, 'rgba(255,92,122,0)');
+    ctx.fillStyle = outer; ctx.beginPath(); ctx.arc(tx(0), ty(0), this.R * sc + sc * 6, 0, Math.PI * 2); ctx.arc(tx(0), ty(0), this.R * sc, 0, Math.PI * 2, true); ctx.fill();
     // 먹이
     this.pellets.forEach(pl => { const px = tx(pl.x), py = ty(pl.y); if (px < -20 || py < -20 || px > W + 20 || py > H + 20) return;
       const r = sc * (0.12 + pl.v * 0.05) * (1 + Math.sin(now / 300 + pl.ph) * 0.15);
@@ -195,12 +216,12 @@ class SlitherGame {
     // 미니맵: 왼쪽 위 (길이 카드 아래) — 오른쪽 아래는 부스트 버튼 자리
     { const mr = 46, mx2 = 12 + mr, my2 = 66 + mr; ctx.fillStyle = 'rgba(8,10,16,0.6)'; ctx.beginPath(); ctx.arc(mx2, my2, mr, 0, Math.PI * 2); ctx.fill();
       // 내 시야 범위 표시
-      { const vr = Math.max(vw, vh) / 2 / zoom / SL_R * mr; ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 1; ctx.strokeRect(mx2 + this.x / SL_R * mr - vw / 2 / zoom / SL_R * mr, my2 + this.y / SL_R * mr - vh / 2 / zoom / SL_R * mr, vw / zoom / SL_R * mr, vh / zoom / SL_R * mr); }
+      { const vr = Math.max(vw, vh) / 2 / zoom / this.R * mr; ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 1; ctx.strokeRect(mx2 + this.x / this.R * mr - vw / 2 / zoom / this.R * mr, my2 + this.y / this.R * mr - vh / 2 / zoom / this.R * mr, vw / zoom / this.R * mr, vh / zoom / this.R * mr); }
       ctx.strokeStyle = 'rgba(255,92,122,0.6)'; ctx.lineWidth = 1.5; ctx.stroke();
       // 모든 뱀 (내 화면 밖 포함) — 큰 뱀일수록 점이 큼
       const all = Object.keys(this.peers).map(id => this.peers[id]).filter(p => !p.dead).map(p => ({ x: p.x, y: p.y, len: p.len, ci: p.ci, me: false }));
       if (!this.isDead) all.push({ x: this.x, y: this.y, len: this.len, ci: this.colorIdx, me: true });
-      all.forEach(sn => { ctx.fillStyle = sn.me ? '#FFD166' : SL_COLORS[sn.ci] + 'AA'; ctx.beginPath(); ctx.arc(mx2 + sn.x / SL_R * mr, my2 + sn.y / SL_R * mr, sn.me ? 3.2 : Math.min(4, 1.4 + Math.sqrt(sn.len) * 0.15), 0, Math.PI * 2); ctx.fill(); }); }
+      all.forEach(sn => { ctx.fillStyle = sn.me ? '#FFD166' : SL_COLORS[sn.ci] + 'AA'; ctx.beginPath(); ctx.arc(mx2 + sn.x / this.R * mr, my2 + sn.y / this.R * mr, sn.me ? 3.2 : Math.min(4, 1.4 + Math.sqrt(sn.len) * 0.15), 0, Math.PI * 2); ctx.fill(); }); }
     this.toasts.slice(-2).forEach((t, i) => FX.text(ctx, t.text, W / 2, H * 0.28 + i * 26, { size: 18, weight: 800, color: t.color, align: 'center', shadow: 8 }));
     if (this.isDead) { ctx.fillStyle = 'rgba(8,10,16,0.5)'; ctx.fillRect(0, 0, W, H); FX.text(ctx, '부활까지 ' + Math.ceil((this.deadUntil - now) / 1000), W / 2, H / 2, { size: 30, weight: 800, color: '#fff', align: 'center', baseline: 'middle', shadow: 10 }); FX.text(ctx, '최고 길이 ' + Math.round(this.best), W / 2, H / 2 + 34, { size: 15, weight: 700, color: '#FFD166', align: 'center', baseline: 'middle' }); }
     if (this.boost && this.len > 8 && !this.isDead) { ctx.strokeStyle = 'rgba(255,209,102,0.35)'; ctx.lineWidth = 8; ctx.strokeRect(4, 4, W - 8, H - 8); }
