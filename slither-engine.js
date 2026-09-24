@@ -75,6 +75,7 @@ class SlitherGame {
 
   dropPellets(trail, len) { const n = Math.min(trail.length, Math.round(len / SL_SEG)); for (let i = 0; i < n; i += 2) { const t = trail[i]; this.spawnPellet(t[0] + (this.rnd() - .5) * .4, t[1] + (this.rnd() - .5) * .4, 2); } }
   die(reason) {
+    reason = reason || '탈락';                                  // (이유가 빠져도 'undefined' 가 보이지 않게)
     this.deadUntil = this.clock() + 3000; this.best = Math.max(this.best, this.len);
     this.dropPellets(this.trail, this.len); this.burst(this.x, this.y, 24, SL_COLORS[this.colorIdx]);
     this.toast(reason + ' · 3초 뒤 부활', '#FF5C7A'); if (window.Sound) Sound.death(); if (window.Haptic) Haptic.big();

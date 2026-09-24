@@ -685,6 +685,32 @@ class KartGame {
   // ── 조작 ──
   move(dir) { this.steer = dir; }
   drift(on) { this.driftHeld = !!on; }
+  // 순위 목록 (왼쪽 위 랩 표시 아래): 상위 몇 명 + 내 위치. 화면 높이에 맞춰 줄 수 조절 — 아래 속도계와 겹치지 않게
+  drawStandings(ctx, W, H, now) {
+    if (this.spectator || this.countdown > 0 || typeof document === 'undefined') return;
+    const ids = Object.keys(this.peers || {}); if (!ids.length) return;                       // 혼자면 표시 안 함
+    if (!this._stTop || now - (this._stT || 0) > 1000) {                                      // 랩 표시 아래 위치 (1초마다 다시 잼)
+      this._stT = now; let top = 120;
+      try { const lb = document.querySelector('#kart-hud:not(.hidden) .lap-box'), cv = this.canvas.getBoundingClientRect(); if (lb) { const r = lb.getBoundingClientRect(); if (r.height) top = r.bottom - cv.top + 10; } } catch (e) {}
+      this._stTop = top; }
+    const all = [{ name: this.myName || '나', p: this.finished ? 1e9 - (this.finishRank || 0) : (this.progress || 0), me: true }]
+      .concat(ids.map(id => { const pr = this.peers[id]; return { name: pr.name || '?', p: pr.finished ? 1e9 - 50 : (pr.progress || 0), color: pr.look && pr.look.color }; }));
+    all.sort((a, b) => b.p - a.p);
+    const rowH = H < 480 ? 18 : 22, top = this._stTop, bottom = H - (H < 480 ? 150 : 175);   // 아래쪽은 속도계 자리
+    const maxRows = Math.max(0, Math.min(8, Math.floor((bottom - top) / rowH))); if (maxRows < 2) return;
+    const myIdx = all.findIndex(e => e.me); let rows = all.slice(0, maxRows).map((e, i) => ({ e, i }));
+    if (myIdx >= maxRows) { rows = all.slice(0, maxRows - 2).map((e, i) => ({ e, i })); rows.push({ gap: true }); rows.push({ e: all[myIdx], i: myIdx }); }
+    const x = 12, w = H < 480 ? 118 : 138, fs = H < 480 ? 11 : 13;
+    ctx.save(); ctx.textBaseline = 'middle';
+    rows.forEach((r, k) => { const y = top + k * rowH;
+      if (r.gap) { ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.font = '700 ' + fs + 'px Pretendard, sans-serif'; ctx.textAlign = 'left'; ctx.fillText('⋯', x + 14, y + rowH / 2); return; }
+      ctx.fillStyle = r.e.me ? 'rgba(255,209,102,0.92)' : 'rgba(8,10,16,0.55)'; ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(x, y + 1, w, rowH - 3, 6); else ctx.rect(x, y + 1, w, rowH - 3); ctx.fill();
+      ctx.fillStyle = r.e.me ? '#1B1B2F' : '#FFFFFF'; ctx.font = '900 ' + fs + 'px Pretendard, sans-serif'; ctx.textAlign = 'right'; ctx.fillText(String(r.i + 1), x + 20, y + rowH / 2);
+      if (!r.e.me && r.e.color) { ctx.fillStyle = r.e.color; ctx.beginPath(); ctx.arc(x + 29, y + rowH / 2, 3.5, 0, Math.PI * 2); ctx.fill(); }
+      ctx.fillStyle = r.e.me ? '#1B1B2F' : 'rgba(255,255,255,0.92)'; ctx.font = (r.e.me ? '900 ' : '700 ') + fs + 'px Pretendard, sans-serif'; ctx.textAlign = 'left';
+      const nm = String(r.e.name); ctx.fillText(nm.length > 6 ? nm.slice(0, 6) + '…' : nm, x + 37, y + rowH / 2); });
+    ctx.restore();
+  }
   // 화면에 겹친 카트 버튼이 있으면 그 윗줄까지의 높이 (속도계·아이템 칸을 버튼 위로 그리기 위해)
   k3Lift(H) {
     if (this.spectator || typeof document === 'undefined' || !document.body.classList.contains('k3x-on')) return 0;
@@ -2974,6 +3000,7 @@ class KartGame {
   }
 
   drawCanvasOverlay(ctx, W, H, now) {
+    this.drawStandings(ctx, W, H, now);
     // 드리프트 구간 안내 (다가올 때 · 구간 안에서 드리프트하지 않을 때)
     if (this.track.driftZone && this.countdown <= 0 && !this.finished && !this.spectator) {
       const t = this.track, n = t.n; let ahead = -1;

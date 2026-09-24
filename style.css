@@ -945,3 +945,11 @@ body.fullgrid .spectate { grid-template-columns: 1fr 320px }
 
 /* 카트 아이템 창: 오른쪽 버튼 바로 위 (index.html 이 실제 버튼 위치를 재서 bottom/right 지정) */
 .k3x-on .kart-hud .hud-br.k3-placed { top: auto !important; left: auto !important }
+
+/* 게임 오버 안내: 결과 화면 전 약 1.6초 — 화면을 어둡게 하고 큰 글씨가 튀어나옴 */
+.gameover-flash { position: absolute; inset: 0; z-index: 20; display: grid; place-items: center; background: rgba(8,10,16,0); animation: goDim .35s ease-out forwards; pointer-events: none }
+.gameover-flash .go-card { text-align: center; transform: scale(.6); opacity: 0; animation: goPop .45s cubic-bezier(.2,1.6,.4,1) .1s forwards }
+.gameover-flash b { display: block; font: 900 clamp(40px, 9vw, 96px)/1 Pretendard, sans-serif; color: #FF5C7A; letter-spacing: .04em; -webkit-text-stroke: 3px #1B1B2F; text-shadow: 0 6px 0 #1B1B2F, 0 0 40px rgba(255,92,122,.55) }
+.gameover-flash span { display: block; margin-top: 12px; font: 800 clamp(16px, 3vw, 26px) Pretendard, sans-serif; color: #fff; text-shadow: 0 2px 6px rgba(0,0,0,.6) }
+@keyframes goDim { to { background: rgba(8,10,16,.62) } }
+@keyframes goPop { to { transform: scale(1); opacity: 1 } }

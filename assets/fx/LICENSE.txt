@@ -1,0 +1,1 @@
+waternormals.jpg · lensflare0.png · lensflare3.png — three.js 저장소(examples/textures, r128, MIT 라이선스)에서 가져옴.

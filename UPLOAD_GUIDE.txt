@@ -1,10 +1,9 @@
-아케이드 플랫폼 — v2026-10-16a (드리프트 구간 · 카트 화면)
+아케이드 플랫폼 — v2026-10-16g (게임 오버 멈춤 해결)
 
 교체할 파일
-  racing-engine.js    속도 감응 조향 · 드리프트 구간(자동 지정·미끄러운 노면·안내) · 2D 노면 표시 · 미니맵/랩 시간 위치
-  kart3dx-engine.js   3D 드리프트 구간 노면 줄무늬 · 화살표 표지판
-  index.html          아이템 창을 오른쪽 버튼 바로 위에 · 버전
-  style.css           오른쪽 버튼 크기
-  admin.html          버전
+  index.html        게임 오버가 되면 바로 결과 처리 · GAME OVER 안내 · 버전
+  style.css         GAME OVER 안내 모양
+  slither-engine.js 죽은 이유가 빠졌을 때 표시
+  admin.html        버전
 
 ★ 학생 기기 모두 새로고침

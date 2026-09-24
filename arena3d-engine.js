@@ -12,6 +12,7 @@ class ArenaGame3D extends ArenaGame {
     this.world3d = true; this.glCanvas = canvas; this.host = host; this.hudCanvas = hud;
     this.flip = this.team === 'r';            // 레드 팀(위쪽 진영)은 카메라를 돌려 내 진영이 아래로
     this.initThree();
+    if (window.ThreeQuality) { const pq = ThreeQuality.pick(this.renderer, this.opts); this.hq = pq.q; this.hqLocked = !!pq.locked; if (this.hq !== 'low') ThreeQuality.apply(this, { half: 17, tone: 'none', sun: 0.72, hemi: 0.74 }); }   // 색 보정 · 태양 그림자(three-quality.js)
     this.resize();
   }
   // 조이스틱·마우스 방향: 카메라를 돌렸으면 반대로
@@ -40,8 +41,8 @@ class ArenaGame3D extends ArenaGame {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.opts.maxDpr || 1.25));
     this.scene = new T.Scene(); this.scene.background = new T.Color(th.wallFront);
     this.camera = new T.PerspectiveCamera(42, 1, 0.5, 400);
-    this.scene.add(new T.HemisphereLight(0xFFFFFF, 0x8C7A5A, 0.95));
-    const sun = new T.DirectionalLight(0xFFF3DD, 0.6); sun.position.set(-20, 40, 25); this.scene.add(sun);
+    this.hemi = new T.HemisphereLight(0xFFFFFF, 0x8C7A5A, 0.95); this.scene.add(this.hemi);
+    const sun = new T.DirectionalLight(0xFFF3DD, 0.6); sun.position.set(-20, 40, 25); this.scene.add(sun); this.sun = sun;
     // 바닥: 한 장의 그림(칸마다 타일·물)
     const PX = 16, fc = document.createElement('canvas'); fc.width = this.W * PX; fc.height = this.H * PX; const g = fc.getContext('2d');
     const tA = typeof arImg === 'function' ? arImg(this.mapId === 'jungle' ? 'grass1' : 'sand1') : null;
@@ -101,9 +102,11 @@ class ArenaGame3D extends ArenaGame {
     // 눈 (앞쪽)
     [-0.09, 0.09].forEach(o => add(new T.SphereGeometry(0.045, 6, 5), new T.MeshBasicMaterial({ color: 0x1B1B2F }), o * s, 1.05 * s, 0.23 * s));
     // 발밑 고리 · 그림자
-    const ring = new T.Mesh(new T.RingGeometry(0.46, 0.56, 24), new T.MeshBasicMaterial({ color: isMe ? 0xFFFFFF : C, transparent: true, opacity: 0.9, depthWrite: false })); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.03; g.add(ring);
-    const sh = new T.Mesh(new T.CircleGeometry(0.45, 16), new T.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.28, depthWrite: false })); sh.rotation.x = -Math.PI / 2; sh.position.y = 0.02; g.add(sh);
+    const ring = new T.Mesh(new T.RingGeometry(0.46, 0.56, 24), new T.MeshBasicMaterial({ color: isMe ? 0xFFFFFF : C, transparent: true, opacity: 0.9, depthWrite: false })); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.03; ring.userData.noShadow = true; g.add(ring);
+    const sh = this._blob = new T.Mesh(new T.CircleGeometry(0.45, 16), new T.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.28, depthWrite: false })); sh.rotation.x = -Math.PI / 2; sh.position.y = 0.02; g.add(sh);
     g.userData = { chId, ally, head, torso };
+    if (this._blob) { this._blob.userData.noShadow = true; this._blob.userData.blobShadow = true; this._blob.visible = !(this.hq && this.hq !== 'low' && this.renderer.shadowMap.enabled); }   // 실제 그림자가 있으면 둥근 그림자 숨김
+    if (window.ThreeQuality) ThreeQuality.prep(this, g);
     this.scene.add(g); return g;
   }
   modelFor(id, chId, ally, isMe) {
@@ -152,6 +155,7 @@ class ArenaGame3D extends ArenaGame {
     this.camera.position.copy(this.camPos); this.camera.lookAt(this.camPos.clone().addScaledVector(dir, -dist));
     // 덤불: 내가 들어가 있으면 반투명
     if (this.bushMesh) { this.bushMesh.material.transparent = this.hidden; this.bushMesh.material.opacity = this.hidden ? 0.55 : 1; }
+    if (window.ThreeQuality) ThreeQuality.frame(this, this.x, 0, this.y, now);   // 그림자 범위가 나를 따라옴 · 느리면 그림자 끔
     this.renderer.render(this.scene, this.camera);
     // ── HUD (부모 draw 가 월드는 건너뛰고 HUD 만 그림) ──
     const ctx = this.ctx; ctx.setTransform(this.hudDpr || 1, 0, 0, this.hudDpr || 1, 0, 0);

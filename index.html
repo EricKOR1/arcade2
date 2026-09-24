@@ -14,8 +14,8 @@
 <link rel="apple-touch-icon" href="icon-180.png">
 <meta name="theme-color" content="#1B2027">
 <title>아케이드</title>
-<link rel="stylesheet" href="platform.css?v=2026-10-16a">
-<link rel="stylesheet" href="style.css?v=2026-10-16a">
+<link rel="stylesheet" href="platform.css?v=2026-10-16g">
+<link rel="stylesheet" href="style.css?v=2026-10-16g">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Lilita+One&display=swap" rel="stylesheet">
 </head>
@@ -134,39 +134,43 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script src="firebase-config.js?v=2026-10-16a"></script>
-<script src="sound.js?v=2026-10-16a"></script>
-<script src="shared.js?v=2026-10-16a"></script>
-<script src="fx.js?v=2026-10-16a"></script>
-<script src="tetris-engine.js?v=2026-10-16a"></script>
-<script src="racing-engine.js?v=2026-10-16a"></script>
-<script src="snake-engine.js?v=2026-10-16a"></script>
-<script src="breakout-engine.js?v=2026-10-16a"></script>
-<script src="flappy-engine.js?v=2026-10-16a"></script>
-<script src="shooter-engine.js?v=2026-10-16a"></script>
+<script src="firebase-config.js?v=2026-10-16g"></script>
+<script src="sound.js?v=2026-10-16g"></script>
+<script src="shared.js?v=2026-10-16g"></script>
+<script src="fx.js?v=2026-10-16g"></script>
+<script src="tetris-engine.js?v=2026-10-16g"></script>
+<script src="racing-engine.js?v=2026-10-16g"></script>
+<script src="snake-engine.js?v=2026-10-16g"></script>
+<script src="breakout-engine.js?v=2026-10-16g"></script>
+<script src="flappy-engine.js?v=2026-10-16g"></script>
+<script src="shooter-engine.js?v=2026-10-16g"></script>
 <script src="three.min.js"></script>
-<script src="fps-engine.js?v=2026-10-16a"></script>
-<script src="fps3d-engine.js?v=2026-10-16a"></script>
-<script src="game2048-engine.js?v=2026-10-16a"></script>
-<script src="frogger-engine.js?v=2026-10-16a"></script>
-<script src="frogger3d-engine.js?v=2026-10-16a"></script>
-<script src="asteroids-engine.js?v=2026-10-16a"></script>
-<script src="maze-engine.js?v=2026-10-16a"></script>
-<script src="tower-engine.js?v=2026-10-16a"></script>
-<script src="missile-engine.js?v=2026-10-16a"></script>
-<script src="centipede-engine.js?v=2026-10-16a"></script>
-<script src="source-engine.js?v=2026-10-16a"></script>
-<script src="arena-engine.js?v=2026-10-16a"></script>
-<script src="arena3d-engine.js?v=2026-10-16a"></script>
-<script src="slither-engine.js?v=2026-10-16a"></script>
-<script src="kart3d-engine.js?v=2026-10-16a"></script>
-<script src="kart3dx-engine.js?v=2026-10-16a"></script>
-<script src="games.js?v=2026-10-16a"></script>
-<script src="app.js?v=2026-10-16a"></script>
+<script src="fps-engine.js?v=2026-10-16g"></script>
+<script src="fps3d-engine.js?v=2026-10-16g"></script>
+<script src="game2048-engine.js?v=2026-10-16g"></script>
+<script src="frogger-engine.js?v=2026-10-16g"></script>
+<script src="frogger3d-engine.js?v=2026-10-16g"></script>
+<script src="asteroids-engine.js?v=2026-10-16g"></script>
+<script src="maze-engine.js?v=2026-10-16g"></script>
+<script src="tower-engine.js?v=2026-10-16g"></script>
+<script src="missile-engine.js?v=2026-10-16g"></script>
+<script src="centipede-engine.js?v=2026-10-16g"></script>
+<script src="source-engine.js?v=2026-10-16g"></script>
+<script src="arena-engine.js?v=2026-10-16g"></script>
+<script src="three-quality.js?v=2026-10-16g"></script>
+<script src="arena3d-engine.js?v=2026-10-16g"></script>
+<script src="slither-engine.js?v=2026-10-16g"></script>
+<script src="kart3d-engine.js?v=2026-10-16g"></script>
+<script src="kart3d-hq.js?v=2026-10-16g"></script>
+<script src="kart3dx-engine.js?v=2026-10-16g"></script>
+<script src="kart3d-style.js?v=2026-10-16g"></script>
+<script src="kart3d-real.js?v=2026-10-16g"></script>
+<script src="games.js?v=2026-10-16g"></script>
+<script src="app.js?v=2026-10-16g"></script>
 <script>
 (function () {
 
-  const BUILD = '2026-10-16a';   // 화면 아래에 표시됩니다
+  const BUILD = '2026-10-16g';   // 화면 아래에 표시됩니다
 
   const gameId = getGameId();
   const def = GAMES[gameId];
@@ -1029,6 +1033,7 @@
 
   // ── 시작 ──
   function startGame() {
+    overShown = false; document.querySelectorAll('.gameover-flash').forEach(e => e.remove());   // 새 판: 게임 오버 안내 초기화
     started = true;
     Sound.resume();
     playerRef.update({ status: 'playing' });
@@ -1290,7 +1295,7 @@
     if (game && !game.gameOver) loopRaf = requestAnimationFrame(loop);
     flushPeers();
     if (!game) return;
-    if (game.gameOver) { game.draw(); return; }
+    if (game.gameOver) { game.draw(); if (!overShown) pushState(); return; }   // (혹시 틱 밖에서 끝났어도 결과 처리)
     // 프레임 시간 측정 — 120프레임 평균이 26ms 를 넘으면 낮춤
     if (qLast) { const dt = ts - qLast; if (dt < 200) { qSum += dt; qFrames++; } }
     qLast = ts;
@@ -1307,7 +1312,7 @@
       jctx.save(); jctx.setTransform(dpr, 0, 0, dpr, 0, 0); FX.juice.draw(jctx, cv.width / dpr, cv.height / dpr, 1, game); jctx.restore(); }
     // hud() 는 객체를 새로 만들므로, 실제로 화면을 갱신할 때만 호출합니다
     if (isKart && ts - hudLast >= 66) renderKartHud(game.hud());
-    if (syncDue) { syncDue = false; pushState(); }     // 전송은 그리기가 끝난 뒤에
+    if (syncDue || game.gameOver) { syncDue = false; pushState(); }     // 전송은 그리기가 끝난 뒤에 · 게임 오버면 기다리지 않고 바로(안 그러면 멈춘 화면으로 남음)
   }
 
   // ── 레이싱 HUD (매 프레임 갱신) ──
@@ -1522,8 +1527,18 @@
       p.style.transform = 'rotate(' + (Math.random() * 360) + 'deg)'; box.appendChild(p); }
     setTimeout(() => box.remove(), 2600);
   }
+  let overShown = false;
   function endGame() {
+    if (overShown) return; overShown = true;
     clearInterval(syncTimer);
+    try { if (game && game.draw) game.draw(); } catch (e) {}                          // 마지막 장면을 그대로 두고 그 위에
+    const wrap = byId('canvas-wrap'), fl = document.createElement('div'); fl.className = 'gameover-flash';
+    fl.innerHTML = '<div class="go-card"><b>GAME OVER</b><span>' + (typeof game.score === 'number' ? '점수 ' + game.score : '') + '</span></div>';
+    if (wrap) wrap.appendChild(fl);
+    if (window.Sound && Sound.gameOver) Sound.gameOver(); if (window.Haptic && Haptic.hit) Haptic.hit();
+    setTimeout(() => { fl.remove(); endGameShow(); }, 1600);
+  }
+  function endGameShow() {
     stopGame();
     countUp(document.getElementById('final-score'), game.score);
     document.getElementById('final-detail').textContent = def.detail ? def.detail(game) : '';

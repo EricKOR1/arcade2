@@ -11,6 +11,8 @@ class FroggerGame3D extends FroggerGame {
     super(hud, (opts && opts.cellSize) || 20);
     this.opts = opts || {}; this.glCanvas = canvas; this.host = host; this.hudCanvas = hud;
     this.initThree(); this.bindTouch(); this.resize();
+    if (window.ThreeQuality) { const pq = ThreeQuality.pick(this.renderer, this.opts); this.hq = pq.q; this.hqLocked = !!pq.locked; if (this.hq !== 'low') ThreeQuality.apply(this, { half: 16, exposure: 0.92, sun: 1.3, hemi: 0.6 }); }   // 색 보정 · 태양 그림자(three-quality.js)
+    if (this.shadow) { this.shadow.userData.noShadow = true; this.shadow.userData.blobShadow = true; if (this.hq && this.hq !== 'low' && this.renderer.shadowMap.enabled) this.shadow.userData.hideBlob = true; }
   }
   resize() {
     const W = this.host.clientWidth || 400, H = this.host.clientHeight || 700; if (W < 10 || H < 10) return;
@@ -44,8 +46,8 @@ class FroggerGame3D extends FroggerGame {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
     this.scene = new T.Scene(); this.scene.background = new T.Color(0x9AD6FF);
     this.camera = new T.OrthographicCamera(-8, 8, 8, -8, 0.1, 200);
-    this.scene.add(new T.HemisphereLight(0xFFFFFF, 0x7A9A6A, 0.9));
-    const sun = new T.DirectionalLight(0xFFF1D6, 0.65); sun.position.set(-8, 20, 10); this.scene.add(sun);
+    this.hemi = new T.HemisphereLight(0xFFFFFF, 0x7A9A6A, 0.9); this.scene.add(this.hemi);
+    const sun = new T.DirectionalLight(0xFFF1D6, 0.65); sun.position.set(-8, 20, 10); this.scene.add(sun); this.sun = sun;
     const box = (w, h, d, color, x, y, z, parent) => { const m = new T.Mesh(new T.BoxGeometry(w, h, d), new T.MeshLambertMaterial({ color })); m.position.set(x, y, z); (parent || this.scene).add(m); return m; };
     this.box = box;
     // 줄 바닥 (게임 판 밖으로 좌우 6칸씩 더 넓게 — 끝이 잘려 보이지 않게)
@@ -60,7 +62,7 @@ class FroggerGame3D extends FroggerGame {
     });
     { const dm = new T.InstancedMesh(new T.BoxGeometry(0.9, 0.02, 0.07), new T.MeshBasicMaterial({ color: 0xF2F2F2 }), dashes.length), mm = new T.Matrix4(); dashes.forEach(([x, z], i) => { mm.makeTranslation(x, 0.01, z); dm.setMatrixAt(i, mm); }); this.scene.add(dm); }
     // 판 밖(좌우)은 어둡게 — 플레이 영역을 알 수 있게
-    [-EXT / 2 - 0.02, C + EXT / 2 + 0.02].forEach(x => { const m = new T.Mesh(new T.PlaneGeometry(EXT, R), new T.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.22 })); m.rotation.x = -Math.PI / 2; m.position.set(x, 0.23, R / 2); this.scene.add(m); });
+    [-EXT / 2 - 0.02, C + EXT / 2 + 0.02].forEach(x => { const m = new T.Mesh(new T.PlaneGeometry(EXT, R), new T.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.22 })); m.rotation.x = -Math.PI / 2; m.position.set(x, 0.23, R / 2); m.userData.noShadow = true; this.scene.add(m); });
     // 나무 · 바위 (잔디 줄의 판 밖, 인스턴스)
     const spots = []; FROG_LANES.forEach((kind, y) => { if (kind === 'river' || kind === 'road') return; for (let x = -EXT; x < C + EXT; x++) if ((x < 0 || x >= C) && ((x * 7 + y * 3) % 4 === 0)) spots.push([x + 0.5, y + 0.5]); });
     const trunk = new T.InstancedMesh(new T.BoxGeometry(0.3, 0.5, 0.3), new T.MeshLambertMaterial({ color: 0x7A5230 }), spots.length);
@@ -94,6 +96,7 @@ class FroggerGame3D extends FroggerGame {
       [0.22, L - 0.22].forEach(x => box(0.26, 0.26, 0.8, 0x23262E, x, 0.12, 0));      // 바퀴 (앞뒤 축)
       box(0.05, 0.08, 0.56, 0xFFF3B0, (front > 0 ? L - 0.01 : 0.01), 0.34, 0);          // 전조등
     }
+    if (window.ThreeQuality) ThreeQuality.prep(this, g);   // 자동차·통나무도 그림자 · 색 보정
     this.scene.add(g); return g;
   }
   syncItems() {
@@ -129,6 +132,8 @@ class FroggerGame3D extends FroggerGame {
     this.camZ = this.camZ == null ? targetZ : this.camZ + (targetZ - this.camZ) * 0.12;
     const cx = FROG_COLS / 2 + (fx - FROG_COLS / 2) * 0.25;
     this.camera.position.set(cx + 5, 17, this.camZ + 12); this.camera.lookAt(cx, 0, this.camZ);
+    if (window.ThreeQuality) ThreeQuality.frame(this, fx, 0, fz, now);
+    if (this.shadow && this.shadow.userData.hideBlob) this.shadow.visible = !this.renderer.shadowMap.enabled ? this.shadow.visible : false;
     this.renderer.render(this.scene, this.camera);
     this.drawHud();
   }

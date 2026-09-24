@@ -14,12 +14,121 @@ class KartGame3D extends KartGame {
     // 내가 공격을 보낼 때 3D 연출 (규칙은 그대로 원래 onAttack 으로)
     const orig = this.opts.onAttack; this.opts.onAttack = (type, target, data) => { try { this.fxAttack(type, target, data); } catch (e) {} return orig ? orig(type, target, data) : undefined; };
     this.initThree(); this.resize();
+    this.hq = this.pickQuality(); this.applyQuality(); if (this.enableReal) this.enableReal();   // PC 고화질 낮 트랙: 사진 하늘·물리 재질·빛 번짐(kart3d-real.js)
+    if (this.hq !== 'low' && window.Kart3DHQ) Kart3DHQ.loadAssets().then(a => { if (this.renderer) this.onAssets(a); });
   }
+
+  // ── 화질 3단계: high(태양 그림자 2048 · 지형 · 구름) · mid(그림자 1024 — 태블릿 기본) · low(예전 모습, 효과 없음)
+  //    주소에 ?q=high|mid|low 로 고정 가능. 느리면 자동으로 한 단계씩 낮춤(draw)
+  pickQuality() {
+    const m = (typeof location !== 'undefined' && location.search.match(/[?&]q=(high|mid|low)/)) || null; if (m) { this.hqLocked = true; return m[1]; }   // 주소로 고정하면 자동으로 낮추지 않음
+    if (this.opts.quality) return this.opts.quality;
+    let gpu = ''; try { const gl = this.renderer.getContext(), e = gl.getExtension('WEBGL_debug_renderer_info'); gpu = e ? String(gl.getParameter(e.UNMASKED_RENDERER_WEBGL)) : ''; } catch (e) {}
+    if (/swiftshader|llvmpipe|software/i.test(gpu)) return 'low';
+    return (window.matchMedia && matchMedia('(pointer: coarse)').matches) ? 'mid' : 'high';
+  }
+  // 색을 선형 공간으로 (sRGB 출력 + 톤 매핑에서 원래 색이 나오게) — 한 재질은 한 번만
+  lin(root) {
+    if (this.hq === 'low' || !root) return; const T = THREE;
+    root.traverse(o => { const ms = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : []; ms.forEach(m => { if (!m || m.userData.lin) return; m.userData.lin = true;
+      if (m.color) m.color.convertSRGBToLinear(); if (m.emissive) m.emissive.convertSRGBToLinear();
+      ['map', 'emissiveMap'].forEach(k => { if (m[k]) { m[k].encoding = T.sRGBEncoding; m[k].needsUpdate = true; } }); m.needsUpdate = true; }); });
+  }
+  applyQuality() {
+    const T = THREE, r = this.renderer; if (this.hq === 'low') return;
+    r.outputEncoding = T.sRGBEncoding; r.toneMapping = T.ACESFilmicToneMapping; r.toneMappingExposure = this.night ? 1.2 : 1.0;
+    this.scene.traverse(o => { if (o.isDirectionalLight) this.sun = o; if (o.isHemisphereLight) this.hemi = o; });
+    // 조명 색도 선형으로 (안 하면 빛이 너무 밝고 흐려져 화면이 회색빛으로 바램)
+    if (this.hemi) { this.hemi.intensity = this.night ? 0.8 : 0.9; this.hemi.color.convertSRGBToLinear(); this.hemi.groundColor.convertSRGBToLinear(); }
+    if (this.sun) this.sun.color.convertSRGBToLinear();
+    // 땅: 테마별 선명한 색 (Kenney 풍) — 원래 트랙 잔디색은 어두운 톤이라 밝히면 채도가 낮아 칙칙함
+    const far = this.track.theme.far || 'hills', groundHex = { hills: '#6DBE45', peaks: '#E6EDF5', mesa: '#E0B77E', ocean: '#E9D8A6', city: '#4A5068' }[far];
+    if (this.ground && groundHex) { this.ground.material.color.set(groundHex); this.ground.material.userData.lin = false; }
+    if (this.roadMat) { this.roadMat.color.set(this.night ? '#8A90A8' : far === 'peaks' ? '#B4B9C6' : '#6A6F7C'); this.roadMat.userData.lin = false; }   // 설산은 눈밭과 어울리게 조금 밝게   // 도로: 짙은 아스팔트(도로 그림에 곱해짐) — 연회색 도로가 화면을 칙칙하게 만들던 것
+    if (this.sun) { this.sun.intensity = this.night ? 0.45 : 1.25;
+      r.shadowMap.enabled = true; r.shadowMap.type = T.PCFSoftShadowMap; this.sun.castShadow = true; const sh = this.sun.shadow, sz = this.hq === 'high' ? 2048 : 1024;
+      sh.mapSize.set(sz, sz); const c = sh.camera; c.left = -36; c.right = 36; c.top = 36; c.bottom = -36; c.near = 1; c.far = 420; sh.bias = -0.0006; sh.normalBias = 0.03; this.scene.add(this.sun.target); }
+    this.scene.traverse(o => { if (o.isMesh && !o.userData.far && o.geometry && o.geometry.type !== 'SphereGeometry') o.receiveShadow = true; });
+    this.buildTerrain(); if (this.buildStyle) this.buildStyle(); else this.buildClouds();   // 로우폴리 레이싱 연출(kart3d-style.js)
+    this.lin(this.scene); if (this.scene.fog) this.scene.fog.color.convertSRGBToLinear();
+    this.karts && Object.keys(this.karts).forEach(id => { this.scene.remove(this.karts[id].g); delete this.karts[id]; });
+  }
+  // Kenney 모델 도착: 카트를 차량 모델로, 나무를 숲 모델로
+  onAssets(a) {
+    const T = THREE; if (!a || !a['vehicle-truck-red']) return; this.assets = a; this.assetsVer = (this.assetsVer || 0) + 1;
+    Object.values(a).forEach(sc => sc.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; const ms = Array.isArray(o.material) ? o.material : [o.material]; ms.forEach(m => { if (m) m.userData.lin = true; }); } }));
+    const forest = a['decoration-forest'];
+    if (forest && this.decoObjs && this.hq === 'high') {                // 소나무 숲 모델은 무거워(무리당 2천 삼각형) 고화질에서만 — 보통(태블릿)은 가벼운 나무 그대로
+      forest.updateMatrixWorld(true); const meshes = []; forest.traverse(o => { if (o.isMesh) meshes.push(o); });
+      const box = new T.Box3().setFromObject(forest), size = box.getSize(new T.Vector3()), k = 7.5 / Math.max(0.01, size.y);
+      // 소나무만 Kenney 숲 (둥근 나무는 kart3d-style)
+      ['pine'].forEach(kind => { const objs = this.decoObjs[kind]; if (!objs || !objs.length) return;
+        (this.decoMeshes[kind] || []).forEach(m => this.scene.remove(m));
+        meshes.forEach(src => { const im = new T.InstancedMesh(src.geometry, src.material, objs.length), m4 = new T.Matrix4(), q = new T.Quaternion(), sc = new T.Vector3();
+          objs.forEach((o, i) => { const p = this.P(o.x, o.y, o.e); p.y -= box.min.y * k; const s2 = k * (0.8 + (o.r || 0.5) * 0.5); q.setFromAxisAngle(new T.Vector3(0, 1, 0), (o.r2 || o.r || 0) * 6.28); sc.set(s2, s2, s2);
+            m4.compose(p, q, sc).multiply(src.matrixWorld); im.setMatrixAt(i, m4); });
+          im.castShadow = this.hq === 'high'; im.receiveShadow = true; this.scene.add(im); }); });
+    }
+    Object.keys(this.karts).forEach(id => { this.scene.remove(this.karts[id].g); delete this.karts[id]; });
+  }
+  makeKartHQ(look, isMe) {
+    const T = THREE, g = new T.Group(), col = new T.Color(look && look.color || '#3FA9F5'), hsl = {}; col.getHSL(hsl);
+    const hue = hsl.h * 360, cands = [['red', 0], ['red', 360], ['yellow', 50], ['green', 130], ['purple', 275]];
+    const pick = hsl.s < 0.15 ? 'yellow' : cands.reduce((b, o) => Math.abs(o[1] - hue) < Math.abs(b[1] - hue) ? o : b)[0];
+    const m = this.assets['vehicle-truck-' + pick].clone(true);
+    const box = new T.Box3().setFromObject(m), size = box.getSize(new T.Vector3()), sc = 3.4 / Math.max(size.x, size.z);   // 차량 길이 3.4 (예전 상자 카트보다 조금 크게 — 멀리서도 잘 보이게)
+    m.scale.setScalar(sc); if (size.x > size.z) m.rotation.y = Math.PI / 2; m.rotation.y += (this.modelYaw || 0);
+    m.position.y = -box.min.y * sc; g.add(m);
+    const wheels = []; let body = null;
+    m.traverse(o => { if (/wheel/i.test(o.name)) wheels.push(o); if (o.isMesh && /body/i.test(o.name)) { o.material = o.material.clone(); o.material.userData.lin = true; body = o.material; } });
+    g.userData.wheels = wheels; g.userData.body = body || { color: new T.Color() };
+    if (!this.shTex) { const c = document.createElement('canvas'); c.width = c.height = 64; const s2 = c.getContext('2d'); const r = s2.createRadialGradient(32, 32, 4, 32, 32, 32); r.addColorStop(0, 'rgba(0,0,0,0.45)'); r.addColorStop(1, 'rgba(0,0,0,0)'); s2.fillStyle = r; s2.fillRect(0, 0, 64, 64); this.shTex = new T.CanvasTexture(c); }
+    const sh = new T.Mesh(new T.PlaneGeometry(3, 3.8), new T.MeshBasicMaterial({ map: this.shTex, transparent: true, depthWrite: false })); sh.rotation.x = -Math.PI / 2; sh.position.y = 0.05; g.add(sh); g.userData.shadow = sh;
+    const shield = new T.Mesh(new T.SphereGeometry(2.1, 14, 10), new T.MeshBasicMaterial({ color: 0x9DE9FF, transparent: true, opacity: 0.25, depthWrite: false })); shield.position.y = 0.9; shield.visible = false; g.add(shield); g.userData.shield = shield;
+    const flame = new T.Group(); [-0.5, 0.5].forEach(x => { const f = new T.Mesh(new T.ConeGeometry(0.28, 1.4, 8), new T.MeshBasicMaterial({ color: 0xFF9F1C, transparent: true, opacity: 0.9 })); f.rotation.x = -Math.PI / 2; f.position.set(x, 0.55, -1.9); flame.add(f); });
+    flame.visible = false; g.add(flame); g.userData.flame = flame;
+    this.lin(g); this.scene.add(g); return g;
+  }
+  // 멀리 둘러싼 지형 (노이즈 산 · 평평한 색면 로우폴리) — 초원 언덕 · 설산 · 사막 메사
+  buildTerrain() {
+    const T = THREE, far = this.track.theme.far || 'hills'; if (far === 'city' || far === 'ocean' || far === 'peaks') return;   // 설산은 원래의 뾰족한 설봉이 더 보기 좋아 그대로
+    this.scene.children.filter(o => o.userData.far).forEach(o => this.scene.remove(o));
+    const b = this.track.bounds, S = this.S, cx = (b.minX + b.maxX) / 2 * S, cz = (b.minY + b.maxY) / 2 * S;
+    const R0 = Math.hypot(b.maxX - b.minX, b.maxY - b.minY) * S * 0.5 + 60, R1 = R0 + 1000, gY = this.groundY;
+    const hash = (x, y) => { const h = Math.sin(x * 127.1 + y * 311.7) * 43758.5453; return h - Math.floor(h); };
+    const vn = (x, y) => { const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi, u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+      return (hash(xi, yi) * (1 - u) + hash(xi + 1, yi) * u) * (1 - v) + (hash(xi, yi + 1) * (1 - u) + hash(xi + 1, yi + 1) * u) * v; };
+    const fbm = (x, y) => vn(x, y) * 0.55 + vn(x * 2.1, y * 2.1) * 0.28 + vn(x * 4.3, y * 4.3) * 0.17;
+    const amp = far === 'peaks' ? 420 : far === 'mesa' ? 150 : 110;
+    const pal = far === 'peaks' ? [[0, '#5E7F4E'], [0.18, '#7D8BA3'], [0.42, '#98A4B6'], [0.55, '#F4F7FB']] : far === 'mesa' ? [[0, '#D9B27A'], [0.4, '#C97B45'], [0.75, '#A8502F']] : [[0, '#7FBF5A'], [0.45, '#5E9E47'], [0.8, '#8A8F78']];
+    const colAt = t => { let c = pal[0][1]; pal.forEach(([k, v]) => { if (t >= k) c = v; }); return new T.Color(c).convertSRGBToLinear(); };
+    const RINGS = 24, SEG = 128, pos = [], cols = [], idx = [];
+    for (let ri = 0; ri <= RINGS; ri++) { const tt = Math.pow(ri / RINGS, 1.35), r = R0 + (R1 - R0) * tt;
+      for (let si = 0; si <= SEG; si++) { const a = si / SEG * Math.PI * 2, x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r;
+        let n = fbm(x * 0.0045, z * 0.0045); if (far === 'mesa') n = Math.floor(n * 5) / 5 + n * 0.08;
+        const rise = Math.min(1, tt * 3.2), h = (far === 'peaks' ? Math.pow(n, 1.7) * 1.9 : n) * amp * rise * (0.55 + 0.45 * tt);   // 설산: 뾰족하고 높게
+        pos.push(x, gY + h, z); const c = colAt(h / amp); cols.push(c.r, c.g, c.b);
+        if (ri < RINGS && si < SEG) { const q = ri * (SEG + 1) + si; idx.push(q, q + SEG + 1, q + 1, q + 1, q + SEG + 1, q + SEG + 2); } } }
+    const geo = new T.BufferGeometry(); geo.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); geo.setAttribute('color', new T.Float32BufferAttribute(cols, 3)); geo.setIndex(idx); geo.computeVertexNormals();
+    const mat = new T.MeshPhongMaterial({ vertexColors: true, flatShading: true, shininess: 0, specular: 0x000000 }); mat.userData.lin = true;   // 면마다 색이 또렷한 로우폴리 (Lambert 는 flatShading 미지원)
+    const mesh = new T.Mesh(geo, mat); mesh.userData.far = true; this.scene.add(mesh);
+  }
+  // 구름 (낮 트랙)
+  buildClouds() {
+    if (this.night) return; const T = THREE, c = document.createElement('canvas'); c.width = 256; c.height = 128; const g = c.getContext('2d');
+    for (let i = 0; i < 14; i++) { const x = 40 + Math.random() * 176, y = 50 + Math.random() * 40, r = 22 + Math.random() * 30, gr = g.createRadialGradient(x, y, 2, x, y, r); gr.addColorStop(0, 'rgba(255,255,255,0.95)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); }
+    const tex = new T.CanvasTexture(c), b = this.track.bounds, S = this.S, cx = (b.minX + b.maxX) / 2 * S, cz = (b.minY + b.maxY) / 2 * S, R = Math.hypot(b.maxX - b.minX, b.maxY - b.minY) * S * 0.5 + 300;
+    for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2 + Math.random() * 0.3, r = R * (0.6 + Math.random() * 0.9);
+      const sp = new T.Sprite(new T.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, fog: false, opacity: 0.85 })); sp.scale.set(260 + Math.random() * 160, 110 + Math.random() * 50, 1);
+      sp.position.set(cx + Math.cos(a) * r, this.groundY + 230 + Math.random() * 120, cz + Math.sin(a) * r); sp.userData.far = true; sp.userData.clouds = true; this.scene.add(sp); }
+  }
+
   resize() {
     if (!this.host) return;
     const W = this.host.clientWidth || 800, H = this.host.clientHeight || 600; if (W < 10 || H < 10) return;
     const dpr = Math.min(2, window.devicePixelRatio || 1); this.hudDpr = dpr;
     this.hudCanvas.width = Math.round(W * dpr); this.hudCanvas.height = Math.round(H * dpr); this.vw = W; this.vh = H;
+    if (this.composer) { this.composer.setSize(W, H); if (this.bloom) this.bloom.setSize(W, H); }
     if (this.renderer) { this.renderer.setSize(W, H, false); this.glCanvas.style.width = '100%'; this.glCanvas.style.height = '100%'; this.camera.aspect = W / H; this.camera.updateProjectionMatrix(); }
   }
   destroy() { super.destroy(); try { this.renderer.dispose(); this.hudCanvas.remove(); } catch (e) {} }
@@ -50,13 +159,14 @@ class KartGame3D extends KartGame {
     const sc = document.createElement('canvas'); sc.width = 16; sc.height = 256; const sg = sc.getContext('2d');
     const gr = sg.createLinearGradient(0, 0, 0, 256); gr.addColorStop(0, sky.top || '#1E3A5F'); gr.addColorStop(0.5, sky.mid || '#4E8FC7'); gr.addColorStop(1, sky.low || '#BFE0F5'); sg.fillStyle = gr; sg.fillRect(0, 0, 16, 256);
     if (night) { sg.fillStyle = '#fff'; for (let i = 0; i < 40; i++) sg.fillRect(Math.random() * 16, Math.random() * 150, 0.6, 0.6); }
-    this.scene.add(new T.Mesh(new T.SphereGeometry(1400, 24, 12), new T.MeshBasicMaterial({ map: new T.CanvasTexture(sc), side: T.BackSide, fog: false })));
+    { const skyM = new T.Mesh(new T.SphereGeometry(1400, 24, 12), new T.MeshBasicMaterial({ map: new T.CanvasTexture(sc), side: T.BackSide, fog: false })); skyM.userData.sky = true; this.scene.add(skyM); }
     // 땅 (트랙 정의의 잔디색을 3D 조명에 맞게 밝게)
     let eMin = 1e9; tr.elev.forEach(e => { eMin = Math.min(eMin, e); }); this.groundY = (eMin - 30) * this.S;
     const b = tr.bounds, cx = (b.minX + b.maxX) / 2, cy = (b.minY + b.maxY) / 2, span = Math.max(b.maxX - b.minX, b.maxY - b.minY) * this.S * 2.2 + 600;
     const ground = new T.Mesh(new T.PlaneGeometry(span, span), new T.MeshLambertMaterial({ color: this.lighten(d.grass || '#1E3427', night ? 0.08 : 0.32), side: T.DoubleSide }));
     ground.rotation.x = -Math.PI / 2; ground.position.set(cx * this.S, this.groundY, cy * this.S); this.scene.add(ground); this.ground = ground;
-    this.buildRoad(); this.buildRails(); this.buildDeco(); this.buildArches(); this.buildTrackItems(); this.buildFar(cx, cy, span);
+    this.buildRoad(); this.buildRails(); this.buildDeco(); this.buildArches(); this.buildTrackItems();
+    { const before = this.scene.children.length; this.buildFar(cx, cy, span); this.scene.children.slice(before).forEach(o => { o.userData.far = true; }); }
     this.karts = {}; this.hazMeshes = {}; this.camPos = null;
     this.partMesh = new T.InstancedMesh(new T.BoxGeometry(0.25, 0.25, 0.25), new T.MeshBasicMaterial({ color: 0xffffff }), 160); this.partMesh.count = 0; this.scene.add(this.partMesh);
   }
@@ -81,7 +191,7 @@ class KartGame3D extends KartGame {
         if (i < n && !(skipGap && (tr.gapSeg[j] || tr.gapSeg[(j + 1) % n]))) { const q = i * 2; idx.push(q, q + 2, q + 1, q + 1, q + 2, q + 3); } }
       const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new T.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
       const m = new T.Mesh(g, mat); this.scene.add(m); return m; };
-    strip(1, -1, 0.02, 0.02, hw * 2 * S, new T.MeshLambertMaterial({ map: rt, side: T.DoubleSide }), true);
+    this.roadMat = new T.MeshLambertMaterial({ map: rt, side: T.DoubleSide }); strip(1, -1, 0.02, 0.02, hw * 2 * S, this.roadMat, true);
     const km = new T.MeshLambertMaterial({ map: kt, side: T.DoubleSide });
     strip(1.07, 1, 0.1, 0.02, 3, km, true); strip(-1, -1.07, 0.02, 0.1, 3, km, true);
     // 옆벽: 도로 가장자리에서 땅까지 (도로가 떠 보이지 않게). 점프 구간은 비워 둠
@@ -128,7 +238,8 @@ class KartGame3D extends KartGame {
     };
     const m4 = new T.Matrix4(), q = new T.Quaternion(), sc = new T.Vector3(), up = new T.Vector3(0, 1, 0), flat = new T.Quaternion().setFromAxisAngle(new T.Vector3(1, 0, 0), Math.PI / 2);
     Object.keys(by).forEach(kind => { const spec = parts[kind]; if (!spec) return; const objs = by[kind];
-      spec.forEach(([geo, mat, h, off, mode]) => { const mesh = new T.InstancedMesh(geo, mat, objs.length);
+      this.decoMeshes = this.decoMeshes || {}; this.decoObjs = by;
+      spec.forEach(([geo, mat, h, off, mode]) => { const mesh = new T.InstancedMesh(geo, mat, objs.length); (this.decoMeshes[kind] = this.decoMeshes[kind] || []).push(mesh);
         objs.forEach((o, k) => { const base = this.P(o.x, o.y, o.e), s = 0.8 + (o.r || 0.5) * 0.6, rot = (o.r2 || o.r || 0) * 6.28;
           q.setFromAxisAngle(up, rot); if (mode === 'flat') q.multiply(flat);
           let hh = h * s; sc.set(s, s, s);
@@ -152,7 +263,7 @@ class KartGame3D extends KartGame {
       [-1, 1].forEach(sd => { const p = new T.Mesh(new T.BoxGeometry(1, 9, 1), post); p.position.set(sd * w / 2, 4.5, 0); g.add(p); });
       const bc = document.createElement('canvas'); bc.width = 256; bc.height = 40; const b = bc.getContext('2d'); b.fillStyle = a.start ? '#E63946' : '#1D7FA6'; b.fillRect(0, 0, 256, 40); b.fillStyle = '#fff'; b.font = '900 26px Pretendard, sans-serif'; b.textAlign = 'center'; b.fillText(a.label || '', 128, 29);
       const banner = new T.Mesh(new T.BoxGeometry(w, 2, 0.5), new T.MeshLambertMaterial({ map: new T.CanvasTexture(bc) })); banner.position.y = 9; g.add(banner);
-      g.position.copy(this.P(c[0], c[1], e)); g.rotation.y = -Math.atan2(ty, tx) + Math.PI / 2; this.scene.add(g); });
+      g.position.copy(this.P(c[0], c[1], e)); g.rotation.y = -Math.atan2(ty, tx) + Math.PI / 2; g.userData.startArch = a.start; this.scene.add(g); });
     // 체크무늬 출발선
     const fc = document.createElement('canvas'); fc.width = 64; fc.height = 8; const f = fc.getContext('2d'); for (let x = 0; x < 16; x++) for (let y = 0; y < 2; y++) { f.fillStyle = (x + y) % 2 ? '#111' : '#fff'; f.fillRect(x * 4, y * 4, 4, 4); }
     const c0 = tr.center[0], [tx, ty] = tr.tangent[0], line = new T.Mesh(new T.PlaneGeometry(tr.halfW * 2 * this.S, 1.6), new T.MeshBasicMaterial({ map: new T.CanvasTexture(fc) }));
@@ -232,7 +343,7 @@ class KartGame3D extends KartGame {
 
   // ── 3D 연출 ──
   // (부모 KartGame 의 addFx(type) 와 이름이 겹치지 않게 addFx3d)
-  addFx3d(mesh, life, update) { this.scene.add(mesh); this.fx3d.push({ mesh, life, t: 0, update }); }
+  addFx3d(mesh, life, update) { this.lin(mesh); this.scene.add(mesh); this.fx3d.push({ mesh, life, t: 0, update }); }
   fxExplode(pos, color, size) {
     if (!pos) return; const T = THREE, sz = size || 1;
     const ball = new T.Mesh(new T.SphereGeometry(1, 14, 10), new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.9 })); ball.position.copy(pos); ball.position.y += 1;
@@ -286,6 +397,8 @@ class KartGame3D extends KartGame {
 
   // 카트 모델 (2D 판의 카트 색 · 체형)
   makeKart(look, isMe) {
+    if (this.hq !== 'low' && this.makeKartStyled) return this.makeKartStyled(look, isMe);   // 운전자가 탄 카트
+    if (this.assets && this.hq !== 'low') return this.makeKartHQ(look, isMe);
     const T = THREE, g = new T.Group(), col = new T.Color(look && look.color || '#3FA9F5'), body = new T.MeshLambertMaterial({ color: col }), dark = new T.MeshLambertMaterial({ color: 0x23262E });
     const add = (geo, mat, x, y, z) => { const m = new T.Mesh(geo, mat); m.position.set(x, y, z); g.add(m); return m; };
     const truck = look && look.style === 'truck';
@@ -316,7 +429,7 @@ class KartGame3D extends KartGame {
   }
   placeKart(id, x, y, a, air, look, isMe, opts) {
     let k = this.karts[id];
-    const lk = look ? look.color + look.style : '';
+    const lk = (look ? look.color + look.style : '') + '|' + (this.assetsVer || 0);
     if (k && k.lk !== lk) { this.scene.remove(k.g); delete this.karts[id]; k = null; }          // 관전 학생이 바뀌면 카트 모양·색도 새로
     if (!k) k = this.karts[id] = { g: this.makeKart(look, isMe), hint: isMe ? this.segIdx : undefined, lk };
     const loc = this.elevAtXY(x, y, k.hint); k.hint = loc.i;
@@ -325,6 +438,8 @@ class KartGame3D extends KartGame {
     k.g.userData.shadow.position.y = 0.05 - lift; k.g.userData.shadow.visible = !this.track.gapSeg[loc.i];
     const spin = opts && opts.spin ? (this.clock() / 70) : 0;
     k.g.rotation.set(0, Math.PI / 2 - a + spin, 0); k.g.userData.shield.visible = !!(opts && opts.shield); k.seen = true;
+    if (k.g.userData.wheels) { const d = k.lastP ? Math.hypot(p.x - k.lastP.x, p.z - k.lastP.z) : 0; k.lastP = { x: p.x, z: p.z }; k.g.userData.wheels.forEach(w => { w.rotation.x += Math.min(1.2, d * 1.4); }); }
+    if (this.hq !== 'low' && this.renderer.shadowMap.enabled) k.g.userData.shadow.visible = false;
     const fl = k.g.userData.flame; fl.visible = !!(opts && opts.boost); if (fl.visible) fl.children.forEach(c => { c.scale.set(1, 0.7 + Math.random() * 0.6, 1); });
     const bm = k.g.userData.body.color; if (opts && opts.star) bm.setHSL((this.clock() / 400) % 1, 0.9, 0.55); else if (k.baseColor) bm.copy(k.baseColor); if (!k.baseColor) k.baseColor = bm.clone();
     return k;
@@ -349,7 +464,7 @@ class KartGame3D extends KartGame {
     // 위험물 (다른 학생이 놓은 바나나·기름·폭탄 등)
     const seenH = {};
     Object.keys(this.hazards || {}).forEach(hid => { const h = this.hazards[hid]; if (!h) return; seenH[hid] = 1; let m = this.hazMeshes[hid];
-      if (!m) { m = this.makeHazard(h.kind); this.scene.add(m); this.hazMeshes[hid] = m; }
+      if (!m) { m = this.makeHazard(h.kind); this.lin(m); this.scene.add(m); this.hazMeshes[hid] = m; }
       const loc = this.elevAtXY(h.x, h.y, m.userData.hint); m.userData.hint = loc.i; m.position.copy(this.P(h.x, h.y, loc.e)); m.position.y += 0.06;
       if (m.userData.blink) m.userData.blink.visible = Math.floor(now / 250) % 2 === 0; if (h.kind === 'banana') m.rotation.y = (h.x + h.y) % 6; });
     Object.keys(this.hazMeshes).forEach(hid => { if (!seenH[hid]) { this.scene.remove(this.hazMeshes[hid]); delete this.hazMeshes[hid]; } });
@@ -359,7 +474,7 @@ class KartGame3D extends KartGame {
     (this.parts || []).forEach(pt => { if (np >= 160 || pt.x == null) return; const loc = this.elevAtXY(pt.x, pt.y, this.segIdx), p = this.P(pt.x, pt.y, loc.e); p.y += ((pt.h || 0) * this.S) + 0.3;
       // 2D 판의 입자 크기(size, 화면 픽셀 기준)·색을 그대로 — 작게, 수명에 따라 줄어듦
       const s = Math.max(0.15, (pt.life != null ? pt.life : 1)) * Math.min(1.2, (pt.size || 6) / 12); sc0.setScalar(s); m4.compose(p, q0, sc0); this.partMesh.setMatrixAt(np, m4);
-      pc.set(pt.color || pt.c || '#FFD166'); this.partMesh.setColorAt(np, pc); np++; });
+      pc.set(pt.color || pt.c || '#FFD166'); if (this.hq !== 'low') pc.convertSRGBToLinear(); this.partMesh.setColorAt(np, pc); np++; });
     if (this.partMesh.instanceColor) this.partMesh.instanceColor.needsUpdate = true;
     this.partMesh.count = np; this.partMesh.instanceMatrix.needsUpdate = true;
     const dtf = Math.min(0.05, (now - (this._fxT || now)) / 1000); this._fxT = now; this.stepFx(dtf);
@@ -376,7 +491,14 @@ class KartGame3D extends KartGame {
     this.camera.lookAt(this.camLook);
     const fov = 66 + Math.min(1, Math.max(0, this.speed) / (this.maxSpeed * 1.4)) * 14 + (now < this.boostUntil ? 6 : 0);
     if (Math.abs(this.camera.fov - fov) > 0.2) { this.camera.fov += (fov - this.camera.fov) * 0.1; this.camera.updateProjectionMatrix(); }
-    this.renderer.render(this.scene, this.camera);
+    if (this.updateStyle) this.updateStyle(now);
+    if (this.sun && this.renderer.shadowMap.enabled) { const mp = this.karts.__me.g.position; this.sun.position.set(mp.x + 45, mp.y + 95, mp.z + 30); this.sun.target.position.copy(mp); this.sun.target.updateMatrixWorld(); }
+    if (this.composer) this.composer.render(); else this.renderer.render(this.scene, this.camera);
+    // 느리면 화질을 한 단계씩 자동으로 낮춤 (3초 평균 초당 26프레임 미만: high → mid, 22 미만: mid → 그림자 끔)
+    if (this.hq !== 'low' && !this.spectator && !this.hqLocked) { this._fpsN = (this._fpsN || 0) + 1; if (!this._fpsT) this._fpsT = now;
+      if (now - this._fpsT > 3000) { const fps = this._fpsN * 1000 / (now - this._fpsT); this._fpsN = 0; this._fpsT = now;
+        if (fps < 26 && this.hq === 'high') { this.hq = 'mid'; this.composer = null; this.sun.shadow.mapSize.set(1024, 1024); if (this.sun.shadow.map) { this.sun.shadow.map.dispose(); this.sun.shadow.map = null; } }
+        else if (fps < 22 && this.hq === 'mid' && this.renderer.shadowMap.enabled) { this.renderer.shadowMap.enabled = false; this.sun.castShadow = false; this.scene.traverse(o => { if (o.material) { const ms = Array.isArray(o.material) ? o.material : [o.material]; ms.forEach(m => { m.needsUpdate = true; }); } }); } } }
     // ── 오버레이: 2D 판의 미니맵·순위·카운트다운·알림을 그대로 ──
     const ctx = this.ctx, W = this.vw || 800, H = this.vh || 600; ctx.setTransform(this.hudDpr || 1, 0, 0, this.hudDpr || 1, 0, 0); ctx.clearRect(0, 0, W, H);
     const fast = Math.max(0, (this.speed / this.maxSpeed - 0.85) / 0.15);
