@@ -3,7 +3,7 @@
 //   🔬 물벼룩 독성 시험 (연구원): 시료 독성 · 🗺 강을 따라 그린 독성 지도(▼ 알고 있는 배출구와 함께) → ③
 //   🛶 종이배 흐름 속도 (강가): 2 m 를 흘러가는 시간 → 흐름 속도 (강가는 느리고 물살 가운데가 빠름) → ④ 계산에 씀
 //   ⏪ 시간 되감기 (하천관리소 · 🛶 뒤): 도착 기록(바이오센서·어민·죽은 물고기)에서 오염을 강 위로 끌어 배출구에 대면 떠난 시각 → ④ ③
-//   ⚗️ 시약 실험 (연구원): 물 시료 = 시약 5가지 색 비교표 · 공기 시료 = 검지관 3가지 눈금 읽기 → ① 후보 (비슷한 물질에도 반응 → 📊 정밀분석으로 확인)
+//   ⚗️ 시약 실험 (연구원): 물 시료 = 시약 5가지 색 비교표 · 공기 시료 = 검지관 3가지 눈금 읽기 → ① 후보 (비슷한 물질에도 반응 → 📊 연구원 분석으로 확인)
 //   🛸 드론 열화상 (하천관리소): 평소 밤 사진 ↔ 어젯밤 사진 틀린 그림 찾기 (뜨거운 폐수·연기 — 범인 것인지 계측기 고장 때 흘려보낸 깨끗한 물인지는 다른 증거로) → ②③④ 후보
 //   🧭 바람길 거꾸로 (기상대): 냄새 난 센서에서 그 시각 바람을 거슬러 선 긋기 → 선이 모이는 근처 굴뚝 후보 · 처음 냄새 난 시각 → ② ④ 후보
 //   화면: 3D 위에 뜨는 창(캔버스) · 누르기/떼기 · 끌기로 조작(터치 · 마우스 · Space/E) · 미니게임 중엔 3D 를 멈춰 가벼움
@@ -108,8 +108,8 @@
   const SG = { nerve: ['몸을 비틀며 이상하게 헤엄쳐요 (신경이 상함)', null, ['phenol', 'cadmium']], gill: ['아가미가 붉게 부어서 입을 뻐끔거려요', '#C8342C', ['ammonia', 'cadmium']],
     oxygen: ['물 위로 입을 내밀고 헐떡여요 (숨이 가빠요)', '#9A4A4A', ['bod', 'ammonia']], film: ['몸과 아가미에 끈적한 막이 끼었어요', '#3A3020', ['oil', 'bod']] };
   const SYMG = { phenol: ['nerve'], cadmium: ['nerve', 'gill'], ammonia: ['gill', 'oxygen'], bod: ['oxygen', 'film'], oil: ['film'] };   // 물질 → 나타날 수 있는 증상
-  const PNAME = { phenol: '페놀', cadmium: '카드뮴', ammonia: '암모니아', bod: 'BOD(유기물)', oil: '기름' };
-  const GUIDE = '<p class="mg-gh">📖 물고기 증상 도감 — 증상 하나로는 물질을 못 정해요</p><table class="mg-guide">' + Object.keys(SG).map(k => '<tr><th>' + SG[k][0].replace(/ \(.*\)$/, '') + '</th><td>' + SG[k][2].map(p => PNAME[p]).join(' 또는 ') + '</td></tr>').join('') + '</table><p class="dim">두 가지 증상이 함께 보이면 겹치는 물질로 좁혀져요. 냄새(🧪 현장 측정) · ⚗️ 시약 · 📊 정밀분석으로 확인하세요.</p>';
+  const PNAME = { phenol: '페놀', cadmium: '카드뮴', ammonia: '암모니아', bod: '유기물', oil: '기름' };
+  const GUIDE = '<p class="mg-gh">📖 물고기 증상 도감 — 증상 하나로는 물질을 못 정해요</p><table class="mg-guide">' + Object.keys(SG).map(k => '<tr><th>' + SG[k][0].replace(/ \(.*\)$/, '') + '</th><td>' + SG[k][2].map(p => PNAME[p]).join(' 또는 ') + '</td></tr>').join('') + '</table><p class="dim">두 가지 증상이 함께 보이면 겹치는 물질로 좁혀져요. 냄새(🧪 현장 측정) · ⚗️ 시약 · 📊 연구원 분석으로 확인하세요.</p>';
   // 죽은 물고기 신선도 (물 온도 18℃ 기준 · 대략): [이 시간 전까지, 눈, 아가미, 몸, 말, 눈 그림, 아가미 색]
   const FRESH = [[2, '맑고 볼록해요', '선홍색', '부드럽게 휘어요', '2시간 안쪽', 'clear', '#E0303A'], [5, '맑아요', '붉은색', '조금씩 뻣뻣해져요', '2~5시간', 'clear', '#C0283A'], [9, '조금 흐려요', '검붉은색', '막대처럼 뻣뻣해요 (사후 경직)', '5~9시간', 'cloudy', '#7A2230'], [14, '뿌옇게 흐려요', '갈색', '다시 물렁해졌어요', '9~14시간', 'cloudy', '#6B4A30'], [99, '움푹 꺼지고 탁해요', '회갈색', '배가 부풀고 냄새가 나요', '14시간 넘게', 'sunken', '#6E6458']];
   function fishPool(rid, s) {
@@ -164,7 +164,7 @@
       const li = casts.map(c => '<li>' + (c.kind === 'fish' ? '🐟 ' + c.F.n + ' ' + c.len + 'cm — ' + (c.weak ? '<b class="no">약함</b>' : '<b class="ok">건강</b>') + ' · ' + c.sym : c.kind === 'trash' ? c.icon + ' ' + c.n + ' (쓰레기)' : c.kind === 'none' ? '입질 없음' : '놓침') + '</li>').join('');
       const hints = [];
       const gk = [...new Set(fishes.filter(c => c.weak && c.sg).map(c => c.sg))], both = gk.length ? Object.keys(PNAME).filter(p => gk.every(k => SG[k][2].indexOf(p) >= 0)) : [];
-      if (weak) hints.push(['①', '약한 물고기의 증상: <b>' + [...new Set(fishes.filter(c => c.weak).map(c => c.sym))].join(' / ') + '</b> → 📖 도감의 후보: <b>' + (both.length ? both.map(p => PNAME[p]).join(' 또는 ') : '여러 물질') + '</b>' + (gk.length >= 2 && both.length === 1 ? ' (두 증상이 겹치는 물질)' : ' — 냄새 · ⚗️ 시약 · 📊 정밀분석으로 하나를 골라요')]);
+      if (weak) hints.push(['①', '약한 물고기의 증상: <b>' + [...new Set(fishes.filter(c => c.weak).map(c => c.sym))].join(' / ') + '</b> → 📖 도감의 후보: <b>' + (both.length ? both.map(p => PNAME[p]).join(' 또는 ') : '여러 물질') + '</b>' + (gk.length >= 2 && both.length === 1 ? ' (두 증상이 겹치는 물질)' : ' — 냄새 · ⚗️ 시약 · 📊 연구원 분석으로 하나를 골라요')]);
       hints.push(['③', bad ? '여기까지 오염된 물이 내려왔어요 → 출발점은 이 지점보다 <b>위쪽(상류)</b>이에요. 더 위로 올라가 깨끗한 곳을 찾으면 그 사이가 출발점' : '물고기가 건강해요 → 이 강이 오염됐다면 출발점은 이 지점보다 <b>아래쪽(하류)</b>이에요']);
       if (insp) hints.push(['④', '죽은 ' + ucJ(insp.F.n, '은', '는') + ' 죽은 지 약 ' + insp.fr[4] + ' → 오염이 여기 닿은 때: <b>' + whenTxt() + '</b>. 여기서 배출구까지 거리 ÷ 흐름 속도만큼 더 거슬러 가면 배출 시각이에요 (⏪ 시간 되감기)']);
       else if (sawDead) hints.push(['④', '떠내려가던 죽은 물고기를 눌러 건져 보면 언제 죽었는지(= 오염이 닿은 때) 알 수 있어요']);
@@ -297,7 +297,7 @@
   P.daphniaMenu = function () {
     const ws = this.samples.map((s, i) => [s, i]).filter(([s]) => s.kind === 'water');
     if (!ws.length) { this.dialog('🔬', '물벼룩 독성 시험', '시험할 <b>물 시료</b>가 없어요. 강에서 물 시료를 떠 오세요. (환경DNA·공기 시료는 시험할 수 없어요)', [['알겠어요', () => this.closeDialog()]]); return; }
-    this.dialog('🔬', '물벼룩 독성 시험 — 시료 고르기', '물 시료에 물벼룩 12마리를 넣고 현미경으로 봐요. <b>움직이지 않는 물벼룩</b>이 많을수록 독성이 강한 물이에요. 강의 위·아래 여러 곳을 시험하면 수첩에 <b>🗺 독성 지도</b>가 그려져요. (시료는 조금만 쓰니 정밀분석도 그대로 맡길 수 있어요)',
+    this.dialog('🔬', '물벼룩 독성 시험 — 시료 고르기', '물 시료에 물벼룩 12마리를 넣고 현미경으로 봐요. <b>움직이지 않는 물벼룩</b>이 많을수록 독성이 강한 물이에요. 강의 위·아래 여러 곳을 시험하면 수첩에 <b>🗺 독성 지도</b>가 그려져요. (시료는 조금만 쓰니 연구원 분석도 그대로 맡길 수 있어요)',
       ws.map(([s, i]) => [(s.dtest ? '✓ ' : '') + s.label.replace(/^💧 물 /, '💧 ') + (s.dtest ? ' (이미 시험함)' : ''), () => { if (s.dtest) { this.toast('이미 시험한 시료예요 — 수첩에 결과가 있어요'); return; } this.closeDialog(); this.startDaphnia(s); }]).concat([['그만두기', () => this.closeDialog()]]));
   };
   P.startDaphnia = function (sm) {
@@ -314,7 +314,7 @@
       const same = M.dtests.filter(d => d.river === sm.river).length, hints = [['③', pct >= 20 ? '이 시료를 뜬 곳까지 독성 물질이 내려왔어요 → 출발점은 여기보다 <b>위쪽(상류)</b>' : '독성이 거의 없어요 → 이 강이 오염됐다면 출발점은 여기보다 <b>아래쪽(하류)</b>']];
       hints.push(['③', same >= 2 ? '🗺 독성 지도에서 <b>깨끗한 곳(초록)과 독한 곳(빨강) 사이의 ▼배출구</b>가 출발점 후보예요' : '같은 강의 위·아래 시료도 시험하면 🗺 독성 지도로 출발점을 좁힐 수 있어요']);
       this.addEvidence({ title: '🔬 물벼룩 독성 시험 · ' + where, key, geo: { river: sm.river, s: sm.s },
-        html: '<p>물벼룩 12마리 중 <b>' + k + '마리</b>가 움직이지 않음 (' + pct + '%) → <b class="' + (pct >= 20 ? 'no' : 'ok') + '">' + lv + '</b></p>' + this.toxMap(sm.river) + hintBox(hints) + '<p class="dim">대조군(깨끗한 물): 12마리 모두 움직임 · 내가 찾은 것 ' + found + '/' + k + (wrong ? ' · 잘못 누름 ' + wrong : '') + '<br>실제 급성 독성 시험은 24~48시간 동안 움직이지 않는 물벼룩의 비율을 봐요. 어떤 물질인지는 ⚗️ 시약 실험이나 📊 정밀분석으로 확인하세요.</p>' });
+        html: '<p>물벼룩 12마리 중 <b>' + k + '마리</b>가 움직이지 않음 (' + pct + '%) → <b class="' + (pct >= 20 ? 'no' : 'ok') + '">' + lv + '</b></p>' + this.toxMap(sm.river) + hintBox(hints) + '<p class="dim">대조군(깨끗한 물): 12마리 모두 움직임 · 내가 찾은 것 ' + found + '/' + k + (wrong ? ' · 잘못 누름 ' + wrong : '') + '<br>실제 급성 독성 시험은 24~48시간 동안 움직이지 않는 물벼룩의 비율을 봐요. 어떤 물질인지는 ⚗️ 시약 실험이나 📊 연구원 분석으로 확인하세요.</p>' });
       this.toast('🔬 독성 시험 결과를 수첩에 적었어요');
     };
     const m = this.mgOpen({ emoji: '🔬', title: '물벼룩 독성 시험', act: '다 찾았어요',
@@ -524,7 +524,7 @@
 
   // ── ⚗️ 시약 실험 (연구원) ── 물 시료: 시약 5가지를 넣고 색을 비교표와 맞추기 · 공기 시료: 검지관 3가지에 공기를 빨아들여 눈금 읽기
   //   색 비교표는 시약마다 범위가 달라요 (그 물질이 크게 새어 나왔을 때를 '아주 많이'로) → 평소 배출은 '조금', 사고 물은 '많이·아주 많이'
-  //   간이 시약은 비슷한 물질에도 반응해요: 과망간산칼륨(유기물)은 페놀·기름에도 · 검지관은 벤젠 ↔ 톨루엔에 서로 조금 → 결과는 '후보', 확정은 📊 정밀분석
+  //   간이 시약은 비슷한 물질에도 반응해요: 과망간산칼륨(유기물)은 페놀·기름에도 · 검지관은 벤젠 ↔ 톨루엔에 서로 조금 → 결과는 '후보', 확정은 📊 연구원 분석
   const RG = [
     { p: 'phenol', n: '페놀', r: '4-아미노안티피린', how: '붉을수록 많아요', c: ['#F2EFE6', '#F5C4BE', '#E2706E', '#A91D35'] },
     { p: 'ammonia', n: '암모니아', r: '네슬러 시약', how: '노랑 → 갈색일수록 많아요', c: ['#F3F1E2', '#F6E49A', '#EDB144', '#A2551C'] },
@@ -538,7 +538,7 @@
   P.reagentMenu = function () {
     const ss = this.samples.filter(s => s.kind === 'water' || s.kind === 'air');
     if (!ss.length) { this.dialog('⚗️', '시약 실험', '시험할 <b>물 시료</b>나 <b>공기 시료</b>가 없어요. 강에서 물을 뜨거나, 대기·악취 센서에서 공기 시료를 받아 오세요.', [['알겠어요', () => this.closeDialog()]]); return; }
-    this.dialog('⚗️', '시약 실험 — 시료 고르기', '물 시료는 <b>시약 5가지</b>를 넣어 색으로, 공기 시료는 <b>검지관 3가지</b>로 어떤 물질이 많은지 빠르게 알아봐요. 간이 시험이라 비슷한 물질에도 반응해요 — 확정은 📊 정밀분석으로. (시료는 조금만 써서 정밀분석도 그대로 맡길 수 있어요)',
+    this.dialog('⚗️', '시약 실험 — 시료 고르기', '물 시료는 <b>시약 5가지</b>를 넣어 색으로, 공기 시료는 <b>검지관 3가지</b>로 어떤 물질이 많은지 빠르게 알아봐요. 간이 시험이라 비슷한 물질에도 반응해요 — 확정은 📊 연구원 분석으로. (시료는 조금만 써서 연구원 분석도 그대로 맡길 수 있어요)',
       ss.map(s => [(s.rtest ? '✓ ' : '') + s.label.replace(/^💧 물 /, '💧 ').replace(/^🌫 공기 /, '🌫 ') + (s.rtest ? ' (이미 실험함)' : ''), () => { if (s.rtest) { this.toast('이미 실험한 시료예요 — 수첩에 결과가 있어요'); return; } this.closeDialog(); if (s.kind === 'air') this.startTubes(s); else this.startReagent(s); }]).concat([['그만두기', () => this.closeDialog()]]));
   };
   P.startReagent = function (sm) {
@@ -551,7 +551,7 @@
       const Qc = UC_POL[C.pol], pt = ucPoint(C.point), cul = items.find(i => i.p === C.pol), top = D.slice().sort((a, b) => b.lv - a.lv || (a.p === 'bod') - (b.p === 'bod'))[0], strong = D.filter(i => i.lv >= 2);
       let key = false; if (Qc.path === 'water' && pt && pt.kind === 'water' && cul && cul.done) { const d = ucDownstream(pt.river, pt.s, sm.river, sm.s); if (d >= 0 && d < 140 && cul.lv >= 2) key = true; if (sm.river === pt.river && sm.s < pt.s && pt.s - sm.s < 70 && cul.lv <= 1) key = true; }   // 바로 위가 '평소·조금'(기준 안의 평소 배출 정도)이면 깨끗한 쪽
       const rows = D.map(i => '<tr' + (i.lv >= 2 ? ' class="hotrow"' : '') + '><th>' + i.n + '</th><td>' + i.r + '</td><td>' + (i.drops ? '빨간 방울 ' + ['거의 없음', '조금', '많음', '아주 많음'][i.lv] : '<span class="mg-sw" style="background:' + i.c[i.lv] + '"></span>') + '</td><td><b>' + LV[i.lv] + '</b></td></tr>').join('');
-      const hints = []; if (top.lv >= 2) { hints.push(['①', '크게 반응한 시약: <b>' + strong.map(i => i.n + '(' + LV[i.lv] + ')').join(' · ') + '</b> → 오염물질 <b>후보</b>예요. 간이 시약은 비슷한 물질에도 반응해요 (과망간산칼륨은 페놀·기름 같은 다른 유기물에도) → 📊 정밀분석 숫자로 확인하세요']); hints.push(['③', '이 시료를 뜬 곳까지 오염물질이 내려왔어요 → 출발점은 여기보다 위쪽(상류)']); }
+      const hints = []; if (top.lv >= 2) { hints.push(['①', '크게 반응한 시약: <b>' + strong.map(i => i.n + '(' + LV[i.lv] + ')').join(' · ') + '</b> → 오염물질 <b>후보</b>예요. 간이 시약은 비슷한 물질에도 반응해요 (과망간산칼륨은 페놀·기름 같은 다른 유기물에도) → 📊 연구원 분석 숫자로 확인하세요']); hints.push(['③', '이 시료를 뜬 곳까지 오염물질이 내려왔어요 → 출발점은 여기보다 위쪽(상류)']); }
       else hints.push(['①', '크게 반응한 시약이 없어요 → 이 자리는 깨끗하거나 오염이 아직 안 닿았어요 (조금 반응은 다른 시설의 평소 배출일 수 있어요)']);
       this.addEvidence({ title: '⚗️ 시약 실험 · ' + where, key, html: '<table><tr><th>찾는 물질</th><th>시약</th><th>색</th><th>양</th></tr>' + rows + '</table><p class="dim">시료를 뜬 시각 ' + H(sm.takenH) + ' · 비교표: 평소 · 조금 · 많이 · 아주 많이 (시약마다 비교표가 달라요)</p>' + hintBox(hints) });
       this.toast('⚗️ 시약 실험 결과를 수첩에 적었어요');
@@ -598,7 +598,7 @@
         if (ph === 'summary') { const cw = Math.min(W * 0.9, 460), chh = Math.min(H2 * 0.92, 290), cx = (W - cw) / 2, cy = (H2 - chh) / 2, lh = compact ? 19 : 24; card(g, cx, cy, cw, chh, Math.min(1, t * 5)); let y = cy + (compact ? 24 : 32);
           txt(g, '시약 실험 결과', W / 2, y, F9(compact ? 16 : 19), '#FFF6DA'); y += lh + 2; g.textAlign = 'left'; g.font = F7(compact ? 13 : 14.5);
           items.forEach(i => { g.fillStyle = i.c[i.lv]; if (!i.drops) { rr(g, cx + 24, y - 12, 18, 14, 4); g.fill(); } else drawDrops(g, cx + 33, y - 12, 16, Math.min(6, i.drops[i.lv]), 5); g.fillStyle = i.lv >= 2 ? '#FF9A8A' : '#C9D0DD'; g.fillText(i.n + ' — ' + LV[i.lv], cx + 50, y); y += lh; });
-          const st2 = items.filter(i => i.lv >= 2); g.textAlign = 'center'; g.font = F8(compact ? 13 : 14.5); g.fillStyle = '#FFD166'; wrapText(g, st2.length ? '크게 반응: ' + st2.map(i => i.n).join(' · ') + ' → ① 후보 (📊 정밀분석으로 확인)' : '크게 반응한 시약이 없어요 — 이 자리는 깨끗한 편', W / 2, y + 4, cw - 36, 18); g.globalAlpha = 1; }
+          const st2 = items.filter(i => i.lv >= 2); g.textAlign = 'center'; g.font = F8(compact ? 13 : 14.5); g.fillStyle = '#FFD166'; wrapText(g, st2.length ? '크게 반응: ' + st2.map(i => i.n).join(' · ') + ' → ① 후보 (📊 연구원 분석으로 확인)' : '크게 반응한 시약이 없어요 — 이 자리는 깨끗한 편', W / 2, y + 4, cw - 36, 18); g.globalAlpha = 1; }
         m.sub('물 시료 · ' + where); m.cnt('시약 ' + items.filter(i => i.done).length + ' / ' + n);
         m.tip(ph === 'summary' ? '수첩에 적으면 증거로 쓸 수 있어요' : ph === 'match' ? '시험관 색과 가장 비슷한 칸을 눌러요' : ph === 'mix' ? '시약을 넣는 중…' : '시험관을 눌러 시약을 넣어요 (또는 아래 단추)');
         m.act(ph === 'summary' ? '📓 수첩에 적기' : ph === 'pick' ? '다음 시약 넣기' : ph === 'mix' ? '…' : '비교표에서 골라요');
@@ -616,7 +616,7 @@
       const rat = i => i.v / UC_POL[i.p].base, top = D.slice().sort((a, b) => rat(b) - rat(a))[0];
       const rows = D.map(i => '<tr' + (rat(i) >= 5 ? ' class="hotrow"' : '') + '><th>' + i.n + '</th><td><b>' + (i.read != null ? i.read : Math.round(i.v)) + ' ppb</b></td><td class="dim">평소 ' + UC_POL[i.p].base + ' ppb · 약 ' + Math.max(1, Math.round(rat(i))) + '배</td></tr>').join('');
       const hi = D.filter(i => rat(i) >= 5).sort((a, b) => rat(b) - rat(a));
-      const hints = rat(top) >= 5 ? [['①', '평소보다 크게 높은 관: <b>' + hi.map(i => i.n + ' ' + Math.round(rat(i)) + '배').join(' · ') + '</b> → 오염물질 <b>후보</b>예요. 검지관은 비슷한 물질에도 조금 반응해요 (벤젠관 ↔ 톨루엔관) → 📊 정밀분석으로 확인하고, 냄새도 맞는지 보세요 (' + hi.map(i => i.n + ': ' + UC_POL[i.p].smell).join(' · ') + ')'], ['②', '그 물질을 허가받은 시설은 여럿이에요 — 🗂 서류(허가 물질)와 🧭 바람길로 좁혀요']] : [['①', '크게 높은 물질이 없어요 — 냄새가 심했던 다른 센서의 공기 시료도 확인해 보세요']];
+      const hints = rat(top) >= 5 ? [['①', '평소보다 크게 높은 관: <b>' + hi.map(i => i.n + ' ' + Math.round(rat(i)) + '배').join(' · ') + '</b> → 오염물질 <b>후보</b>예요. 검지관은 비슷한 물질에도 조금 반응해요 (벤젠관 ↔ 톨루엔관) → 📊 연구원 분석으로 확인하고, 냄새도 맞는지 보세요 (' + hi.map(i => i.n + ': ' + UC_POL[i.p].smell).join(' · ') + ')'], ['②', '그 물질을 허가받은 시설은 여럿이에요 — 🗂 서류(허가 물질)와 🧭 바람길로 좁혀요']] : [['①', '크게 높은 물질이 없어요 — 냄새가 심했던 다른 센서의 공기 시료도 확인해 보세요']];
       this.addEvidence({ title: '⚗️ 검지관 · ' + where, key, html: '<table><tr><th>물질</th><th>읽은 눈금</th><th></th></tr>' + rows + '</table><p class="dim">센서가 밤사이 냄새가 가장 심했을 때 자동으로 채집해 둔 공기예요.</p>' + hintBox(hints) });
       this.toast('⚗️ 검지관 결과를 수첩에 적었어요');
     };
@@ -648,7 +648,7 @@
         if (ph === 'summary') { const cw = Math.min(W * 0.9, 440), chh = Math.min(H2 * 0.9, 230), cx = (W - cw) / 2, cy = (H2 - chh) / 2, lh = compact ? 20 : 26; card(g, cx, cy, cw, chh, Math.min(1, t * 5)); let y = cy + (compact ? 26 : 34);
           txt(g, '검지관 결과', W / 2, y, F9(compact ? 16 : 19), '#FFF6DA'); y += lh; g.textAlign = 'left'; g.font = F7(compact ? 13 : 14.5);
           items.forEach(d => { const r = rat2(d); g.fillStyle = r >= 5 ? '#FF9A8A' : '#C9D0DD'; g.fillText(d.n + ' ' + d.read + ' ppb · 평소의 약 ' + Math.max(1, Math.round(r)) + '배', cx + 26, y); y += lh; });
-          const hi2 = items.filter(d => rat2(d) >= 5).sort((a, b) => rat2(b) - rat2(a)); g.textAlign = 'center'; g.fillStyle = '#FFD166'; g.font = F8(compact ? 13 : 14.5); wrapText(g, hi2.length ? '크게 높은 관: ' + hi2.map(d => d.n).join(' · ') + ' → ① 후보 (📊 정밀분석으로 확인)' : '크게 높은 물질이 없어요', W / 2, y + 4, cw - 36, 18); g.globalAlpha = 1; }
+          const hi2 = items.filter(d => rat2(d) >= 5).sort((a, b) => rat2(b) - rat2(a)); g.textAlign = 'center'; g.fillStyle = '#FFD166'; g.font = F8(compact ? 13 : 14.5); wrapText(g, hi2.length ? '크게 높은 관: ' + hi2.map(d => d.n).join(' · ') + ' → ① 후보 (📊 연구원 분석으로 확인)' : '크게 높은 물질이 없어요', W / 2, y + 4, cw - 36, 18); g.globalAlpha = 1; }
         m.sub('공기 시료 · ' + where); m.cnt('검지관 ' + items.filter(d => d.done).length + ' / ' + items.length);
         m.tip(ph === 'pump' ? it.n + ' 검지관: 누르고 있으면 펌프로 공기를 빨아들여요 — 그 물질이 많을수록 색이 멀리 번져요' : ph === 'read' ? '색이 번진 끝의 눈금을 눌러 읽어요' : '수첩에 적으면 증거로 쓸 수 있어요');
         m.act(ph === 'pump' ? '펌프 당기기 (누르고 있기)' : ph === 'read' ? '눈금을 눌러 읽기' : '📓 수첩에 적기');

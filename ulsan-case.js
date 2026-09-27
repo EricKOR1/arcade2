@@ -37,31 +37,35 @@ function ucDownstream(r0, s0, r1, s1) {
 }
 
 // ── 오염물질: 정밀분석 항목 · 평소값 · 기준 · 현장 관찰 · 건강 증상 ──
+//   이름은 중학생이 읽기 쉬운 말로 (v2026-10-19a · 예전: 암모니아성 질소 · 유분(기름) · BOD(유기물)) · desc = 한 줄 설명(분석표·보고서에 함께)
 const UC_POL = {
-  phenol:  { name: '페놀', path: 'water', unit: 'mg/L', base: 0.002, limit: 0.005, peak: 0.9, panel: 'organic', smell: '소독약 같은 냄새', sym: '피부 따가움·가려움' },
-  cadmium: { name: '카드뮴', path: 'water', unit: 'mg/L', base: 0.0004, limit: 0.005, peak: 0.06, panel: 'metal', smell: '', sym: '' },
-  ammonia: { name: '암모니아성 질소', path: 'water', unit: 'mg/L', base: 0.25, limit: 1.5, peak: 7, panel: 'nutrient', smell: '지린내', sym: '눈 따가움' },
-  oil:     { name: '유분(기름)', path: 'water', unit: 'mg/L', base: 0.3, limit: 1, peak: 9, panel: 'oil', smell: '기름 냄새', sym: '' },
-  bod:     { name: 'BOD(유기물)', path: 'water', unit: 'mg/L', base: 1.8, limit: 5, peak: 28, panel: 'bod', smell: '썩은 냄새', sym: '' },
-  benzene: { name: '벤젠', path: 'air', unit: 'ppb', base: 0.7, limit: 1.5, peak: 60, panel: 'air', smell: '휘발유 같은 냄새', sym: '두통·어지럼' },
-  toluene: { name: '톨루엔', path: 'air', unit: 'ppb', base: 3, limit: 50, peak: 260, panel: 'air', smell: '페인트(시너) 냄새', sym: '두통·메스꺼움' },
-  h2s:     { name: '황화수소', path: 'air', unit: 'ppb', base: 0.5, limit: 20, peak: 180, panel: 'air', smell: '달걀 썩는 냄새', sym: '두통·눈 따가움' }
+  phenol:  { name: '페놀', desc: '소독약 냄새가 나는 물질', path: 'water', unit: 'mg/L', base: 0.002, limit: 0.005, peak: 0.9, panel: 'organic', smell: '소독약 같은 냄새', sym: '피부 따가움·가려움' },
+  cadmium: { name: '카드뮴', desc: '몸에 쌓이는 중금속 (냄새 없음)', path: 'water', unit: 'mg/L', base: 0.0004, limit: 0.005, peak: 0.06, panel: 'metal', smell: '', sym: '' },
+  ammonia: { name: '암모니아', desc: '지린내 나는 물질 (비료·오줌)', path: 'water', unit: 'mg/L', base: 0.25, limit: 1.5, peak: 7, panel: 'nutrient', smell: '지린내', sym: '눈 따가움' },
+  oil:     { name: '기름', desc: '물 위에 무지갯빛 막을 만듦', path: 'water', unit: 'mg/L', base: 0.3, limit: 1, peak: 9, panel: 'oil', smell: '기름 냄새', sym: '' },
+  bod:     { name: '유기물', desc: '썩으면서 물속 산소를 없앰 (음식 찌꺼기·하수)', path: 'water', unit: 'mg/L', base: 1.8, limit: 5, peak: 28, panel: 'bod', smell: '썩은 냄새', sym: '' },
+  benzene: { name: '벤젠', desc: '휘발유 냄새 · 오래 마시면 위험한 물질', path: 'air', unit: 'ppb', base: 0.7, limit: 1.5, peak: 60, panel: 'air', smell: '휘발유 같은 냄새', sym: '두통·어지럼' },
+  toluene: { name: '톨루엔', desc: '페인트(시너) 냄새가 나는 물질', path: 'air', unit: 'ppb', base: 3, limit: 50, peak: 260, panel: 'air', smell: '페인트(시너) 냄새', sym: '두통·메스꺼움' },
+  h2s:     { name: '황화수소', desc: '달걀 썩는 냄새가 나는 기체', path: 'air', unit: 'ppb', base: 0.5, limit: 20, peak: 180, panel: 'air', smell: '달걀 썩는 냄새', sym: '두통·눈 따가움' }
 };
-const UC_PANELS = { organic: '유기화합물(페놀·벤젠)', metal: '중금속(카드뮴·아연)', nutrient: '영양염(암모니아·질산)', oil: '유분(기름)', bod: 'BOD(유기물 오염도)', air: '대기 시료(벤젠·톨루엔·황화수소)' };
+const UC_PANELS = { organic: '페놀·벤젠', metal: '카드뮴(중금속)', nutrient: '암모니아', oil: '기름', bod: '유기물', air: '공기 속 물질(벤젠·톨루엔·황화수소)' };
+const UC_WATER_POLS = ['phenol', 'cadmium', 'ammonia', 'oil', 'bod'], UC_AIR_POLS = ['benzene', 'toluene', 'h2s'];   // 연구원 분석: 물 시료 = 5가지 한꺼번에 · 공기 시료 = 3가지
 
-// ── 시설 (가상 이름 · 실제 산단·처리장 위치에 배치) — 배출구(물) · 굴뚝(공기) ──
+// ── 시설 (모두 가상 이름 · 실제 회사·처리장과 관계없음 — 실제 산단·처리장 자리에 배치) — 배출구(물) · 굴뚝(공기) ──
+//   v2026-10-19a: 실제 회사·처리장과 헷갈릴 수 있던 이름을 누가 봐도 가상인 이름으로 바꿈
 const UC_FAC = {
-  F1: { name: '태광유화 (석유화학 수지공장)', zone: '남구 석유화학단지', at: [112.7, 23.4], can: ['phenol', 'benzene', 'toluene', 'oil'],
+  F1: { name: '무지개화학 (석유화학 수지공장)', zone: '남구 석유화학단지', at: [112.7, 23.4], can: ['phenol', 'benzene', 'toluene', 'oil'],
         outs: [{ id: 'F1-A', kind: 'water', river: 'yeocheon', s: 41.5, label: '폐수 방류구' }, { id: 'F1-B', kind: 'water', river: 'yeocheon', s: 23.8, label: '빗물 배수구' }], stacks: [{ id: 'F1-S', x: 116.8, z: 27.1, label: '공정 굴뚝' }] },
-  F2: { name: '한울정유 (정유공장)', zone: '남구 석유화학단지', at: [137.9, 44.4], can: ['benzene', 'h2s', 'oil', 'phenol'],
+  F2: { name: '고래정유 (정유공장)', zone: '남구 석유화학단지', at: [137.9, 44.4], can: ['benzene', 'h2s', 'oil', 'phenol'],
         outs: [{ id: 'F2-A', kind: 'water', river: 'yeocheon', s: 68.9, label: '폐수 방류구' }], stacks: [{ id: 'F2-S1', x: 132.9, z: 46.8, label: '가열로 굴뚝' }, { id: 'F2-S2', x: 146.0, z: 40.7, label: '황 회수 굴뚝' }] },
-  F3: { name: '동해비철금속 (제련소)', zone: '온산국가산단', at: [132.9, 99.9], can: ['cadmium'], outs: [{ id: 'F3-A', kind: 'water', river: 'oehwang', s: 102.2, label: '폐수 방류구' }], stacks: [] },
-  F4: { name: '새봄비료화학', zone: '청량·온산', at: [80.5, 67.8], can: ['ammonia', 'cadmium'], outs: [{ id: 'F4-A', kind: 'water', river: 'oehwang', s: 50.4, label: '폐수 방류구' }], stacks: [] },
-  F5: { name: '미래자동차 도장공장', zone: '북구 양정동(미포국가산단)', at: [169.1, -43.1], can: ['toluene'], outs: [], stacks: [{ id: 'F5-S1', x: 165.1, z: -46.8, label: '도장 1라인 굴뚝' }, { id: 'F5-S2', x: 174.2, z: -39.4, label: '도장 2라인 굴뚝' }] },
-  F6: { name: '굴화하수처리장', zone: '울주군 범서읍 굴화', at: [32.2, -28.4], can: ['ammonia', 'bod'], outs: [{ id: 'F6-A', kind: 'water', river: 'taehwa', s: 259.4, label: '처리수 방류구' }], stacks: [] },
-  F7: { name: '청솔식품 공장', zone: '울주군 언양읍', at: [-102.7, -40.7], can: ['bod', 'ammonia'], outs: [{ id: 'F7-A', kind: 'water', river: 'taehwa', s: 115.3, label: '폐수 방류구' }], stacks: [] },
-  F8: { name: '용연하수처리장', zone: '남구 용연동', at: [118.8, 60.4], can: ['ammonia', 'h2s'], outs: [{ id: 'F8-A', kind: 'water', river: 'oehwang', s: 91.3, label: '처리수 방류구' }], stacks: [{ id: 'F8-S', x: 122.8, z: 57.9, label: '슬러지동 배기구' }] }
+  F3: { name: '은별제련 (금속 제련소)', zone: '온산 공단', at: [132.9, 99.9], can: ['cadmium'], outs: [{ id: 'F3-A', kind: 'water', river: 'oehwang', s: 102.2, label: '폐수 방류구' }], stacks: [] },
+  F4: { name: '풀잎비료 (비료공장)', zone: '청량·온산', at: [80.5, 67.8], can: ['ammonia', 'cadmium'], outs: [{ id: 'F4-A', kind: 'water', river: 'oehwang', s: 50.4, label: '폐수 방류구' }], stacks: [] },
+  F5: { name: '파랑새자동차 (도장공장)', zone: '북구 양정동', at: [169.1, -43.1], can: ['toluene'], outs: [], stacks: [{ id: 'F5-S1', x: 165.1, z: -46.8, label: '도장 1라인 굴뚝' }, { id: 'F5-S2', x: 174.2, z: -39.4, label: '도장 2라인 굴뚝' }] },
+  F6: { name: '푸른강 하수처리장', zone: '울주군 범서읍', at: [32.2, -28.4], can: ['ammonia', 'bod'], outs: [{ id: 'F6-A', kind: 'water', river: 'taehwa', s: 259.4, label: '처리수 방류구' }], stacks: [] },
+  F7: { name: '꿀맛식품 (식품공장)', zone: '울주군 언양읍', at: [-102.7, -40.7], can: ['bod', 'ammonia'], outs: [{ id: 'F7-A', kind: 'water', river: 'taehwa', s: 115.3, label: '폐수 방류구' }], stacks: [] },
+  F8: { name: '바닷가 하수처리장', zone: '남구 용연동', at: [118.8, 60.4], can: ['ammonia', 'h2s'], outs: [{ id: 'F8-A', kind: 'water', river: 'oehwang', s: 91.3, label: '처리수 방류구' }], stacks: [{ id: 'F8-S', x: 122.8, z: 57.9, label: '찌꺼기 창고 배기구' }] }
 };
+function ucFacShort(F) { return (typeof F === 'string' ? UC_FAC[F] : F).name.split(' (')[0]; }   // '무지개화학'
 // 허가 물질을 어디에 쓰는지 (서류에 함께 적힘) — 같은 물질을 다루는 시설이 늘 두 곳 이상 (물질만으로 시설이 정해지지 않게)
 const UC_USE = { F1: { phenol: '수지 원료', benzene: '원료', toluene: '수지를 녹이는 용제', oil: '공정 기름' }, F2: { benzene: '휘발유 성분', h2s: '원유의 황', oil: '원유·기름', phenol: '정유 폐수에 섞여 나옴' },
   F3: { cadmium: '아연 광석에 섞여 나옴' }, F4: { ammonia: '비료 원료', cadmium: '인산비료 원료(인광석)에 조금 섞여 있음' }, F5: { toluene: '페인트 희석제(시너)' },
@@ -95,7 +99,7 @@ const UC_BIO = [
   { id: 'B-T2', river: 'taehwa', s: 386.4, name: '태화강 하류 바이오센서', side: 1 },
   { id: 'B-D', river: 'dongcheon', s: 55, name: '동천 바이오센서' },
   { id: 'B-Y', river: 'yeocheon', s: 55.2, name: '여천천 바이오센서' },
-  { id: 'B-Y2', river: 'yeocheon', s: 84, name: '여천천 하구 바이오센서', side: 1 },   // 한울정유 방류구(F2-A) 아래 — 예전엔 F2-A 사건에 시각 단서가 없었음
+  { id: 'B-Y2', river: 'yeocheon', s: 84, name: '여천천 하구 바이오센서', side: 1 },   // 고래정유 방류구(F2-A) 아래 — 예전엔 F2-A 사건에 시각 단서가 없었음
   { id: 'B-O', river: 'oehwang', s: 70.8, name: '외황강 바이오센서', side: 1 },
   { id: 'B-H', river: 'hoeya', s: 89.2, name: '회야강 바이오센서' }
 ];
@@ -115,10 +119,12 @@ const UC_AIR = [
 ];
 
 // ── 교사 설정: 난이도 · 사건 수 · 사건당 시간(분) ── 세션 track 값 'normal:2:20' 처럼 전달 (난이도만 오면 기본값)
+//   v2026-10-19a: 중학생 눈높이로 낮춤 — 쉬움 = 함정 없음(서류의 빈 기록 = 범인) · 보통 = 헷갈리는 빈 기록 1곳 + 소문 · 어려움 = 예전 '보통'(평소 배출 · 고장 2곳 · 거짓말)
+//   cand: '다음 할 일'에 그 물질을 쓰는 시설 이름을 알려 줌 · staff: 시설 정문의 환경팀장(늘 '기록이 빈 건 고장'이라고 둘러댐)을 둠
 const UC_MODES = {
-  easy:   { name: '쉬움', tag: '처음 해 보는 반', desc: '평소 배출 없음 · 계측기 고장 1곳 · 분석 1시간 · "평소의 몇 배" 강조 · 배출 지점 목록 제공 · 추리 도움말', cases: 2, min: 15, decoy: 0, rumor: false, lie: false, labH: 1, ednaH: 1.5, ratio: 'strong', allPoints: true, guide: 'full' },
-  normal: { name: '보통', tag: '추천 · 1시간 수업', desc: '평소 배출 조금 · 계측기 고장 2곳 · 소문과 거짓말 · 분석 2시간 · "평소의 몇 배" 표시', cases: 2, min: 20, decoy: 0.22, decoyK: 0.6, rumor: true, lie: true, labH: 2, ednaH: 3, ratio: 'plain', allPoints: false, guide: 'short' },
-  hard:   { name: '어려움', tag: '추리 고수', desc: '평소 배출 많음 · 계측기 고장 2곳 · 소문과 거짓말 · 분석 2~3시간 · 숫자만 보고 직접 판단', cases: 3, min: 18, decoy: 0.45, decoyK: 1, rumor: true, lie: true, labH: 2, ednaH: 3, ratio: 'none', allPoints: false, guide: 'none' }
+  easy:   { name: '쉬움', tag: '처음 해 보는 반', desc: '함정 없음 · 밤에 기록이 빈 곳 = 범인 · 분석 30분 · 다음 할 일과 길 안내 · 배출 지점 지도에 표시', cases: 2, min: 15, decoy: 0, rumor: false, lie: false, labH: 0.5, ednaH: 1, ratio: 'strong', allPoints: true, guide: 'full', cand: true },
+  normal: { name: '보통', tag: '추천 · 중학생', desc: '헷갈리는 빈 기록 1곳(계측기 고장) · 소문 하나 · 분석 1시간 · 다음 할 일과 길 안내', cases: 2, min: 20, decoy: 0, rumor: true, lie: false, labH: 1, ednaH: 1.5, ratio: 'strong', allPoints: false, guide: 'full', cand: true },
+  hard:   { name: '어려움', tag: '추리 고수', desc: '평소 배출 조금 · 헷갈리는 빈 기록 2곳 · 소문과 거짓말 · 분석 2시간 · 안내는 짧게', cases: 3, min: 18, decoy: 0.22, decoyK: 0.6, rumor: true, lie: true, labH: 2, ednaH: 3, ratio: 'plain', allPoints: false, guide: 'short', cand: false }
 };
 function ucSettings(trackId) {
   const p = String(trackId || '').split(':'), d = UC_MODES[p[0]] ? p[0] : 'normal', M = UC_MODES[d];
@@ -231,7 +237,7 @@ function ucAirLog(C, st, nowH) {
 //   범인의 몰래 배출 한 건 + 다른 시설의 '계측기 고장·점검으로 기록이 빈 때'(깨끗한 물·수증기) 몇 건 — 겉으로는 똑같이 보여요
 //   그래서 서류·경비원·드론만으로는 누구인지 못 정하고, 오염 측정(어디가 오염됐나)과 시각(거꾸로 계산한 출발 시각)을 맞춰야 가려져요
 //   다른 시설 일은 일부러 헷갈리지 않는 시각에: 그 배출구가 범인이었다면 나왔을 출발 시각에서 1.5시간 넘게 떨어뜨림
-const UC_GLITCH_N = { easy: 1, normal: 2, hard: 2 };
+const UC_GLITCH_N = { easy: 0, normal: 1, hard: 2 };   // v2026-10-19a (예전 1 · 2 · 2)
 // 드론 열화상 구역 (🛸) — 구역마다 한 번에 찍히는 시설
 const UC_ZONES = [{ id: 'petro', n: '여천천 석유화학단지', f: ['F1', 'F2'] }, { id: 'onsan', n: '외황강·온산', f: ['F3', 'F4', 'F8'] }, { id: 'gulhwa', n: '태화강 굴화', f: ['F6'] }, { id: 'eonyang', n: '태화강 언양', f: ['F7'] }, { id: 'yangjeong', n: '북구 양정동', f: ['F5'] }];
 function ucNightEvents(C) {
@@ -349,4 +355,4 @@ function ucScore(C, rep) {
   const grade = score >= 95 ? 'S' : score >= 80 ? 'A' : score >= 60 ? 'B' : score >= 40 ? 'C' : 'D';
   return Object.assign(r, { keys, score, grade });
 }
-if (typeof module !== 'undefined') module.exports = { ucRngH, UC_MODES, ucSettings, UC_KM, UC_RIVERS, UC_POL, UC_PANELS, UC_FAC, UC_PLACES, UC_START, UC_BIO, UC_AIR, UC_SLOTS, ucLen, ucAt, ucProject, ucDownstream, ucRng, ucMakeCase, ucPoint, ucWaterConc, ucAirConc, ucFieldKit, ucBioLog, ucEdna, ucAirLog, ucFacilityRecord, ucTestimony, ucGuardLine, ucHm, ucMouthArrive, ucReportSpot, ucAirHits, UC_REPORT_H, ucManagerLine, ucSlot, ucScore, ucYard, ucGate, ucFence, UC_NPC_AT, ucNpcAt, ucBioAt, UC_USE, ucNightEvents, ucEventAt, ucPlaceText, ucJ, UC_GLITCH_N, UC_ZONES, ucAirSpike };
+if (typeof module !== 'undefined') module.exports = { ucRngH, UC_MODES, ucSettings, UC_KM, UC_RIVERS, UC_POL, UC_PANELS, UC_FAC, UC_PLACES, UC_START, UC_BIO, UC_AIR, UC_SLOTS, ucLen, ucAt, ucProject, ucDownstream, ucRng, ucMakeCase, ucPoint, ucWaterConc, ucAirConc, ucFieldKit, ucBioLog, ucEdna, ucAirLog, ucFacilityRecord, ucTestimony, ucGuardLine, ucHm, ucMouthArrive, ucReportSpot, ucAirHits, UC_REPORT_H, ucManagerLine, ucSlot, ucScore, ucYard, ucGate, ucFence, UC_NPC_AT, ucNpcAt, ucBioAt, UC_USE, ucNightEvents, ucEventAt, ucPlaceText, ucJ, UC_GLITCH_N, UC_ZONES, ucAirSpike, ucFacShort, UC_WATER_POLS, UC_AIR_POLS };
