@@ -344,12 +344,12 @@ const GAMES = {
     type: 'canvas',
     name: '울산 환경 수사대 3D',
     desc: '실제 울산 지도를 3D로 돌아다니며 직접 조사한 사실로 오염물질·범인 시설·정확한 배출 지점·배출 시각을 밝히는 추리 롤플레잉. 교사가 난이도·사건 수·사건당 시간을 정하고, 총점과 시간으로 순위를 매깁니다',
-    howto: '조이스틱(WASD) 이동 · 🔍 조사/대화(E) · 강가: 현장 측정·시료 채취 · 연구원: 정밀분석(2시간 뒤) · 센서: 밤사이 기록 · 사람·시설: 증언·서류 · 사건마다 제한 시간 안에 📝 보고서 (시간이 다 되면 자동 제출)',
+    howto: '조이스틱(WASD) 이동 · 🔍 조사/대화(E) · 왼쪽 위 다음 할 일의 📍·🚙 로 갈 곳 찾기 · ⚗️ 시약 실험 → 연구원 분석 · 🔬 물벼룩 독성 지도 / 🧭 바람길 → 시설 서류 · ⭐ 미니게임 별 · 🚨 긴급 추격 · 사건마다 제한 시간 안에 📝 보고서',
     meta: '개인 추리 RPG · 3D · 난이도 3단계 · 울산 특강 연계',
     primary: '70% 0.16 150', primaryContent: '100% 0 0', hex: '#1FBF6A',
     grid: { cols: 30, rows: 30 },
     adminView: 'grid', fullBleed: true, engine3d: true,
-    needsPeers: false, hasNext: false, overText: '수사 종료',
+    needsPeers: false, feed: true, hasNext: false, overText: '수사 종료',   // feed: 반 친구 소식 (events) 만 받음
     hasTracks: true, trackKind: 'map', mapRegistry: 'ulsan',   // 교사 화면에서 난이도·사건 수·사건당 시간을 고름 (track = 'normal:2:20')
     stats: [{ key: 'evidenceCount', label: '증거' }, { key: 'score', label: '점수' }],
     detail: function (g) { return g.done ? ('수사 완료 · ' + g.casesStr + ' · ' + g.score + '/' + (g.caseTotal * 100) + '점 · ' + g.set.name) : ('사건 ' + g.caseNo + '/' + g.caseTotal + ' · ' + (g.results.length ? g.casesStr + ' · ' : '') + '증거 ' + g.evidenceCount + '건'); },

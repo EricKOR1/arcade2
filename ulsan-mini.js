@@ -32,7 +32,8 @@
   // 사람 대화창에 붙는 미니게임 단추
   P.talkExtra = function (id) {
     if (id === 'riverman') return [['🛸 야간 드론 열화상 사진', () => this.droneMenu()], ['⏪ 시간 되감기', () => this.rewindMenu()]];
-    if (id === 'forecaster') return [['🧭 바람길 거꾸로 그리기', () => this.startWind()]];
+    if (id === 'forecaster') return [['🧭 바람길 거꾸로 그리기 (미니게임)', () => this.startWind()]];
+    if (id === 'researcher') return [['🔬 시료 분석 · 실험 창구', () => this.labMenu()]];   // 도착하면 연구원 앞 — 대화창에서 바로 분석·실험
     return [];
   };
 
@@ -288,7 +289,7 @@
     const M = this.miniState(), T = M.dtests.filter(d => d.river === rid).sort((a, b) => a.s - b.s); if (!T.length) return '';
     const O = Object.keys(this.known).map(ucPoint).filter(p => p && p.kind === 'water' && p.river === rid), all = T.map(d => d.s).concat(O.map(o => o.s));
     let a = Math.min(...all), b = Math.max(...all); const pad = Math.max(10, (b - a) * 0.12); a -= pad; b += pad; const X = s => (14 + (s - a) / (b - a) * 292).toFixed(1);
-    const colr = p => p >= 50 ? '#E63946' : p >= 20 ? '#F4A261' : '#2A9D8F';
+    const colr = p => p >= 50 ? '#E63946' : p >= 20 ? '#F4A261' : p >= 10 ? '#E9C46A' : '#2A9D8F';   // 빨강 높음 · 주황 있음 · 노랑 애매 · 초록 깨끗
     let svg = '<svg viewBox="0 0 320 100" class="mg-map" role="img" aria-label="독성 지도"><text x="6" y="13" class="t">' + UC_RIVERS[rid].name + ' 🗺 독성 지도 (움직이지 않는 물벼룩 %)</text><text x="6" y="96" class="t2">← 상류</text><text x="314" y="96" class="t2" text-anchor="end">하류 →</text><path d="M8 54 H312" class="rv"/>';
     O.forEach(o => { svg += '<path d="M' + X(o.s) + ' 44 l-5 -9 h10 z" class="ot"/><text x="' + X(o.s) + '" y="31" class="t3" text-anchor="middle">▼' + o.id + '</text>'; });
     T.forEach(d => { svg += '<circle cx="' + X(d.s) + '" cy="54" r="7" fill="' + colr(d.pct) + '" stroke="#0E1320" stroke-width="1.5"/><text x="' + X(d.s) + '" y="75" class="t3" text-anchor="middle">' + (d.s / UC_KM).toFixed(1) + 'km</text><text x="' + X(d.s) + '" y="86" class="t4" text-anchor="middle" fill="' + colr(d.pct) + '">' + d.pct + '%</text>'; });
@@ -308,14 +309,17 @@
     const where = sm.label.replace(/^💧 물 /, '');
     const finish = () => {
       if (done) return; done = true; if (ph !== 'end') return; sm.dtest = true; this.spend(0.25);
-      const C = this.C, Q = UC_POL[C.pol], pt = ucPoint(C.point), pct = Math.round(k / N * 100), lv = pct >= 50 ? '독성 높음' : pct >= 20 ? '독성 조금' : '독성 거의 없음', M = this.miniState();
+      const C = this.C, Q = UC_POL[C.pol], pt = ucPoint(C.point), pct = Math.round(k / N * 100), lv = pct >= 50 ? '독성 높음' : pct >= 20 ? '독성 있음' : pct >= 10 ? '애매해요 (조금 둔함)' : '깨끗해요', M = this.miniState(), W0 = this.warrantFacs();
       let key = false; if (Q.path === 'water' && pt && pt.kind === 'water') { const d = ucDownstream(pt.river, pt.s, sm.river, sm.s); if (d >= 0 && d < 140 && k >= 4) key = true; if (sm.river === pt.river && sm.s < pt.s && pt.s - sm.s < 70 && k <= 1) key = true; }
       M.dtests.push({ river: sm.river, s: sm.s, pct, h: sm.takenH });
-      const same = M.dtests.filter(d => d.river === sm.river).length, hints = [['③', pct >= 20 ? '이 시료를 뜬 곳까지 독성 물질이 내려왔어요 → 출발점은 여기보다 <b>위쪽(상류)</b>' : '독성이 거의 없어요 → 이 강이 오염됐다면 출발점은 여기보다 <b>아래쪽(하류)</b>']];
-      hints.push(['③', same >= 2 ? '🗺 독성 지도에서 <b>깨끗한 곳(초록)과 독한 곳(빨강) 사이의 ▼배출구</b>가 출발점 후보예요' : '같은 강의 위·아래 시료도 시험하면 🗺 독성 지도로 출발점을 좁힐 수 있어요']);
+      const W1 = this.warrantFacs(), got = [...W1].filter(k => !W0.has(k)), same = M.dtests.filter(d => d.river === sm.river).length;
+      const hints = [['③', pct >= 20 ? '이 시료를 뜬 곳까지 독성 물질이 내려왔어요 → 출발점은 여기보다 <b>위쪽(상류)</b>' : pct >= 10 ? '조금 둔한 물벼룩이 있어요 — 깨끗하다고도, 독하다고도 하기 어려워요' : '깨끗해요 → 이 강이 오염됐다면 출발점은 여기보다 <b>아래쪽(하류)</b>']];
+      if (got.length) hints.push(['②', '🔓 <b>독성이 시작되는 곳을 찾았어요!</b> 바로 위는 깨끗하고 바로 아래부터 독해요 → <b>' + got.map(k => short(UC_FAC[k])).join(' · ') + '</b> 정문에서 🗂 서류를 볼 수 있어요']);
+      else hints.push(['③', same >= 2 ? '🗺 독성 지도에서 <b>깨끗한 곳(초록)과 독한 곳(빨강) 사이의 ▼배출구</b>가 출발점이에요 — 그 배출구 바로 위·아래를 모두 시험해야 확실해요' : '같은 강의 위·아래 시료도 시험하면 🗺 독성 지도로 출발점을 좁힐 수 있어요']);
+      this._mgStars = k === 0 ? (wrong ? 2 : 3) : found >= k && !wrong ? 3 : found >= k * 0.6 && wrong <= 2 ? 2 : 1;   // ⭐ 별점: 가만히 있는 물벼룩을 모두 · 잘못 누르지 않고
       this.addEvidence({ title: '🔬 물벼룩 독성 시험 · ' + where, key, geo: { river: sm.river, s: sm.s },
         html: '<p>물벼룩 12마리 중 <b>' + k + '마리</b>가 움직이지 않음 (' + pct + '%) → <b class="' + (pct >= 20 ? 'no' : 'ok') + '">' + lv + '</b></p>' + this.toxMap(sm.river) + hintBox(hints) + '<p class="dim">대조군(깨끗한 물): 12마리 모두 움직임 · 내가 찾은 것 ' + found + '/' + k + (wrong ? ' · 잘못 누름 ' + wrong : '') + '<br>실제 급성 독성 시험은 24~48시간 동안 움직이지 않는 물벼룩의 비율을 봐요. 어떤 물질인지는 ⚗️ 시약 실험이나 📊 연구원 분석으로 확인하세요.</p>' });
-      this.toast('🔬 독성 시험 결과를 수첩에 적었어요');
+      this.toast(got.length ? '🔓 독성이 시작되는 배출구를 찾았어요 — ' + got.map(k => short(UC_FAC[k])).join(' · ') + ' 서류를 볼 수 있어요' : '🔬 독성 시험 결과를 수첩에 적었어요'); this._objKey = null;
     };
     const m = this.mgOpen({ emoji: '🔬', title: '물벼룩 독성 시험', act: '다 찾았어요',
       down: p => {
@@ -359,7 +363,7 @@
         if (ph === 'look') { const f = 1 - t / LIM; g.strokeStyle = f > 0.3 ? '#FFD166' : '#FF7A59'; g.lineWidth = 5; g.beginPath(); g.arc(cx, cy, R + 12, -Math.PI / 2, -Math.PI / 2 + f * Math.PI * 2); g.stroke(); }
         else { const pct = Math.round(k / N * 100), cw = Math.min(W * 0.84, 420), ch = 150; card(g, (W - cw) / 2, H2 - ch - 12, cw, ch, Math.min(1, t * 4));
           txt(g, '움직이지 않는 물벼룩 ' + k + ' / ' + N + ' (' + pct + '%)', W / 2, H2 - ch + 22, F9(18), '#FFF6DA');
-          txt(g, pct >= 50 ? '독성 높음 — 오염된 물이에요' : pct >= 20 ? '독성 조금 — 약하게 오염됐어요' : '독성 거의 없음 — 깨끗한 편', W / 2, H2 - ch + 48, F8(16), pct >= 50 ? '#FF9A8A' : pct >= 20 ? '#FFD166' : '#7DF58F');
+          txt(g, pct >= 50 ? '독성 높음 — 오염된 물이에요' : pct >= 20 ? '독성 있음 — 오염된 물이에요' : pct >= 10 ? '애매해요 — 조금 둔한 물벼룩이 있어요' : '깨끗해요 — 물벼룩이 모두 활발해요', W / 2, H2 - ch + 48, F8(16), pct >= 50 ? '#FF9A8A' : pct >= 20 ? '#FFD166' : pct >= 10 ? '#F1D38A' : '#7DF58F');
           txt(g, '내가 찾은 것 ' + found + ' / ' + k + (wrong ? ' · 잘못 누름 ' + wrong : '') + (k && found === k && !wrong ? ' · 완벽한 관찰! ⭐' : ''), W / 2, H2 - ch + 74, F6(13), '#AEB6C6');
           g.font = F6(13); wrapText(g, '위·아래 시료를 더 시험하면 수첩에 🗺 독성 지도가 그려져요 (빨간 점선 = 놓친 물벼룩)', W / 2, H2 - ch + 98, cw - 36, 17); g.globalAlpha = 1; }
         m.sub('시료 · ' + where); m.cnt(ph === 'look' ? '⏱ ' + Math.ceil(LIM - t) + '초 · 찾음 ' + found : '끝');
@@ -553,6 +557,7 @@
       const rows = D.map(i => '<tr' + (i.lv >= 2 ? ' class="hotrow"' : '') + '><th>' + i.n + '</th><td>' + i.r + '</td><td>' + (i.drops ? '빨간 방울 ' + ['거의 없음', '조금', '많음', '아주 많음'][i.lv] : '<span class="mg-sw" style="background:' + i.c[i.lv] + '"></span>') + '</td><td><b>' + LV[i.lv] + '</b></td></tr>').join('');
       const hints = []; if (top.lv >= 2) { hints.push(['①', '크게 반응한 시약: <b>' + strong.map(i => i.n + '(' + LV[i.lv] + ')').join(' · ') + '</b> → 오염물질 <b>후보</b>예요. 간이 시약은 비슷한 물질에도 반응해요 (과망간산칼륨은 페놀·기름 같은 다른 유기물에도) → 📊 연구원 분석 숫자로 확인하세요']); hints.push(['③', '이 시료를 뜬 곳까지 오염물질이 내려왔어요 → 출발점은 여기보다 위쪽(상류)']); }
       else hints.push(['①', '크게 반응한 시약이 없어요 → 이 자리는 깨끗하거나 오염이 아직 안 닿았어요 (조금 반응은 다른 시설의 평소 배출일 수 있어요)']);
+      const miss = items.reduce((a, i) => a + i.miss, 0); this._mgStars = miss === 0 ? 3 : miss <= 2 ? 2 : 1;   // ⭐ 색을 한 번에 맞힌 만큼
       this.addEvidence({ title: '⚗️ 시약 실험 · ' + where, key, html: '<table><tr><th>찾는 물질</th><th>시약</th><th>색</th><th>양</th></tr>' + rows + '</table><p class="dim">시료를 뜬 시각 ' + H(sm.takenH) + ' · 비교표: 평소 · 조금 · 많이 · 아주 많이 (시약마다 비교표가 달라요)</p>' + hintBox(hints) });
       this.toast('⚗️ 시약 실험 결과를 수첩에 적었어요');
     };
@@ -617,6 +622,7 @@
       const rows = D.map(i => '<tr' + (rat(i) >= 5 ? ' class="hotrow"' : '') + '><th>' + i.n + '</th><td><b>' + (i.read != null ? i.read : Math.round(i.v)) + ' ppb</b></td><td class="dim">평소 ' + UC_POL[i.p].base + ' ppb · 약 ' + Math.max(1, Math.round(rat(i))) + '배</td></tr>').join('');
       const hi = D.filter(i => rat(i) >= 5).sort((a, b) => rat(b) - rat(a));
       const hints = rat(top) >= 5 ? [['①', '평소보다 크게 높은 관: <b>' + hi.map(i => i.n + ' ' + Math.round(rat(i)) + '배').join(' · ') + '</b> → 오염물질 <b>후보</b>예요. 검지관은 비슷한 물질에도 조금 반응해요 (벤젠관 ↔ 톨루엔관) → 📊 연구원 분석으로 확인하고, 냄새도 맞는지 보세요 (' + hi.map(i => i.n + ': ' + UC_POL[i.p].smell).join(' · ') + ')'], ['②', '그 물질을 허가받은 시설은 여럿이에요 — 🗂 서류(허가 물질)와 🧭 바람길로 좁혀요']] : [['①', '크게 높은 물질이 없어요 — 냄새가 심했던 다른 센서의 공기 시료도 확인해 보세요']];
+      const miss = items.reduce((a, i) => a + i.miss, 0); this._mgStars = miss === 0 ? 3 : miss <= 2 ? 2 : 1;   // ⭐ 눈금을 한 번에 읽은 만큼
       this.addEvidence({ title: '⚗️ 검지관 · ' + where, key, html: '<table><tr><th>물질</th><th>읽은 눈금</th><th></th></tr>' + rows + '</table><p class="dim">센서가 밤사이 냄새가 가장 심했을 때 자동으로 채집해 둔 공기예요.</p>' + hintBox(hints) });
       this.toast('⚗️ 검지관 결과를 수첩에 적었어요');
     };
@@ -776,20 +782,23 @@
     const facs = Object.keys(UC_FAC).filter(k => UC_FAC[k].stacks.length);
     let bx0 = 1e9, bz0 = 1e9, bx1 = -1e9, bz1 = -1e9; const ext = (x, z) => { bx0 = Math.min(bx0, x); bx1 = Math.max(bx1, x); bz0 = Math.min(bz0, z); bz1 = Math.max(bz1, z); };
     S.forEach(x => { if (x.read) ext(x.st.x, x.st.z); }); facs.forEach(k => UC_FAC[k].stacks.forEach(s => ext(s.x, s.z))); bx0 -= 16; bz0 -= 16; bx1 += 16; bz1 += 16;   // 기록 본 센서 + 굴뚝 있는 시설만 (지도를 크게)
-    let sel = null, drag = null, fb = null, fbT = 0, t = 0, done = false, flashRay = null; const rays = [], Lm = {};
+    let sel = null, drag = null, fb = null, fbT = 0, t = 0, done = false, flashRay = null, bad = 0; const rays = [], Lm = {};
     const rayDist = (r, x, z) => { const px = x - r.st.x, pz = z - r.st.z, d = px * r.u[0] + pz * r.u[1]; return d < 0 ? Math.hypot(px, pz) : Math.abs(px * r.u[1] - pz * r.u[0]); };
     const rank = () => { if (rays.length < 2) return []; return facs.map(k => ({ k, sc: rays.reduce((a, r) => a + Math.min(...UC_FAC[k].stacks.map(s => rayDist(r, s.x, s.z))), 0) / rays.length })).sort((a, b) => a.sc - b.sc); };
     const cands = () => { const rk = rank(); if (!rk.length) return []; return rk.filter((x, i) => i < 2 || (i < 3 && x.sc < 40)).sort((a, b) => (a.k < b.k ? -1 : 1)); };   // 선이 모이는 곳에 가까운 굴뚝 2~3곳 (순위 없이 — 연기띠가 넓어 선만으로는 하나를 못 정함)
     const firstH = () => { const f = S.filter(x => x.first != null).map(x => x.first); return f.length ? Math.min(...f) : null; };
     const finish = () => {
-      if (done) return; done = true; if (!rays.length) return; this.spend(0.17); const top = cands(), fh = firstH();
+      if (done) return; done = true; if (!rays.length) return; this.spend(0.17); const top = cands(), fh = firstH(), M = this.miniState(), W0 = this.warrantFacs();
+      if (rays.length >= 2 && top.length) { M.windC = [...new Set((M.windC || []).concat(top.map(x => x.k)))]; this._objKey = null; }   // 🔓 후보 시설 서류를 볼 수 있음 (저장됨)
+      const got = [...this.warrantFacs()].filter(k => !W0.has(k));
       const li = rays.map(r => '<li>' + r.st.name + ' — 냄새가 가장 심했던 ' + (r.h % 24) + '시, 바람 ' + ARW(r.w.dir) + ' (불어 간 쪽) → 냄새는 <b>' + DIRN(r.u[0], r.u[1]) + '쪽</b>에서 왔어요</li>').join('');
-      const hints = []; if (top.length) { hints.push(['②', '선이 모이는 곳 근처 굴뚝: <b>' + top.map(x => short(UC_FAC[x.k])).join(' · ') + '</b>' + (top.length > 1 ? ' (순서 없음)' : '') + ' → 연기띠는 넓게 퍼져서 선만으로는 범인을 못 정해요. 이 중 ① 물질(📊 분석)을 <b>허가받은</b> 시설을 🗂 서류에서 확인하세요']); hints.push(['③', '그 시설 서류에서 <b>냄새가 난 무렵</b>에 기록이 끊긴(통신 장애) 굴뚝을 찾아보세요 — 다른 시각에 끊긴 굴뚝은 계측기 고장일 수 있어요']); }
+      const hints = []; if (top.length) { hints.push(['②', '선이 모이는 곳 근처 굴뚝: <b>' + top.map(x => short(UC_FAC[x.k])).join(' · ') + '</b>' + (top.length > 1 ? ' (순서 없음)' : '') + ' → 연기띠는 넓게 퍼져서 선만으로는 범인을 못 정해요. 이 중 ① 물질(📊 분석)을 <b>쓰는</b> 시설을 🗂 서류에서 확인하세요' + (got.length ? ' — 🔓 <b>' + got.map(k => short(UC_FAC[k])).join(' · ') + '</b> 정문에서 서류를 볼 수 있게 됐어요' : '')]); hints.push(['③', '그 시설 서류에서 <b>냄새가 난 무렵</b>에 기록이 끊긴(통신 장애) 굴뚝을 찾아보세요 — 다른 시각에 끊긴 굴뚝은 계측기 고장일 수 있어요']); }
       else hints.push(['②', '센서 두 곳 이상에서 선을 그으면 선이 모이는 곳이 보여요']);
       if (fh != null) { const b0 = fh + 0.5, sa = ucSlot(fh - 1.5), sb = Math.min(3, ucSlot(b0));   // 기록 한 칸(h시)은 h시 반쯤 잰 값 — 배출은 늦어도 그때 시작 (연기띠가 처음엔 센서를 비껴갈 수 있어 더 이를 수도)
         hints.push(['④', '냄새가 처음 기록된 칸: <b>' + (fh % 24) + '시</b> → 배출은 늦어도 <b>' + H(b0) + '</b> 전에 시작됐어요 (조금 더 이를 수도 있어요)' + (sa !== sb ? ' — 시간대 ' + UC_SLOTS[sa] + ' ~ ' + UC_SLOTS[sb] + ' 중에서 🗂 서류의 끊긴 시각으로 정해요' : ' — 아마 ' + UC_SLOTS[sa] + ' (🗂 서류의 끊긴 시각으로 확인)')]); }
+      this._mgStars = rays.length < 2 ? 1 : bad === 0 ? 3 : bad <= 2 ? 2 : 1;   // ⭐ 바람을 한 번에 거슬러 그은 만큼
       this.addEvidence({ title: '🧭 바람 역추적 · 센서 ' + rays.length + '곳', key: rays.length >= 2 && top.some(x => x.k === C.fac), html: '<ul class="mg-list">' + li + '</ul>' + hintBox(hints) + '<p class="dim">연기띠는 넓게 퍼져요 — 선이 굴뚝을 딱 지나지 않아도 가까이 지나면 후보예요.</p>' });
-      this.toast('🧭 바람 역추적을 수첩에 적었어요');
+      this.toast(got.length ? '🔓 바람길 후보 시설의 서류를 볼 수 있어요 — ' + got.map(k => short(UC_FAC[k])).join(' · ') : rays.length < 2 ? '🧭 선이 하나뿐이에요 — 냄새 센서 두 곳 이상에서 그어야 후보가 나와요' : '🧭 바람 역추적을 수첩에 적었어요');
     };
     const flash = (s, ok) => { fb = { s, ok }; fbT = 2.6; };
     const m = this.mgOpen({ emoji: '🧭', title: '바람길 거꾸로 그리기', act: '센서를 눌러 시작',
@@ -803,7 +812,7 @@
       up: () => { if (!drag || !sel) { drag = null; return; } const q = Lm.P(sel.st.x, sel.st.z), dx = drag.x - q[0], dy = drag.y - q[1], dl = Math.hypot(dx, dy); drag = null; if (dl < 24) return;
         const ux = -Math.cos(sel.w.dir), uz = -Math.sin(sel.w.dir), ang = Math.acos(clamp((dx * ux + dy * uz) / dl, -1, 1)) * 180 / Math.PI;
         if (ang < 32) { const i = rays.findIndex(r => r.st === sel.st); if (i >= 0) rays.splice(i, 1); rays.push({ st: sel.st, h: sel.h, w: sel.w, u: [ux, uz] }); SND('gem'); buzz(20); flash(rays.length >= 2 ? '✓ 선이 모이는 곳을 보세요! (다른 센서로 더 그어도 돼요)' : '✓ 맞아요! 다른 냄새 센서에서도 그어 보세요', true); }
-        else { flashRay = { st: sel.st, d: [dx / dl, dy / dl], t: 1.2 }; SND('bump'); flash(ang > 148 ? '✗ 반대예요 — 화살표는 바람이 불어 간 쪽! 냄새는 반대쪽에서 왔어요' : '조금 더 돌려 보세요 — 화살표와 정반대 쪽으로', false); } },
+        else { flashRay = { st: sel.st, d: [dx / dl, dy / dl], t: 1.2 }; SND('bump'); bad++; flash(ang > 148 ? '✗ 반대예요 — 화살표는 바람이 불어 간 쪽! 냄새는 반대쪽에서 왔어요' : '조금 더 돌려 보세요 — 화살표와 정반대 쪽으로', false); } },
       onClose: () => finish(),
       state: () => ({ sel: sel && sel.st.id, rays: rays.map(r => r.st.id), rank: rank().slice(0, 3).map(x => [x.k, +x.sc.toFixed(1)]), cands: cands().map(x => x.k), sensors: S.map(x => ({ id: x.st.id, h: x.h, p: Lm.P ? Lm.P(x.st.x, x.st.z) : null, u: x.w ? [-Math.cos(x.w.dir), -Math.sin(x.w.dir)] : null })) }),   // 검사용
       frame: (dt, now, g, W, H2) => {

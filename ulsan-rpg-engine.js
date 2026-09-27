@@ -21,7 +21,7 @@ class UlsanRpgGame {
   // 사건 연속(교사가 1~3개): 1번 수질 · 2번 대기 · 3번 무작위 — 같은 판·같은 설정이면 반 전체가 같은 사건
   makeCase(k) { return ucMakeCase(this.seed * 3 + k * 7919, this.set.diff, k === 1 ? 'water' : k === 2 ? 'air' : null); }   // 예전엔 원하는 종류가 나올 때까지 다시 뽑아 물질·시설이 한쪽으로 쏠렸음
   startCase(k) {
-    this.caseNo = k; this.C = this.makeCase(k); this.nowH = this.C.startH; this.samples = []; this.pending = []; this.evidence = []; this.known = {}; this.talked = {}; this.report = null; this.draft = {}; this.mini = null;
+    this.caseNo = k; this.C = this.makeCase(k); this.nowH = this.C.startH; this.samples = []; this.pending = []; this.evidence = []; this.known = {}; this.talked = {}; this.visited = {}; this.report = null; this.draft = {}; this.mini = null; this._arr = null;   // 확인한 곳 표시도 사건마다 새로
     this.caseStartReal = Date.now(); this.warned = {}; this.keys = {}; this.mx = 0; this.my = 0;
     this.px = UC_START[0]; this.pz = UC_START[1]; if (!this.canStand(this.px, this.pz)) this.unstick(); this.camera.position.set(this.px, 45, this.pz + 34); this.setDest(null); this.seenEv = 1; this._objKey = null;
     this.addEvidence({ id: 'case', title: '📄 사건 ' + k + ' 개요', key: false, html: this.caseBrief() }); this.revealPoints();
@@ -32,7 +32,7 @@ class UlsanRpgGame {
   save() {
     if (!this.opts.seed || this._noSave) return; this._savedAt = this.now || 0; this._dirty = false;
     try { const js = JSON.stringify({ v: 3, caseNo: this.caseNo, results: this.results, startReal: this.startReal, caseStartReal: this.caseStartReal, doneAt: this.doneAt || 0, nowH: this.nowH, samples: this.samples, pending: this.pending,
-        evidence: this.evidence, known: this.known, talked: this.talked, visited: this.visited, draft: this.draft, mini: this.mini || null, px: this.px, pz: this.pz, heading: this.heading, warned: this.warned, report: this.report, left: this._leftAtSubmit || 0, finished: !!this.finished, dest: this.dest, seenEv: this.seenEv });
+        evidence: this.evidence, known: this.known, talked: this.talked, visited: this.visited, draft: this.draft, mini: this.mini || null, px: this.px, pz: this.pz, heading: this.heading, warned: this.warned, report: this.report, left: this._leftAtSubmit || 0, finished: !!this.finished, dest: this.dest, seenEv: this.seenEv, fun: this.fun || null });
       const [k1, k2] = this.saveKeys; try { sessionStorage.setItem(k1, js); } catch (e) {}
       if (this.opts.myName) try { localStorage.setItem(k2, js); for (let i = localStorage.length - 1; i >= 0; i--) { const k = localStorage.key(i); if (k && k.indexOf('ulsan:') === 0 && k.indexOf('ulsan:' + this.seed + ':') !== 0) localStorage.removeItem(k); } } catch (e) {}   // 지난 판 기록은 지움
     } catch (e) {}
@@ -45,13 +45,13 @@ class UlsanRpgGame {
   }
   restore(o) {
     this.caseNo = Math.min(o.caseNo, this.caseTotal); this.C = this.makeCase(this.caseNo);
-    ['results', 'startReal', 'caseStartReal', 'nowH', 'samples', 'pending', 'evidence', 'known', 'talked', 'visited', 'draft', 'px', 'pz', 'heading', 'warned', 'seenEv', 'mini'].forEach(k => { if (o[k] != null) this[k] = o[k]; });
+    ['results', 'startReal', 'caseStartReal', 'nowH', 'samples', 'pending', 'evidence', 'known', 'talked', 'visited', 'draft', 'px', 'pz', 'heading', 'warned', 'seenEv', 'mini', 'fun'].forEach(k => { if (o[k] != null) this[k] = o[k]; });
     this.doneAt = o.doneAt || undefined; this.score = this.results.reduce((a, x) => a + x.score, 0); this.dest = null; if (o.dest) this.setDest(o.dest.x, o.dest.z, o.dest.name, true, o.dest.key);
     if (!this.canStand(this.px, this.pz)) this.unstick();   // 저장된 자리가 건물 속·물 위면 (부딪힘이 생기기 전 저장)
     this.camera.position.set(this.px, 45, this.pz + 34);
     if (o.finished) { this.finished = true; this.report = o.report; this._leftAtSubmit = o.left; this.gameOver = true; return; }
     if (o.report) { this.report = o.report; this._leftAtSubmit = o.left; this.showResult(this.report); }
-    else this.toast('💾 저장된 수사를 이어서 해요 — 사건 ' + this.caseNo + '/' + this.caseTotal);
+    else { this.toast('💾 저장된 수사를 이어서 해요 — 사건 ' + this.caseNo + '/' + this.caseTotal); if (this.pending.length) setTimeout(() => this.fastLab(), 1500); }   // 맡겨 둔 분석은 이어서 곧 결과
   }
   get casesStr() { return this.results.map(r => r.grade).join(' '); }
   get solvedCount() { return this.results.filter(r => r.fac && r.point).length; }
@@ -274,9 +274,9 @@ class UlsanRpgGame {
       const gt = ucGate(F); this.inter.push({ x: gt[0], z: gt[1], r: 7, kind: 'facility', fac: fid, label: F.name + ' 방문' }); });   // 정문 (시설마다 방향이 다를 수 있음)
     // 측정소: 물벼룩 바이오센서(파란 상자) · 대기·악취 센서(기둥)
     UC_BIO.forEach(b => { const [x, z] = ucBioAt(b), g = new T.Group(); box(1.6, 2, 1.6, '#1D7FA6', 0, 1, 0, g); box(0.1, 2.5, 0.1, '#DDDDDD', 0.5, 3, 0, g);   // 강 옆 둑 위 (물길에 수직)
-      g.position.set(x, this.groundH(x, z), z); S.add(g); this.colGroup(g, x, z); this.label('🦐 ' + b.name, x, 5, z, 0.6, '#FFFFFF', 'rgba(29,127,166,0.9)', 70); this.inter.push({ x, z, r: 5, kind: 'bio', st: b, label: b.name + ' 기록 보기' }); });
+      g.position.set(x, this.groundH(x, z), z); S.add(g); this.colGroup(g, x, z); this.inter.push({ x, z, r: 5, kind: 'bio', st: b, label: b.name + ' 기록 보기' }); });
     UC_AIR.forEach(a => { const g = new T.Group(); box(0.2, 5, 0.2, '#8A93A6', 0, 2.5, 0, g); box(1.2, 1, 0.8, '#F2F4F7', 0, 4.2, 0, g); box(1.6, 0.08, 1, '#23395B', 0, 5.2, 0, g);
-      g.position.set(a.x, this.groundH(a.x, a.z), a.z); S.add(g); this.colGroup(g, a.x, a.z); this.label('💨 ' + a.name, a.x, 7, a.z, 0.6, '#FFFFFF', 'rgba(90,98,114,0.9)', 70); this.inter.push({ x: a.x, z: a.z, r: 5, kind: 'air', st: a, label: a.name + ' 기록 보기' }); });
+      g.position.set(a.x, this.groundH(a.x, a.z), a.z); S.add(g); this.colGroup(g, a.x, a.z); this.inter.push({ x: a.x, z: a.z, r: 5, kind: 'air', st: a, label: a.name + ' 기록 보기' }); });
     this.flushPosts(); this.buildCollision();
     // 연구원 분석 창구
     this.inter.push({ x: UC_PLACES.lab.at[0], z: UC_PLACES.lab.at[1] + 3, r: 6, kind: 'lab', label: '시료 분석 의뢰' });   // 연구원 정문 앞 (예전 +6은 강물 위)
@@ -474,10 +474,10 @@ class UlsanRpgGame {
     return this.nearestLand(x, z) || [x, z];
   }
   spend(h) { this.nowH = Math.min(this.C.startH + 20, this.nowH + h); }   // 게임 안 시계는 분석 대기용 — 제한은 실제 시간(사건당 N분)
-  nearest() {
-    let best = null, bd = 1e9, fac = null; this.inter.forEach(o => { const d = Math.hypot(o.x - this.px, o.z - this.pz); if (d < o.r && o.kind === 'facility' && (!fac || d < fac[1])) fac = [o, d]; if (d < o.r && d < bd) { bd = d; best = o; } });
+  nearest(px, pz) { if (px == null) { px = this.px; pz = this.pz; }
+    let best = null, bd = 1e9, fac = null; this.inter.forEach(o => { const d = Math.hypot(o.x - px, o.z - pz); if (d < o.r && o.kind === 'facility' && (!fac || d < fac[1])) fac = [o, d]; if (d < o.r && d < bd) { bd = d; best = o; } });
     if (fac && best && best.kind === 'npc' && /^(guard|mgr)-/.test(best.id)) best = fac[0];   // 정문 앞: 시설 메뉴가 먼저 (경비원·환경팀장 이야기도 그 안에 · v2026-10-19a — 예전엔 🚙로 도착하면 경비원 대화만 떠서 서류를 못 찾았음)
-    if (!best) { let rb = null; Object.keys(UC_RIVERS).forEach(rid => { const R = UC_RIVERS[rid], p = ucProject(R.pts, this.px, this.pz); if (p.d < R.w / 2 + 5 && (!rb || p.d < rb.d)) rb = { rid, s: p.s, d: p.d }; });
+    if (!best) { let rb = null; Object.keys(UC_RIVERS).forEach(rid => { const R = UC_RIVERS[rid], p = ucProject(R.pts, px, pz); if (p.d < R.w / 2 + 5 && (!rb || p.d < rb.d)) rb = { rid, s: p.s, d: p.d }; });
       if (rb) best = { kind: 'river', river: rb.rid, s: rb.s, label: UC_RIVERS[rb.rid].name + ' ' + (rb.s / UC_KM).toFixed(1) + 'km 지점 조사' }; }
     return best;
   }
@@ -511,18 +511,40 @@ class UlsanRpgGame {
     this.spend(kind === 'edna' ? 0.25 : 0.17); this.samples.push({ kind, river: o.river, s: o.s, x: this.px, z: this.pz, takenH: this.nowH, label: (kind === 'edna' ? '🧬 eDNA ' : '💧 물 ') + where + ' · ' + this.hm(this.nowH) });
     this.closeDialog(); this.toast('시료를 챙겼어요 (' + this.samples.length + '/6) — 보건환경연구원에 분석을 맡기세요');
   }
+  // ── 미니게임 열쇠 (v2026-10-19b) ──
+  //   ① 연구원 분석은 그 사건에서 ⚗️ 시약 실험(물) · 검지관(공기)을 한 번 해야 맡길 수 있음
+  //   ② 시설 서류는 증거가 있어야: 물 = 🔬 물벼룩 독성 지도에서 독성이 시작되는 배출구의 시설 · 공기 = 🧭 바람길 후보 시설
+  needReagent(kind) { if (!this.reagentMenu || kind === 'edna') return false; const re = kind === 'air' ? /^⚗️ 검지관/ : /^⚗️ 시약 실험/; return !this.evidence.some(e => re.test(e.title)); }
+  toxTests(river) { const M = this.mini || {}; return (M.dtests || []).filter(d => d.river === river); }
+  // 🔬 독성 지도에서 배출구 o 가 '독성이 시작되는 곳'인가: 바로 아래(다음 후보 배출구 전까지)가 독함(20% 이상) + 바로 위(앞 후보 배출구 뒤부터)가 깨끗함(10% 아래)
+  toxBracket(o, cands) { const T = this.toxTests(o.river), i = cands.findIndex(c => c.id === o.id), lo = i > 0 ? cands[i - 1].s : -1e9, hi = i < cands.length - 1 ? cands[i + 1].s : 1e9;
+    return { below: T.some(d => d.s > o.s && d.s <= hi && d.pct >= 20), above: T.some(d => d.s < o.s && d.s > lo && d.pct < 10) }; }
+  warrantFacs() {
+    const C = this.C, P = UC_POL[C.pol], out = new Set(); if (!this.startDaphnia) { Object.keys(UC_FAC).forEach(k => out.add(k)); return out; }   // 미니게임 파일이 없으면 잠그지 않음
+    if (P.path === 'water') { const pt = ucPoint(C.point), cands = ucCandOuts(C.pol, pt.river), b = this.toxBracket(pt, cands); if (b.below && b.above) out.add(C.fac); }
+    else { const M = this.mini || {}; (M.windC || []).forEach(k => out.add(k));
+      if (out.size && !out.has(C.fac) && [...out].every(k => this.evidence.some(e => e.title === '🗂 ' + UC_FAC[k].name + ' 서류'))) Object.keys(UC_FAC).forEach(k => { if (UC_FAC[k].can.indexOf(C.pol) >= 0 && UC_FAC[k].stacks.length) out.add(k); }); }   // 바람길 후보 서류에 맞는 기록이 없으면 (드묾) 그 물질을 쓰는 굴뚝 시설 모두 — 막다른 길이 없게
+    return out;
+  }
   // 연구원 분석: 시료마다 한 번에 전체 항목 (v2026-10-19a · 예전엔 항목 6가지를 직접 골라야 해서 어떤 걸 골라야 할지 몰랐음)
   labMenu() {
     if (!this.samples.length) { this.dialog('🔬', '울산보건환경연구원', '들고 온 시료가 없어요.<br>💧 강가에서 <b>물 시료</b>를 뜨거나, 💨 대기센서에서 <b>공기 시료</b>를 받아 오세요.', [['알겠어요', () => this.closeDialog()]]); return; }
     const hrs = h => h < 1 ? Math.round(h * 60) + '분' : (h % 1 ? h.toFixed(1) : h) + '시간', what = s => s.kind === 'edna' ? '물고기 종 수 (환경DNA)' : s.kind === 'air' ? '공기 속 물질 3가지 — 벤젠 · 톨루엔 · 황화수소' : '물속 물질 5가지 — 페놀 · 카드뮴 · 암모니아 · 기름 · 유기물';
-    const body = '<p>맡길 시료를 고르세요. 시료 하나에 20분 · 결과는 <b>' + hrs(this.set.labH) + ' 뒤</b>' + (this.samples.some(s => s.kind === 'edna') ? ' (환경DNA ' + hrs(this.set.ednaH) + ')' : '') + ' 📓 수첩으로 와요. 기다리기 싫으면 위의 <b>⏳ 기다리기</b>를 누르세요.</p>' +
-      this.samples.map((s, i) => '<label class="sample"><input type="checkbox" data-i="' + i + '" checked><span><b>' + s.label + '</b><small>' + what(s) + '</small></span></label>').join('');
-    this.dialog('🔬', '울산보건환경연구원 — 시료 분석', body, [['분석 맡기기', () => {
-      const idx = [...this.ui.dlg.querySelectorAll('input[data-i]:checked')].map(b => +b.dataset.i); if (!idx.length) { this.toast('시료를 하나 이상 고르세요'); return; }
+    const lock = s => this.needReagent(s.kind), anyLock = this.samples.some(lock), kindTx = s => s.kind === 'air' ? '⚗️ 검지관' : '⚗️ 시약 실험';
+    const body = (anyLock ? '<p class="lock">🔒 분석을 맡기기 전에 <b>⚗️ 시약 실험(미니게임)</b>으로 어떤 물질인지 먼저 짐작해 보세요 — 아래 <b>⚗️ 단추</b> (한 번 하면 그 뒤로는 바로 맡길 수 있어요)</p>' : '') +
+      '<p>맡길 시료를 고르세요. 시료 하나에 20분 · 결과는 <b>' + hrs(this.set.labH) + ' 뒤</b>' + (this.samples.some(s => s.kind === 'edna') ? ' (환경DNA ' + hrs(this.set.ednaH) + ')' : '') + ' 📓 수첩으로 와요. 기다리기 싫으면 위의 <b>⏳ 기다리기</b>를 누르세요.</p>' +
+      this.samples.map((s, i) => '<label class="sample' + (lock(s) ? ' locked' : '') + '"><input type="checkbox" data-i="' + i + '"' + (lock(s) ? ' disabled' : ' checked') + '><span><b>' + s.label + '</b><small>' + (lock(s) ? '🔒 먼저 ' + kindTx(s) : what(s)) + '</small></span></label>').join('');
+    const reag = this.reagentMenu ? [['⚗️ 시약 실험 (15분) — 색으로 어떤 물질인지 빠르게 짐작 (미니게임)' + (anyLock ? ' · 먼저 해요' : ''), () => this.reagentMenu()]] : [], daph = this.daphniaMenu ? [['🔬 물벼룩 독성 시험 (15분) — 물이 얼마나 독한지 · 🗺 독성 지도 (미니게임)', () => this.daphniaMenu()]] : [];
+    this.dialog('🔬', '울산보건환경연구원 — 시료 분석', body, (anyLock ? reag : []).concat([['분석 맡기기', () => {
+      const idx = [...this.ui.dlg.querySelectorAll('input[data-i]:checked')].map(b => +b.dataset.i); if (!idx.length) { this.toast(anyLock ? '🔒 먼저 ⚗️ 시약 실험을 해요' : '시료를 하나 이상 고르세요'); return; }
       this.spend(idx.length * 0.33);   // 맡기는 시간(시료당 20분)을 먼저 — 그 뒤부터 분석 시간을 셈
       idx.forEach(i => { const s = this.samples[i], pn = s.kind === 'edna' ? 'edna' : s.kind === 'air' ? 'air' : 'water'; this.pending.push({ sample: s, panels: [pn], readyH: this.nowH + (pn === 'edna' ? this.set.ednaH : this.set.labH) }); });
-      this.samples = this.samples.filter((s, i) => idx.indexOf(i) < 0); this.closeDialog(); this.toast('분석을 맡겼어요 — 결과가 나오면 수첩에 적어 드릴게요'); }]].concat(this.daphniaMenu ? [['🔬 물벼룩 독성 시험 (15분) — 물이 얼마나 독한지 · 🗺 독성 지도 (미니게임)', () => this.daphniaMenu()]] : []).concat(this.reagentMenu ? [['⚗️ 시약 실험 (15분) — 색으로 어떤 물질인지 빠르게 짐작 (미니게임)', () => this.reagentMenu()]] : []).concat([['취소', () => this.closeDialog()]]), true);
+      this.samples = this.samples.filter((s, i) => idx.indexOf(i) < 0); this.closeDialog(); this.fastLab(); }]]).concat(daph).concat(anyLock ? [] : reag).concat([['취소', () => this.closeDialog()]]), true);
+    if (anyLock) { const b = this.ui.dlg.querySelector('.u-opts button'); if (b) b.className = 'primary'; }
   }
+  // 💨 빠른 진행 (v2026-10-19b): 맡긴 분석은 잠깐 '분석 중' 뒤 바로 결과 (게임 속 시계만 그만큼 흐름) — 예전엔 ⏳ 기다리기를 따로 눌러야 했음
+  fastLab() { const hrs = this.set.labH; this.toast('🔬 분석 중… (게임 속 ' + (hrs < 1 ? Math.round(hrs * 60) + '분' : hrs + '시간') + ')'); clearTimeout(this._flT);
+    this._flT = setTimeout(() => { if (!this.pending.length || this.gameOver) return; this.nowH = Math.max(this.nowH, ...this.pending.map(p => p.readyH)) + 0.001; }, 1100); }
   deliver(p) {
     const s = p.sample, C = this.C, P = UC_POL[C.pol], pt = ucPoint(C.point), strong = this.set.ratio === 'strong';
     if (p.panels[0] === 'edna') { const e = ucEdna(C, s.river, s.s, s.takenH), few = e.now < e.usual * 0.6;
@@ -560,23 +582,29 @@ class UlsanRpgGame {
       ['그만두기', () => this.closeDialog()]]);
   }
   inspectPoint(o) {
-    const pt = ucPoint(o.id); this.spend(0.17); this.known[o.id] = true;
+    const pt = ucPoint(o.id); this.spend(0.17); this.known[o.id] = true; this.visited['pt:' + o.id] = true;
     const F = UC_FAC[o.fac], water = pt.kind === 'water', where = ucPlaceText(pt);
-    const obs = water ? '지금은 물이 조금씩 흘러나와요. 눈으로는 오염됐는지 알 수 없어요 — <b>바로 아래 물</b>을 떠서 🔬 연구원에 맡겨 보세요.' : '지금 굴뚝 연기는 옅은 흰색이에요. 밤사이 일은 🏭 정문 서류와 💨 대기센서 기록으로 확인하세요.';   // 예전엔 범인 배출구만 냄새·기름막이 보여 눈으로 보기 하나로 ③이 풀렸음
+    const obs = water ? '지금은 물이 조금씩 흘러나와요. 눈으로는 오염됐는지 알 수 없어요 — <b>바로 아래 물</b>과 <b>바로 위 물</b>을 떠서 🔬 연구원에서 물벼룩 독성 시험을 해 보세요. (아래는 독하고 위는 깨끗하면 → 여기서 시작!)' : '지금 굴뚝 연기는 옅은 흰색이에요. 밤사이 일은 🏭 정문 서류와 💨 대기센서 기록으로 확인하세요.';   // 예전엔 범인 배출구만 냄새·기름막이 보여 눈으로 보기 하나로 ③이 풀렸음
     this.addEvidence({ title: '📍 배출 지점 확인 · ' + o.id + ' (' + F.name + ' ' + pt.label + ')', html: '<p>위치: <b>' + where + '</b></p><p>' + obs + '</p>', key: false });
-    if (water) { const s2 = Math.min(ucLen(UC_RIVERS[pt.river].pts) - 1, pt.s + 1.5), w2 = UC_RIVERS[pt.river].name + ' ' + (s2 / UC_KM).toFixed(1) + 'km (' + o.id + ' 바로 아래)';
-      this.dialog('📍', o.id + ' ' + pt.label + ' · ' + where, '<p>보고서 ③ 후보에 올렸어요.</p><p>' + obs + '</p>', [['💧 바로 아래 물 시료 뜨기 (10분)', () => this.takeSample('water', { river: pt.river, s: s2 }, w2)], ['알겠어요', () => this.closeDialog()]]); }
+    if (water) { const R = UC_RIVERS[pt.river], s2 = Math.min(ucLen(R.pts) - 1, pt.s + 1.5), s1 = Math.max(1, pt.s - 1.5), km = s => R.name + ' ' + (s / UC_KM).toFixed(1) + 'km', has = re => this.samples.some(x => x.label.indexOf(o.id + ' ' + re) >= 0);
+      this.dialog('📍', o.id + ' ' + pt.label + ' · ' + where, '<p>보고서 ③ 후보에 올렸어요.</p><p>' + obs + '</p>', [['💧 바로 아래 물 뜨기 (10분)' + (has('바로 아래') ? ' — 가방에 있음' : ''), () => this.takeSample('water', { river: pt.river, s: s2 }, km(s2) + ' (' + o.id + ' 바로 아래)')], ['💧 바로 위 물 뜨기 (10분)' + (has('바로 위') ? ' — 가방에 있음' : ''), () => this.takeSample('water', { river: pt.river, s: s1 }, km(s1) + ' (' + o.id + ' 바로 위)')], ['알겠어요', () => this.closeDialog()]]); }
     else this.toast(ucJ(o.id, '을', '를') + ' 보고서 후보에 올렸어요');
   }
   visitFacility(fid) {
-    const F = UC_FAC[fid], water = UC_POL[this.C.pol].path === 'water';
-    this.dialog('🏭', F.name, '<p>이곳에서 쓰는 물질: <b>' + F.can.map(p => UC_POL[p].name).join(' · ') + '</b></p><p>서류를 보면 <b>배출구 · 굴뚝의 위치</b>와 <b>어젯밤 시간별 기록</b>을 알 수 있어요.</p>', [
-      ['🗂 서류 보기 (30분) — 배출 지점 위치 · 어젯밤 기록', () => { this.spend(0.5); const r = ucFacilityRecord(this.C, fid); r.rows.forEach(row => { this.known[row.id] = true; }); this.visited[fid] = true;
+    const F = UC_FAC[fid], water = UC_POL[this.C.pol].path === 'water', open = this.warrantFacs().has(fid);
+    F.outs.concat(F.stacks).forEach(o => { this.known[o.id] = true; });   // 배출구·굴뚝 위치는 정문 안내판에 (지도에 ◆)
+    const pos = F.outs.concat(F.stacks).map(o => '<li>◆ <b>' + o.id + '</b> ' + o.label + ' — ' + ucPlaceText(Object.assign({ kind: o.kind || 'air', fac: fid }, o)) + '</li>').join('');
+    const lock = water ? '🔬 <b>물벼룩 독성 지도</b>에서 이 시설 배출구부터 독성이 시작된다는 걸 보여 주세요 (배출구 바로 아래 물은 독하고, 바로 위 물은 깨끗해야 해요)' : '🧭 <b>바람길</b>(기상대 예보관)로 냄새가 이 시설 쪽에서 왔다는 걸 보여 주세요';
+    this.dialog('🏭', F.name, '<p>쓰는 물질: <b>' + F.can.map(p => UC_POL[p].name).join(' · ') + '</b></p>' + (pos ? '<ul class="u-pos">' + pos + '</ul>' : '') +
+      (open ? '<p>🔓 증거가 있어서 <b>서류</b>(어젯밤 시간별 기록)를 볼 수 있어요.</p>' : '<p class="lock">🔒 서류(어젯밤 기록)는 증거가 있어야 보여 드려요 — ' + lock + '</p>'), [
+      open ? ['🗂 서류 보기 (30분) — 배출 지점 · 어젯밤 기록', () => { this.spend(0.5); const r = ucFacilityRecord(this.C, fid); r.rows.forEach(row => { this.known[row.id] = true; }); this.visited[fid] = true;
         const html = '<p>쓰는 물질: <b>' + r.uses.join(' · ') + '</b></p>' + r.rows.map(row => '<p><b>' + row.id + ' ' + row.label + '</b> · ' + row.pos + ' <span class="dim">— ' + (row.kind === 'water' ? '시간마다 내보낸 물의 양(㎥)' : '굴뚝 자동측정') + '</span></p><div class="rec">' + row.rec.map(x => '<span class="' + (/—|장애/.test(x.v) ? 'bad' : '') + '">' + (x.h % 24) + '시 ' + x.v + '</span>').join('') + '</div>').join('') +
           '<p class="dim"><b class="no">빈 칸</b>(— · 통신 장애) = 그 시간 기록이 없어요. 몰래 내보냈을 수도, 계측기가 고장 났을 수도 있어요.' + (this.set.diff === 'easy' ? '' : ' ' + (water ? '오염이 시작된 곳 · 시각' : '냄새가 처음 난 시각 · 바람 방향') + '과 맞는지 다른 증거와 맞춰 보세요.') + '</p>';
-        this.addEvidence({ title: '🗂 ' + F.name + ' 서류', html, key: fid === this.C.fac }); this.closeDialog(); this.toast(r.rows.some(row => row.rec.some(x => /—|장애/.test(x.v))) ? '🗂 밤에 기록이 빈 시간이 있어요 — 수첩에 적었어요' : '서류 내용을 수첩에 적었어요 (빈 기록 없음)'); }],
+        this.addEvidence({ title: '🗂 ' + F.name + ' 서류', html, key: fid === this.C.fac }); this.closeDialog(); this.toast(r.rows.some(row => row.rec.some(x => /—|장애/.test(x.v))) ? '🗂 밤에 기록이 빈 시간이 있어요 — 수첩에 적었어요' : '서류 내용을 수첩에 적었어요 (빈 기록 없음)'); }]
+      : ['🔒 서류 보기 — 증거가 필요해요', () => this.toast(water ? '🔒 🔬 물벼룩 독성 지도로 오염이 시작된 배출구를 먼저 찾아요' : '🔒 🧭 기상대에서 바람길을 먼저 그려요')],
       ['💂 경비원 이야기 (12분) — 어젯밤 들은 소리', () => { this.closeDialog(); this.talk('guard-' + fid); }]].concat(this.npcs.some(n => n.id === 'mgr-' + fid) ? [['👔 환경팀장 이야기 (12분) — 시설의 설명', () => { this.closeDialog(); this.talk('mgr-' + fid); }]] : []).concat([
       ['그만두기', () => this.closeDialog()]]));
+    if (!open) { const b = this.ui.dlg.querySelector('.u-opts button'); if (b) b.classList.add('ghost'); }
   }
   talk(id) {
     const n = this.npcs.find(q => q.id === id), C = this.C, P = UC_POL[C.pol]; this.spend(0.2); this.talked[id] = true;
@@ -620,13 +648,12 @@ class UlsanRpgGame {
   caseBrief() {
     const P = UC_POL[this.C.pol], water = P.path === 'water', g = this.set.guide;
     const lead = water ? '오늘 아침 7시, ' + this.reportWhere() + '에서 물고기가 떼죽음을 당했다는 신고가 들어왔어요.' : '어젯밤, ' + this.reportWhere() + '에서 심한 냄새와 두통 민원이 잇따랐어요.';
-    const steps = water ? ['📍 <b>신고 지점</b> 강가에서 🔍 조사 → 💧 <b>물 시료</b>를 떠요', '🔬 <b>보건환경연구원</b>에 맡기면 <b>기준을 넘은 물질</b>이 나와요 → ①', '🏭 그 물질을 <b>쓰는 시설</b>의 정문에서 🗂 서류를 봐요 → 밤에 <b>기록이 빈 배출구</b> → ② ③ · 그 시각 → ④']
-        .concat(this.set.diff === 'easy' ? [] : ['🤔 기록이 빈 곳이 두 곳이면? 배출구 <b>바로 아래 물</b>을 떠서 오염이 <b>시작되는</b> 곳을 찾아요 (물은 위에서 아래로만 흘러요)'])
-      : ['💨 민원 동네의 <b>대기센서 기록</b>을 봐요 → 냄새가 <b>치솟은 시각</b>', '🌫 그 센서에서 <b>공기 시료</b>를 받아 🔬 연구원에 맡겨요 → ①', '🌤 <b>기상대</b>에서 그 시각 바람을 봐요 → 바람이 <b>불어온 쪽</b>에서 그 물질을 쓰는 시설 → ②', '🗂 그 시설 서류에서 냄새가 난 무렵 <b>기록이 끊긴 굴뚝</b> → ③ ④'];
+    const steps = water ? ['📍 <b>신고 지점</b> 강가에서 🔍 조사 → 💧 <b>물 시료</b>를 떠요', '🔬 <b>연구원</b>에서 ⚗️ <b>시약 실험</b>(미니게임) → 분석 맡기기 → <b>기준을 넘은 물질</b> → ①', '▼ 그 물질을 쓰는 시설의 <b>배출구 바로 아래 물</b>(맨 위 배출구는 바로 위 물도)을 떠서 🔬 <b>물벼룩 독성 시험</b>(미니게임) → 🗺 독성 지도에서 독성이 <b>시작되는</b> 배출구 → ② ③', '🔓 독성 지도가 증거! 그 시설 정문에서 🗂 <b>서류</b> → 밤에 <b>기록이 빈 시각</b> → ④']
+      : ['💨 민원 동네의 <b>대기센서 기록</b>을 봐요 → 냄새가 <b>치솟은 시각</b>', '🌫 그 센서에서 <b>공기 시료</b> → 🔬 연구원에서 ⚗️ <b>검지관 실험</b>(미니게임) → 분석 맡기기 → ①', '💨 냄새 센서를 한 곳 더 본 뒤 🌤 <b>기상대</b>에서 🧭 <b>바람길</b>(미니게임) → 냄새가 온 쪽 <b>후보 시설</b> → ②', '🔓 바람길이 증거! 후보 시설 🗂 <b>서류</b>에서 냄새가 난 무렵 <b>기록이 끊긴 굴뚝</b> → ③ ④'];
     return '<p class="b-lead">📢 ' + lead + '</p>' +
       '<p>🕵 환경 조사관이 되어 <b>' + this.set.min + '분 안에</b> 네 가지를 밝혀 📝 보고서를 내세요. 시간이 다 되면 그때까지 고른 답으로 자동 제출돼요.</p>' +
       '<div class="b-goal"><span>① 무슨 물질?</span><span>② 어느 시설?</span><span>③ 어느 ' + (water ? '배출구' : '굴뚝') + '?</span><span>④ 언제?</span></div>' +
-      (g === 'none' ? '' : '<div class="guide"><b>🧭 이렇게 풀어요</b>' + (g === 'full' ? '<ol>' + steps.map(t => '<li>' + t + '</li>').join('') + '</ol>' : '<p>물은 위(상류)에서 아래(하류)로만 흐르고, 냄새는 바람을 따라가요. 조사 하나로는 못 정해요 — 물질 · 장소 · 시각이 모두 맞는 곳을 찾으세요.</p>') + '</div>') +
+      (g === 'none' ? '' : '<div class="guide"><b>🧭 이렇게 풀어요</b> <span class="dim">— 🎮 미니게임 2개가 열쇠예요</span>' + (g === 'full' ? '<ol>' + steps.map(t => '<li>' + t + '</li>').join('') + '</ol>' : '<p>물은 위(상류)에서 아래(하류)로만 흐르고, 냄새는 바람을 따라가요. 조사 하나로는 못 정해요 — 물질 · 장소 · 시각이 모두 맞는 곳을 찾으세요.</p>') + '</div>') +
       '<p class="dim">💡 왼쪽 위 <b>다음 할 일</b>의 📍 길 안내 · 🚙 바로 가기로 갈 곳을 찾을 수 있어요. 🗺 지도의 <b>📋 장소 목록</b>에는 어디서 무엇을 알 수 있는지 적혀 있어요.' + (this.set.rumor ? ' 떠도는 소문은 맞을 수도 틀릴 수도 있어요.' : '') + (this.set.lie ? ' 시설 사람들의 말은 범인이든 아니든 비슷하게 들려요 — 측정값과 시각을 믿으세요.' : '') + '</p>';
   }
   // 안내 목적지 (다음 할 일 · 장소 목록 공통): { name, at: 목적지 표시 자리, key, arrive(바로 가기 도착 자리 — 처음 누를 때 계산) }
@@ -637,7 +664,12 @@ class UlsanRpgGame {
   hintPoint(id) { const pt = ucPoint(id), o = (this.inter || []).find(q => q.kind === 'point' && q.id === id), p = o ? [o.x, o.z] : pt.kind === 'water' ? ucAt(UC_RIVERS[pt.river].pts, pt.s) : [pt.x, pt.z]; return { name: id + ' ' + pt.label, at: p, key: 'o:' + id }; }   // 배출구 기둥(강둑) 자리 — 도착하면 🔍 가 '살펴보기'
   arriveFor(T) { const c = this._arr = this._arr || {}; if (c[T.key]) return c[T.key]; const k = T.key.split(':'), D = this.travelDests();
     let at = null; if (/^r\d/.test(T.key)) { const r = ucReportSpot(this.C); at = this.arriveRiver(r.river, r.s); } else if (k[0] === 'p') { const d = D.find(x => x[0] === UC_PLACES[k[1]].name); at = d && d[1]; } else if (k[0] === 'f') { const d = D.find(x => x[0] === ucFacShort(k[1])); at = d && d[1]; }
+    if (!at && /^[so]:/.test(T.key)) at = this.arriveFacing(T);   // 센서 · 배출구: 도착하면 🔍 가 바로 그것 (옆 사람·정문과 겹치지 않는 자리)
     return (c[T.key] = at || this.arriveNear(T.at[0], T.at[1])); }
+  arriveFacing(T) { const k = T.key.split(':'), want = o => o && (k[0] === 'o' ? o.kind === 'point' && o.id === k[1] : (o.kind === 'bio' || o.kind === 'air') && o.st && o.st.id === k[1]);
+    for (let r = 1.5; r <= 4.5; r += 0.75) for (let a = 0; a < 16; a++) { const an = Math.PI / 2 + (a % 2 ? 1 : -1) * Math.ceil(a / 2) * Math.PI / 8, x = T.at[0] + Math.cos(an) * r, z = T.at[1] + Math.sin(an) * r;
+      if (this.canStand(x, z) && this.roomy(x, z) && this.meshH(x, z) >= -0.24 && want(this.nearest(x, z))) return [x, z]; }
+    return null; }
   // 강가 도착 자리: 신고 지점 근처 강둑 중 🔍 이 '강 조사'가 되는 곳 (사람·센서 대화 범위 밖 · 사방이 트인 곳) — 예전 도착 자리는 근처 사람과 겹쳐 '대화'만 뜰 때가 있었음
   arriveRiver(rid, s0) { const R = UC_RIVERS[rid], L = ucLen(R.pts);
     for (let k = 0; k < 40; k++) { const s = Math.max(1, Math.min(L - 1, s0 + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 1.5)), a = ucAt(R.pts, s), b = ucAt(R.pts, Math.min(L, s + 1)), dx = b[0] - a[0], dz = b[1] - a[1], d = Math.hypot(dx, dz) || 1, nx = -dz / d, nz = dx / d;
@@ -649,36 +681,39 @@ class UlsanRpgGame {
   // 퀘스트 창의 '다음 할 일' (쉬움·보통: 자세히 · 어려움: 짧게) — 지금까지 한 일에 맞춰 바뀜 · to = 갈 곳(📍 길 안내 · 🚙 바로 가기) 또는 보고서
   nextHint() {
     if (this.set.guide === 'none' || this.report) return null;
-    const P = UC_POL[this.C.pol], D = this.draft || {}, water = P.path === 'water', ev = this.evidence, has = re => ev.some(e => re.test(e.title)), lab = has(/^📊/), set = k => !(D[k] === '' || D[k] == null), hard = this.set.diff === 'hard', REP = { rep: true };
+    const C = this.C, P = UC_POL[C.pol], D = this.draft || {}, water = P.path === 'water', ev = this.evidence, has = re => ev.some(e => re.test(e.title)), lab = has(/^📊/), set = k => !(D[k] === '' || D[k] == null), hard = this.set.diff === 'hard', REP = { rep: true };
+    const LAB = this.hintPlace('lab'), M = this.mini || {};
+    // ① 물질: 시료 → ⚗️ 시약 실험(미니게임) → 연구원 분석
     if (!lab && this.pending.length) return { t: '⏳ 분석 중이에요 — 위의 <b>⏳ 기다리기</b>를 누르거나 다른 조사를 하세요' };
-    if (!lab && this.samples.some(x => x.kind !== 'edna')) return { t: '🔬 시료를 <b>보건환경연구원</b>에 맡기세요', to: this.hintPlace('lab') };
+    const bag = this.samples.filter(x => x.kind === (water ? 'water' : 'air'));
+    if (!lab && bag.length) return this.needReagent(water ? 'water' : 'air') ? { t: '⚗️ 연구원에서 먼저 <b>' + (water ? '시약 실험' : '검지관 실험') + '</b>(미니게임)을 해요 — 색으로 어떤 물질인지 짐작 → 그다음 분석 맡기기', to: LAB } : { t: '🔬 시료를 <b>보건환경연구원</b>에 분석 맡기세요', to: LAB };
     const hot = ev.some(e => /^📊/.test(e.title) && /hotrow|기준 초과/.test(e.html)), strong = this.set.ratio === 'strong';
+    const hs = water ? [] : ucAirHits(C), spk = water ? [] : UC_AIR.filter(st => ev.some(e => e.title === '💨 ' + st.name + ' 기록' && e.key));
     if (water) { if (!lab) return { t: '💧 ' + (hard ? '신고된 강' : '<b>신고 지점</b>') + ' 강가에서 🔍 조사 → <b>물 시료</b>를 떠요', to: hard ? null : this.hintReport() };
       if (strong && !hot && !set('pol')) return { t: '🔎 아직 기준을 넘은 물질이 없어요 — <b>신고 지점</b> 가까이(조금 위쪽)에서 다시 떠 보세요', to: this.hintReport() }; }
-    else { const hs = ucAirHits(this.C), spk = UC_AIR.filter(st => ev.some(e => e.title === '💨 ' + st.name + ' 기록' && e.key));
-      if (!spk.length && !lab) return { t: '💨 민원 동네의 <b>대기센서 기록</b>을 보세요 — 냄새가 <b>치솟은</b> 센서 찾기', to: hard || !hs.length ? null : this.hintSensor(hs[0].st) };
+    else { if (!spk.length && !lab) return { t: '💨 민원 동네의 <b>대기센서 기록</b>을 보세요 — 냄새가 <b>치솟은</b> 센서 찾기', to: hard || !hs.length ? null : this.hintSensor(hs[0].st) };
       if (!lab) return { t: '🌫 ' + spk[0].name + '에서 <b>공기 시료</b>를 받아 오세요', to: this.hintSensor(spk[0]) };
       if (strong && !hot && !set('pol')) return { t: '🔎 이 공기 시료엔 크게 높은 물질이 없어요 — 냄새가 <b>치솟은</b> 센서에서 다시 받아 보세요', to: spk.length ? this.hintSensor(spk[0]) : hs.length && !hard ? this.hintSensor(hs[0].st) : null }; }
     if (!set('pol')) return { t: '📝 분석 결과에서 ' + (water ? '<b>기준을 넘은</b>' : '평소보다 <b>크게 높은</b>') + ' 물질을 <b>보고서 ①</b>에 고르세요', to: REP };
-    if (!water && !this.talked.forecaster) return { t: '🌤 <b>기상대</b>에서 냄새가 난 시각의 바람 방향을 확인하세요', to: this.hintPlace('weather') };
-    if (!set('fac')) {
-      // ① 물질을 쓰는 시설 (그 사건 종류의 배출 지점이 있는 곳) — 물 사건 쉬움: 신고된 강(과 그리로 흘러드는 강)에 배출구가 있는 곳만 · 보통: 그런 곳을 앞에
-      const rr = water ? ucReportSpot(this.C).river : null, onRiver = k => !water || UC_FAC[k].outs.some(o => o.river === rr || (UC_RIVERS[o.river].joins && UC_RIVERS[o.river].joins[0] === rr));
-      let facs = Object.keys(UC_FAC).filter(k => UC_FAC[k].can.indexOf(D.pol) >= 0 && (water ? UC_FAC[k].outs : UC_FAC[k].stacks).length); if (this.set.diff === 'easy' && facs.some(onRiver)) facs = facs.filter(onRiver);
-      const dist = k => Math.hypot(UC_FAC[k].at[0] - this.px, UC_FAC[k].at[1] - this.pz), doc = k => ev.find(e => e.title === '🗂 ' + UC_FAC[k].name + ' 서류');
-      const todo = facs.filter(k => !doc(k)).sort((a, b) => (onRiver(b) - onRiver(a)) || dist(a) - dist(b)), gap = facs.filter(k => doc(k) && /class="bad"/.test(doc(k).html));
-      // 후보 서류를 다 봤는데 밤에 기록이 빈 곳이 둘 이상 (계측기 고장이 섞임) → 물: 배출구마다 바로 아래 물 → 연구원 → 비교 · 공기: 냄새가 처음 난 시각과 맞춰 보기
-      if (!todo.length && gap.length > 1) {
-        if (!water) return { t: '🤔 기록이 끊긴 굴뚝이 여럿이에요 (하나는 계측기 고장) — 냄새가 <b>처음 치솟은 시각</b>과 끊긴 시각이 맞는 곳이 범인이에요', to: REP };
-        const pts = ucNightEvents(this.C).filter(e => gap.indexOf(e.fac) >= 0).map(e => e.point).filter(id => ucPoint(id).kind === 'water'), tag = id => id + ' 바로 아래';
-        const hasRes = id => ev.some(e => /^📊/.test(e.title) && e.title.indexOf(tag(id)) >= 0), inBag = id => this.samples.some(x => x.label.indexOf(tag(id)) >= 0), inLab = id => this.pending.some(q => q.sample.label.indexOf(tag(id)) >= 0);
-        const next = pts.find(id => !hasRes(id) && !inBag(id) && !inLab(id));
-        if (next) return { t: '🤔 밤에 기록이 빈 곳이 ' + gap.length + '곳이에요 (하나는 계측기 고장) — 배출구마다 <b>바로 아래 물</b>을 떠서 비교해요 → <b>' + next + '</b>', to: this.hintPoint(next) };
-        if (pts.some(inBag)) return { t: '🔬 떠 온 <b>배출구 바로 아래 물</b>을 연구원에 맡기세요', to: this.hintPlace('lab') };
-        if (pts.some(inLab)) return { t: '⏳ 바로 아래 물을 분석 중이에요 — 위의 <b>⏳ 기다리기</b>를 누르세요' };
-        return { t: '🔎 배출구 바로 아래 물 결과를 비교해요 — <b>기준을 넘은</b> 곳이 오염이 시작된 배출구 (둘 다면 더 위쪽·상류) → <b>보고서 ②③</b>', to: REP }; }
-      if (this.set.cand && facs.length) return { t: '🏭 ' + ucJ(UC_POL[D.pol].name, '을', '를') + ' 쓰는 시설' + (water && this.set.diff === 'easy' && facs.every(onRiver) ? ' 중 ' + UC_RIVERS[rr].name + '에 배출구가 있는 곳' : '') + ': <b>' + facs.map(ucFacShort).join(' · ') + '</b> — 정문에서 🗂 서류를 보고 <b>보고서 ②</b>' + (water ? '' : ' (바람이 불어온 쪽을 보세요)'), to: todo.length ? this.hintFac(todo[0]) : REP };
-      return { t: '🏭 ① 물질을 쓰는 시설을 찾아 정문에서 🗂 서류를 보세요' + (water ? ' (오염이 시작된 곳)' : ' (바람이 불어온 쪽)'), to: null }; }
+    // ② 시설: 서류를 볼 증거 — 물 = 🔬 독성 지도 · 공기 = 🧭 바람길 (미니게임)
+    const W = this.warrantFacs(), doc = k => ev.find(e => e.title === '🗂 ' + UC_FAC[k].name + ' 서류'), dist = k => Math.hypot(UC_FAC[k].at[0] - this.px, UC_FAC[k].at[1] - this.pz);
+    if (!W.size) {
+      if (water) { const rr = ucReportSpot(C).river, cands = ucCandOuts(D.pol, rr);
+        if (!cands.length) return { t: '🤔 ' + ucJ(UC_POL[D.pol].name, '을', '를') + ' 쓰는 시설의 배출구가 ' + UC_RIVERS[rr].name + '에 없어요 — <b>보고서 ①</b> 물질이 맞는지 다시 봐요', to: REP };
+        if (hard) return { t: '🗺 🔬 <b>물벼룩 독성 지도</b>로 독성이 <b>시작되는</b> 배출구를 찾아요 (배출구 바로 위·아래 물)', to: null };
+        const T = this.toxTests(rr), near = (sd, o) => sd === 'below' ? (x => x > o.s && x <= o.s + 6) : (x => x < o.s && x >= o.s - 6);
+        const tested = (sd, o) => T.some(d => near(sd, o)(d.s)), inBag = (sd, o) => this.samples.some(x => x.kind === 'water' && x.river === rr && near(sd, o)(x.s));
+        const need = [['above', cands[0]]].concat(cands.map(o => ['below', o])), todo = need.filter(([sd, o]) => !tested(sd, o) && !inBag(sd, o)), list = cands.map(o => '▼' + o.id).join(' · ');
+        if (todo.length) { const [sd, o] = todo[0]; return { t: '🗺 <b>독성 지도</b> 만들기: 후보 배출구(' + list + ')마다 <b>바로 아래 물</b> + 맨 위 배출구는 <b>바로 위 물</b>도 떠 와요 → 지금 <b>▼' + o.id + ' 바로 ' + (sd === 'below' ? '아래' : '위') + '</b>', to: this.hintPoint(o.id) }; }
+        if (this.samples.some(x => x.kind === 'water' && !x.dtest)) return { t: '🔬 떠 온 물로 <b>물벼룩 독성 시험</b>(미니게임)을 해요 — 위쪽 시료부터 · 독한 물(빨강) 바로 위가 깨끗하면(초록) 그 사이 배출구가 범인', to: LAB };
+        return { t: '🤔 독성이 시작되는 곳을 아직 못 찾았어요 — 독했던 곳의 <b>바로 위 물</b>을 한 번 더 떠서 시험해 보세요 (① 물질이 맞는지도)', to: REP }; }
+      if (spk.length < 2) { const nx = hs.find(h => spk.indexOf(h.st) < 0); return { t: '💨 냄새가 치솟은 <b>센서 기록</b>을 한 곳 더 봐요 — 바람길은 선이 두 개 있어야 모여요', to: nx && !hard ? this.hintSensor(nx.st) : null }; }
+      if (hard) return { t: '🧭 기상대에서 <b>바람길</b>(미니게임)을 그려 냄새가 온 쪽 시설을 찾아요', to: null };
+      return { t: '🧭 <b>기상대</b> 예보관에게 가서 <b>바람길 거꾸로 그리기</b>(미니게임) — 냄새가 온 쪽 시설을 찾아요', to: this.hintPlace('weather') }; }
+    if (!set('fac')) { const todo = [...W].filter(k => !doc(k)).sort((a, b) => (b === C.fac && water) - (a === C.fac && water) || dist(a) - dist(b)), gap = [...W].filter(k => doc(k) && /class="bad"/.test(doc(k).html));
+      if (todo.length) return { t: '🔓 증거가 생겼어요! <b>' + todo.map(ucFacShort).join(' · ') + '</b> 정문에서 🗂 <b>서류</b>를 보고 <b>보고서 ②</b>', to: hard ? null : this.hintFac(todo[0]) };
+      if (gap.length > 1) return { t: '🤔 기록이 끊긴 굴뚝이 여럿이에요 (하나는 계측기 고장) — 냄새가 <b>처음 치솟은 시각</b>과 끊긴 시각이 맞는 곳이 범인 → <b>보고서 ②</b>', to: REP };
+      return { t: '🏭 서류에서 밤에 <b>기록이 빈</b> 시설을 <b>보고서 ②</b>에 고르세요', to: REP }; }
     if (!set('point')) return { t: '📍 서류에서 밤에 <b>기록이 빈</b> ' + (water ? '배출구' : '굴뚝') + '를 <b>보고서 ③</b>에 고르세요', to: REP };
     if (!set('slot')) return { t: '⏱ 그 ' + (water ? '배출구' : '굴뚝') + '의 <b>기록이 빈 시각</b>을 <b>보고서 ④</b>에 고르세요', to: REP };
     if (!(D.ev || []).length) return { t: '🔑 답을 고른 <b>이유가 된 증거</b>를 3개까지 골라요', to: REP };
@@ -744,6 +779,7 @@ class UlsanRpgGame {
     const qr = q.right - root.left, sl = sd.left - root.left, W = root.width; let a, b, top;
     this._avoid = ['aboost', 'fjoy'].map(id => { const e = document.getElementById(id); if (!e || e.style.visibility === 'hidden') return null; const r = e.getBoundingClientRect(); return r.width ? [r.left - root.left, r.top - root.top, r.right - root.left, r.bottom - root.top] : null; }).filter(Boolean);   // 조작 버튼 자리 (목적지 화살표가 피함)
     this._hudR = [q].concat(['.u-btns', '.u-mapbox'].map(k => this.ui.root.querySelector(k).getBoundingClientRect())).map(r => [r.left - root.left, r.top - root.top, r.right - root.left, r.bottom - root.top]).concat(this._avoid);   // 장소 이름표가 피할 곳: 퀘스트 창 · 메뉴 단추 · 미니맵 · 조작 단추 (오른쪽 위 묶음 전체 네모는 빈 곳까지 막았음)
+    this._feedTop = (sl - qr - 24 >= 380 ? 12 + 44 : q.bottom - root.top + 52); this._feedL = sl - qr - 24 >= 380 ? [qr + 12, sl - 12] : [8, W - 8];   // 반 친구 소식 띠 자리 (알림 띠 바로 아래)
     this._safeTop = Math.round(q.bottom - root.top + 40); this._safeTop2 = Math.round(Math.max(q.bottom, sd.bottom) - root.top + 30);   // 떠 있는 안내 · 목적지 화살표의 윗선
     if (sl - qr - 24 >= 380) { a = qr + 12; b = sl - 12; top = 12; } else { top = q.bottom - root.top + 8; a = 8; b = (sd.bottom - root.top > top ? sl : W) - 8; }
     const k = a.toFixed(0) + ',' + b.toFixed(0) + ',' + top.toFixed(0); if (k === this._toastK) return; this._toastK = k;
@@ -777,42 +813,54 @@ class UlsanRpgGame {
   // 화면 좌표로 (3D → 2D)
   toScreen(x, y, z) { const v = (this._pv = this._pv || new THREE.Vector3()).set(x, y, z).project(this.camera); return { x: (v.x + 1) / 2 * (this.vw || 800), y: (1 - v.y) / 2 * (this.vh || 600), front: v.z < 1, on: v.z < 1 && Math.abs(v.x) < 0.92 && Math.abs(v.y) < 0.9 }; }
   // 이름표: 가까운 사람(46칸 안 · 화면 앞) 머리 위 <역할> 이름 · 아직 안 만났으면 금색 ! · 나(초록) — 안내가 뜬 대상은 숨김(겹치지 않게)
+  //   v2026-10-19b: 창·단추·조사 안내와 겹치지 않게 · 서로 겹치면 먼 사람을 뺌 (이야기를 들은 사람부터) → 놓인 자리는 장소 이름표가 피함
   placePlates() {
-    const box = this.ui.plates; if (!box) return; const pool = this._plates = this._plates || [], show = [], near = this.near;
-    if (!this.ui.modalOpen && !this.ov && !this.gameOver) { this.npcs.forEach(n => { const d = Math.hypot(n.x - this.px, n.z - this.pz); if (d < 46 && !(near && near.kind === 'npc' && near.id === n.id)) show.push([d, n]); }); show.sort((a, b) => a[0] - b[0]); show.length = Math.min(show.length, 6);
-      if (!near) show.push([0, null]); }   // 나 (조사 안내가 떠 있을 땐 뺌 — 안내와 겹치지 않게)
+    const box = this.ui.plates; if (!box) return; const pool = this._plates = this._plates || [], show = [], near = this.near, placed = (this._hudR || []).concat(this._promptR ? [this._promptR] : []), mine = [];
+    if (!this.ui.modalOpen && !this.ov && !this.gameOver) { this.npcs.forEach(n => { const d = Math.hypot(n.x - this.px, n.z - this.pz); if (d < 46 && !(near && near.kind === 'npc' && near.id === n.id)) show.push([d, n]); });
+      show.sort((a, b) => (!!this.talked[a[1].id]) - (!!this.talked[b[1].id]) || a[0] - b[0]); show.length = Math.min(show.length, 6);   // 안 만난 사람 먼저
+      if (!near) show.unshift([0, null]); }   // 나 (조사 안내가 떠 있을 땐 뺌 — 안내와 겹치지 않게)
     let k = 0;
     show.forEach(([d, n]) => { const p = n ? this.toScreen(n.x, (n.y0 || 0) + 2.7, n.z) : this.toScreen(this.px, this.player.position.y + 2.7, this.pz); if (!p.on) return;
+      const id = n ? n.id : '@me', met = !n || !!this.talked[n.id], W0 = (this._plW || {})[id + met] || 96, H0 = met ? 32 : 54, r = [p.x - W0 / 2, p.y - H0, p.x + W0 / 2, p.y];
+      if (placed.some(q => r[0] < q[2] && r[2] > q[0] && r[1] < q[3] && r[3] > q[1])) return; placed.push(r); mine.push(r);
       let el = pool[k]; if (!el) { el = document.createElement('div'); el.className = 'u-plate'; el.innerHTML = '<i>!</i><small></small><b></b>'; box.appendChild(el); pool[k] = el; } k++;
-      const id = n ? n.id : '@me'; if (el.dataset.id !== id) { el.dataset.id = id; if (n) { const parts = n.name.split(' '), nm = parts.pop(); el.children[1].textContent = parts.join(' ') || '주민'; el.children[2].textContent = nm; } else { el.children[1].textContent = '환경 조사관'; el.children[2].textContent = this.opts.myName || '나'; } el.classList.toggle('me', !n); }
-      el.classList.toggle('met', !n || !!this.talked[n.id]); el.classList.toggle('far', d > 30); if (el.style.display) el.style.display = ''; el.style.left = p.x.toFixed(0) + 'px'; el.style.top = p.y.toFixed(0) + 'px'; });
+      if (el.dataset.id !== id) { el.dataset.id = id; if (n) { const parts = n.name.split(' '), nm = parts.pop(); el.children[1].textContent = parts.join(' ') || '주민'; el.children[2].textContent = nm; } else { el.children[1].textContent = '환경 조사관'; el.children[2].textContent = this.opts.myName || '나'; } el.classList.toggle('me', !n); }
+      el.classList.toggle('met', met); el.classList.toggle('far', d > 30); if (el.style.display) el.style.display = ''; el.style.left = p.x.toFixed(0) + 'px'; el.style.top = p.y.toFixed(0) + 'px';
+      const pw = this._plW = this._plW || {}; if (!pw[id + met]) { const w = el.offsetWidth; if (w) pw[id + met] = w + 8; } });
     for (; k < pool.length; k++) if (pool[k].style.display !== 'none') pool[k].style.display = 'none';
+    this._plateR = mine;
   }
-  // 장소 이름표 (화면 위 · v2026-10-19a): 조사 장소 · 시설 이름을 건물에 가리지 않게 띄우고 거리까지 — 겹치면 먼 것을 뺌 · 목적지는 금빛
-  //   예전엔 3D 글자판이라 건물 뒤에 숨거나 작은 동 이름표와 뒤섞여 어느 곳인지 알아보기 어려웠음
+  // 장소 이름표 (화면 위): 조사 장소 · 시설 · 센서 이름 + 거리 — 겹치면 먼 것을 뺌 · 목적지·지금 갈 곳은 금빛 · 확인한 곳은 작고 흐리게 ✓ (센서는 숨김)
+  //   v2026-10-19b: 센서 이름도 3D 글자판 대신 여기로 · 사람 이름표 · 조사 안내 · 창·단추와 겹치지 않게
   placeTags() {
     const box = this.ui.tags; if (!box) return;
     if (!this._tagL) { const PI = UlsanRpgGame.PLACE_ICON; this._tagL = [];
-      Object.keys(UC_PLACES).forEach(k => { const P = UC_PLACES[k]; this._tagL.push({ kind: 'place', key: 'p:' + k, name: P.name, icon: PI[k] || '🏛', x: P.at[0], z: P.at[1], y: 9 }); });
-      Object.keys(UC_FAC).forEach(fid => { const F = UC_FAC[fid], Y = ucYard(F), ty = /\(([^)]+)\)/.exec(F.name); this._tagL.push({ kind: 'fac', key: 'f:' + fid, name: ucFacShort(F), sub: ty ? ty[1] : '', icon: '🏭', x: (Y[0] + Y[2]) / 2, z: (Y[1] + Y[3]) / 2, y: 17 }); });
+      Object.keys(UC_PLACES).forEach(k => { const P = UC_PLACES[k]; this._tagL.push({ kind: 'place', pk: k, key: 'p:' + k, name: P.name, icon: PI[k] || '🏛', x: P.at[0], z: P.at[1], y: 9, range: 170 }); });
+      Object.keys(UC_FAC).forEach(fid => { const F = UC_FAC[fid], Y = ucYard(F), ty = /\(([^)]+)\)/.exec(F.name); this._tagL.push({ kind: 'fac', pk: fid, key: 'f:' + fid, name: ucFacShort(F), sub: ty ? ty[1] : '', icon: '🏭', x: (Y[0] + Y[2]) / 2, z: (Y[1] + Y[3]) / 2, y: 17, range: 170 }); });
+      UC_BIO.forEach(b => { const q = ucBioAt(b); this._tagL.push({ kind: 'bio', pk: b.id, key: 's:' + b.id, name: b.name.replace(/ 바이오센서$/, ''), sub: '물벼룩 센서', icon: '🦐', x: q[0], z: q[1], y: 4.5, range: 70 }); });
+      UC_AIR.forEach(a => this._tagL.push({ kind: 'air', pk: a.id, key: 's:' + a.id, name: a.name.replace(/ (대기측정소|악취센서)$/, ''), sub: /악취/.test(a.name) ? '악취 센서' : '대기 센서', icon: '💨', x: a.x, z: a.z, y: 6.5, range: 70 }));
       this._tagL.forEach(t => { t.gy = this.groundH(t.x, t.z) + t.y; const el = document.createElement('div'); el.className = 'u-tag k-' + t.kind; el.innerHTML = '<i>' + t.icon + '</i><b>' + t.name + '</b>' + (t.sub ? '<small>' + t.sub + '</small>' : '') + '<em></em>'; el.style.display = 'none'; box.appendChild(el); t.el = el; }); }
-    const W = this.vw || 800, off = this.ui.modalOpen || this.gameOver || (this.replay && !this.ov), cap = this.ov ? 16 : W < 600 ? 5 : 8, show = [], placed = (this._hudR || []).slice();   // 퀘스트 창 · 미니맵 · 조작 단추 자리엔 안 띄움
-    const me = !this.ov && this.player ? this.toScreen(this.px, this.player.position.y + 1.2, this.pz) : null;
-    this._tagL.forEach(t => { t.d = Math.hypot(t.x - this.px, t.z - this.pz); t.v = false; if (off || (!this.ov && (t.d > 170 || t.d < 9))) return; t.p = this.toScreen(t.x, t.gy, t.z); if (t.p.on && t.p.y > 40) show.push(t); });   // 바로 앞(9칸 안)은 사람 이름표가 있어 뺌
-    const dk = this.dest && this.dest.key; show.sort((a, b) => (b.key === dk) - (a.key === dk) || a.d - b.d);
-    show.forEach(t => { if (placed.length >= cap) return; const w = t.w || 150, h = 30, x0 = t.p.x - w / 2, y0 = t.p.y - h - 8; if (placed.some(r => x0 < r[2] && x0 + w > r[0] && y0 < r[3] && y0 + h > r[1])) return; placed.push([x0, y0, x0 + w, y0 + h]); t.v = true; });
+    const W = this.vw || 800, off = this.ui.modalOpen || this.gameOver || (this.replay && !this.ov), cap = this.ov ? 16 : W < 600 ? 5 : 8, show = [], placed = (this._hudR || []).concat(this._plateR || [], this._promptR ? [this._promptR] : []);   // 퀘스트 창 · 미니맵 · 조작 단추 · 사람 이름표 · 조사 안내 자리엔 안 띄움
+    const me = !this.ov && this.player ? this.toScreen(this.px, this.player.position.y + 1.2, this.pz) : null, T = this._hintT, gk = T && !T.rep ? T.key : null, dk = this.dest && this.dest.key;
+    const near = this.near, nearKey = near && (near.kind === 'bio' || near.kind === 'air') ? 's:' + near.st.id : near && near.kind === 'facility' ? 'f:' + near.fac : null;
+    this._tagL.forEach(t => { t.d = Math.hypot(t.x - this.px, t.z - this.pz); t.v = false; t.chk = this.poiChecked({ kind: t.kind, key: t.pk }); t.goal = t.key === gk || t.key === dk;
+      if (off || t.key === nearKey || (!this.ov && (t.d > t.range || t.d < 9))) return; if ((t.kind === 'bio' || t.kind === 'air') && (t.chk || this.ov) && !t.goal) return;   // 확인한 센서는 숨김 · 조사 안내가 뜬 대상도 (겹치지 않게)
+      t.p = this.toScreen(t.x, t.gy, t.z); if (t.p.on && t.p.y > 40) show.push(t); });   // 바로 앞(9칸 안)은 사람 이름표가 있어 뺌
+    show.sort((a, b) => b.goal - a.goal || a.chk - b.chk || (a.kind === 'bio' || a.kind === 'air') - (b.kind === 'bio' || b.kind === 'air') || a.d - b.d);
+    let n = 0; show.forEach(t => { if (n >= cap) return; const w = t.w || 150, h = t.chk ? 24 : 30, x0 = t.p.x - w / 2, y0 = t.p.y - h - 8; if (placed.some(r => x0 < r[2] && x0 + w > r[0] && y0 < r[3] && y0 + h > r[1])) return; placed.push([x0, y0, x0 + w, y0 + h]); t.v = true; n++; });
     this._tagL.forEach(t => { const el = t.el; if (!t.v) { if (el.style.display !== 'none') el.style.display = 'none'; return; } if (el.style.display) el.style.display = '';
       el.style.transform = 'translate(' + t.p.x.toFixed(0) + 'px,' + t.p.y.toFixed(0) + 'px) translate(-50%,-100%)'; if (!t.w) t.w = el.offsetWidth + 8;
-      const km = t.d * 0.09, txt = km >= 1 ? km.toFixed(1) + 'km' : Math.round(km * 10) * 100 + 'm'; if (t.dt !== txt) { t.dt = txt; el.lastChild.textContent = txt; }
-      const far = t.d > 90, dst = t.key === dk, dim = !!(me && me.on && Math.abs(me.x - t.p.x) < t.w / 2 + 10 && me.y > t.p.y - 40 && me.y < t.p.y + 40);   // 내 캐릭터를 가리면 흐리게
-      if (t._f !== far) { t._f = far; el.classList.toggle('far', far); t.w = 0; } if (t._d !== dst) { t._d = dst; el.classList.toggle('dest', dst); } if (t._m !== dim) { t._m = dim; el.classList.toggle('dim', dim); } });
+      const km = t.d * 0.09, txt = (t.chk ? '✓ ' : '') + (km >= 1 ? km.toFixed(1) + 'km' : Math.round(km * 10) * 100 + 'm'); if (t.dt !== txt) { t.dt = txt; el.lastChild.textContent = txt; }
+      const far = t.d > 90 || t.chk, dim = !!(me && me.on && Math.abs(me.x - t.p.x) < t.w / 2 + 10 && me.y > t.p.y - 40 && me.y < t.p.y + 40);   // 내 캐릭터를 가리면 흐리게
+      if (t._f !== far) { t._f = far; el.classList.toggle('far', far); t.w = 0; } if (t._d !== t.goal) { t._d = t.goal; el.classList.toggle('dest', t.goal); } if (t._m !== dim) { t._m = dim; el.classList.toggle('dim', dim); } if (t._c !== t.chk) { t._c = t.chk; el.classList.toggle('done', t.chk); } });
   }
   placePrompt() {
     const el = this.ui.prompt, o = this.near, txt = o && !this.ui.modalOpen && !this.ov ? o.label : '';
     if (el.dataset.t !== txt) { el.dataset.t = txt; el.innerHTML = txt ? '<b>' + (this.isTouch ? '🔍' : 'E') + '</b>' + txt : ''; el.classList.toggle('on', !!txt); }
-    if (!txt) return; const x = o.x != null ? o.x : this.px, z = o.z != null ? o.z : this.pz, p = this.toScreen(x, this.groundH(x, z) + (o.kind === 'npc' ? 3.4 : 3), z);
+    if (!txt) { this._promptR = null; return; } const x = o.x != null ? o.x : this.px, z = o.z != null ? o.z : this.pz, p = this.toScreen(x, this.groundH(x, z) + (o.kind === 'npc' ? 3.4 : 3), z);
     const px = Math.max(90, Math.min((this.vw || 800) - 90, p.x)), py = Math.max(this._safeTop || 150, Math.min((this.vh || 600) - 30, p.y));   // 퀘스트 창 아래로
     el.style.left = px.toFixed(0) + 'px'; el.style.top = py.toFixed(0) + 'px';
+    const w = (el.offsetWidth || 220) / 2 + 6; this._promptR = [px - w, py - 26, px + w, py + 26];   // 조사 안내 자리 (이름표들이 피함)
   }
   // ── 목적지: 3D 빛기둥 + 화면 끝 화살표(거리) ──
   setDest(x, z, name, quiet, key) {
@@ -919,8 +967,38 @@ class UlsanRpgGame {
     else { g.font = Math.round(s * 0.5) + 'px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif'; g.fillText(emoji, s / 2, s / 2 + s * 0.04); }
     return (C[key] = c);
   }
-  // 아이콘 하나 그리기 (X, Y: 화면 자리 · u: 크기 배율) — 사람은 아직 안 만났으면 금색 '!' · 만났으면 작게
-  drawPoi(g, p, X, Y, u) {
+  // ── 확인한 곳 · 중요도 · 겹치지 않게 놓기 (v2026-10-19b · 미니맵 · 큰 지도 공통) ──
+  //   확인한 곳(이야기 들은 장소 · 서류 본 시설 · 기록 본 센서 · 살펴본 배출구)은 작고 흐리게 ✓ — 남은 중요한 곳이 눈에 띄게
+  poiKey(p) { return p.kind === 'place' ? 'p:' + p.key : p.kind === 'fac' ? 'f:' + p.key : p.kind === 'bio' || p.kind === 'air' ? 's:' + p.key : p.kind === 'point' ? 'o:' + p.key : p.kind === 'report' ? 'r' + this.caseNo : 'n:' + p.key; }
+  poiChecked(p) { if (p.kind === 'place') { const I = (UlsanRpgGame.PLACE_INFO[p.key] || [])[0]; return !!(I && this.talked[I]); } if (p.kind === 'fac') return this.evidence.some(e => e.title === '🗂 ' + UC_FAC[p.key].name + ' 서류');
+    if (p.kind === 'bio' || p.kind === 'air') return !!this.visited[p.key]; if (p.kind === 'npc') return !!this.talked[p.key]; if (p.kind === 'point') return !!this.visited['pt:' + p.key]; return false; }
+  poiGoal(p) { const T = this._hintT; return !!(T && !T.rep && T.key === this.poiKey(p)) || !!(this.dest && this.dest.key === this.poiKey(p)); }
+  // pois → 화면 자리: 중요한 것부터 놓고, 겹치면 둘레 8방향으로 비켜 놓고 가는 선으로 제자리 표시 · 자리가 없으면 덜 중요한 것은 작은 점
+  layoutPois(pois, sx, sz, u, reserved) {
+    const out = [], circ = [];
+    pois.forEach(p => { p._chk = this.poiChecked(p); p._goal = this.poiGoal(p); p._pr = (p._goal ? 10 : 0) + (p.kind === 'report' ? 6 : p.kind === 'fac' ? 4 : p.kind === 'place' ? 3 : p.kind === 'npc' ? (p.staff ? 1.2 : 2.5) : p.kind === 'point' ? 2 : 1.5) - (p._chk ? 2 : 0); });
+    pois.slice().sort((a, b) => b._pr - a._pr).forEach(p => {
+      const X = sx(p.x), Y = sz(p.z), r = (p.kind === 'point' ? 8 : p.kind === 'bio' || p.kind === 'air' ? 8.5 : p.kind === 'fac' ? 11.5 : 10.5) * u * (p._chk ? 0.72 : 1);
+      const free = (x, y) => !circ.some(c => Math.hypot(c[0] - x, c[1] - y) < c[2] + r + 1.5 * u) && !(reserved || []).some(q => x + r > q[0] && x - r < q[2] && y + r > q[1] && y - r < q[3]);
+      let at = free(X, Y) ? [X, Y] : null;
+      for (const k of [2.1, 3.2]) for (let i = 0; i < 8 && !at; i++) { const a = -Math.PI / 2 + i * Math.PI / 4, x = X + Math.cos(a) * r * k, y = Y + Math.sin(a) * r * k; if (free(x, y)) at = [x, y]; }
+      if (!at && p._pr >= 3) at = [X, Y];   // 중요한 곳은 겹쳐도 그림
+      if (at) { circ.push([at[0], at[1], r]); out.push({ p, X: at[0], Y: at[1], ox: X, oy: Y, r, moved: Math.hypot(at[0] - X, at[1] - Y) > 1 }); }
+      else out.push({ p, X, Y, ox: X, oy: Y, r: 2.6 * u, dot: true });
+    });
+    return out;
+  }
+  // 놓은 아이콘 그리기: 제자리 선 → 작은 점 → 아이콘(덜 중요한 것 먼저 · 중요한 것이 위) · '지금 갈 곳'은 금빛 고리
+  drawLayout(g, L, u, t) {
+    g.save(); g.lineWidth = 1.4 * u; g.strokeStyle = 'rgba(255,246,218,.75)'; L.forEach(a => { if (!a.moved) return; g.beginPath(); g.moveTo(a.ox, a.oy); g.lineTo(a.X, a.Y); g.stroke(); g.beginPath(); g.arc(a.ox, a.oy, 2.2 * u, 0, 7); g.fillStyle = '#FFF6DA'; g.fill(); }); g.restore();
+    L.filter(a => a.dot).forEach(a => { g.beginPath(); g.arc(a.X, a.Y, a.r, 0, 7); g.fillStyle = a.p._chk ? 'rgba(174,182,198,.8)' : a.p.kind === 'bio' ? '#27A9E1' : a.p.kind === 'air' ? '#C9D0DD' : a.p.kind === 'point' ? '#FFD166' : '#FFE9A8'; g.fill(); g.lineWidth = 1 * u; g.strokeStyle = 'rgba(8,12,20,.8)'; g.stroke(); });
+    L.filter(a => !a.dot).slice().reverse().forEach(a => { if (a.p._goal && t != null) { const k = 0.5 + 0.5 * Math.sin(t * 5); g.beginPath(); g.arc(a.X, a.Y, a.r + (4 + 4 * k) * u, 0, 7); g.strokeStyle = 'rgba(255,209,102,' + (0.95 - 0.5 * k).toFixed(2) + ')'; g.lineWidth = 3 * u; g.stroke(); }
+      this.drawPoi(g, a.p, a.X, a.Y, u * (a.p._chk ? 0.72 : 1), a.p._chk); });
+  }
+  // 아이콘 하나 그리기 (X, Y: 화면 자리 · u: 크기 배율) — 사람은 아직 안 만났으면 금색 '!' · 만났으면 작게 · chk: 확인한 곳(흐리게 + ✓)
+  drawPoi(g, p, X, Y, u, chk) {
+    if (chk && p.kind !== 'npc') { g.save(); g.globalAlpha = 0.62; const r = this.drawPoi(g, p, X, Y, u, false); g.restore(); const b = 5.5 * u / 0.72, bx = X + r * 0.72, by = Y - r * 0.72; g.beginPath(); g.arc(bx, by, b, 0, 7); g.fillStyle = '#1FBF6A'; g.fill(); g.lineWidth = 1.2 * u; g.strokeStyle = '#0B3B22'; g.stroke();
+      g.fillStyle = '#fff'; g.font = '900 ' + Math.round(b * 1.5) + 'px Pretendard, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('✓', bx, by + b * 0.08); return r; }
     const S = Math.round(20 * u) * 2, st = {
       fac: ['#E0605A,#7A1D1A', '#FFD9A8'], place: ['#3F86C8,#143E6E', '#F5C451'], bio: ['#27A9E1,#0B4F75', '#DDF4FF'], air: ['#9AA3B5,#3B4252', '#EEF1F7'], npc: ['#FFE9A8,#D99A2B', '#5A3C00'] }[p.kind];
     if (p.kind === 'report') { const ic = this.mapIcon('✖', '#FF7B7B,#A51D2D', '#FFE3E3', S, '#FFFFFF'); g.drawImage(ic, X - S / 4, Y - S / 4, S / 2, S / 2); return S / 4; }
@@ -937,6 +1015,13 @@ class UlsanRpgGame {
     g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
     if (pill) { g.beginPath(); if (g.roundRect) g.roundRect(x0, y0, w, h, h / 2); else g.rect(x0, y0, w, h); g.fillStyle = 'rgba(9,13,22,.84)'; g.fill(); g.lineWidth = Math.max(1.2, fs * 0.1); g.strokeStyle = pill; g.stroke(); g.fillStyle = col; g.fillText(text, X, Y + fs * 0.04); return true; }
     g.lineWidth = Math.max(3, fs * 0.28); g.strokeStyle = 'rgba(8,12,20,.88)'; g.strokeText(text, X, Y); g.fillStyle = col; g.fillText(text, X, Y); return true;
+  }
+  // 아이콘 둘레에 이름표: 아래 → 위 → 오른쪽 → 왼쪽 → 비스듬히 (빈 곳에) — 촘촘한 도심에서도 이름이 빠지지 않게
+  mapLabelAround(g, text, X, Y, r, fs, col, placed, bold, pill) {
+    g.font = (bold || pill ? 900 : 800) + ' ' + fs + 'px Pretendard, sans-serif'; const w = g.measureText(text).width + (pill ? fs * 1.1 : 0), h = fs * (pill ? 1.55 : 1.1), gap = 3 * fs / 13;
+    for (const [dx, dy] of [[0, r + gap + h / 2], [0, -(r + gap + h / 2)], [r + gap + w / 2, 0], [-(r + gap + w / 2), 0], [r * 0.7 + w / 2, r * 0.7 + h / 2], [-(r * 0.7 + w / 2), r * 0.7 + h / 2], [r * 0.7 + w / 2, -(r * 0.7 + h / 2)], [-(r * 0.7 + w / 2), -(r * 0.7 + h / 2)]])
+      if (this.mapLabel(g, text, X + dx, Y + dy, fs, col, placed, bold, pill)) return true;
+    return false;
   }
   // 지금 위치: 행정동 · 구 (실제 경계로 판정) · 강가면 강 이름과 km
   whereAmI() {
@@ -968,11 +1053,13 @@ class UlsanRpgGame {
     if (!this._vq || t - (this._vqT || 0) > 0.25) { this._vq = this.viewQuad(); this._vqT = t; }
     if (this._vq) { g.beginPath(); this._vq.forEach((p, i) => { const X = sx(p[0]), Y = sz(p[1]); i ? g.lineTo(X, Y) : g.moveTo(X, Y); }); g.closePath(); g.fillStyle = 'rgba(255,240,200,.1)'; g.fill(); g.strokeStyle = 'rgba(255,240,200,.42)'; g.lineWidth = 1.2 * u; g.stroke(); }
     // 아이콘 (덜 중요한 것 먼저) · 이름표: 장소·시설·신고 지점은 늘 (가까운 순) · 확대하면 사람·센서 이름도 — 둥근 바탕으로 또렷하게
-    const near = R <= 32, pois = this.mapPois().filter(p => inR(p.x, p.z) && !(p.kind === 'npc' && p.staff && R > 30)).sort((a, b) => a.pri - b.pri), placed = [[W / 2 - 13 * u, W / 2 - 13 * u, W / 2 + 13 * u, W / 2 + 13 * u], [W * 0.3, W * 0.8 - 16 * u, W * 0.7, W * 0.8 + 5 * u]];   // 나 · 축척 막대 자리는 비움
-    const at = pois.map(p => [p, sx(p.x), sz(p.z), this.drawPoi(g, p, sx(p.x), sz(p.z), u * (R > 70 ? 0.85 : 1))]); at.forEach(([p, X, Y, r]) => { if (p.pri >= 3) placed.push([X - r, Y - r, X + r, Y + r]); });   // 이름표는 장소·시설 아이콘은 가리지 않되 작은 아이콘(사람·센서) 위엔 올 수 있음
+    // 아이콘: 겹치지 않게 (layoutPois) · 확인한 센서·사람은 넓게 볼 때 숨김 · 이름표도 아이콘·나·축척 막대를 가리지 않게
+    const near = R <= 32, uu = u * (R > 70 ? 0.85 : 1), pois = this.mapPois().filter(p => inR(p.x, p.z) && !(p.kind === 'npc' && p.staff && R > 30 && !this.poiGoal(p)) && !((p.kind === 'npc' || p.kind === 'bio' || p.kind === 'air' || p.kind === 'point') && R > 50 && this.poiChecked(p) && !this.poiGoal(p)));
+    const keep = [[W / 2 - 13 * u, W / 2 - 13 * u, W / 2 + 13 * u, W / 2 + 13 * u], [W * 0.3, W * 0.8 - 16 * u, W * 0.7, W * 0.8 + 5 * u]], L = this.layoutPois(pois, sx, sz, uu, keep);   // 나 · 축척 막대 자리는 비움
+    this.drawLayout(g, L, uu, t); const placed = keep.concat(L.filter(a => !a.dot).map(a => [a.X - a.r, a.Y - a.r, a.X + a.r, a.Y + a.r]));
     const COL = { fac: ['#FFE1D8', 'rgba(255,128,112,.95)'], place: ['#FFF6DA', 'rgba(245,196,81,.95)'], report: ['#FFE3E3', 'rgba(255,92,108,.95)'], npc: ['#FFF3D1', 'rgba(255,214,102,.8)'], bio: ['#DDF4FF', 'rgba(79,176,234,.8)'], air: ['#EEF1F7', 'rgba(170,180,200,.8)'], point: ['#FFE08A', 'rgba(255,209,102,.8)'] };
-    at.filter(a => a[0].pri >= 3 || (near && a[0].kind !== 'point')).sort((a, b) => (b[0].pri >= 3) - (a[0].pri >= 3) || Math.hypot(a[0].x - this.px, a[0].z - this.pz) - Math.hypot(b[0].x - this.px, b[0].z - this.pz)).slice(0, near ? 10 : 7)
-      .forEach(([p, X, Y, r]) => { const c = COL[p.kind] || COL.place; this.mapLabel(g, p.short, X, Y + r + 8 * u, Math.round((p.pri >= 3 ? 11.5 : 10.5) * u), c[0], placed, true, c[1]); });
+    L.filter(a => !a.dot && (a.p.pri >= 3 || (near && a.p.kind !== 'point')) && (!a.p._chk || near || a.p._goal)).sort((a, b) => b.p._goal - a.p._goal || (b.p.pri >= 3) - (a.p.pri >= 3) || Math.hypot(a.p.x - this.px, a.p.z - this.pz) - Math.hypot(b.p.x - this.px, b.p.z - this.pz)).slice(0, near ? 10 : 7)
+      .forEach(a => { const c = COL[a.p.kind] || COL.place; this.mapLabelAround(g, a.p.short, a.X, a.Y, a.r, Math.round((a.p.pri >= 3 ? 11.5 : 10.5) * u), a.p._chk ? '#AEB6C6' : c[0], placed, true, a.p._goal ? 'rgba(255,209,102,1)' : c[1]); });
     // 목적지: 안에 있으면 핀 · 밖이면 테두리에 화살표 + 거리
     if (this.dest) { const Dd = this.dest, d = Math.hypot(Dd.x - this.px, Dd.z - this.pz);
       if (inR(Dd.x, Dd.z, 0.9)) { const X = sx(Dd.x), Y = sz(Dd.z) - 4 * u + Math.sin(t * 4) * 2 * u; g.font = Math.round(22 * u) + 'px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif'; g.textAlign = 'center'; g.textBaseline = 'bottom'; g.fillText('📍', X, Y + 12 * u); }
@@ -1079,20 +1166,61 @@ class UlsanRpgGame {
       '<details class="gl-d"' + (water ? ' open' : '') + '><summary>🦐 물벼룩 바이오센서 ' + UC_BIO.length + '곳 <small>강물 사건</small></summary>' + bio + '</details>' +
       '<details class="gl-d"' + (water ? '' : ' open') + '><summary>💨 대기·냄새 센서 ' + UC_AIR.length + '곳 <small>냄새 사건</small></summary>' + air + '</details>';
   }
-  // 큰 지도: 🗺 지도(끌기 · 두 손가락/휠 확대 · 아이콘을 눌러 목적지 · 바로 가기) · 📋 장소 목록 · 종류별 켜고 끄기 · 3D 전경
+  // 큰 지도 (v2026-10-19b · 화면 가득): 🗺 지도(끌기 · 두 손가락/휠 확대 · 아이콘을 눌러 목적지 · 바로 가기) · 📋 장소 목록
+  //   강 이름은 물길을 따라 여러 번 · 장소·시설 이름은 둥근 이름표 · 아이콘끼리 겹치지 않게 비켜 놓고 제자리 선 · 확인한 곳은 흐리게 ✓ · 지금 갈 곳은 금빛 고리
   openMap(tab) {
     const L = this.whereAmI(), km = d => { const v = d * 0.09; return v >= 1 ? v.toFixed(1) + 'km' : Math.round(v * 100) * 10 + 'm'; };
-    const F = this._mapF = this._mapF || { fac: true, place: true, sensor: true, npc: true, point: true }, KIND = { fac: '시설', place: '조사 장소', bio: '물벼룩 바이오센서', air: '대기·냄새 센서', npc: '사람', point: '확인한 배출 지점', report: '신고 지점' };
+    const F = this._mapF = this._mapF || { fac: true, place: true, sensor: true, npc: true, point: true }, KIND = { fac: '시설', place: '조사 장소', bio: '물벼룩 바이오센서', air: '대기·냄새 센서', npc: '사람', point: '배출 지점', report: '신고 지점' };
     tab = tab || this._mapTab || 'map'; this._mapTab = tab;
-    this.dialog('🗺', '울산 지도', '<div class="u-here">📍 지금 위치 <b>' + L.text + '</b></div>' +
-      '<div class="u-mtabs"><button data-mt="map" class="' + (tab === 'map' ? 'on' : '') + '">🗺 지도</button><button data-mt="list" class="' + (tab === 'list' ? 'on' : '') + '">📋 장소 목록 <small>어디서 무엇을?</small></button></div>' +
-      '<div class="u-mpane" data-p="map"><div class="u-mapbar"><span class="u-seg"><button data-z="1">전체</button><button data-z="2">내 주변</button><button data-z="4">크게</button></span><button data-me="1">🎯 내 위치</button><button data-3d="1" class="ov">🛰 3D 전경</button></div>' +
-      '<div class="u-mapf">' + [['fac', '🏭 시설'], ['place', '🏛 장소'], ['sensor', '📈 센서'], ['npc', '❗ 사람'], ['point', '◆ 배출 지점']].map(([k, l]) => '<button data-f="' + k + '" class="' + (F[k] ? 'on' : '') + '">' + l + '</button>').join('') + '</div>' +
-      '<div class="u-mapwrap"><canvas class="u-map" width="1120" height="1040"></canvas><div class="u-mapsel hidden"></div></div>' +
-      '<p class="dim u-maphelp">끌어서 옮기기 · 두 손가락(휠)으로 확대 · 아이콘을 누르면 📍 <b>목적지</b>와 🚙 바로 가기 · 강의 흰 점 = 1km</p>' +
-      '<div class="u-legend"><span><i class="lg fac">🏭</i>시설</span><span><i class="lg place">🏛</i>조사 장소</span>' + (this.set.diff !== 'hard' && UC_POL[this.C.pol].path === 'water' ? '<span><i class="lg rep">✖</i>신고 지점</span>' : '') + '<span><i class="lg bio">🦐</i>바이오센서</span><span><i class="lg air">💨</i>대기센서</span><span><i class="lg npc">!</i>아직 안 만난 사람</span><span><i class="lg pt"></i>확인한 배출 지점</span><span><i class="lg me"></i>나</span></div></div>' +
-      '<div class="u-mpane u-glist" data-p="list"></div>', [['닫기', () => this.closeDialog()]], true);
-    const dl = this.ui.dlg, cv = dl.querySelector('.u-map'), g = cv.getContext('2d'), CW = 1120, CH = 1040, sel = dl.querySelector('.u-mapsel'), gl = dl.querySelector('.u-glist'); dl.querySelector('.u-body').classList.add('mapbody');
+    const water = UC_POL[this.C.pol].path === 'water', rep = this.set.diff !== 'hard' && water;
+    this.dialog('🗺', '울산 지도', '<div class="u-mtabs"><button data-mt="map">🗺 지도</button><button data-mt="list">📋 장소 목록</button></div>' +
+      '<div class="u-mpane" data-p="map"><div class="u-mapwrap"><canvas class="u-map"></canvas></div>' +
+      '<div class="u-mtl"><div class="u-here">📍 <b>' + L.text + '</b></div><div class="u-mapbar"><span class="u-seg"><button data-z="1">전체</button><button data-z="2.5">내 주변</button><button data-z="5">크게</button></span><button data-me="1">🎯 나</button><button data-3d="1" class="ov">🛰 3D</button></div>' +
+      '<div class="u-mapf">' + [['fac', '🏭 시설'], ['place', '🏛 장소'], ['sensor', '📈 센서'], ['npc', '❗ 사람'], ['point', '◆ 배출']].map(([k, l]) => '<button data-f="' + k + '" class="' + (F[k] ? 'on' : '') + '">' + l + '</button>').join('') + '</div></div>' +
+      '<button class="u-lgbtn" data-lg="1">범례 ▾</button><div class="u-legend hidden"><span><i class="lg fac">🏭</i>시설</span><span><i class="lg place">🏛</i>조사 장소</span>' + (rep ? '<span><i class="lg rep">✖</i>신고 지점</span>' : '') + '<span><i class="lg bio">🦐</i>바이오센서</span><span><i class="lg air">💨</i>대기센서</span><span><i class="lg npc">!</i>안 만난 사람</span><span><i class="lg pt"></i>배출 지점</span><span><i class="lg me"></i>나</span><span><i class="lg ck">✓</i>확인한 곳 (흐리게)</span><span><i class="lg goal"></i>지금 갈 곳</span><span class="dim">끌기 · 두 손가락/휠 확대 · 아이콘 누르기 = 목적지 · 강의 흰 점 = 1km</span></div>' +
+      '<div class="u-mapsel hidden"></div></div>' +
+      '<div class="u-mpane u-glist" data-p="list"></div>', [['닫기', () => this.closeDialog()]], true, 'map');
+    const dl = this.ui.dlg, cv = dl.querySelector('.u-map'), g = cv.getContext('2d'), sel = dl.querySelector('.u-mapsel'), gl = dl.querySelector('.u-glist'); dl.querySelector('.u-body').classList.add('mapbody');
+    const layer = document.createElement('canvas'), dpr = Math.min(2, window.devicePixelRatio || 1) * (this.hq === 'low' ? 0.8 : 1);
+    let CW = 0, CH = 0, s0 = 1, lay = [];
+    const V = this.mapView = { z: 2.5, cx: this.px, cz: this.pz }, sc = () => s0 * V.z;
+    const clampV = () => { V.z = Math.max(1, Math.min(8, V.z)); const hx = Math.min(262, CW / 2 / sc()) * 0.3, hz = Math.min(252, CH / 2 / sc()) * 0.3; V.cx = Math.max(-262 + hx, Math.min(262 - hx, V.cx)); V.cz = Math.max(-252 + hz, Math.min(252 - hz, V.cz)); };   // 가운데는 지도 안 어디든 (넓은 화면에서도 나를 가운데에 · 끌어서 옮기기)
+    const tx = x => (x - V.cx) * sc() + CW / 2, tz = z => (z - V.cz) * sc() + CH / 2, fx = X => (X - CW / 2) / sc() + V.cx, fz = Y => (Y - CH / 2) / sc() + V.cz;
+    const fit = () => { const w = Math.max(50, cv.clientWidth), h = Math.max(50, cv.clientHeight), W2 = Math.round(w * dpr), H2 = Math.round(h * dpr); if (W2 === CW && H2 === CH) return false; CW = cv.width = layer.width = W2; CH = cv.height = layer.height = H2; s0 = Math.min(CW / 524, CH / 504); return true; };
+    const show = p => p.kind === 'bio' || p.kind === 'air' ? F.sensor : p.kind === 'report' ? true : F[p.kind] !== false;
+    const LC = { fac: ['#FFE1D8', 'rgba(255,128,112,.95)'], place: ['#FFF6DA', 'rgba(245,196,81,.95)'], report: ['#FFE3E3', 'rgba(255,92,108,.95)'] };
+    // 강 이름: 물길을 따라 화면에서 약 300px 마다 · 물길 방향으로 기울여 (거꾸로 서지 않게)
+    const riverNames = (q, placed, u) => Object.values(UC_RIVERS).forEach(R => { const Lr = ucLen(R.pts), step = 300 * u / sc(), fs = Math.round(14 * u); let next = Math.min(Lr * 0.3, step * 0.5);
+      for (let d = next; d < Lr - 2; d += Math.max(step, 6)) { const a = ucAt(R.pts, d), b = ucAt(R.pts, Math.min(Lr, d + 2)), X = tx(a[0]), Y = tz(a[1]); if (X < 0 || Y < 0 || X > CW || Y > CH) continue;
+        let an = Math.atan2(tz(b[1]) - Y, tx(b[0]) - X); if (an > Math.PI / 2) an -= Math.PI; if (an < -Math.PI / 2) an += Math.PI;
+        q.font = '900 ' + fs + 'px Pretendard, sans-serif'; const w = q.measureText(R.name).width, bx = [X - w / 2 - 4, Y - fs, X + w / 2 + 4, Y + fs]; if (placed.some(r => bx[0] < r[2] && bx[2] > r[0] && bx[1] < r[3] && bx[3] > r[1])) continue; placed.push(bx);
+        q.save(); q.translate(X, Y); q.rotate(an); q.textAlign = 'center'; q.textBaseline = 'middle'; q.lineJoin = 'round'; q.lineWidth = Math.max(3, fs * 0.3); q.strokeStyle = 'rgba(6,30,52,.92)'; q.strokeText(R.name, 0, 0); q.fillStyle = '#BFE9FF'; q.fillText(R.name, 0, 0); q.restore(); } });
+    const drawLayer = () => { const q = layer.getContext('2d'), s = sc(), B = this.mapBase(), u = dpr, box = [fx(0), fz(0), fx(CW), fz(CH)];
+      q.clearRect(0, 0, CW, CH); q.fillStyle = '#163B57'; q.fillRect(0, 0, CW, CH); q.imageSmoothingEnabled = true; q.drawImage(B.c, tx(-262), tz(-252), 524 * s, 504 * s);
+      this.mapVectors(q, tx, tz, s, box);
+      if (L.dong && this._lastDong) { q.fillStyle = 'rgba(54,224,143,.12)'; q.strokeStyle = 'rgba(54,224,143,.9)'; q.lineWidth = 2 * u; this._lastDong.rings.forEach(r => { q.beginPath(); r.forEach((p, i) => i ? q.lineTo(tx(p[0]), tz(p[1])) : q.moveTo(tx(p[0]), tz(p[1]))); q.closePath(); q.fill(); q.stroke(); }); }   // 내가 있는 동은 초록으로
+      const rivK = []; Object.values(UC_RIVERS).forEach(R => { const Lr = ucLen(R.pts); for (let k = 1; k * UC_KM < Lr; k++) { const p = ucAt(R.pts, k * UC_KM); q.beginPath(); q.arc(tx(p[0]), tz(p[1]), Math.max(1.6 * u, 0.25 * s), 0, 7); q.fillStyle = '#F4FBFF'; q.fill(); rivK.push([k, p]); } });   // 1km 점
+      const pois = this.mapPois().filter(p => show(p) && tx(p.x) > -30 && tz(p.z) > -30 && tx(p.x) < CW + 30 && tz(p.z) < CH + 30 && !(p.kind === 'npc' && p.staff && V.z < 4 && !this.poiGoal(p)));
+      const me = [tx(this.px) - 16 * u, tz(this.pz) - 16 * u, tx(this.px) + 16 * u, tz(this.pz) + 16 * u], uu = u * Math.max(0.9, Math.min(1.25, 0.85 + V.z * 0.06));
+      lay = this.layoutPois(pois, tx, tz, uu, [me]); this.drawLayout(q, lay, uu, null);
+      const placed = [me].concat(lay.filter(a => !a.dot).map(a => [a.X - a.r, a.Y - a.r, a.X + a.r, a.Y + a.r]));
+      // 이름표: 신고 지점 · 시설 · 장소 (둥근 바탕 · 확인한 곳은 흐리게) → 강 이름 → 사람·센서·배출 지점 → 구 → 동 (겹치면 덜 중요한 것을 뺌)
+      lay.filter(a => !a.dot && LC[a.p.kind]).sort((a, b) => b.p._pr - a.p._pr).forEach(a => { const c = LC[a.p.kind], fs = Math.round(13.5 * uu); this.mapLabelAround(q, V.z < 1.8 && a.p.kind === 'place' ? a.p.short : a.p.name, a.X, a.Y, a.r, fs, a.p._chk ? '#B9C0CE' : c[0], placed, true, a.p._goal ? 'rgba(255,209,102,1)' : a.p._chk ? 'rgba(150,158,176,.7)' : c[1]); });
+      riverNames(q, placed, u);
+      if (V.z >= 2) lay.filter(a => !a.dot && !LC[a.p.kind] && (!a.p._chk || V.z >= 4)).sort((a, b) => b.p._pr - a.p._pr).forEach(a => { const fs = Math.round(11 * uu); this.mapLabelAround(q, V.z >= 4 ? a.p.name : a.p.short, a.X, a.Y, a.r, fs, a.p._chk ? '#AEB6C6' : a.p.kind === 'point' ? '#FFE08A' : a.p.kind === 'npc' ? '#FFF3D1' : '#DDE6F2', placed); });
+      if (V.z < 3.5) Object.keys(UG.gus).forEach(gu => { const [x, z] = UG.gus[gu]; this.mapLabel(q, gu, tx(x), tz(z), Math.round(20 * u), 'rgba(255,246,218,.8)', placed, true); });
+      if (V.z >= 2) UG.dongs.forEach(d => { if (d.t === 'r' && d.gu === '울주군' && V.z < 4) return; this.mapLabel(q, d.n, tx(d.c[0]), tz(d.c[1]), Math.round(10.5 * u), 'rgba(220,228,240,.72)', placed); });
+      if (V.z >= 4) rivK.forEach(([k, p]) => this.mapLabel(q, k + 'km', tx(p[0]) + 12 * u, tz(p[1]) - 9 * u, Math.round(10 * u), '#DDF4FF', placed)); };
+    // 매 프레임: 바탕 + 지금 갈 곳 고리 + 목적지 + 나 — 내가 화면 밖이면 가장자리에 화살표
+    const frame = () => { if (!cv.isConnected) return; requestAnimationFrame(frame); if (this._mapTab !== 'map') return; if (fit()) { clampV(); drawLayer(); } g.drawImage(layer, 0, 0); const t = performance.now() / 1000, K = dpr;
+      lay.forEach(a => { if (!a.p._goal || a.dot) return; const k = 0.5 + 0.5 * Math.sin(t * 5); g.beginPath(); g.arc(a.X, a.Y, a.r + (5 + 5 * k) * K, 0, 7); g.strokeStyle = 'rgba(255,209,102,' + (0.95 - 0.5 * k).toFixed(2) + ')'; g.lineWidth = 3.5 * K; g.stroke(); });
+      if (this.dest) { const X = tx(this.dest.x), Y = tz(this.dest.z) + Math.sin(t * 4) * 3 * K; g.font = Math.round(28 * K) + 'px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif'; g.textAlign = 'center'; g.textBaseline = 'bottom'; g.fillText('📍', X, Y); }
+      const X = tx(this.px), Y = tz(this.pz), S = 1.25 * K;
+      if (X > 6 && X < CW - 6 && Y > 6 && Y < CH - 6) { this.drawMe(g, X, Y, S, t);
+        const lab = '나', fs = Math.round(12 * K); g.font = '900 ' + fs + 'px Pretendard, sans-serif'; const w = g.measureText(lab).width + fs * 1.2, bh = fs * 1.7, bx = X - w / 2, by = Y - 22 * S - bh;
+        g.fillStyle = 'rgba(8,51,29,.92)'; g.beginPath(); g.roundRect ? g.roundRect(bx, by, w, bh, bh / 2) : g.rect(bx, by, w, bh); g.fill(); g.strokeStyle = '#36E08F'; g.lineWidth = 2 * K; g.stroke(); g.fillStyle = '#EAFBF2'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(lab, X, by + bh / 2 + 1); }
+      else { const a = Math.atan2(Y - CH / 2, X - CW / 2), ex = Math.max(26 * K, Math.min(CW - 26 * K, X)), ey = Math.max(26 * K, Math.min(CH - 26 * K, Y)); g.save(); g.translate(ex, ey); g.rotate(a); g.scale(K, K); g.fillStyle = '#36E08F'; g.strokeStyle = '#fff'; g.lineWidth = 4; g.beginPath(); g.moveTo(20, 0); g.lineTo(-13, -14); g.lineTo(-13, 14); g.closePath(); g.stroke(); g.fill(); g.restore(); } };
+    const redraw = () => { fit(); clampV(); drawLayer(); dl.querySelectorAll('[data-z]').forEach(b => b.classList.toggle('on', Math.abs(+b.dataset.z - V.z) < 0.01)); };
     // 탭: 지도 ↔ 장소 목록 (목록은 열 때마다 새로 — 거리 · ✓ 가 최신)
     const showTab = k => { this._mapTab = k; dl.querySelectorAll('[data-mt]').forEach(b => b.classList.toggle('on', b.dataset.mt === k)); dl.querySelectorAll('.u-mpane').forEach(p => p.classList.toggle('hidden', p.dataset.p !== k)); if (k === 'list') gl.innerHTML = this.placeList(); else requestAnimationFrame(() => redraw()); };
     dl.querySelectorAll('[data-mt]').forEach(b => b.addEventListener('click', () => showTab(b.dataset.mt)));
@@ -1100,62 +1228,32 @@ class UlsanRpgGame {
       if (b.dataset.gd && T[b.dataset.gd]) { const t = T[b.dataset.gd]; if (this.dest && this.dest.key === t.key) { this.setDest(null); this.toast('📍 길 안내를 껐어요'); } else this.setDest(t.at[0], t.at[1], t.name, false, t.key); gl.innerHTML = this.placeList(); }
       if (b.dataset.gg && T[b.dataset.gg]) { const t = T[b.dataset.gg]; this.travelTo(t.name, this.arriveFor(t)); }
       if (b.dataset.gp) { const t = this.hintPoint(b.dataset.gp); this.setDest(t.at[0], t.at[1], t.name, false, t.key); gl.innerHTML = this.placeList(); } });
-    const V = this.mapView = { z: 2, cx: this.px, cz: this.pz }, clampV = () => { V.z = Math.max(1, Math.min(6, V.z)); const hx = 262 / V.z, hz = 252 / V.z; V.cx = Math.max(-262 + hx, Math.min(262 - hx, V.cx)); V.cz = Math.max(-252 + hz, Math.min(252 - hz, V.cz)); };
-    const tx = x => (x - V.cx) * (CW / 524) * V.z + CW / 2, tz = z => (z - V.cz) * (CH / 504) * V.z + CH / 2, fx = X => (X - CW / 2) / ((CW / 524) * V.z) + V.cx, fz = Y => (Y - CH / 2) / ((CH / 504) * V.z) + V.cz;
-    const show = p => p.kind === 'bio' || p.kind === 'air' ? F.sensor : F[p.kind] !== false, layer = document.createElement('canvas'); layer.width = CW; layer.height = CH;
-    const cssK = () => CW / (cv.getBoundingClientRect().width || CW);   // 화면 1px = 캔버스 몇 px
-    const LC = { fac: ['#FFE1D8', 'rgba(255,128,112,.95)'], place: ['#FFF6DA', 'rgba(245,196,81,.95)'], report: ['#FFE3E3', 'rgba(255,92,108,.95)'] };
-    const drawLayer = () => { const q = layer.getContext('2d'), s = (CW / 524) * V.z, B = this.mapBase(), u = cssK() * 1.05, box = [fx(0), fz(0), fx(CW), fz(CH)];
-      q.clearRect(0, 0, CW, CH); q.fillStyle = '#163B57'; q.fillRect(0, 0, CW, CH); q.imageSmoothingEnabled = true; q.drawImage(B.c, tx(-262), tz(-252), 524 * s, 504 * (CH / 504) * V.z);
-      this.mapVectors(q, tx, tz, s, box);
-      if (L.dong && this._lastDong) { q.fillStyle = 'rgba(54,224,143,.16)'; q.strokeStyle = 'rgba(54,224,143,.95)'; q.lineWidth = 2.5; this._lastDong.rings.forEach(r => { q.beginPath(); r.forEach((p, i) => i ? q.lineTo(tx(p[0]), tz(p[1])) : q.moveTo(tx(p[0]), tz(p[1]))); q.closePath(); q.fill(); q.stroke(); }); }   // 내가 있는 동은 초록으로
-      const placed = [], rivK = [];
-      Object.values(UC_RIVERS).forEach(R => { const Lr = ucLen(R.pts); for (let k = 1; k * UC_KM < Lr; k++) { const p = ucAt(R.pts, k * UC_KM); q.beginPath(); q.arc(tx(p[0]), tz(p[1]), Math.max(2, 1.6 * u), 0, 7); q.fillStyle = '#F4FBFF'; q.fill(); rivK.push([k, p]); } });   // 1km 점
-      // 아이콘 먼저 (자리 차지) → 이름표: 신고 지점·시설·장소(둥근 바탕) > 사람·센서 > 강 > 구 > 동 (겹치면 덜 중요한 것을 뺌)
-      const pois = this.mapPois().filter(p => show(p) && !(p.kind === 'npc' && p.staff && V.z < 4)).sort((a, b) => a.pri - b.pri), at = pois.map(p => [p, tx(p.x), tz(p.z), this.drawPoi(q, p, tx(p.x), tz(p.z), u * 1.1)]);
-      at.forEach(([p, X, Y, r]) => { if (p.pri >= 3) placed.push([X - r, Y - r, X + r, Y + r]); });   // 장소·시설 이름표가 먼저 (작은 아이콘 위엔 올 수 있음) → 그다음 작은 아이콘도 자리 차지
-      const sm = at.filter(a => a[0].pri < 3);
-      at.slice().sort((a, b) => b[0].pri - a[0].pri).forEach(([p, X, Y, r]) => { if (p.pri < 3 && sm) { sm.forEach(([, X2, Y2, r2]) => placed.push([X2 - r2, Y2 - r2, X2 + r2, Y2 + r2])); sm.length = 0; }
-        if ((p.kind === 'npc' || p.kind === 'bio' || p.kind === 'air') && V.z < 2) return; const c = LC[p.kind];
-        if (c) this.mapLabel(q, p.name, X, Y + r + 11 * u, Math.round(13 * u), c[0], placed, true, c[1]);
-        else this.mapLabel(q, V.z >= 4 ? p.name : p.short, X, Y + r + 9 * u, Math.round(11 * u), p.kind === 'point' ? '#FFE08A' : p.kind === 'npc' ? '#FFF3D1' : '#DDE6F2', placed); });
-      Object.values(UC_RIVERS).forEach(R => { const m = ucAt(R.pts, ucLen(R.pts) * 0.45); this.mapLabel(q, R.name, tx(m[0]), tz(m[1]) - 14 * u, Math.round(13 * u), '#9FDBFF', placed, true); });
-      Object.keys(UG.gus).forEach(gu => { const [x, z] = UG.gus[gu]; this.mapLabel(q, gu, tx(x), tz(z), Math.round(20 * u), 'rgba(255,246,218,.92)', placed, true); });
-      if (V.z >= 2) UG.dongs.forEach(d => { if (d.t === 'r' && d.gu === '울주군' && V.z < 4) return; this.mapLabel(q, d.n, tx(d.c[0]), tz(d.c[1]), Math.round(11 * u), 'rgba(220,228,240,.8)', placed); });
-      if (V.z >= 4) rivK.forEach(([k, p]) => this.mapLabel(q, k + '', tx(p[0]) + 9 * u, tz(p[1]) - 8 * u, Math.round(10 * u), '#DDF4FF', placed)); };
-    // 매 프레임: 바탕 + 목적지 + 나(물결 · 화살표 · '나' 이름표) — 내가 화면 밖이면 가장자리에 화살표
-    const frame = () => { if (!cv.isConnected) return; if (this._mapTab !== 'map') { requestAnimationFrame(frame); return; } g.drawImage(layer, 0, 0); const t = performance.now() / 1000, K = cssK();
-      if (this.dest) { const X = tx(this.dest.x), Y = tz(this.dest.z) + Math.sin(t * 4) * 3 * K; g.font = Math.round(28 * K) + 'px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif'; g.textAlign = 'center'; g.textBaseline = 'bottom'; g.fillText('📍', X, Y); }
-      const X = tx(this.px), Y = tz(this.pz), S = Math.max(1.3, Math.min(2.6, K * 1.05));   // 폰에서 지도가 작게 보여도 내 표시는 크게
-      if (X > 6 && X < CW - 6 && Y > 6 && Y < CH - 6) { this.drawMe(g, X, Y, S, t);
-        const lab = '나 · ' + L.short, fs = Math.round(12 * S); g.font = '900 ' + fs + 'px Pretendard, sans-serif'; const w = g.measureText(lab).width + fs * 1.2, bh = fs * 1.7, bx = Math.min(CW - w - 4, Math.max(4, X - w / 2)), by = Math.max(4, Y - 24 * S - bh);
-        g.fillStyle = 'rgba(8,51,29,.92)'; g.beginPath(); g.roundRect ? g.roundRect(bx, by, w, bh, bh / 2) : g.rect(bx, by, w, bh); g.fill(); g.strokeStyle = '#36E08F'; g.lineWidth = 2.5; g.stroke(); g.fillStyle = '#EAFBF2'; g.textAlign = 'left'; g.textBaseline = 'alphabetic'; g.fillText(lab, bx + fs * 0.6, by + bh * 0.72); }
-      else { const a = Math.atan2(Y - CH / 2, X - CW / 2), ex = Math.max(26, Math.min(CW - 26, X)), ey = Math.max(26, Math.min(CH - 26, Y)); g.save(); g.translate(ex, ey); g.rotate(a); g.fillStyle = '#36E08F'; g.strokeStyle = '#fff'; g.lineWidth = 4; g.beginPath(); g.moveTo(20, 0); g.lineTo(-13, -14); g.lineTo(-13, 14); g.closePath(); g.stroke(); g.fill(); g.restore(); }
-      requestAnimationFrame(frame); };
-    const redraw = () => { clampV(); drawLayer(); dl.querySelectorAll('[data-z]').forEach(b => b.classList.toggle('on', Math.abs(+b.dataset.z - V.z) < 0.01)); };
-    showTab(tab); redraw(); requestAnimationFrame(frame); requestAnimationFrame(() => redraw());   // 창 크기가 정해진 뒤 한 번 더 (글자 크기)
-    dl.querySelectorAll('[data-z]').forEach(b => b.addEventListener('click', () => { V.z = +b.dataset.z; V.cx = this.px; V.cz = this.pz; redraw(); }));
-    dl.querySelector('[data-me]').addEventListener('click', () => { if (V.z < 2) V.z = 2; V.cx = this.px; V.cz = this.pz; redraw(); });
+    showTab(tab); requestAnimationFrame(frame);
+    this._mapPt = key => { const a = lay.find(q => this.poiKey(q.p) === key), r = cv.getBoundingClientRect(); return a ? [r.left + a.X / CW * r.width, r.top + a.Y / CH * r.height] : null; };   // 검사용: 아이콘이 놓인 화면 자리
+    dl.querySelectorAll('[data-z]').forEach(b => b.addEventListener('click', () => { V.z = +b.dataset.z; V.cx = V.z <= 1 ? 0 : this.px; V.cz = V.z <= 1 ? 0 : this.pz; redraw(); }));   // 전체 = 울산 한가운데
+    dl.querySelector('[data-me]').addEventListener('click', () => { if (V.z < 2.5) V.z = 2.5; V.cx = this.px; V.cz = this.pz; redraw(); });
     dl.querySelector('[data-3d]').addEventListener('click', () => { this.closeDialog(); this.enterOverview(); });
+    dl.querySelector('[data-lg]').addEventListener('click', e => { const lg = dl.querySelector('.u-legend'); lg.classList.toggle('hidden'); e.currentTarget.textContent = lg.classList.contains('hidden') ? '범례 ▾' : '범례 ▴'; });
     dl.querySelectorAll('[data-f]').forEach(b => b.addEventListener('click', () => { F[b.dataset.f] = !F[b.dataset.f]; b.classList.toggle('on', F[b.dataset.f]); redraw(); }));
-    // 고른 곳 카드: 아이콘 · 이름 · 종류 · 거리 · 📍 길 안내 중 · 🚙 바로 가기
+    // 고른 곳 카드: 아이콘 · 이름 · 종류 · 거리 · 확인 여부 · 🚙 바로 가기
     const pick = p => { if (!p) { sel.classList.add('hidden'); return; } const T = this.poiTarget(p), ic = p.kind === 'point' ? '◆' : p.icon;
-      sel.innerHTML = '<i class="k-' + p.kind + '">' + ic + '</i><div><b>' + p.name + '</b><small>' + KIND[p.kind] + ' · ' + km(Math.hypot(T.at[0] - this.px, T.at[1] - this.pz)) + (this.dest && this.dest.key === T.key ? ' · 📍 길 안내 중' : '') + '</small></div><button data-go>🚙 바로 가기 <em>' + Math.max(1, Math.round(this.travelCost(T.at) * 60)) + '분</em></button><button data-x aria-label="닫기">✕</button>';
+      sel.innerHTML = '<i class="k-' + p.kind + '">' + ic + '</i><div><b>' + p.name + '</b><small>' + KIND[p.kind] + ' · ' + km(Math.hypot(T.at[0] - this.px, T.at[1] - this.pz)) + (this.poiChecked(p) ? ' · ✓ 확인함' : '') + (this.dest && this.dest.key === T.key ? ' · 📍 길 안내 중' : '') + '</small></div><button data-go>🚙 바로 가기 <em>' + Math.max(1, Math.round(this.travelCost(T.at) * 60)) + '분</em></button><button data-x aria-label="닫기">✕</button>';
       sel.classList.remove('hidden'); sel.querySelector('[data-go]').addEventListener('click', () => this.travelTo(T.name, this.arriveFor(T))); sel.querySelector('[data-x]').addEventListener('click', () => sel.classList.add('hidden')); };
-    // 끌기 = 이동 · 두 손가락 = 확대/축소 · 짧게 누르기 = 목적지 (장소·시설은 조금 멀리 눌러도 잡힘)
+    // 끌기 = 이동 · 두 손가락 = 확대/축소 · 짧게 누르기 = 목적지 (놓인 아이콘 자리로 판정 — 비켜 놓은 아이콘도 눌림)
     let drag = null, pin = null; const ptrs = new Map(), pt = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * CW, (e.clientY - r.top) / r.height * CH]; };
-    const two = () => { const [a, b] = [...ptrs.values()]; return [Math.hypot(a[0] - b[0], a[1] - b[1]) || 1, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2]; };
+    const two = () => { const [a2, b2] = [...ptrs.values()]; return [Math.hypot(a2[0] - b2[0], a2[1] - b2[1]) || 1, (a2[0] + b2[0]) / 2, (a2[1] + b2[1]) / 2]; };
+    const zoomAt = (z, X, Y) => { const wx = fx(X), wz = fz(Y); V.z = z; clampV(); V.cx = wx - (X - CW / 2) / sc(); V.cz = wz - (Y - CH / 2) / sc(); redraw(); };
     cv.addEventListener('pointerdown', e => { const P2 = pt(e); ptrs.set(e.pointerId, P2); try { cv.setPointerCapture(e.pointerId); } catch (er) {}
       if (ptrs.size === 2) { const [d, mx, my] = two(); pin = { d0: d, z0: V.z, wx: fx(mx), wz: fz(my) }; drag = null; } else if (ptrs.size === 1) drag = { X: P2[0], Y: P2[1], cx: V.cx, cz: V.cz, moved: false }; });
     cv.addEventListener('pointermove', e => { if (!ptrs.has(e.pointerId)) return; const P2 = pt(e); ptrs.set(e.pointerId, P2); e.preventDefault();
-      if (pin && ptrs.size >= 2) { const [d, mx, my] = two(); V.z = pin.z0 * d / pin.d0; clampV(); V.cx = pin.wx - (mx - CW / 2) / ((CW / 524) * V.z); V.cz = pin.wz - (my - CH / 2) / ((CH / 504) * V.z); redraw(); return; }
-      if (!drag) return; const [X, Y] = P2; if (Math.hypot(X - drag.X, Y - drag.Y) > 14) drag.moved = true; if (drag.moved && V.z > 1) { V.cx = drag.cx - (X - drag.X) / ((CW / 524) * V.z); V.cz = drag.cz - (Y - drag.Y) / ((CH / 504) * V.z); clampV(); drawLayer(); } });
-    const up = e => { if (!ptrs.delete(e.pointerId)) return; if (pin) { if (ptrs.size < 2) { pin = null; drag = null; } return; } const d = drag; drag = null; if (!d || d.moved || e.type !== 'pointerup') return; const [X, Y] = pt(e), mx = fx(X), mz = fz(Y);
-      let best = null, bd = 16 / Math.sqrt(V.z); this.mapPois().filter(p => show(p) && !(p.kind === 'npc' && p.staff && V.z < 4)).forEach(p => { const q2 = Math.hypot(p.x - mx, p.z - mz) - (p.pri >= 3 ? 5 : 0); if (q2 < bd) { bd = q2; best = p; } });
-      if (!best) { this.toast('장소·시설·센서 아이콘 가까이를 눌러 주세요'); pick(null); return; }
-      const T = this.poiTarget(best); if (this.dest && this.dest.key === T.key) { this.setDest(null); this.toast('📍 목적지를 지웠어요'); } else this.setDest(T.at[0], T.at[1], T.name, false, T.key); pick(best); };
+      if (pin && ptrs.size >= 2) { const [d, mx, my] = two(); V.z = pin.z0 * d / pin.d0; clampV(); V.cx = pin.wx - (mx - CW / 2) / sc(); V.cz = pin.wz - (my - CH / 2) / sc(); redraw(); return; }
+      if (!drag) return; const [X, Y] = P2; if (Math.hypot(X - drag.X, Y - drag.Y) > 12 * dpr) drag.moved = true; if (drag.moved) { V.cx = drag.cx - (X - drag.X) / sc(); V.cz = drag.cz - (Y - drag.Y) / sc(); clampV(); drawLayer(); } });
+    const up = e => { if (!ptrs.delete(e.pointerId)) return; if (pin) { if (ptrs.size < 2) { pin = null; drag = null; } return; } const d = drag; drag = null; if (!d || d.moved || e.type !== 'pointerup') return; const [X, Y] = pt(e);
+      let best = null, bd = 26 * dpr; lay.forEach(a => { const q2 = Math.hypot(a.X - X, a.Y - Y) - (a.dot ? 0 : a.r * 0.5); if (q2 < bd) { bd = q2; best = a.p; } });
+      if (!best) { this.toast('장소·시설·센서 아이콘을 눌러 주세요'); pick(null); return; }
+      const T = this.poiTarget(best); if (this.dest && this.dest.key === T.key) { this.setDest(null); this.toast('📍 목적지를 지웠어요'); } else this.setDest(T.at[0], T.at[1], T.name, false, T.key); pick(best); drawLayer(); };
     cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
-    cv.addEventListener('wheel', e => { e.preventDefault(); const [X, Y] = pt(e), wx = fx(X), wz = fz(Y); V.z *= Math.exp(-Math.max(-1, Math.min(1, e.deltaY / 240)) * 0.3); clampV(); V.cx = wx - (X - CW / 2) / ((CW / 524) * V.z); V.cz = wz - (Y - CH / 2) / ((CH / 504) * V.z); redraw(); }, { passive: false });
+    cv.addEventListener('wheel', e => { e.preventDefault(); const [X, Y] = pt(e); zoomAt(V.z * Math.exp(-Math.max(-1, Math.min(1, e.deltaY / 240)) * 0.3), X, Y); }, { passive: false });
   }
   // ── 🛰 3D 전경: 카메라가 하늘로 올라가 울산 전체를 내려다봄 (끌어서 둘러보기 · 확대/축소 · 눌러서 목적지) ──
   enterOverview(o) {
@@ -1303,8 +1401,8 @@ class UlsanRpgGame {
     const opt = list => '<option value="">— 고르세요 —</option>' + list.map(([v, t]) => '<option value="' + v + '">' + t + '</option>').join('');
     const ev = this.evidence.filter(e => e.id !== 'case'), D = this.draft, water = UC_POL[this.C.pol].path === 'water', g = this.set.guide;
     const tips = g === 'none' ? {} : water
-      ? { '①': '📊 분석 결과에서 기준을 넘은 물질', '②': '① 물질을 쓰는 시설 중, 밤에 서류 기록이 빈 곳 — 소문만으로는 못 정해요', '③': '그 시설의 배출구 중 기록이 빈 곳' + (this.set.diff === 'easy' ? '' : ' (두 곳이면 바로 아래 물이 오염된 쪽)'), '④': '그 배출구의 기록이 빈 시각' }
-      : { '①': '📊 공기 시료 분석에서 평소보다 크게 높은 물질', '②': '바람이 불어온 쪽에서 ① 물질을 쓰는 시설 — 소문만으로는 못 정해요', '③': '그 시설 서류에서 냄새가 난 무렵 기록이 끊긴 굴뚝', '④': '냄새가 처음 치솟은 시각 = 굴뚝 기록이 끊긴 시각' };
+      ? { '①': '⚗️ 시약 실험으로 짐작 → 📊 분석 결과에서 기준을 넘은 물질', '②': '🔬 독성 지도에서 독성이 시작되는 배출구의 시설 — 소문만으로는 못 정해요', '③': '독성 지도: 바로 아래는 독하고 바로 위는 깨끗한 ▼배출구', '④': '🗂 그 시설 서류에서 그 배출구의 기록이 빈 시각' }
+      : { '①': '⚗️ 검지관으로 짐작 → 📊 공기 시료 분석에서 평소보다 크게 높은 물질', '②': '🧭 바람길 후보 중 ① 물질을 쓰고, 냄새가 난 무렵 서류 기록이 끊긴 시설 — 소문만으로는 못 정해요', '③': '그 시설 서류에서 냄새가 난 무렵 기록이 끊긴 굴뚝', '④': '냄새가 처음 치솟은 시각 = 굴뚝 기록이 끊긴 시각' };
     const row = (n, t, sel) => '<label class="f-row"><i>' + n + '</i><span>' + t + '</span>' + sel + '</label>' + (tips[n] ? '<p class="f-tip">💡 ' + tips[n] + '</p>' : '');
     const polOpts = Object.keys(UC_POL).filter(k => UC_POL[k].path === (water ? 'water' : 'air')).concat(Object.keys(UC_POL).filter(k => UC_POL[k].path !== (water ? 'water' : 'air')));   // 이번 사건 종류(물·공기) 물질을 먼저
     const body = '<p class="dim">보고서는 한 번만 낼 수 있어요. 고른 답은 저장돼서 창을 닫았다 열어도 그대로예요. 시간이 다 되면 지금 고른 답으로 자동 제출돼요.</p>' +
@@ -1342,7 +1440,7 @@ class UlsanRpgGame {
   autoSubmit() { if (this.report || this.gameOver) return; if (this.ov) this.exitOverview(); this.saveDraft(); this.closeDialog(); this.submit(this.draftReport(true)); }
   submit(rep) {
     this._leftAtSubmit = this.caseLeftSec;
-    const r = ucScore(this.C, rep); r.auto = !!rep.auto; this.report = r; this.results.push(r); this.score = this.results.reduce((a, x) => a + x.score, 0);
+    const r = ucScore(this.C, rep); r.auto = !!rep.auto; r.bonus = this.caseBonus ? this.caseBonus() : 0; r.score += r.bonus; this.report = r; this.results.push(r); this.score = this.results.reduce((a, x) => a + x.score, 0);   // ⭐ 별점 보너스 (미니게임 · 추격) — 등급은 보너스 빼고
     if (this.done) this.doneAt = Date.now();
     this.save(); this.showResult(r);
   }
@@ -1352,12 +1450,12 @@ class UlsanRpgGame {
     const Hh = h => ucHm(Math.floor(h * 6) / 6).replace(/쯤$/, ''), places = new Set(ucNightEvents(C).map(e => e.point)).size;
     const trap = (places > 1 ? '서류 · 경비원 · 드론이 가리킨 \'이상한 시각\'은 ' + places + '곳이었어요 (나머지는 계측기 고장) — 오염과 시각이 모두 맞는 곳은 한 곳뿐이었어요. ' : '') + (C.noRumor ? '' : '활동가가 지목한 ' + ucJ(UC_FAC[C.rumor].name, '은', '는') + (C.rumor === C.fac ? ' 이번엔 범인이 맞았지만' : ' 범인이 아니었어요 —') + ' 소문은 증거가 아니에요. ') + (C.decoys.length ? '몇몇 시설의 낮은 평소 배출(기준 안)도 섞여 있었어요 — 평소값·기준과 비교해야 해요.' : '');
     const nm = ucFacShort(F), bio = ucNightEvents(C).length > 1;
-    const how = P.path === 'water' ? '① 분석 결과에서 ' + ucJ(P.name, '이', '가') + ' 기준을 넘었어요. ② 그 물질을 쓰는 시설은 여럿이었지만, ' + nm + ' 서류에서 밤사이 ' + pt.id + ' 기록이 비어 있었어요' + (bio ? ' (다른 곳의 빈 기록은 계측기 고장 — ' + pt.id + ' 바로 위 물은 깨끗하고 바로 아래부터 오염됐어요)' : '') + '. ④ 기록이 빈 시각은 ' + Hh(C.t0) + ' 무렵 — 하류의 물벼룩 센서 · 어민이 본 시각에서 <b>거리 ÷ 흐름 빠르기</b>를 빼도 같은 시각이 나와요.'
-      : '① 공기 시료 분석에서 ' + ucJ(P.name, '이', '가') + ' 평소보다 크게 높았어요. ② 냄새가 치솟은 센서들에서 그 시각 바람이 불어온 쪽으로 거슬러 가면 ' + nm + ' 쪽이 나오고, 그 물질을 쓰는 곳이에요. ③④ 냄새가 처음 난 ' + Hh(C.t0) + ' 무렵, 서류에서 ' + pt.id + ' 굴뚝 자동측정 기록이 끊겨 있었어요.';
+    const how = P.path === 'water' ? '① ⚗️ 시약 실험과 분석 결과에서 ' + ucJ(P.name, '이', '가') + ' 기준을 넘었어요. ②③ 그 물질을 쓰는 시설은 여럿이었지만, 🔬 독성 지도에서 ▼' + pt.id + ' 바로 위 물은 깨끗하고 바로 아래부터 독했어요 → ' + nm + '. ④ ' + nm + ' 서류에서 ' + Hh(C.t0) + ' 무렵 ' + pt.id + ' 기록이 비어 있었어요' + (bio ? ' (다른 곳의 빈 기록은 계측기 고장)' : '') + ' — 하류 물벼룩 센서 · 어민이 본 시각에서 <b>거리 ÷ 흐름 빠르기</b>를 빼도 같은 시각이 나와요.'
+      : '① ⚗️ 검지관과 공기 시료 분석에서 ' + ucJ(P.name, '이', '가') + ' 평소보다 크게 높았어요. ② 🧭 바람길: 냄새가 치솟은 센서들에서 바람을 거슬러 그은 선이 ' + nm + ' 쪽으로 모였고, 그 물질을 쓰는 곳이에요. ③④ 냄새가 처음 난 ' + Hh(C.t0) + ' 무렵, 서류에서 ' + pt.id + ' 굴뚝 자동측정 기록이 끊겨 있었어요.';
     const rows = [['오염물질', r.pol, P.name, 20], ['시설', r.fac, F.name, 25], ['배출 지점', r.point, pt.id + ' ' + pt.label, 20], ['배출 시각', r.time, Hh(C.t0) + '부터 약 ' + C.dur.toFixed(1) + '시간 (' + UC_SLOTS[ucSlot(C.t0)] + ')', 15]];
     const body = (r.auto ? '<p class="autosub">⏰ 시간이 다 되어 그때까지 고른 답으로 자동 제출했어요.</p>' : '') + '<div class="u-grade g-' + r.grade + '">' + r.grade + '<small>' + r.score + '점</small></div>' +
       '<table class="u-res">' + rows.map((x, i) => '<tr style="--d:' + (0.5 + i * 0.18).toFixed(2) + 's"><th>' + x[0] + '</th><td>' + ox(x[1]) + ' ' + x[2] + '</td><td class="pt">' + (x[1] ? '+' + x[3] : '0') + '</td></tr>').join('') +
-      '<tr style="--d:1.22s"><th>결정적 증거</th><td>' + r.keys + ' / 3</td><td class="pt">+' + Math.round(r.keys / 3 * 20) + '</td></tr></table>' +
+      '<tr style="--d:1.22s"><th>결정적 증거</th><td>' + r.keys + ' / 3</td><td class="pt">+' + Math.round(r.keys / 3 * 20) + '</td></tr>' + (r.bonus ? '<tr style="--d:1.4s"><th>⭐ 별점 보너스</th><td>미니게임 별 ' + r.bonus + '개</td><td class="pt">+' + r.bonus + '</td></tr>' : '') + '</table>' +
       '<p><b>이렇게 찾을 수 있었어요</b><br>' + how + '</p>' + (trap ? '<p class="dim">함정: ' + trap + '</p>' : '');
     const last = this.done;
     this.dialog('🏁', '사건 ' + this.caseNo + ' 수사 결과', body, [[last ? '🏆 최종 결과 보기' : '다음 사건으로 ▸ (' + (this.caseNo + 1) + '/' + this.caseTotal + ')', () => { this.closeDialog(); if (last) this.finalReport(); else this.startCase(this.caseNo + 1); }],

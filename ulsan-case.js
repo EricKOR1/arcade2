@@ -65,6 +65,8 @@ const UC_FAC = {
   F7: { name: '꿀맛식품 (식품공장)', zone: '울주군 언양읍', at: [-102.7, -40.7], can: ['bod', 'ammonia'], outs: [{ id: 'F7-A', kind: 'water', river: 'taehwa', s: 115.3, label: '폐수 방류구' }], stacks: [] },
   F8: { name: '바닷가 하수처리장', zone: '남구 용연동', at: [118.8, 60.4], can: ['ammonia', 'h2s'], outs: [{ id: 'F8-A', kind: 'water', river: 'oehwang', s: 91.3, label: '처리수 방류구' }], stacks: [{ id: 'F8-S', x: 122.8, z: 57.9, label: '찌꺼기 창고 배기구' }] }
 };
+// 한 강에서 그 물질을 쓰는 시설의 배출구 (상류 → 하류) — 🔬 독성 지도 후보
+function ucCandOuts(pol, river) { const out = []; Object.keys(UC_FAC).forEach(k => { const F = UC_FAC[k]; if (F.can.indexOf(pol) < 0) return; F.outs.forEach(o => { if (o.river === river) out.push(Object.assign({ fac: k }, o)); }); }); return out.sort((a, b) => a.s - b.s); }
 function ucFacShort(F) { return (typeof F === 'string' ? UC_FAC[F] : F).name.split(' (')[0]; }   // '무지개화학'
 // 허가 물질을 어디에 쓰는지 (서류에 함께 적힘) — 같은 물질을 다루는 시설이 늘 두 곳 이상 (물질만으로 시설이 정해지지 않게)
 const UC_USE = { F1: { phenol: '수지 원료', benzene: '원료', toluene: '수지를 녹이는 용제', oil: '공정 기름' }, F2: { benzene: '휘발유 성분', h2s: '원유의 황', oil: '원유·기름', phenol: '정유 폐수에 섞여 나옴' },
@@ -122,9 +124,9 @@ const UC_AIR = [
 //   v2026-10-19a: 중학생 눈높이로 낮춤 — 쉬움 = 함정 없음(서류의 빈 기록 = 범인) · 보통 = 헷갈리는 빈 기록 1곳 + 소문 · 어려움 = 예전 '보통'(평소 배출 · 고장 2곳 · 거짓말)
 //   cand: '다음 할 일'에 그 물질을 쓰는 시설 이름을 알려 줌 · staff: 시설 정문의 환경팀장(늘 '기록이 빈 건 고장'이라고 둘러댐)을 둠
 const UC_MODES = {
-  easy:   { name: '쉬움', tag: '처음 해 보는 반', desc: '함정 없음 · 밤에 기록이 빈 곳 = 범인 · 분석 30분 · 다음 할 일과 길 안내 · 배출 지점 지도에 표시', cases: 2, min: 15, decoy: 0, rumor: false, lie: false, labH: 0.5, ednaH: 1, ratio: 'strong', allPoints: true, guide: 'full', cand: true },
-  normal: { name: '보통', tag: '추천 · 중학생', desc: '헷갈리는 빈 기록 1곳(계측기 고장) · 소문 하나 · 분석 1시간 · 다음 할 일과 길 안내', cases: 2, min: 20, decoy: 0, rumor: true, lie: false, labH: 1, ednaH: 1.5, ratio: 'strong', allPoints: false, guide: 'full', cand: true },
-  hard:   { name: '어려움', tag: '추리 고수', desc: '평소 배출 조금 · 헷갈리는 빈 기록 2곳 · 소문과 거짓말 · 분석 2시간 · 안내는 짧게', cases: 3, min: 18, decoy: 0.22, decoyK: 0.6, rumor: true, lie: true, labH: 2, ednaH: 3, ratio: 'plain', allPoints: false, guide: 'short', cand: false }
+  easy:   { name: '쉬움', tag: '처음 해 보는 반', desc: '함정 없음 · 미니게임 2개가 열쇠(⚗️ 시약 실험 · 🔬 물벼룩/🧭 바람길) · 분석 30분 · 다음 할 일과 길 안내 · 배출 지점 지도에 표시', cases: 2, min: 18, decoy: 0, rumor: false, lie: false, labH: 0.5, ednaH: 1, ratio: 'strong', allPoints: true, guide: 'full', cand: true },
+  normal: { name: '보통', tag: '추천 · 중학생', desc: '미니게임 2개가 열쇠 · 헷갈리는 빈 기록(계측기 고장) 1곳 · 소문 하나 · 분석 1시간 · 다음 할 일과 길 안내', cases: 2, min: 20, decoy: 0, rumor: true, lie: false, labH: 1, ednaH: 1.5, ratio: 'strong', allPoints: false, guide: 'full', cand: true },
+  hard:   { name: '어려움', tag: '추리 고수', desc: '미니게임 2개가 열쇠 · 평소 배출 조금 · 헷갈리는 빈 기록 2곳 · 소문과 거짓말 · 분석 2시간 · 안내는 짧게', cases: 3, min: 18, decoy: 0.22, decoyK: 0.6, rumor: true, lie: true, labH: 2, ednaH: 3, ratio: 'plain', allPoints: false, guide: 'short', cand: false }
 };
 function ucSettings(trackId) {
   const p = String(trackId || '').split(':'), d = UC_MODES[p[0]] ? p[0] : 'normal', M = UC_MODES[d];
@@ -355,4 +357,4 @@ function ucScore(C, rep) {
   const grade = score >= 95 ? 'S' : score >= 80 ? 'A' : score >= 60 ? 'B' : score >= 40 ? 'C' : 'D';
   return Object.assign(r, { keys, score, grade });
 }
-if (typeof module !== 'undefined') module.exports = { ucRngH, UC_MODES, ucSettings, UC_KM, UC_RIVERS, UC_POL, UC_PANELS, UC_FAC, UC_PLACES, UC_START, UC_BIO, UC_AIR, UC_SLOTS, ucLen, ucAt, ucProject, ucDownstream, ucRng, ucMakeCase, ucPoint, ucWaterConc, ucAirConc, ucFieldKit, ucBioLog, ucEdna, ucAirLog, ucFacilityRecord, ucTestimony, ucGuardLine, ucHm, ucMouthArrive, ucReportSpot, ucAirHits, UC_REPORT_H, ucManagerLine, ucSlot, ucScore, ucYard, ucGate, ucFence, UC_NPC_AT, ucNpcAt, ucBioAt, UC_USE, ucNightEvents, ucEventAt, ucPlaceText, ucJ, UC_GLITCH_N, UC_ZONES, ucAirSpike, ucFacShort, UC_WATER_POLS, UC_AIR_POLS };
+if (typeof module !== 'undefined') module.exports = { ucRngH, UC_MODES, ucSettings, UC_KM, UC_RIVERS, UC_POL, UC_PANELS, UC_FAC, UC_PLACES, UC_START, UC_BIO, UC_AIR, UC_SLOTS, ucLen, ucAt, ucProject, ucDownstream, ucRng, ucMakeCase, ucPoint, ucWaterConc, ucAirConc, ucFieldKit, ucBioLog, ucEdna, ucAirLog, ucFacilityRecord, ucTestimony, ucGuardLine, ucHm, ucMouthArrive, ucReportSpot, ucAirHits, UC_REPORT_H, ucManagerLine, ucSlot, ucScore, ucYard, ucGate, ucFence, UC_NPC_AT, ucNpcAt, ucBioAt, UC_USE, ucNightEvents, ucEventAt, ucPlaceText, ucJ, UC_GLITCH_N, UC_ZONES, ucAirSpike, ucFacShort, UC_WATER_POLS, UC_AIR_POLS, ucCandOuts };
