@@ -1,11 +1,18 @@
-아케이드 플랫폼 — v2026-10-16i (울산 환경 수사대 3D)
+아케이드 플랫폼 — v2026-10-18a
+(울산 환경 수사대: 어촌계 물 위 걷기 · 건물 통과 고침 · 새 미니맵 · MMORPG 화면)
 
-새로 올릴 파일
-  ulsan-case.js         사건 생성 · 증거 계산
-  ulsan-rpg-engine.js   3D 세계 · 인물 · 조사 · 수첩/지도/보고서
+교체할 파일 (7개)
+  ulsan-rpg-engine.js  게임 진행 (걷기·부딪힘 · 미니맵 · 큰 지도 · 사람 이름표 · 대화창)
+  ulsan-case.js        어민 두 명의 자리 (온산항 · 울산항 — 물에 잠긴 땅에서 마른 땅으로)
+  ulsan-real.js        걷는 높이 = 화면에 그려진 땅 · 가리는 건물은 동그랗게 비침
+  style.css            화면 디자인 (남색 유리 + 금테)
+  index.html           버전 · 제목 글꼴(나눔명조)
+  admin.html           버전
+  README.md            변경 기록 (선택)
 
-교체할 파일
-  games.js · index.html · admin.html · style.css
+※ 지난번 v2026-10-17d 를 안 올렸다면: ulsan-mini.js 도 함께 (17c · 17b 를 안 올렸어도 이 8개면 돼요)
+※ 그 전 v2026-10-17a 도 안 올렸다면: ulsan-terrain.js · ulsan-world.js · lib/Sky.js · assets/ulsan/(폴더째) · arena-engine.js 도 함께
 
-★ three-quality.js 가 없다면 함께 (10-16f)
-교사 화면: '울산 환경 수사대 3D' 선택 → 게임 시작. 반 전체가 같은 사건을 풉니다
+★ firebase-config.js 는 올리지 마세요 (선생님 값이 든 파일을 덮어씀)
+★ 수업 중이 아닐 때 올리세요 — 저장 형식은 그대로라 하던 판은 이어지지만, 건물 속·물 위에 서 있던 학생은 가장 가까운 마른 땅으로 옮겨져요
+★ 교사 화면 Ctrl+Shift+R · 학생 기기 새로고침 · 화면 아래 v2026-10-18a 확인

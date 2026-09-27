@@ -127,7 +127,7 @@ class ArenaGame {
     arLoadArt(); (AR_ART.cbs = AR_ART.cbs || []).push(() => { this._bgCs = null; });   // 그림이 준비되면 바닥을 다시 굽습니다
     this.peers = {}; this.bullets = []; this.parts = []; this.gems = {}; this.held = 0;
     this.hp = this.ch.hp; this.maxHp = this.ch.hp; this.super = 0; this.dashUntil = 0; this.invulUntil = 0;
-    this.ammo = 3; this.ammoT = 0; this.dmgNums = []; this.feed = [];   // 탄약 3칸 · 피해 숫자 · 킬 피드 this.kills = 0; this.score = 0; this.gameOver = false;
+    this.ammo = 3; this.ammoT = 0; this.dmgNums = []; this.feed = []; this.kills = 0; this.score = 0; this.gameOver = false;   // 탄약 3칸 · 피해 숫자 · 킬 피드 (예전: 주석에 묻혀 처치 수·점수가 NaN 이 됨)
     this.mx = 0; this.my = 0; this.aim = null; this.angle = -Math.PI / 2; this.lastFire = 0; this.lastHurt = 0;
     this.deadUntil = 0; this.hidden = false; this.toasts = []; this.winner = null; this.countUntil = 0; this.countTeam = null;
     this.now = 0; this.lastTime = 0; this.face = 1;

@@ -1,18 +1,17 @@
 // 울산 환경 수사대 — 사건 생성 · 증거 시뮬레이션 (화면과 분리된 순수 계산)
-//   세계 좌표: x = 동쪽, z = 남쪽(북쪽이 −z). 1칸 ≈ 30 m, 하천 거리표 1 km = 33칸
+//   세계 좌표: 실제 울산 지도(위도·경도 → 1칸 = 90 m) · x = 동쪽, z = 남쪽 · 하천 거리표 1 km = 11.1칸
 //   진실(범인 시설 · 오염물질 · 배출 지점 · 배출 시각) 하나에서 모든 증거가 물리적으로 일관되게 나옵니다
 //     · 물: 배출 지점 '하류'로만 퍼지고(상류는 깨끗), 거리만큼 흐름 속도에 따라 늦게 도착, 멀수록 옅어짐
 //     · 공기: 그 시각의 바람을 따라 풀룸(연기띠)으로 퍼짐 — 바람이 부는 쪽 센서만 오름
 //   함정: 다른 시설의 '허가된 평소 배출'(낮은 농도 · 항상 있음) · 틀린 소문 · 배출 지점이 둘인 시설
-const UC_KM = 33;
-
-// ── 하천 (상류 → 하류) · 흐름 속도(km/h) ──
+const UC_KM = 11.1;                                       // 1km = 11.1칸 (1칸 = 90 m, 실제 울산 지도 축척)
+// ── 하천 (상류 → 하류) · 실제 경로: 태화강 하류는 남구·중구·북구 경계선(행정동 경계 자료), 나머지는 실제 지점 근사 ──
 const UC_RIVERS = {
-  taehwa:   { name: '태화강', speed: 1.6, w: 7, pts: [[-230, -8], [-190, 4], [-150, -6], [-110, 8], [-70, 4], [-30, 10], [10, 4], [45, 10], [80, 4], [110, 8], [140, 14]] },
-  dongcheon:{ name: '동천',   speed: 1.2, w: 3.5, pts: [[40, -190], [48, -150], [58, -110], [66, -70], [74, -35], [80, 4]], joins: ['taehwa', 8] },
-  yeocheon: { name: '여천천', speed: 0.9, w: 3, pts: [[-10, 72], [20, 66], [50, 64], [80, 58], [112, 50], [140, 46]] },
-  oehwang:  { name: '외황강', speed: 1.0, w: 4, pts: [[-60, 128], [-20, 134], [20, 140], [55, 150], [90, 154], [135, 158]] },
-  hoeya:    { name: '회야강', speed: 1.1, w: 4.5, pts: [[-190, 178], [-150, 182], [-110, 186], [-70, 194], [-25, 200], [20, 206], [65, 210], [110, 214], [140, 216]] }
+  taehwa: { name: '태화강', speed: 1.6, w: 4.5, pts: [[-191.3, -127.0], [-146.0, -90.0], [-105.7, -53.0], [-65.4, -50.5], [-28.2, -60.4], [8.1, -50.5], [30.2, -39.4], [45.2, -39.4], [50.1, -35.5], [59.2, -34.7], [67.6, -31.1], [72.2, -26.5], [78.3, -24.3], [83.8, -30.7], [89.3, -33.6], [96.8, -31.5], [111.7, -30.8], [121.1, -29.9], [127.1, -30.3], [133.9, -28.9], [138.9, -25.4], [144.6, -22.5], [153.8, -16.3], [161.0, -6.5], [165.9, -0.7], [169.9, 6.7], [171.8, 10.2], [173.7, 13.7], [175.6, 17.2], [177.5, 20.7], [179.4, 24.2], [181.3, 27.7], [183.2, 31.2]] },
+  dongcheon: { name: '동천', speed: 1.2, w: 2.5, pts: [[123.8, -151.6], [130.9, -117.1], [136.9, -86.3], [140.9, -57.9], [133.9, -28.9]], joins: ['taehwa', 0] },
+  yeocheon: { name: '여천천', speed: 0.9, w: 2.2, pts: [[80.5, -11.1], [98.7, -3.7], [115.8, 3.7], [130.9, 12.3], [142.9, 21.0], [156.0, 27.1], [159.6, 28.8], [163.2, 30.5]] },
+  oehwang: { name: '외황강', speed: 1.0, w: 2.8, pts: [[35.2, 30.8], [65.4, 45.6], [90.6, 56.7], [110.7, 69.0], [126.8, 77.7], [142.9, 83.8]] },
+  hoeya: { name: '회야강', speed: 1.1, w: 3, pts: [[-5.0, 90.0], [20.1, 107.3], [45.3, 119.6], [68.5, 135.6], [90.6, 151.6], [110.7, 164.0], [128.9, 173.8], [132.4, 175.7]] },
 };
 // 하천 폴리라인 도우미
 function ucLen(pts) { let L = 0; for (let i = 1; i < pts.length; i++) L += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); return L; }
@@ -50,81 +49,122 @@ const UC_POL = {
 };
 const UC_PANELS = { organic: '유기화합물(페놀·벤젠)', metal: '중금속(카드뮴·아연)', nutrient: '영양염(암모니아·질산)', oil: '유분(기름)', bod: 'BOD(유기물 오염도)', air: '대기 시료(벤젠·톨루엔·황화수소)' };
 
-// ── 시설 (가상 이름 · 실제 산단 위치를 본뜸) — 배출구(물) · 굴뚝(공기) ──
+// ── 시설 (가상 이름 · 실제 산단·처리장 위치에 배치) — 배출구(물) · 굴뚝(공기) ──
 const UC_FAC = {
-  F1: { name: '태광유화 (석유화학 수지공장)', zone: '석유화학단지', at: [52, 88], can: ['phenol', 'benzene'],
-        outs: [{ id: 'F1-A', kind: 'water', river: 'yeocheon', s: 64, label: '폐수 방류구' }, { id: 'F1-B', kind: 'water', river: 'yeocheon', s: 38, label: '빗물 배수구' }],
-        stacks: [{ id: 'F1-S', x: 58, z: 96, label: '공정 굴뚝' }] },
-  F2: { name: '한울정유 (정유공장)', zone: '석유화학단지', at: [100, 92], can: ['benzene', 'h2s', 'oil'],
-        outs: [{ id: 'F2-A', kind: 'water', river: 'yeocheon', s: 118, label: '폐수 방류구' }],
-        stacks: [{ id: 'F2-S1', x: 94, z: 100, label: '가열로 굴뚝' }, { id: 'F2-S2', x: 108, z: 86, label: '황 회수 굴뚝' }] },
-  F3: { name: '동해비철금속 (제련소)', zone: '온산국가산단', at: [62, 170], can: ['cadmium'],
-        outs: [{ id: 'F3-A', kind: 'water', river: 'oehwang', s: 128, label: '폐수 방류구' }], stacks: [] },
-  F4: { name: '새봄비료화학', zone: '온산국가산단', at: [18, 158], can: ['ammonia'],
-        outs: [{ id: 'F4-A', kind: 'water', river: 'oehwang', s: 82, label: '폐수 방류구' }], stacks: [] },
-  F5: { name: '미래자동차 도장공장', zone: '미포국가산단(북구)', at: [96, -78], can: ['toluene'],
-        outs: [], stacks: [{ id: 'F5-S1', x: 90, z: -84, label: '도장 1라인 굴뚝' }, { id: 'F5-S2', x: 104, z: -70, label: '도장 2라인 굴뚝' }] },
-  F6: { name: '굴화하수처리장', zone: '태화강 중류', at: [-72, 26], can: ['ammonia', 'bod'],
-        outs: [{ id: 'F6-A', kind: 'water', river: 'taehwa', s: 168, label: '처리수 방류구' }], stacks: [] },
-  F7: { name: '청솔식품 공장', zone: '울주군 태화강 상류', at: [-150, 22], can: ['bod'],
-        outs: [{ id: 'F7-A', kind: 'water', river: 'taehwa', s: 82, label: '폐수 방류구' }], stacks: [] },
-  F8: { name: '용연하수처리장', zone: '남구 용연', at: [104, 128], can: ['ammonia', 'h2s'],
-        outs: [{ id: 'F8-A', kind: 'water', river: 'oehwang', s: 168, label: '처리수 방류구' }], stacks: [{ id: 'F8-S', x: 110, z: 122, label: '슬러지동 배기구' }] }
+  F1: { name: '태광유화 (석유화학 수지공장)', zone: '남구 석유화학단지', at: [112.7, 23.4], can: ['phenol', 'benzene', 'toluene', 'oil'],
+        outs: [{ id: 'F1-A', kind: 'water', river: 'yeocheon', s: 41.5, label: '폐수 방류구' }, { id: 'F1-B', kind: 'water', river: 'yeocheon', s: 23.8, label: '빗물 배수구' }], stacks: [{ id: 'F1-S', x: 116.8, z: 27.1, label: '공정 굴뚝' }] },
+  F2: { name: '한울정유 (정유공장)', zone: '남구 석유화학단지', at: [137.9, 44.4], can: ['benzene', 'h2s', 'oil', 'phenol'],
+        outs: [{ id: 'F2-A', kind: 'water', river: 'yeocheon', s: 68.9, label: '폐수 방류구' }], stacks: [{ id: 'F2-S1', x: 132.9, z: 46.8, label: '가열로 굴뚝' }, { id: 'F2-S2', x: 146.0, z: 40.7, label: '황 회수 굴뚝' }] },
+  F3: { name: '동해비철금속 (제련소)', zone: '온산국가산단', at: [132.9, 99.9], can: ['cadmium'], outs: [{ id: 'F3-A', kind: 'water', river: 'oehwang', s: 102.2, label: '폐수 방류구' }], stacks: [] },
+  F4: { name: '새봄비료화학', zone: '청량·온산', at: [80.5, 67.8], can: ['ammonia', 'cadmium'], outs: [{ id: 'F4-A', kind: 'water', river: 'oehwang', s: 50.4, label: '폐수 방류구' }], stacks: [] },
+  F5: { name: '미래자동차 도장공장', zone: '북구 양정동(미포국가산단)', at: [169.1, -43.1], can: ['toluene'], outs: [], stacks: [{ id: 'F5-S1', x: 165.1, z: -46.8, label: '도장 1라인 굴뚝' }, { id: 'F5-S2', x: 174.2, z: -39.4, label: '도장 2라인 굴뚝' }] },
+  F6: { name: '굴화하수처리장', zone: '울주군 범서읍 굴화', at: [32.2, -28.4], can: ['ammonia', 'bod'], outs: [{ id: 'F6-A', kind: 'water', river: 'taehwa', s: 259.4, label: '처리수 방류구' }], stacks: [] },
+  F7: { name: '청솔식품 공장', zone: '울주군 언양읍', at: [-102.7, -40.7], can: ['bod', 'ammonia'], outs: [{ id: 'F7-A', kind: 'water', river: 'taehwa', s: 115.3, label: '폐수 방류구' }], stacks: [] },
+  F8: { name: '용연하수처리장', zone: '남구 용연동', at: [118.8, 60.4], can: ['ammonia', 'h2s'], outs: [{ id: 'F8-A', kind: 'water', river: 'oehwang', s: 91.3, label: '처리수 방류구' }], stacks: [{ id: 'F8-S', x: 122.8, z: 57.9, label: '슬러지동 배기구' }] }
 };
-// 조사 장소 (고정)
+// 허가 물질을 어디에 쓰는지 (서류에 함께 적힘) — 같은 물질을 다루는 시설이 늘 두 곳 이상 (물질만으로 시설이 정해지지 않게)
+const UC_USE = { F1: { phenol: '수지 원료', benzene: '원료', toluene: '수지를 녹이는 용제', oil: '공정 기름' }, F2: { benzene: '휘발유 성분', h2s: '원유의 황', oil: '원유·기름', phenol: '정유 폐수에 섞여 나옴' },
+  F3: { cadmium: '아연 광석에 섞여 나옴' }, F4: { ammonia: '비료 원료', cadmium: '인산비료 원료(인광석)에 조금 섞여 있음' }, F5: { toluene: '페인트 희석제(시너)' },
+  F6: { ammonia: '하수 속 오줌·음식물', bod: '하수 속 유기물' }, F7: { bod: '식품 찌꺼기', ammonia: '식품 찌꺼기가 썩으며 생김' }, F8: { ammonia: '하수 속 오줌·음식물', h2s: '하수 찌꺼기가 썩으며 생김' } };
+// 시설 마당(울타리)과 정문 — 강·바다·이웃 시설을 피해 시설마다 다름 (F.at 기준 · a 동쪽+ · b 남쪽+) · 정문 [a, b, 바깥 방향 x, z]
+[['F1', [-17, -10, 12, 17]], ['F2', [-12, -10, 17, 17]], ['F3', [-17, -3, 2.5, 17], [-7, 17, 0, 1]], ['F4', [-17, -6, 13, 17]], ['F5', [-17, -17, 17, 17]],
+ ['F6', [-17, -7, 12, 17]], ['F7', [-17, -7, 16, 17]], ['F8', [-16, -15, 6, 0], [-16, -7, -1, 0]]].forEach(([k, y, g]) => { UC_FAC[k].yard = y; UC_FAC[k].gate = g || [0, 17, 0, 1]; });
+function ucYard(F) { return [F.at[0] + F.yard[0], F.at[1] + F.yard[1], F.at[0] + F.yard[2], F.at[1] + F.yard[3]]; }   // 울타리 [x0, z0, x1, z1]
+function ucGate(F, d, side) { const g = F.gate, x = F.at[0] + g[0], z = F.at[1] + g[1]; d = d || 0; side = side || 0; return [x + g[2] * d + g[3] * side, z + g[3] * d - g[2] * side]; }   // 정문에서 바깥으로 d · 옆으로 side
+function ucFence(F) { const [a0, b0, a1, b1] = F.yard, [ga, gb] = F.gate, G = 4, out = [];   // 울타리 선분 (F.at 기준) — 정문 자리는 비움
+  const run = (p0, p1, fixed, horiz, gc) => { const segs = gc == null ? [[p0, p1]] : [[p0, gc - G], [gc + G, p1]]; segs.forEach(([u, v]) => { if (v - u > 0.4) out.push(horiz ? [u, fixed, v, fixed] : [fixed, u, fixed, v]); }); };
+  run(a0, a1, b0, true, gb === b0 ? ga : null); run(a0, a1, b1, true, gb === b1 ? ga : null); run(b0, b1, a0, false, ga === a0 && gb !== b0 && gb !== b1 ? gb : null); run(b0, b1, a1, false, ga === a1 && gb !== b0 && gb !== b1 ? gb : null); return out; }
+// 조사 장소 (실제 위치 근사)
 const UC_PLACES = {
-  lab:     { name: '울산보건환경연구원', at: [-24, 52] },
-  weather: { name: '울산기상대', at: [-8, -48] },
-  clinic:  { name: '남구보건소', at: [44, 40] },
-  garden:  { name: '태화강 국가정원', at: [-20, 0] },
-  riverOffice: { name: '태화강 하천관리소', at: [18, -8] },
-  port:    { name: '울산항', at: [128, 40] },
-  onsanHarbor: { name: '온산항 어촌계', at: [128, 166] },
-  mouth:   { name: '태화강 하구 선착장', at: [128, 22] }
+  lab:     { name: '울산보건환경연구원', at: [85.6, -14.8] },
+  weather: { name: '울산기상대', at: [98.7, -51.8] },
+  clinic:  { name: '남구보건소', at: [112.7, -19.7] },
+  garden:  { name: '태화강 국가정원', at: [72.5, -29.6] },
+  riverOffice: { name: '태화강 하천관리소', at: [92.6, -32.1] },
+  port:    { name: '울산항', at: [159.1, 21.0] },
+  onsanHarbor: { name: '온산항 어촌계', at: [132.9, 93.7] },
+  mouth:   { name: '태화강 하구 선착장', at: [153.0, -21.0] }
 };
+const UC_START = [90.6, -29.6];
+// 장소 사람들 자리 (장소 기준 · 물가에서 한 발 물러남) — 온산 어민: 위판장 뒤 마른 땅 (v2026-10-18a · 예전 자리는 제련소 담장과 바다 사이 좁은 틈이라 물에 잠긴 땅 · 카메라와 사이에 제련소가 없게) · 울산항 어민: 부두 창고 사이 마른 땅 (예전 자리는 여천천 하구 물에 잠긴 강둑)
+const UC_NPC_AT = { researcher: ['lab', -5, 7], forecaster: ['weather', 4, 7], doctor: ['clinic', 4, 7], resident: ['garden', 4, 9], riverman: ['riverOffice', 4, 7], fisherT: ['mouth', 6, 5], fisherO: ['onsanHarbor', -7.9, -5.2], fisherP: ['port', -1.8, 1.2] };
+function ucNpcAt(id) { const [k, a, b] = UC_NPC_AT[id], P = UC_PLACES[k].at; return [P[0] + a, P[1] + b]; }
 // 고정 측정소: 물벼룩 바이오센서(물) · 대기·악취 센서(공기)
 const UC_BIO = [
-  { id: 'B-T1', river: 'taehwa', s: 120, name: '태화강 중류 바이오센서' }, { id: 'B-T2', river: 'taehwa', s: 330, name: '태화강 하류 바이오센서' },
-  { id: 'B-D', river: 'dongcheon', s: 150, name: '동천 바이오센서' }, { id: 'B-Y', river: 'yeocheon', s: 100, name: '여천천 바이오센서' },
-  { id: 'B-O', river: 'oehwang', s: 150, name: '외황강 바이오센서' }, { id: 'B-H', river: 'hoeya', s: 200, name: '회야강 바이오센서' }
+  { id: 'B-T1', river: 'taehwa', s: 187.3, name: '태화강 범서 바이오센서' },
+  { id: 'B-T2', river: 'taehwa', s: 386.4, name: '태화강 하류 바이오센서', side: 1 },
+  { id: 'B-D', river: 'dongcheon', s: 55, name: '동천 바이오센서' },
+  { id: 'B-Y', river: 'yeocheon', s: 55.2, name: '여천천 바이오센서' },
+  { id: 'B-Y2', river: 'yeocheon', s: 84, name: '여천천 하구 바이오센서', side: 1 },   // 한울정유 방류구(F2-A) 아래 — 예전엔 F2-A 사건에 시각 단서가 없었음
+  { id: 'B-O', river: 'oehwang', s: 70.8, name: '외황강 바이오센서', side: 1 },
+  { id: 'B-H', river: 'hoeya', s: 89.2, name: '회야강 바이오센서' }
 ];
+// 바이오센서 자리: 강 옆(물길에 수직으로 강폭/2 + 2.5칸) — 예전엔 동쪽으로만 옮겨 동서로 흐르는 곳에선 물속에 놓였음
+function ucBioAt(b) { const R = UC_RIVERS[b.river], L = ucLen(R.pts), p = ucAt(R.pts, b.s), q = ucAt(R.pts, Math.min(L, b.s + 1)), o = ucAt(R.pts, Math.max(0, b.s - 1)), dx = q[0] - o[0], dz = q[1] - o[1], d = Math.hypot(dx, dz) || 1, nx = -dz / d, nz = dx / d, sg = b.side || (nx >= 0 ? 1 : -1), off = R.w / 2 + 2.5;
+  return [p[0] + nx * sg * off, p[1] + nz * sg * off]; }
 const UC_AIR = [
-  { id: 'A1', x: 30, z: 40, name: '삼산동 대기측정소' }, { id: 'A2', x: 70, z: 64, name: '여천동 악취센서' }, { id: 'A3', x: 128, z: 100, name: '용연동 악취센서' },
-  { id: 'A4', x: 80, z: 120, name: '부곡동 악취센서' }, { id: 'A5', x: 60, z: -40, name: '효문동 대기측정소' }, { id: 'A6', x: 130, z: -60, name: '양정동 악취센서' },
-  { id: 'A7', x: 40, z: -110, name: '농소동 대기측정소' }, { id: 'A8', x: -10, z: 90, name: '신정동 대기측정소' }, { id: 'A9', x: 40, z: 140, name: '온산읍 악취센서' }
+  { id: 'A1', x: 118.8, z: -17.3, name: '삼산동 대기측정소' },
+  { id: 'A2', x: 122.8, z: 11.1, name: '여천동 악취센서' },
+  { id: 'A3', x: 130.9, z: 55.5, name: '용연동 악취센서' },
+  { id: 'A4', x: 105.7, z: 37.0, name: '부곡동 악취센서' },
+  { id: 'A5', x: 142.9, z: -74.0, name: '효문동 대기측정소' },
+  { id: 'A6', x: 176.2, z: -33.3, name: '양정동 악취센서' },
+  { id: 'A7', x: 130.9, z: -129.4, name: '농소동 대기측정소' },
+  { id: 'A8', x: 92.6, z: -9.9, name: '신정동 대기측정소' },
+  { id: 'A9', x: 132.9, z: 107.3, name: '온산읍 악취센서' }
 ];
 
+// ── 교사 설정: 난이도 · 사건 수 · 사건당 시간(분) ── 세션 track 값 'normal:2:20' 처럼 전달 (난이도만 오면 기본값)
+const UC_MODES = {
+  easy:   { name: '쉬움', tag: '처음 해 보는 반', desc: '평소 배출 없음 · 계측기 고장 1곳 · 분석 1시간 · "평소의 몇 배" 강조 · 배출 지점 목록 제공 · 추리 도움말', cases: 2, min: 15, decoy: 0, rumor: false, lie: false, labH: 1, ednaH: 1.5, ratio: 'strong', allPoints: true, guide: 'full' },
+  normal: { name: '보통', tag: '추천 · 1시간 수업', desc: '평소 배출 조금 · 계측기 고장 2곳 · 소문과 거짓말 · 분석 2시간 · "평소의 몇 배" 표시', cases: 2, min: 20, decoy: 0.22, decoyK: 0.6, rumor: true, lie: true, labH: 2, ednaH: 3, ratio: 'plain', allPoints: false, guide: 'short' },
+  hard:   { name: '어려움', tag: '추리 고수', desc: '평소 배출 많음 · 계측기 고장 2곳 · 소문과 거짓말 · 분석 2~3시간 · 숫자만 보고 직접 판단', cases: 3, min: 18, decoy: 0.45, decoyK: 1, rumor: true, lie: true, labH: 2, ednaH: 3, ratio: 'none', allPoints: false, guide: 'none' }
+};
+function ucSettings(trackId) {
+  const p = String(trackId || '').split(':'), d = UC_MODES[p[0]] ? p[0] : 'normal', M = UC_MODES[d];
+  const cases = Math.max(1, Math.min(3, parseInt(p[1], 10) || M.cases)), min = Math.max(5, Math.min(40, parseInt(p[2], 10) || M.min));
+  return Object.assign({}, M, { diff: d, cases, min, label: M.name + ' · 사건 ' + cases + '개 · ' + min + '분씩' });   // 교사가 고른 값이 난이도 기본값보다 우선
+}
+
+// 대기 센서 기록에서 '치솟음'(빨간 막대)으로 보이는가 — 그 물질만 v, 나머지는 평소값일 때 (기록 화면: VOC = 벤젠 + 톨루엔×0.25 > 8 · H₂S > 5)
+//   예전엔 사건을 만들 때 '평소의 5배'로만 봐서, 톨루엔 사건은 센서 기록에 아무것도 안 보이는 일이 있었음 (바람길·시각 단서가 사라짐)
+function ucAirSpike(polId, v, margin) { const m = margin || 0, r = x => +x.toFixed(1); return polId === 'h2s' ? r(v) > 5 + m : polId === 'benzene' ? r(v + 0.25 * UC_POL.toluene.base) > 8 + m : polId === 'toluene' ? r(UC_POL.benzene.base + 0.25 * v) > 8 + m : false; }
 // ── 시드 난수 ──
-function ucRng(seed) { let s = (Math.abs(Math.floor(seed)) % 2147483646) + 1; return () => (s = s * 48271 % 2147483647) / 2147483647; }
+function ucRng(seed) { let s = (Math.abs(Math.floor(Number(seed) || 0)) % 2147483646) + 1; return () => (s = s * 48271 % 2147483647) / 2147483647; }   // 그림·나무 배치용 (예전 그대로)
+// 사건 만들기용: 시드를 한 번 섞은 뒤 — 예전엔 시드가 가까우면 나오는 수도 비슷해 '범인은 보통 가장 이른 빈 칸' 같은 쏠림이 생겼음
+function ucRngH(seed) { const v = Math.abs(Math.floor(Number(seed) || 0)), lo = v % 4294967296, hi = Math.floor(v / 4294967296) % 4294967296; let x = (lo ^ Math.imul(hi, 0x9E3779B1)) >>> 0;
+  x = Math.imul(x ^ (x >>> 16), 0x45D9F3B) >>> 0; x = Math.imul(x ^ (x >>> 16), 0x45D9F3B) >>> 0; x = (x ^ (x >>> 16)) >>> 0; return ucRng(x); }
 
 // ── 사건 생성 ──
 //   시각은 'Day0 00:00' 부터의 시간(h). 조사는 Day1 08:00(=32h) 부터 20:00(=44h) 까지
-function ucMakeCase(seed) {
-  const rnd = ucRng(seed), pick = a => a[Math.floor(rnd() * a.length)];
+function ucMakeCase(seed, diff, want) {
+  const d = UC_MODES[diff] ? diff : 'hard', M = UC_MODES[d];
+  const rnd = ucRngH(seed), pick = a => a[Math.floor(rnd() * a.length)];
   const facIds = Object.keys(UC_FAC);
-  // 범인: 시설과 그 시설이 낼 수 있는 물질 · 물이면 배출구 · 공기면 굴뚝
-  let fac, pol, point;
-  for (let tries = 0; tries < 50; tries++) {
-    fac = pick(facIds); const F = UC_FAC[fac]; pol = pick(F.can); const path = UC_POL[pol].path;
-    const pts = path === 'water' ? F.outs : F.stacks; if (pts.length) { point = pick(pts); break; }
-  }
-  const t0 = 20 + Math.floor(rnd() * 10) + rnd() * 0.8;           // 전날 20시 ~ 새벽 6시 사이에 시작
-  const dur = 1.2 + rnd() * 1.3;
+  // 범인: 물질을 먼저 고르게(물 사건 · 공기 사건마다) → 그 물질을 허가받은 시설 → 배출구·굴뚝
+  //   예전엔 시설부터 골라 물 사건은 제련소(카드뮴)가, 공기 사건은 도장공장(톨루엔)이 훨씬 자주 나왔음
+  const pols = Object.keys(UC_POL).filter(p => !want || UC_POL[p].path === want), pol = pick(pols), path = UC_POL[pol].path, ptsOf = F => path === 'water' ? F.outs : F.stacks;
+  const fac = pick(facIds.filter(k => UC_FAC[k].can.indexOf(pol) >= 0 && ptsOf(UC_FAC[k]).length)), point = pick(ptsOf(UC_FAC[fac]));
+  // 밤사이 '이상한 일'의 시각들을 한꺼번에 같은 규칙으로 만들고(범인 배출 + 계측기 고장) 그중 하나를 범인 것으로 — 서류·경비원만 봐서는 어느 것이 범인인지 모름
+  //   공기는 냄새가 바로 퍼져서 서로 1.5시간 넘게 떨어뜨림 (시각으로 가려낼 수 있게) · 물은 배출구마다 도착 시각이 달라 겹쳐도 됨
+  const nw = (UC_GLITCH_N[d] != null ? UC_GLITCH_N[d] : 2) + 1, gap = path === 'air' ? 1.5 : 0; let wins = [];
+  for (let t = 0; t < 400; t++) { wins = []; for (let i = 0; i < nw; i++) wins.push({ h: 20 + rnd() * 10, dur: 1.2 + rnd() * 1.3 });
+    if (!gap || wins.every((a, i) => wins.every((b, j) => i === j || a.h + a.dur + gap <= b.h || b.h + b.dur + gap <= a.h))) break; }
+  const ci = Math.floor(rnd() * nw), t0 = wins[ci].h, dur = wins[ci].dur;   // 전날 20시 ~ 새벽 6시 사이에 시작 · 1.2~2.5시간
   // 바람(기상대 기록): 밤엔 육풍(서→동), 새벽엔 방향이 조금씩 돎 — 시간마다 방향(바람이 '불어가는' 쪽, 라디안)과 속도
   const makeWind = () => { const w = []; let dir = rnd() * Math.PI * 2;
     for (let h = 18; h <= 44; h++) { dir += (rnd() - 0.5) * 0.5; w.push({ h, dir, spd: 1.2 + rnd() * 2.5 }); } return w; };
   let wind = makeWind();
-  // 함정 1: 다른 시설의 허가된 평소 배출 (항상 조금) — 같은 물질을 고르면 헷갈림
+  // 함정 1: 허가된 평소 배출 (항상 조금 · 기준 안) — 범인 시설도 똑같은 확률로 평소대로 내보냄 (예전엔 범인 시설만 빠져서 '평소 배출이 있는 곳 = 범인 아님'이 됐음)
   const decoys = [];
-  facIds.forEach(id => { if (id === fac) return; const F = UC_FAC[id]; F.can.forEach(p => { if (rnd() < 0.45) { const pts = UC_POL[p].path === 'water' ? F.outs : F.stacks; if (pts.length) decoys.push({ fac: id, pol: p, point: pick(pts), k: 0.08 + rnd() * 0.1 }); } }); });
-  // 함정 2: 틀린 소문 (범인이 아닌, 같은 물질을 다룰 수 있는 시설을 지목하면 더 그럴듯)
-  const suspects = facIds.filter(id => id !== fac && UC_FAC[id].can.indexOf(pol) >= 0);
-  const rumor = suspects.length ? pick(suspects) : pick(facIds.filter(id => id !== fac));
-  const C = { seed, fac, pol, point: point.id, t0, dur, wind, decoys, rumor, startH: 32, endH: 44 };
-  // 공기 사건은 연기띠가 센서 2곳 이상에 걸려야 풀 수 있음 — 그런 바람이 나올 때까지 다시 (증거 없는 사건 방지)
-  if (UC_POL[pol].path === 'air') {
-    const hits = () => UC_AIR.filter(st => { let mx = 0; for (let h = 18; h <= 32; h++) mx = Math.max(mx, ucAirConc(C, pol, st.x, st.z, h + 0.5)); return mx > UC_POL[pol].base * 5; }).length;
-    for (let k = 0; k < 200 && hits() < 2; k++) C.wind = makeWind();
+  facIds.forEach(id => { const F = UC_FAC[id]; F.can.forEach(p => { if (rnd() < M.decoy) { const pts = UC_POL[p].path === 'water' ? F.outs : F.stacks; if (pts.length) decoys.push({ fac: id, pol: p, point: pick(pts), k: (0.08 + rnd() * 0.1) * (M.decoyK || 1) }); } }); });
+  // 함정 2: 소문 — 그 물질을 다룰 수 있는 시설 중 아무 곳이나 (범인일 때도, 아닐 때도 있음 · 예전엔 늘 범인이 아니어서 '소문난 곳을 빼면' 풀렸음)
+  const rumor = pick(facIds.filter(id => UC_FAC[id].can.indexOf(pol) >= 0 && ptsOf(UC_FAC[id]).length));
+  const C = { seed, diff: d, fac, pol, point: point.id, t0, dur, wins: wins.filter((w, i) => i !== ci), wind, decoys, rumor, noRumor: !M.rumor, noLie: !M.lie, startH: 32, endH: 44 };
+  // 공기 사건은 연기띠가 센서 2곳 이상에 '치솟음'으로 보여야 풀 수 있음 — 그런 바람이 나올 때까지 다시 (기록 화면처럼 소수 첫째 자리 · 여유를 두고)
+  if (path === 'air') {
+    const hits = () => { const Cc = Object.assign({}, C, { decoys: [] }); return UC_AIR.filter(st => { let mx = 0; for (let h = 18; h <= 32; h++) mx = Math.max(mx, ucAirConc(Cc, pol, st.x, st.z, h + 0.5)); return ucAirSpike(pol, mx, 0.3); }).length; };
+    for (let k = 0; k < 300 && hits() < 2; k++) C.wind = makeWind();
   }
   return C;
 }
@@ -137,13 +177,13 @@ function ucWaterConc(C, polId, river, s, h) {
   const add = (src, k) => { const pt = ucPoint(src); if (!pt || pt.kind !== 'water') return 0;
     const d = ucDownstream(pt.river, pt.s, river, s); if (d < 0) return 0;
     const v = UC_RIVERS[pt.river].speed * UC_KM, arrive = d / v, dil = Math.exp(-d / 260);
-    if (k != null) return P.peak * k * dil * 0.25;                     // 평소 배출: 늘 조금
+    if (k != null) return P.peak * k * 0.25 * dil;                     // 평소 배출: 늘 조금 (합쳐서 기준 안으로 — 아래)
     const t = h - C.t0 - arrive, spread = C.dur + d / v * 0.35;
     const pulse = t < 0 ? 0 : (t < spread ? 1 : Math.exp(-(t - spread) / 2.2));
     return P.peak * dil * (0.22 + 0.78 * pulse) * (t < 0 ? 0 : 1); };
   if (C.pol === polId && UC_POL[polId].path === 'water') c += add(C.point, null);
-  C.decoys.forEach(dc => { if (dc.pol === polId) c += add(dc.point.id, dc.k); });
-  return c;
+  let dsum = 0; C.decoys.forEach(dc => { if (dc.pol === polId) dsum += add(dc.point.id, dc.k); });
+  return c + Math.min(dsum, (P.limit - P.base) * 0.7);                // 허가된 평소 배출은 여러 곳을 합쳐도 기준(법 한도) 안 — 예전엔 페놀 평소 배출이 기준을 몇 배 넘어 범인 물질보다 커 보이기도 했음
 }
 // ── 공기: 센서 한 곳의 농도 (시각 h) — 가우스 풀룸(연기띠) ──
 function ucAirConc(C, polId, x, z, h) {
@@ -153,7 +193,8 @@ function ucAirConc(C, polId, x, z, h) {
     const along = dx * ax + dz * az, cross = -dx * az + dz * ax; if (along <= 2) return 0;
     const sig = 6 + along * 0.22; return q * Math.exp(-cross * cross / (2 * sig * sig)) / (1 + along / 40) / (0.6 + w.spd * 0.25); };
   if (C.pol === polId && P.path === 'air' && h >= C.t0 && h <= C.t0 + C.dur + 0.3) { const pt = ucPoint(C.point); c += plume(pt.x, pt.z, P.peak); }
-  C.decoys.forEach(dc => { if (dc.pol === polId && dc.point.x != null) c += plume(dc.point.x, dc.point.z, P.peak * dc.k * 0.3); });
+  const cap = Math.min((P.limit - P.base) * 0.6, (polId === 'h2s' ? 4.5 : polId === 'benzene' ? 6.55 : 26.2) * 0.5);   // 허가 범위(기준) 안 · 센서 기록에 '치솟음'으로 보이지 않을 만큼
+  let dsum = 0; C.decoys.forEach(dc => { if (dc.pol === polId && dc.point.x != null) dsum += plume(dc.point.x, dc.point.z, P.peak * dc.k * 0.3); }); c += Math.min(dsum, cap);
   return c;
 }
 
@@ -186,58 +227,126 @@ function ucAirLog(C, st, nowH) {
   for (let h = 18; h <= Math.floor(nowH); h++) rows.push({ h, voc: +(ucAirConc(C, 'benzene', st.x, st.z, h + 0.5) + ucAirConc(C, 'toluene', st.x, st.z, h + 0.5) * 0.25).toFixed(1), h2s: +ucAirConc(C, 'h2s', st.x, st.z, h + 0.5).toFixed(1) });
   return rows;
 }
-// ── 시설 서류: 허가 물질 · 배출 지점 · 야간 자동측정(유량/TMS) ──
+// ── 밤사이 '이상한 일' (서류의 빈 기록 · 경비원이 들은 소리 · 드론 열화상) ──
+//   범인의 몰래 배출 한 건 + 다른 시설의 '계측기 고장·점검으로 기록이 빈 때'(깨끗한 물·수증기) 몇 건 — 겉으로는 똑같이 보여요
+//   그래서 서류·경비원·드론만으로는 누구인지 못 정하고, 오염 측정(어디가 오염됐나)과 시각(거꾸로 계산한 출발 시각)을 맞춰야 가려져요
+//   다른 시설 일은 일부러 헷갈리지 않는 시각에: 그 배출구가 범인이었다면 나왔을 출발 시각에서 1.5시간 넘게 떨어뜨림
+const UC_GLITCH_N = { easy: 1, normal: 2, hard: 2 };
+// 드론 열화상 구역 (🛸) — 구역마다 한 번에 찍히는 시설
+const UC_ZONES = [{ id: 'petro', n: '여천천 석유화학단지', f: ['F1', 'F2'] }, { id: 'onsan', n: '외황강·온산', f: ['F3', 'F4', 'F8'] }, { id: 'gulhwa', n: '태화강 굴화', f: ['F6'] }, { id: 'eonyang', n: '태화강 언양', f: ['F7'] }, { id: 'yangjeong', n: '북구 양정동', f: ['F5'] }];
+function ucNightEvents(C) {
+  if (C._ev) return C._ev;
+  const rnd = ucRngH(Math.floor(Math.abs(Number(C.seed) || 1)) % 99991 * 31 + 4242), pt = ucPoint(C.point), water = UC_POL[C.pol].path === 'water';
+  const ev = [{ fac: C.fac, point: C.point, h: C.t0, dur: C.dur, kind: 'illegal' }];
+  const all = []; Object.keys(UC_FAC).forEach(k => { if (k !== C.fac) (water ? UC_FAC[k].outs : UC_FAC[k].stacks).forEach(o => all.push(Object.assign({ fac: k }, o))); });   // 범인 시설엔 고장을 두지 않음 (빈 칸이 둘인 곳 = 범인이 되지 않게)
+  const shuf = a => a.map(x => [rnd(), x]).sort((a2, b2) => a2[0] - b2[0]).map(x => x[1]);
+  const rival = o => UC_FAC[o.fac].can.indexOf(C.pol) >= 0 && (!water || o.river === pt.river), near = o => water ? o.river === pt.river : true;
+  const v = water ? UC_RIVERS[pt.river].speed * UC_KM : 0, far = (a, b, g, gd, m) => g + gd + m <= a || g - m >= b;
+  const okAt = (o, w) => { if (!water || o.river !== pt.river) return true; const fake = C.t0 + (o.s - pt.s) / v; return far(fake, fake, w.h, w.dur, 1.5); };   // 그 배출구에서 거꾸로 계산하면 나올 출발 시각과는 겹치지 않게 (시각으로 가려낼 수 있게)
+  const used = {};
+  (C.wins || []).forEach(w0 => {                                                               // 고장 시각마다 놓을 곳: 같은 물질을 다루는 다른 시설 → 같은 강 → 나머지 (한 시설에 하나씩)
+    for (const g of [shuf(all.filter(rival)), shuf(all.filter(o => !rival(o) && near(o))), shuf(all.filter(o => !near(o)))]) for (const o of g) {
+      if (used[o.fac]) continue; let w = w0; for (let k = 0; k < 30 && !okAt(o, w); k++) w = { h: 20 + rnd() * 10, dur: 1.2 + rnd() * 1.3 };   // 겹치면 같은 규칙으로 다시 뽑음
+      if (okAt(o, w)) { used[o.fac] = 1; ev.push({ fac: o.fac, point: o.id, h: w.h, dur: w.dur, kind: 'glitch' }); return; } } });
+  Object.defineProperty(C, '_ev', { value: ev, enumerable: false, configurable: true }); return ev;   // 복사·저장에는 안 딸려 감
+}
+function ucEventAt(C, pointId, h) { return ucNightEvents(C).find(e => e.point === pointId && h + 1e-6 >= e.h && h <= e.h + e.dur) || null; }   // 그 시각(정각 사진)에 그 자리에서 무언가 나오고 있었나
+// 배출 지점 위치 글자: 물 = '여천천 3.7km' · 굴뚝 = 가장 가까운 동네 쪽
+function ucPlaceText(o) {
+  if (o.kind === 'water') return UC_RIVERS[o.river].name + ' ' + (o.s / UC_KM).toFixed(1) + 'km';
+  let best = null, bd = 1e9; UC_AIR.forEach(a => { const d = Math.hypot(a.x - o.x, a.z - o.z); if (d < bd) { bd = d; best = a; } });
+  const F = UC_FAC[o.fac], dx = F ? o.x - F.at[0] : 0, dz = F ? o.z - F.at[1] : 0, dir = Math.abs(dx) >= Math.abs(dz) ? (dx >= 0 ? '동쪽' : '서쪽') : (dz >= 0 ? '남쪽' : '북쪽');   // 같은 동네 굴뚝끼리도 구별되게 (공장 안 위치)
+  return (best ? best.name.split(' ')[0] + ' 쪽 ' : '') + '굴뚝' + (F ? ' (공장 ' + dir + ')' : '');
+}
+// ── 시설 서류: 허가 물질(쓰는 곳) · 배출 지점(위치) · 야간 자동측정(유량/TMS) — 기록이 빈 칸은 범인 배출이든 계측기 고장이든 똑같이 '—'·'통신 장애' ──
 function ucFacilityRecord(C, facId) {
-  const F = UC_FAC[facId], culprit = facId === C.fac, pt = ucPoint(C.point), rows = [];
-  F.outs.concat(F.stacks).forEach(o => {
-    const rec = []; for (let h = 18; h <= 31; h++) { const hit = culprit && o.id === C.point && h + 1 > C.t0 && h < C.t0 + C.dur;
-      rec.push({ h, v: o.kind === 'water' ? (hit ? '—' : String(Math.round(40 + ((h * 13 + o.id.length * 7) % 9)))) : (hit ? '통신 장애' : '정상') }); }
-    rows.push({ id: o.id, label: o.label, kind: o.kind || 'air', rec }); });
-  return { permit: F.can.map(p => UC_POL[p].name), rows };
+  const F = UC_FAC[facId], rows = [];
+  F.outs.concat(F.stacks).forEach(o => { const kind = o.kind || 'air', ox = Object.assign({ kind, fac: facId }, o);
+    const rec = []; for (let h = 18; h <= 31; h++) { const hit = ucNightEvents(C).some(e => e.point === o.id && h + 1 > e.h && h < e.h + e.dur);
+      rec.push({ h, v: kind === 'water' ? (hit ? '—' : String(Math.round(40 + ((h * 13 + o.id.length * 7) % 9)))) : (hit ? '통신 장애' : '정상') }); }
+    rows.push({ id: o.id, label: o.label, kind, pos: ucPlaceText(ox), rec }); });
+  return { permit: F.can.map(p => UC_POL[p].name), uses: F.can.map(p => UC_POL[p].name + ((UC_USE[facId] || {})[p] ? ': ' + UC_USE[facId][p] : '')), rows };
 }
 // ── 사람들 증언 ──
-function ucTestimony(C, who) {
-  const P = UC_POL[C.pol], pt = ucPoint(C.point), hm = h => { const d = Math.floor(h / 24), hh = Math.floor(h % 24), mm = Math.round((h % 1) * 6) * 10; return (d === 0 ? '어젯밤 ' : '오늘 새벽 ') + hh + '시' + (mm ? ' ' + mm + '분' : '') + '쯤'; };
-  if (who === 'fisher') {                                    // 하구 어민: 물 사건이면 하구에 닿은 시각 · 공기면 냄새 없음
-    if (P.path === 'water') { const mouthRiver = pt.river === 'dongcheon' ? 'taehwa' : pt.river; const R = UC_RIVERS[mouthRiver], d = ucDownstream(pt.river, pt.s, mouthRiver, ucLen(R.pts) - 4);
-      const arr = C.t0 + (d >= 0 ? d / (R.speed * UC_KM) : 3);
-      return '"' + hm(arr) + ' 하구에서 그물을 걷는데 물고기가 배를 뒤집고 떠올랐어요. ' + R.name + ' 쪽에서 내려온 물이었지.' + (P.smell ? ' 물에서 ' + P.smell + '가 났고요.' : ' 냄새는 딱히 없었어요.') + '"'; }
+// 시각(h, 전날 0시부터) → '어젯밤 11시 20분쯤' · '오늘 새벽 3시쯤' · '오늘 아침 7시 10분쯤' (10분 단위 · 60분은 다음 시로 올림)
+function ucHm(h, rough) {
+  let t = Math.round(h * 6) / 6; if (rough) t = Math.floor(h); const d = Math.floor(t / 24), hh = Math.floor(t % 24 + 1e-6), mm = Math.round((t - Math.floor(t)) * 6) % 6 * 10;
+  const part = d <= 0 ? (hh < 12 ? '어제 오전 ' : hh < 18 ? '어제 오후 ' : hh < 21 ? '어제 저녁 ' : '어젯밤 ')   // 예전엔 어제 오전도 '어제 오후', 이틀째 자정 넘어도 '어젯밤'이라 했음
+    : d === 1 ? (hh === 0 ? '어젯밤 ' : hh < 6 ? '오늘 새벽 ' : hh < 9 ? '오늘 아침 ' : hh < 12 ? '오늘 오전 ' : hh < 18 ? '오늘 오후 ' : hh < 21 ? '오늘 저녁 ' : '오늘 밤 ')
+    : (hh === 0 ? '오늘 밤 ' : hh < 6 ? '내일 새벽 ' : hh < 9 ? '내일 아침 ' : '내일 ');
+  const h12 = hh === 0 ? 12 : hh > 12 ? hh - 12 : hh;   // 0시 → '어젯밤 12시' · 13시 → 1시
+  return part + h12 + '시' + (mm && !rough ? ' ' + mm + '분' : '') + '쯤';
+}
+// 하구(바다와 만나는 곳)에 오염물이 닿는 시각 — 동천은 태화강으로 들어감
+function ucMouthArrive(C) { const pt = ucPoint(C.point); if (!pt || pt.kind !== 'water') return null; const mr = pt.river === 'dongcheon' ? 'taehwa' : pt.river, R = UC_RIVERS[mr], d = ucDownstream(pt.river, pt.s, mr, ucLen(R.pts) - 4);
+  return { river: mr, h: C.t0 + (d >= 0 ? d / (R.speed * UC_KM) : 3) }; }
+// 물고기 떼죽음 신고 지점: 아침 7시(31h)에 오염물 맨 앞이 닿아 있던 곳 (강 끝을 넘으면 하구)
+const UC_REPORT_H = 31;
+function ucReportSpot(C) {
+  const pt = ucPoint(C.point); if (!pt || pt.kind !== 'water') return null;
+  let river = pt.river, s = pt.s + Math.max(0.4, UC_REPORT_H - C.t0) * UC_RIVERS[river].speed * UC_KM; const L = ucLen(UC_RIVERS[river].pts);
+  if (s > L && UC_RIVERS[river].joins) { const over = (s - L) / UC_RIVERS[river].speed, j = UC_RIVERS[river].joins[0], R0 = UC_RIVERS[river]; river = j; s = ucProject(UC_RIVERS[j].pts, ...R0.pts[R0.pts.length - 1]).s + over * UC_RIVERS[j].speed; }
+  const L2 = ucLen(UC_RIVERS[river].pts); return { river, s: Math.min(L2 - 3, s), mouth: s >= L2 - 3 };
+}
+// 공기 사건: 냄새가 닿은 측정소 (가장 진했던 순) · 처음 기준을 넘은 시각
+function ucAirHits(C) {
+  const P = UC_POL[C.pol]; if (P.path !== 'air') return []; const Cc = Object.assign({}, C, { decoys: [] });   // 범인 연기만 (다른 시설의 평소 배출은 빼고 — 예전엔 배출 전 시각을 말하기도 했음)
+  return UC_AIR.map(st => { let peak = 0, first = null, logHit = false; for (let h = 18; h <= 32; h += 0.25) { const v = ucAirConc(Cc, C.pol, st.x, st.z, h); peak = Math.max(peak, v); if (first == null && ucAirSpike(C.pol, v)) first = h; }
+      for (let h = 18; h <= 32; h++) if (ucAirSpike(C.pol, ucAirConc(Cc, C.pol, st.x, st.z, h + 0.5))) logHit = true;   // 1시간 기록에도 빨간 막대로 보이는 센서만
+      return { st, peak, first: logHit ? first : null, area: st.name.split(' ')[0] }; })
+    .filter(x => x.first != null).sort((a, b) => b.peak - a.peak);
+}
+function ucTestimony(C, who, nowH) {
+  const P = UC_POL[C.pol], pt = ucPoint(C.point), hm = h => ucHm(h), now = nowH == null ? 99 : nowH;
+  if (who === 'fisher') {                                    // 하구 어민: 물 사건이면 하구에 닿은 시각 (아직 안 닿았으면 그렇게) · 공기면 냄새만
+    if (P.path === 'water') { const a = ucMouthArrive(C), R = UC_RIVERS[a.river];
+      if (a.h > now) return '"하구 쪽은 아직 멀쩡해요. 그런데 ' + R.name + ' 위쪽에서 물고기가 죽었다는 얘기가 들려서 걱정이에요. 여기까지 내려오면 바로 알려 드릴게요."';
+      return '"' + hm(a.h) + ' 하구에서 그물을 걷는데 물고기가 배를 뒤집고 떠올랐어요. ' + R.name + ' 쪽에서 내려온 물이었지.' + (P.smell ? ' 물에서 ' + P.smell + '가 났고요.' : ' 냄새는 딱히 없었어요.') + '"'; }
     return '"밤새 바다는 멀쩡했어요. 물고기도 평소대로고요. 대신 바람 타고 이상한 냄새는 좀 났지."';
   }
-  if (who === 'resident') {                                  // 국가정원 산책 주민: 공기면 냄새를 맡은 시각
-    if (P.path === 'air') return '"' + hm(C.t0 + 0.6) + ' 창문을 닫아야 할 정도로 ' + P.smell + '가 났어요. 바람이 꽤 불었고요."';
+  if (who === 'resident') {                                  // 국가정원 산책 주민: 공기면 냄새가 가장 심했던 동네에서 처음 난 시각 (실제 연기띠와 맞음)
+    if (P.path === 'air') { const hit = ucAirHits(C)[0];
+      return hit ? '"' + hit.area + '에 사는 언니가 밤사이 창문을 닫아야 할 정도로 ' + P.smell + '가 났대요. 자다 깨서 몇 시였는지는 잘 모르겠대요. 바람도 꽤 불었고요."' : '"밤사이 창문을 닫아야 할 정도로 ' + P.smell + '가 났어요. 몇 시였는지는 잘 모르겠어요."'; }
     return '"밤엔 별일 없었어요. 아침에 강가에서 물 색이 좀 이상하다는 얘기는 들었어요."';
   }
   if (who === 'doctor') {
     if (P.sym) return '"오늘 아침 ' + P.sym + ' 때문에 온 환자가 평소의 세 배예요. 대부분 ' + (P.path === 'air' ? '밤사이 창문을 열어 두었던 분들' : '새벽에 강가에 나갔던 분들') + '이에요."';
     return '"특별히 늘어난 증상은 없어요. 물고기 사고라면 사람보다 강 생물을 먼저 조사해 보세요."';
   }
-  if (who === 'activist') return '"보나 마나 ' + UC_FAC[C.rumor].name + '예요! 예전에도 사고를 낸 적이 있거든요. 제 말 믿어요."';   // 틀린 소문(함정)
+  if (who === 'activist') return C.noRumor ? '"저희도 조사 중이에요. 의심만으로 공장을 지목하면 안 돼요. 측정값과 시각, 흐름(물·바람)을 맞춰 보세요."'
+    : '"보나 마나 ' + ucJ(UC_FAC[C.rumor].name, '이에요', '예요') + '! 예전에도 사고를 낸 적이 있거든요. 제 말 믿어요."';   // 소문 — 맞을 때도 틀릴 때도 있음 (증거가 아님)
   if (who === 'guard') {                                     // 범인 시설 야간 경비원만 단서
     return null;
   }
   return '';
 }
 function ucGuardLine(C, facId) {
-  if (facId !== C.fac) return '"밤새 조용했어요. 순찰 기록도 평소랑 같아요."';
-  const pt = ucPoint(C.point); const hh = Math.floor(C.t0 % 24);
-  return '"' + (hh < 12 ? '새벽 ' : '밤 ') + hh + '시 무렵 ' + (pt.kind === 'water' ? pt.label + ' 쪽에서 펌프 돌아가는 소리가 한참 났어요. 평소엔 그 시간에 안 돌리는데…' : pt.label + ' 쪽에서 평소보다 시커먼 연기가 났어요.') + ' 저한테 들었다고는 하지 마세요."';
+  const evs = ucNightEvents(C).filter(e => e.fac === facId).sort((a, b) => a.h - b.h); if (!evs.length) return '"밤새 조용했어요. 순찰 기록도 평소랑 같아요."';
+  const hsh = (Math.floor(Math.abs(C.seed || 1)) % 997 + facId.charCodeAt(1) * 7) % 6, tail = ['무슨 작업인지는 저도 몰라요.', '평소엔 그 시간에 안 돌리는데…', '제가 본 건 거기까지예요.'][hsh % 3];   // 말투는 시설마다 제각각 (범인인지와 상관없음)
+  const one = (e, i) => { const pt = ucPoint(e.point), t = ucHm(e.h, true).replace(/쯤$/, '');
+    return (i ? '그리고 ' : '') + t + ' 무렵 ' + pt.label + ' 쪽에서 ' + (pt.kind === 'water' ? '펌프 돌아가는 소리가 한참 났어요.' : '연기가 평소보다 진하게 났어요.'); };
+  return '"' + evs.map(one).join(' ') + ' ' + tail + (hsh >= 3 ? ' 저한테 들었다고는 하지 마세요.' : '') + '"';
 }
 function ucManagerLine(C, facId) {
-  const F = UC_FAC[facId];
-  if (facId === C.fac) return '"저희는 허가받은 대로만 운영합니다. 어젯밤도 모두 정상이었어요. 자동측정 기록을 보시면 알 거예요."';   // 거짓말
-  const dec = C.decoys.find(d => d.fac === facId);
-  return dec ? '"저희 ' + dec.point.label + '로 ' + UC_POL[dec.pol].name + '이(가) 조금 나가긴 하지만 허가 범위 안이에요. 매일 그 정도는 나갑니다."' : '"저희 시설은 어젯밤 특이사항이 없었습니다. 기록 확인하셔도 됩니다."';
+  const hasEv = ucNightEvents(C).some(e => e.fac === facId), dec = C.decoys.find(d => d.fac === facId);
+  const water = UC_POL[C.pol].path === 'water', base = hasEv ? '"자동측정 기록이 빈 건 계측기 통신 문제예요. ' + (water ? '방류는' : '배출은') + ' 허가받은 대로 했습니다."' : '"저희 시설은 어젯밤 특이사항이 없었습니다. 기록 확인하셔도 됩니다."';   // 범인도 똑같이 말함 (거짓말)
+  return dec ? base.replace(/"$/, ' ') + '참고로 ' + ucJ(dec.point.label, '으로') + ' ' + ucJ(UC_POL[dec.pol].name, '이', '가') + ' 조금 나가긴 하지만 허가 범위 안이에요. 매일 그 정도는 나갑니다."' : base;
 }
 
+// 조사(은/는 · 이/가 · 을/를 · 과/와 · 으로/로)를 앞말 받침에 맞게 — 끝의 괄호 설명은 빼고 봄 · 숫자·영문은 읽는 소리로 (예: ucJ('붕어', '은', '는') → '붕어는')
+function ucJ(w, a, b) {
+  const s = String(w).replace(/\s*\([^()]*\)\s*$/, '').trim(), c = s.charCodeAt(s.length - 1); let bat = 0;
+  if (c >= 0xAC00 && c <= 0xD7A3) bat = (c - 0xAC00) % 28; else { const ch = s.slice(-1).toUpperCase(); if ('178LR'.indexOf(ch) >= 0) bat = 8; else if ('036MN'.indexOf(ch) >= 0) bat = 1; }
+  return w + (a === '으로' ? (bat && bat !== 8 ? '으로' : '로') : bat ? a : b);
+}
 // ── 보고서 채점 ──
 function ucSlot(h) { return h < 21 ? 0 : h < 24 ? 1 : h < 27 ? 2 : h < 30 ? 3 : 4; }
 const UC_SLOTS = ['어젯밤 18~21시', '어젯밤 21~24시', '새벽 0~3시', '새벽 3~6시', '아침 6~8시'];
 function ucScore(C, rep) {
   const r = { pol: rep.pol === C.pol, fac: rep.fac === C.fac, point: rep.point === C.point, time: rep.slot === ucSlot(C.t0) };
-  const ev = (rep.evidence || []).slice(0, 3), keys = ev.filter(e => e && e.key).length;
+  const ev = (rep.evidence || []).slice(0, 3), keys = new Set(ev.filter(e => e && e.key).map(e => e.title)).size;   // 같은 증거를 여러 번 적어도 하나로 (예전엔 같은 말을 세 번 들으면 +20)
   const score = (r.pol ? 20 : 0) + (r.fac ? 25 : 0) + (r.point ? 20 : 0) + (r.time ? 15 : 0) + Math.round(keys / 3 * 20);
   const grade = score >= 95 ? 'S' : score >= 80 ? 'A' : score >= 60 ? 'B' : score >= 40 ? 'C' : 'D';
   return Object.assign(r, { keys, score, grade });
 }
-if (typeof module !== 'undefined') module.exports = { UC_KM, UC_RIVERS, UC_POL, UC_PANELS, UC_FAC, UC_PLACES, UC_BIO, UC_AIR, UC_SLOTS, ucLen, ucAt, ucProject, ucDownstream, ucRng, ucMakeCase, ucPoint, ucWaterConc, ucAirConc, ucFieldKit, ucBioLog, ucEdna, ucAirLog, ucFacilityRecord, ucTestimony, ucGuardLine, ucManagerLine, ucSlot, ucScore };
+if (typeof module !== 'undefined') module.exports = { ucRngH, UC_MODES, ucSettings, UC_KM, UC_RIVERS, UC_POL, UC_PANELS, UC_FAC, UC_PLACES, UC_START, UC_BIO, UC_AIR, UC_SLOTS, ucLen, ucAt, ucProject, ucDownstream, ucRng, ucMakeCase, ucPoint, ucWaterConc, ucAirConc, ucFieldKit, ucBioLog, ucEdna, ucAirLog, ucFacilityRecord, ucTestimony, ucGuardLine, ucHm, ucMouthArrive, ucReportSpot, ucAirHits, UC_REPORT_H, ucManagerLine, ucSlot, ucScore, ucYard, ucGate, ucFence, UC_NPC_AT, ucNpcAt, ucBioAt, UC_USE, ucNightEvents, ucEventAt, ucPlaceText, ucJ, UC_GLITCH_N, UC_ZONES, ucAirSpike };
