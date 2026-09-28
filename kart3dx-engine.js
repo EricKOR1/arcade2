@@ -149,7 +149,7 @@ class KartGame3D extends KartGame {
     const T = THREE, tr = this.track, d = tr.def, sky = d.sky || {}, night = (sky.stars || 0) >= 0.5;   // 별이 많은 하늘 = 야경 트랙
     this.night = night;
     this.renderer = new T.WebGLRenderer({ canvas: this.glCanvas, antialias: (window.devicePixelRatio || 1) < 2 });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.opts.maxDpr || 1.25));
+    this.renderer.setPixelRatio(Math.max(this.opts.minDpr || 0, Math.min(window.devicePixelRatio || 1, this.opts.maxDpr || 1.25)));   // minDpr: 교사 관전 화면은 모니터보다 촘촘히 그려 또렷하게
     this.scene = new T.Scene();
     this.scene.fog = new T.Fog(new T.Color(sky.haze || sky.low || '#BFE0F5'), 180, 820);   // 안개를 멀리 — 먼 도로가 보이게
     this.camera = new T.PerspectiveCamera(68, 1, 0.5, 1600);
