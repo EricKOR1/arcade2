@@ -16,33 +16,38 @@ class UlsanRpgGame {
     this.initThree(); this.buildWorld(); this.buildPeople(); this.buildUI(); this.bindKeys(); this.resize(); if (!this.canStand(this.px, this.pz)) this.unstick();
     const saved = this.load();                                // 새로고침·다시 들어와도 이어서 (예전엔 사건 1 · 0점으로 처음부터 → 순위표 기록도 덮어씀)
     if (saved) this.restore(saved);
-    else { this.addEvidence({ id: 'case', title: '📄 사건 1 개요', key: false, html: this.caseBrief() }); this.revealPoints(); this.showIntro(true); }
+    else { this.addEvidence({ id: 'case', title: '📄 사건 1 개요', key: false, html: this.caseBrief() }); this.revealPoints(); this.deliverNews(true); this.showIntro(true); }
   }
+  // 📰 수사 중 소식 (ucNews): 게임 속 시각이 되면 수첩으로 — 제보 · 공지 · 뉴스 (같은 제목은 한 번만)
+  deliverNews(quiet) { if (typeof ucNews !== 'function' || !this.C) return; if (!quiet && this._newsH === this.nowH) return; this._newsH = this.nowH;
+    const got = new Set(this.evidence.map(e => e.title)); let n = 0, last = null;
+    ucNews(this.C).forEach(x => { if (x.h > this.nowH + 1e-6 || got.has(x.title)) return; this.addEvidence({ title: x.title, html: x.html, key: false }); n++; last = x; });
+    if (n && !quiet) this.toast('📰 새 소식' + (n > 1 ? ' ' + n + '건' : '') + ' — ' + last.title.replace(/^\S+ /, '') + ' (📓 수첩)'); }
   revealPoints() { if (this.set.allPoints) Object.values(UC_FAC).forEach(F => F.outs.concat(F.stacks).forEach(o => { this.known[o.id] = true; })); }   // 쉬움: 배출 지점 목록을 처음부터
   // 사건 연속(교사가 1~3개): 1번 수질 · 2번 대기 · 3번 무작위 — 같은 판·같은 설정이면 반 전체가 같은 사건
-  makeCase(k) { return ucMakeCase(this.seed * 3 + k * 7919, this.set.diff, k === 1 ? 'water' : k === 2 ? 'air' : null); }   // 예전엔 원하는 종류가 나올 때까지 다시 뽑아 물질·시설이 한쪽으로 쏠렸음
+  makeCase(k) { const prev = k > 1 ? this.makeCase(k - 1).fac : null; return ucMakeCase(this.seed * 3 + k * 7919, this.set.diff, k === 1 ? 'water' : k === 2 ? 'air' : null, prev); }   // 사건끼리 이어짐: 지난 사건 범인 시설은 24시간 감시 중이라 이번엔 범인이 아님 (📰 후속 뉴스)   // 예전엔 원하는 종류가 나올 때까지 다시 뽑아 물질·시설이 한쪽으로 쏠렸음
   startCase(k) {
     this.caseNo = k; this.C = this.makeCase(k); this.nowH = this.C.startH; this.samples = []; this.pending = []; this.evidence = []; this.known = {}; this.talked = {}; this.visited = {}; this.report = null; this.draft = {}; this.mini = null; this._arr = null;   // 확인한 곳 표시도 사건마다 새로
     this.caseStartReal = Date.now(); this.warned = {}; this.keys = {}; this.mx = 0; this.my = 0;
     this.px = UC_START[0]; this.pz = UC_START[1]; if (!this.canStand(this.px, this.pz)) this.unstick(); this.camera.position.set(this.px, 45, this.pz + 34); this.setDest(null); this.seenEv = 1; this._objKey = null;
-    this.addEvidence({ id: 'case', title: '📄 사건 ' + k + ' 개요', key: false, html: this.caseBrief() }); this.revealPoints();
+    this.addEvidence({ id: 'case', title: '📄 사건 ' + k + ' 개요', key: false, html: this.caseBrief() }); this.revealPoints(); this.deliverNews(true);
     this.showIntro(false); this.save();
   }
   // ── 진행 저장 · 복원 (같은 판 · 같은 설정 · 같은 학생) ──
   get saveKeys() { const t = this.opts.trackId || ''; return ['ulsan:' + this.seed + ':' + t + ':' + (this.opts.myId || '-'), 'ulsan:' + this.seed + ':' + t + ':n:' + (this.opts.myName || '')]; }
   save() {
     if (!this.opts.seed || this._noSave) return; this._savedAt = this.now || 0; this._dirty = false;
-    try { const js = JSON.stringify({ v: 3, caseNo: this.caseNo, results: this.results, startReal: this.startReal, caseStartReal: this.caseStartReal, doneAt: this.doneAt || 0, nowH: this.nowH, samples: this.samples, pending: this.pending,
+    try { const js = JSON.stringify({ v: 4, caseNo: this.caseNo, results: this.results, startReal: this.startReal, caseStartReal: this.caseStartReal, doneAt: this.doneAt || 0, nowH: this.nowH, samples: this.samples, pending: this.pending,
         evidence: this.evidence, known: this.known, talked: this.talked, visited: this.visited, draft: this.draft, mini: this.mini || null, px: this.px, pz: this.pz, heading: this.heading, warned: this.warned, report: this.report, left: this._leftAtSubmit || 0, finished: !!this.finished, dest: this.dest, seenEv: this.seenEv, fun: this.fun || null });
       const [k1, k2] = this.saveKeys; try { sessionStorage.setItem(k1, js); if (!this._ssPruned) { this._ssPruned = true; for (let i = sessionStorage.length - 1; i >= 0; i--) { const k = sessionStorage.key(i); if (k && k.indexOf('ulsan:') === 0 && k.indexOf('ulsan:' + this.seed + ':') !== 0) sessionStorage.removeItem(k); } } } catch (e) {}   // 지난 판 기록은 지움 (탭을 오래 열어 두면 쌓여 저장이 막히던 것)
       if (this.opts.myName) try { localStorage.setItem(k2, js); for (let i = localStorage.length - 1; i >= 0; i--) { const k = localStorage.key(i); if (k && k.indexOf('ulsan:') === 0 && k.indexOf('ulsan:' + this.seed + ':') !== 0) localStorage.removeItem(k); } } catch (e) {}   // 지난 판 기록은 지움
     } catch (e) {}
   }
-  // 저장 형식 3 (v2026-10-19a): 난이도(함정 수)가 바뀌어 같은 판이라도 사건이 달라짐 — 예전(형식 1·2) 저장은 다른 사건의 증거라 버림
+  // 저장 형식 4 (v2026-10-20c): 배출구가 늘고 사건끼리 이어져 같은 판이라도 사건이 달라짐 — 예전 저장은 다른 사건의 증거라 버림
   load() {
     if (!this.opts.seed) return null; const [k1, k2] = this.saveKeys; let js = null;
     try { js = sessionStorage.getItem(k1); } catch (e) {} if (!js && this.opts.myName) try { js = localStorage.getItem(k2); } catch (e) {}   // 탭을 닫았다 열어도 같은 이름이면
-    try { const o = js && JSON.parse(js); return o && o.v === 3 && o.caseNo >= 1 && Array.isArray(o.evidence) ? o : null; } catch (e) { return null; }
+    try { const o = js && JSON.parse(js); return o && o.v === 4 && o.caseNo >= 1 && Array.isArray(o.evidence) ? o : null; } catch (e) { return null; }
   }
   restore(o) {
     this.caseNo = Math.min(o.caseNo, this.caseTotal); this.C = this.makeCase(this.caseNo);
@@ -427,6 +432,7 @@ class UlsanRpgGame {
     this.stepSmoke(dt);
     // 분석 결과 도착
     this.pending = this.pending.filter(p => { if (this.nowH >= p.readyH) { this.deliver(p); return false; } return true; });
+    if (!this.report) this.deliverNews();   // 📰 시각이 된 소식
     // 실제 시간 제한: 3분·1분 전 알림 → 0이면 작성 중인 보고서를 자동 제출
     if (!this.report) { const left = this.caseLeftSec;
       if (left <= 180 && !this.warned.m3) { this.warned.m3 = true; this.toast('⏰ 3분 남았어요! 보고서를 채워 두세요 (시간이 되면 자동 제출)'); }
@@ -623,7 +629,7 @@ class UlsanRpgGame {
   inspectPoint(o) {
     const pt = ucPoint(o.id); this.spend(0.17); this.known[o.id] = true; this.visited['pt:' + o.id] = true;
     const F = UC_FAC[o.fac], water = pt.kind === 'water', where = ucPlaceText(pt);
-    const obs = water ? '지금은 물이 조금씩 흘러나와요. 눈으로는 오염됐는지 알 수 없어요 — <b>바로 아래 물</b>과 <b>바로 위 물</b>을 떠서 🔬 연구원에서 물벼룩 독성 시험을 해 보세요. (아래는 독하고 위는 깨끗하면 → 여기서 시작!)' : '지금 굴뚝 연기는 옅은 흰색이에요. 밤사이 일은 🏭 정문 서류와 💨 대기센서 기록으로 확인하세요.';   // 예전엔 범인 배출구만 냄새·기름막이 보여 눈으로 보기 하나로 ③이 풀렸음
+    const obs = (water ? '이 관은 <b>' + ucOutType(pt).n + '</b> — ' + ucOutType(pt).use + '. ' : '') + (water ? '지금은 물이 조금씩 흘러나와요. 눈으로는 오염됐는지 알 수 없어요 — <b>바로 아래 물</b>과 <b>바로 위 물</b>을 떠서 🔬 연구원에서 물벼룩 독성 시험을 해 보세요. (아래는 독하고 위는 깨끗하면 → 여기서 시작!)' : '지금 굴뚝 연기는 옅은 흰색이에요. 밤사이 일은 🏭 정문 서류와 💨 대기센서 기록으로 확인하세요.');   // 예전엔 범인 배출구만 냄새·기름막이 보여 눈으로 보기 하나로 ③이 풀렸음
     this.addEvidence({ title: '📍 배출 지점 확인 · ' + o.id + ' (' + F.name + ' ' + pt.label + ')', html: '<p>위치: <b>' + where + '</b></p><p>' + obs + '</p>', key: false });
     if (water) { const R = UC_RIVERS[pt.river], s2 = Math.min(ucLen(R.pts) - 1, pt.s + 1.5), s1 = Math.max(1, pt.s - 1.5), km = s => R.name + ' ' + (s / UC_KM).toFixed(1) + 'km', has = re => this.samples.some(x => x.label.indexOf(o.id + ' ' + re) >= 0);
       this.dialog('📍', o.id + ' ' + pt.label + ' · ' + where, '<p>보고서 ③ 후보에 올렸어요.</p><p>' + obs + '</p>', [['💧 바로 아래 물 뜨기 (10분)' + (has('바로 아래') ? ' — 가방에 있음' : ''), () => this.takeSample('water', { river: pt.river, s: s2 }, km(s2) + ' (' + o.id + ' 바로 아래)')], ['💧 바로 위 물 뜨기 (10분)' + (has('바로 위') ? ' — 가방에 있음' : ''), () => this.takeSample('water', { river: pt.river, s: s1 }, km(s1) + ' (' + o.id + ' 바로 위)')], ['알겠어요', () => this.closeDialog()]]); }
@@ -632,13 +638,14 @@ class UlsanRpgGame {
   visitFacility(fid) {
     const F = UC_FAC[fid], water = UC_POL[this.C.pol].path === 'water', open = this.warrantFacs().has(fid);
     F.outs.concat(F.stacks).forEach(o => { this.known[o.id] = true; });   // 배출구·굴뚝 위치는 정문 안내판에 (지도에 ◆)
-    const pos = F.outs.concat(F.stacks).map(o => '<li>◆ <b>' + o.id + '</b> ' + o.label + ' — ' + ucPlaceText(Object.assign({ kind: o.kind || 'air', fac: fid }, o)) + '</li>').join('');
+    const pos = F.outs.concat(F.stacks).map(o => '<li>◆ <b>' + o.id + '</b> ' + o.label + ' — ' + ucPlaceText(Object.assign({ kind: o.kind || 'air', fac: fid }, o)) + (o.kind === 'water' ? ' <small class="dim">' + ucOutType(o).use + '</small>' : '') + '</li>').join('');
     const lock = water ? '🔬 <b>물벼룩 독성 지도</b>에서 이 시설 배출구부터 독성이 시작된다는 걸 보여 주세요 (배출구 바로 아래 물은 독하고, 바로 위 물은 깨끗해야 해요)' : '🧭 <b>바람길</b>(기상대 예보관)로 냄새가 이 시설 쪽에서 왔다는 걸 보여 주세요';
     this.dialog('🏭', F.name, '<p>쓰는 물질: <b>' + F.can.map(p => UC_POL[p].name).join(' · ') + '</b></p>' + (pos ? '<ul class="u-pos">' + pos + '</ul>' : '') +
       (open ? '<p>🔓 증거가 있어서 <b>서류</b>(어젯밤 시간별 기록)를 볼 수 있어요.</p>' : '<p class="lock">🔒 서류(어젯밤 기록)는 증거가 있어야 보여 드려요 — ' + lock + '</p>'), [
       open ? ['🗂 서류 보기 (30분) — 배출 지점 · 어젯밤 기록', () => { this.spend(0.5); const r = ucFacilityRecord(this.C, fid); r.rows.forEach(row => { this.known[row.id] = true; }); this.visited[fid] = true;
-        const html = '<p>쓰는 물질: <b>' + r.uses.join(' · ') + '</b></p>' + r.rows.map(row => '<p><b>' + row.id + ' ' + row.label + '</b> · ' + row.pos + ' <span class="dim">— ' + (row.kind === 'water' ? '시간마다 내보낸 물의 양(㎥)' : '굴뚝 자동측정') + '</span></p><div class="rec">' + row.rec.map(x => '<span class="' + (/—|장애/.test(x.v) ? 'bad' : '') + '">' + (x.h % 24) + '시 ' + x.v + '</span>').join('') + '</div>').join('') +
-          '<p class="dim"><b class="no">빈 칸</b>(— · 통신 장애) = 그 시간 기록이 없어요. 몰래 내보냈을 수도, 계측기가 고장 났을 수도 있어요.' + (this.set.diff === 'easy' ? '' : ' ' + (water ? '오염이 시작된 곳 · 시각' : '냄새가 처음 난 시각 · 바람 방향') + '과 맞는지 다른 증거와 맞춰 보세요.') + '</p>';
+        const html = '<p>쓰는 물질: <b>' + r.uses.join(' · ') + '</b></p>' + r.rows.map(row => row.meter === false ? '<p><b>' + row.id + ' ' + row.label + '</b> · ' + row.pos + ' <span class="dim">— 자동측정기 없음 (' + row.note + ')</span></p><div class="rec"><span class="dim">기록 없음 — 측정 대상이 아닌 관</span></div>'
+          : '<p><b>' + row.id + ' ' + row.label + '</b> · ' + row.pos + ' <span class="dim">— ' + (row.kind === 'water' ? '시간마다 내보낸 물의 양(㎥)' : '굴뚝 자동측정') + '</span></p><div class="rec">' + row.rec.map(x => '<span class="' + (/—|장애/.test(x.v) ? 'bad' : '') + '">' + (x.h % 24) + '시 ' + x.v + '</span>').join('') + '</div>').join('') +
+          '<p class="dim"><b class="no">빈 칸</b>(— · 통신 장애) = 그 시간 기록이 없어요. 몰래 내보냈을 수도, 계측기가 고장 났을 수도 있어요 (📰 구청 공지도 확인). ' + (water ? '자동측정기가 없는 관은 몰래 내보내도 빈 칸이 생기지 않아요 — 🔬 독성 지도와 ⏪ 시간 계산으로 확인해요. ' : '') + (this.set.diff === 'easy' ? '' : ' ' + (water ? '오염이 시작된 곳 · 시각' : '냄새가 처음 난 시각 · 바람 방향') + '과 맞는지 다른 증거와 맞춰 보세요.') + '</p>';
         this.addEvidence({ title: '🗂 ' + F.name + ' 서류', html, key: fid === this.C.fac }); this.closeDialog(); this.toast(r.rows.some(row => row.rec.some(x => /—|장애/.test(x.v))) ? '🗂 밤에 기록이 빈 시간이 있어요 — 수첩에 적었어요' : '서류 내용을 수첩에 적었어요 (빈 기록 없음)'); }]
       : ['🔒 서류 보기 — 증거가 필요해요', () => this.toast(water ? '🔒 🔬 물벼룩 독성 지도로 오염이 시작된 배출구를 먼저 찾아요' : '🔒 🧭 기상대에서 바람길을 먼저 그려요')],
       ['💂 경비원 이야기 (12분) — 어젯밤 들은 소리', () => { this.closeDialog(); this.talk('guard-' + fid); }]].concat(this.npcs.some(n => n.id === 'mgr-' + fid) ? [['👔 환경팀장 이야기 (12분) — 시설의 설명', () => { this.closeDialog(); this.talk('mgr-' + fid); }]] : []).concat([
@@ -650,12 +657,14 @@ class UlsanRpgGame {
     let text = '', key = false;
     if (id === 'researcher') text = '"강물은 위(상류)에서 아래(하류)로만 흘러요. 오염된 곳 바로 위가 깨끗하다면, 오염이 시작된 곳은 그 사이에 있어요. 물이나 공기 시료를 가져오면 무슨 물질인지 분석해 드릴게요. 결과표에 평소값과 기준도 함께 적어 드려요."';
     else if (id === 'forecaster') { text = '"어젯밤 바람 기록이에요. 화살표는 바람이 <b>불어 간</b> 쪽이에요. 냄새는 바람을 타고 가니까, 냄새가 난 곳에서 화살표 <b>반대쪽</b>으로 가면 냄새가 출발한 곳이 나와요."' + this.windTable(); key = P.path === 'air'; }
-    else if (id === 'riverman') text = '"강마다 물이 흐르는 빠르기가 달라요. 한 시간에 태화강 ' + UC_RIVERS.taehwa.speed + 'km, 동천 ' + UC_RIVERS.dongcheon.speed + 'km, 여천천 ' + UC_RIVERS.yeocheon.speed + 'km, 외황강 ' + UC_RIVERS.oehwang.speed + 'km, 회야강 ' + UC_RIVERS.hoeya.speed + 'km씩 흘러요. 강가의 km 표지판으로 거리를 재서 <b>거리 ÷ 빠르기</b>를 하면, 오염된 물이 몇 시간 전에 출발했는지 알 수 있어요."';
+    else if (id === 'riverman') { const rc = P.path === 'water' ? ucReportClue(C) : null; key = !!rc;
+      text = (rc ? '"오늘 아침 ' + (rc.mouth ? '6시 40분' : '6시 50분') + '쯤 하천 CCTV 순찰 화면에서 <b>' + UC_RIVERS[rc.river].name + '</b>' + (this.set.diff === 'hard' ? ' 어딘가' : ' ' + (rc.dongs[0] || '') + ' 쪽') + '에 흰 거품이 떠내려가는 게 보였어요. 다른 강 화면은 멀쩡했고요." ' : '') + '"강마다 물이 흐르는 빠르기가 달라요. 한 시간에 태화강 ' + UC_RIVERS.taehwa.speed + 'km, 동천 ' + UC_RIVERS.dongcheon.speed + 'km, 여천천 ' + UC_RIVERS.yeocheon.speed + 'km, 외황강 ' + UC_RIVERS.oehwang.speed + 'km, 회야강 ' + UC_RIVERS.hoeya.speed + 'km씩 흘러요. 강가의 km 표지판으로 거리를 재서 <b>거리 ÷ 빠르기</b>를 하면, 오염된 물이 몇 시간 전에 출발했는지 알 수 있어요."'; }
     else if (/^fisher/.test(id)) { const mine = { fisherT: ['taehwa', 'dongcheon'], fisherO: ['oehwang', 'hoeya'], fisherP: ['yeocheon'] }[id], pt = ucPoint(C.point), hit = P.path === 'water' && mine.indexOf(pt.river) >= 0;   // 여천천은 울산항 어민 (예전엔 여천천 사건에 어민 증언이 없었음)
       text = hit ? ucTestimony(C, 'fisher', this.nowH) : (P.path === 'water' ? '"이쪽 바다는 밤새 멀쩡했어요. 다른 강 쪽에서 무슨 일이 있었다던데…"' : ucTestimony(C, 'fisher'));
       key = hit && ucMouthArrive(C).h <= this.nowH; }
     else if (id === 'resident') { text = ucTestimony(C, 'resident'); key = P.path === 'air'; }
-    else if (id === 'doctor') { text = ucTestimony(C, 'doctor'); key = !!P.sym; }
+    else if (id === 'doctor') { text = ucTestimony(C, 'doctor'); key = !!P.sym;
+      if (P.path === 'water') { const rc = ucReportClue(C), dg = rc.dongs.join('·') || rc.gu; text = text.replace(/"$/, ' ') + (P.sym ? '다들 아침에 <b>' + dg + '</b> 강 산책로에 다녀왔대요."' : '그런데 아침에 <b>' + dg + '</b> 강 산책로에서 죽은 물고기를 만진 아이 부모님이 걱정돼서 전화했어요."'); key = true; } }   // 신고 동네 단서 (어려움은 제보에 동네가 없어 여기서)
     else if (id === 'activist') text = ucTestimony(C, 'activist');                   // 함정: 틀린 소문
     else if (id.indexOf('guard-') === 0) { const fid = id.slice(6); text = ucGuardLine(C, fid); key = fid === C.fac; }
     else if (id.indexOf('mgr-') === 0) text = ucManagerLine(C, id.slice(4));
@@ -673,13 +682,13 @@ class UlsanRpgGame {
   // ── 사건 제목 · 신고 위치 (쉬움·보통: 강 + km · 어려움: 강 이름만) ──
   caseTitle() {
     const P = UC_POL[this.C.pol];
-    if (P.path === 'water') { const r = ucReportSpot(this.C); return UC_RIVERS[r.river].name + ' 물고기 떼죽음'; }
+    if (P.path === 'water') { const rc = ucReportClue(this.C); return (this.set.diff === 'easy' ? UC_RIVERS[rc.river].name : rc.gu) + ' 물고기 떼죽음'; }
     const h = ucAirHits(this.C)[0]; return (h ? h.area : '울산') + ' 한밤 악취 민원';
   }
   reportWhere() {
     const P = UC_POL[this.C.pol], d = this.set.diff;
-    if (P.path === 'water') { const r = ucReportSpot(this.C), R = UC_RIVERS[r.river];
-      return d === 'hard' ? '<b>' + R.name + '</b>의 한 구간' : '<b>' + R.name + ' ' + (r.s / UC_KM).toFixed(1) + 'km 부근' + (r.mouth ? '(하구)' : '') + '</b>'; }
+    if (P.path === 'water') { const rc = ucReportClue(this.C), dg = rc.dongs.join('·') || rc.gu;   // (v2026-10-20c) 강 km 는 알려 주지 않음 — 제보·증언으로 추리
+      return d === 'easy' ? '<b>' + UC_RIVERS[rc.river].name + ' ' + dg + ' 부근</b>' : d === 'normal' ? '<b>' + dg + '</b> 부근의 한 하천' : '<b>' + rc.gu + '</b>의 한 하천'; }
     const hs = ucAirHits(this.C); if (!hs.length) return '울산 곳곳';
     return d === 'hard' ? '<b>' + hs[0].area + '</b> 등' : '<b>' + hs.slice(0, d === 'easy' ? 4 : 2).map(h => h.area).join('·') + ' 일대</b>';
   }
@@ -687,12 +696,13 @@ class UlsanRpgGame {
   caseBrief() {
     const P = UC_POL[this.C.pol], water = P.path === 'water', g = this.set.guide;
     const lead = water ? '오늘 아침 7시, ' + this.reportWhere() + '에서 물고기가 떼죽음을 당했다는 신고가 들어왔어요.' : '어젯밤, ' + this.reportWhere() + '에서 심한 냄새와 두통 민원이 잇따랐어요.';
-    const steps = water ? ['📍 <b>신고 지점</b> 강가에서 🔍 조사 → 💧 <b>물 시료</b>를 떠요', '🔬 <b>연구원</b>에서 ⚗️ <b>시약 실험</b>(미니게임) → 분석 맡기기 → <b>기준을 넘은 물질</b> → ①', '▼ 그 물질을 쓰는 시설의 <b>배출구 바로 아래 물</b>(맨 위 배출구는 바로 위 물도)을 떠서 🔬 <b>물벼룩 독성 시험</b>(미니게임) → 🗺 독성 지도에서 독성이 <b>시작되는</b> 배출구 → ② ③', '🔓 독성 지도가 증거! 그 시설 정문에서 🗂 <b>서류</b> → 밤에 <b>기록이 빈 시각</b> → ④']
+    const steps = water ? [(this.set.diff === 'easy' ? '📍 <b>신고 지점</b> 강가에서 🔍 조사 → 💧 <b>물 시료</b>를 떠요' : '🕵 <b>신고 지점 추리</b>: 📱 제보(어느 동네?) + 🏞 하천관리소 · 🎣 어민 · 🩺 보건소 · 🦐 바이오센서(어느 강?) → 그 강가에서 💧 <b>물 시료</b>'), '🔬 <b>연구원</b>에서 ⚗️ <b>시약 실험</b>(미니게임) → 분석 맡기기 → <b>기준을 넘은 물질</b> → ①', '▼ 그 물질을 쓰는 시설의 <b>배출구 바로 아래 물</b>(맨 위 배출구는 바로 위 물도)을 떠서 🔬 <b>물벼룩 독성 시험</b>(미니게임) → 🗺 독성 지도에서 독성이 <b>시작되는</b> 배출구 → ② ③', '🔓 독성 지도가 증거! 그 시설 🗂 <b>서류</b> · 💂 경비원 · ⏪ 시간 되감기(거리 ÷ 빠르기)로 배출 시각 → ④ <span class="dim">(자동측정기는 폐수 방류구에만 있어 다른 관은 기록이 안 남아요)</span>']
       : ['💨 민원 동네의 <b>대기센서 기록</b>을 봐요 → 냄새가 <b>치솟은 시각</b>', '🌫 그 센서에서 <b>공기 시료</b> → 🔬 연구원에서 ⚗️ <b>검지관 실험</b>(미니게임) → 분석 맡기기 → ①', '💨 냄새 센서를 한 곳 더 본 뒤 🌤 <b>기상대</b>에서 🧭 <b>바람길</b>(미니게임) → 냄새가 온 쪽 <b>후보 시설</b> → ②', '🔓 바람길이 증거! 후보 시설 🗂 <b>서류</b>에서 냄새가 난 무렵 <b>기록이 끊긴 굴뚝</b> → ③ ④'];
     return '<p class="b-lead">📢 ' + lead + '</p>' +
       '<p>🕵 환경 조사관이 되어 <b>' + this.set.min + '분 안에</b> 네 가지를 밝혀 📝 보고서를 내세요. 시간이 다 되면 그때까지 고른 답으로 자동 제출돼요.</p>' +
       '<div class="b-goal"><span>① 무슨 물질?</span><span>② 어느 시설?</span><span>③ 어느 ' + (water ? '배출구' : '굴뚝') + '?</span><span>④ 언제?</span></div>' +
       (g === 'none' ? '' : '<div class="guide"><b>🧭 이렇게 풀어요</b> <span class="dim">— 🎮 미니게임 2개가 열쇠예요</span>' + (g === 'full' ? '<ol>' + steps.map(t => '<li>' + t + '</li>').join('') + '</ol>' : '<p>물은 위(상류)에서 아래(하류)로만 흐르고, 냄새는 바람을 따라가요. 조사 하나로는 못 정해요 — 물질 · 장소 · 시각이 모두 맞는 곳을 찾으세요.</p>') + '</div>') +
+      '<p>📰 수사하는 동안 <b>새 소식</b>(제보 · 공지 · 뉴스)이 수첩으로 들어와요. 소식이 말하는 <b>원인</b>과 측정으로 본 <b>결과</b>를 이어 보세요 — 소식만으로는 증거가 아니에요.</p>' +
       '<p class="dim">💡 왼쪽 위 <b>다음 할 일</b>의 📍 길 안내 · 🚙 바로 가기로 갈 곳을 찾을 수 있어요. 🗺 지도의 <b>📋 장소 목록</b>에는 어디서 무엇을 알 수 있는지 적혀 있어요.' + (this.set.rumor ? ' 떠도는 소문은 맞을 수도 틀릴 수도 있어요.' : '') + (this.set.lie ? ' 시설 사람들의 말은 범인이든 아니든 비슷하게 들려요 — 측정값과 시각을 믿으세요.' : '') + '</p>';
   }
   // 안내 목적지 (다음 할 일 · 장소 목록 공통): { name, at: 목적지 표시 자리, key, arrive(바로 가기 도착 자리 — 처음 누를 때 계산) }
@@ -733,8 +743,11 @@ class UlsanRpgGame {
     const tries = labs.length, weak = strong && !hot && !set('pol') && tries >= 2;   // 두 번 분석해도 기준을 넘은 게 없으면 — 가장 높은 물질로 넘어감
     const hs = water ? [] : ucAirHits(C), spk = water ? [] : UC_AIR.filter(st => ev.some(e => e.title === '💨 ' + st.name + ' 기록' && e.key));
     if (weak) return { t: '🔎 기준을 넘은 물질이 안 보여요 — 오염된 물이 흘러가 옅어졌을 수 있어요. 분석 결과에서 평소보다 <b>가장 많이 높은</b> 물질을 <b>보고서 ①</b>에 골라요', to: REP };
-    if (water) { if (!labs.length) return { t: '💧 ' + (hard ? '신고된 강' : '<b>신고 지점</b>') + ' 강가에서 🔍 조사 → <b>물 시료</b>를 떠요', to: hard ? null : this.hintReport() };
-      if (strong && !hot && !set('pol')) return { t: '🔎 아직 기준을 넘은 물질이 없어요 — <b>신고 지점보다 조금 위쪽</b>(상류) 강가에서 다시 떠 보세요 · 오염이 시작된 곳에 가까울수록 진해요', to: this.hintUpReport() }; }
+    const easy = this.set.diff === 'easy';
+    if (water) { if (!labs.length) { if (easy) return { t: '💧 <b>신고 지점</b> 강가에서 🔍 조사 → <b>물 시료</b>를 떠요', to: this.hintReport() };
+        if (!this.talked.riverman && !this.samples.some(x => x.kind === 'water')) return { t: '🕵 신고 지점은 알려 주지 않았어요 — 📱 <b>제보</b>(수첩)에서 <b>동네</b>를 보고, 🏞 <b>하천관리소</b>에서 아침 CCTV 순찰 이야기로 <b>어느 강</b>인지 알아내요', to: hard ? null : this.hintPlace('riverOffice') };
+        return { t: '🗺 지도에서 제보의 <b>동네</b>를 지나는 그 <b>강</b>을 찾아 강가에서 🔍 → 💧 <b>물 시료</b> <span class="dim">(동네가 안 보이면 🩺 보건소 · 🎣 어민 이야기도)</span>', to: null }; }
+      if (strong && !hot && !set('pol')) return { t: '🔎 아직 기준을 넘은 물질이 없어요 — 뜬 곳보다 <b>조금 위쪽</b>(상류) 강가에서 다시 떠 보세요 · 오염이 시작된 곳에 가까울수록 진해요 (다른 강이었을 수도 있어요)', to: easy ? this.hintUpReport() : null }; }
     else { if (!spk.length && !labs.length) return { t: '💨 민원 동네의 <b>대기센서 기록</b>을 보세요 — 냄새가 <b>치솟은</b> 센서 찾기', to: hard || !hs.length ? null : this.hintSensor(hs[0].st) };
       if (!labs.length) return { t: '🌫 ' + spk[0].name + '에서 <b>공기 시료</b>를 받아 오세요', to: this.hintSensor(spk[0]) };
       if (strong && !hot && !set('pol')) return { t: '🔎 이 공기 시료엔 크게 높은 물질이 없어요 — 냄새가 <b>치솟은</b> 센서에서 다시 받아 보세요', to: spk.length ? this.hintSensor(spk[0]) : hs.length && !hard ? this.hintSensor(hs[0].st) : null }; }
@@ -757,9 +770,9 @@ class UlsanRpgGame {
     if (!set('fac')) { const todo = [...W].filter(k => !doc(k)).sort((a, b) => (b === C.fac && water) - (a === C.fac && water) || dist(a) - dist(b)), gap = [...W].filter(k => doc(k) && /class="bad"/.test(doc(k).html));
       if (todo.length) return { t: '🔓 증거가 생겼어요! <b>' + todo.map(ucFacShort).join(' · ') + '</b> 정문에서 🗂 <b>서류</b>를 보고 <b>보고서 ②</b>', to: hard ? null : this.hintFac(todo[0]) };
       if (gap.length > 1) return { t: '🤔 기록이 끊긴 굴뚝이 여럿이에요 (하나는 계측기 고장) — 냄새가 <b>처음 치솟은 시각</b>과 끊긴 시각이 맞는 곳이 범인 → <b>보고서 ②</b>', to: REP };
-      return { t: '🏭 서류에서 밤에 <b>기록이 빈</b> 시설을 <b>보고서 ②</b>에 고르세요', to: REP }; }
-    if (!set('point')) return { t: '📍 서류에서 밤에 <b>기록이 빈</b> ' + (water ? '배출구' : '굴뚝') + '를 <b>보고서 ③</b>에 고르세요', to: REP };
-    if (!set('slot')) return { t: '⏱ 그 ' + (water ? '배출구' : '굴뚝') + '의 <b>기록이 빈 시각</b>을 <b>보고서 ④</b>에 고르세요', to: REP };
+      return { t: water ? '🏭 🗺 독성 지도가 가리킨 배출구의 <b>시설</b>을 <b>보고서 ②</b>에 고르세요' : '🏭 서류에서 밤에 <b>기록이 빈</b> 시설을 <b>보고서 ②</b>에 고르세요', to: REP }; }
+    if (!set('point')) return { t: water ? '📍 🗺 독성 지도에서 <b>바로 위는 깨끗하고 바로 아래부터 독한</b> ▼배출구를 <b>보고서 ③</b>에 — 한 시설에 관이 여러 개예요' : '📍 서류에서 밤에 <b>기록이 빈</b> 굴뚝을 <b>보고서 ③</b>에 고르세요', to: REP };
+    if (!set('slot')) return { t: water ? '⏱ 배출 시각 → <b>보고서 ④</b>: 🗂 서류(폐수 방류구만 기록) · 💂 경비원이 들은 소리 · ⏪ <b>시간 되감기</b>(도착 기록에서 거리 ÷ 빠르기)를 맞춰 보세요' : '⏱ 그 굴뚝의 <b>기록이 빈 시각</b>을 <b>보고서 ④</b>에 고르세요', to: REP };
     if (!(D.ev || []).length) return { t: '🔑 답을 고른 <b>이유가 된 증거</b>를 3개까지 골라요', to: REP };
     return { t: '✅ 준비 끝! <b>📝 보고서</b>를 제출하세요', to: REP };
   }
@@ -855,12 +868,12 @@ class UlsanRpgGame {
   questSteps() {
     const C = this.C, water = UC_POL[C.pol].path === 'water', D = this.draft || {}, set = k => !(D[k] === '' || D[k] == null), ev = this.evidence, has = re => ev.some(e => re.test(e.title));
     const hard = this.set.diff === 'hard', W = this.warrantFacs(), lab = has(/^📊/), rep = !!this.report, all4 = set('pol') && set('fac') && set('point') && set('slot');
-    const r = water ? ucReportSpot(C) : null, spot = water ? (hard ? UC_RIVERS[r.river].name : this.hintReport().name.replace(/^신고 지점 · /, '')) : '';
+    const spot = water ? (this.set.diff === 'easy' ? this.hintReport().name.replace(/^신고 지점 · /, '') : '제보·증언으로 추리한 곳') : '';
     const S = water ? [
-      ['💧', '물 시료 뜨기', (hard ? '신고된 <b>' + spot + '</b>' : '신고 지점 <b>' + spot + '</b>') + ' 강가에서 🔍 조사 → 💧 물 뜨기', this.samples.some(x => x.kind === 'water') || lab],
+      ['💧', '물 시료 뜨기', '신고 지점 <b>' + spot + '</b> 강가에서 🔍 조사 → 💧 물 뜨기', this.samples.some(x => x.kind === 'water') || lab],
       ['⚗️', '무슨 물질? → ①', '🔬 보건환경연구원에서 ⚗️ <b>시약 실험</b>(미니게임) → 분석 맡기기 → <b>기준을 넘은 물질</b>을 보고서 ①에', set('pol')],
       ['🦐', '어디서 시작됐나?', '그 물질을 쓰는 시설의 <b>배출구 바로 아래 물</b>(맨 위 배출구는 바로 위 물도)을 떠서 🔬 <b>물벼룩 독성 시험</b>(미니게임) → 독성이 <b>시작되는</b> 배출구', W.size > 0],
-      ['🗂', '누가 · 언제? → ② ③ ④', '🔓 그 시설 정문에서 🗂 <b>서류</b> → 밤에 <b>기록이 빈</b> 배출구와 시각을 보고서에', all4]]
+      ['🗂', '누가 · 언제? → ② ③ ④', '🔓 독성 지도가 가리킨 ▼배출구와 시설 → 🗂 서류 · 💂 경비원 · ⏪ 시간 되감기로 <b>배출 시각</b>을 보고서에', all4]]
     : [
       ['💨', '냄새 난 곳 찾기', '민원 동네의 <b>대기센서 기록</b> → 냄새가 <b>치솟은</b> 센서와 시각', ev.some(e => /^💨 /.test(e.title) && e.key) || lab],
       ['⚗️', '무슨 물질? → ①', '그 센서에서 🌫 <b>공기 시료</b> → 🔬 연구원에서 ⚗️ <b>검지관 실험</b>(미니게임) → 분석 → 크게 높은 물질을 보고서 ①에', set('pol')],
@@ -1038,7 +1051,7 @@ class UlsanRpgGame {
       UC_AIR.forEach(a => S.push({ kind: 'air', key: a.id, name: a.name, short: a.name.replace(/ (대기측정소|악취센서)$/, ''), x: a.x, z: a.z, icon: '💨', pri: 1 }));
       this.npcs.forEach(n => S.push({ kind: 'npc', key: n.id, name: n.name, short: n.name.split(' ').pop(), x: n.x, z: n.z, icon: n.emoji, pri: 2, staff: /^(mgr|guard)-/.test(n.id) }));
       this._poiS = S; }
-    const rp = this.set.diff !== 'hard' && UC_POL[this.C.pol].path === 'water' ? this.hintReport() : null;   // 쉬움·보통: 신고 지점 ✖ (예전엔 쉬움만 큰 지도에)
+    const rp = this.set.diff === 'easy' && UC_POL[this.C.pol].path === 'water' ? this.hintReport() : null;   // (v2026-10-20c) 보통·어려움은 신고 지점을 지도에 찍지 않음 — 제보·증언으로 추리   // 쉬움·보통: 신고 지점 ✖ (예전엔 쉬움만 큰 지도에)
     return this._poiS.concat(Object.keys(this.known).map(id => { const pt = ucPoint(id), p = pt.kind === 'water' ? ucAt(UC_RIVERS[pt.river].pts, pt.s) : [pt.x, pt.z]; return { kind: 'point', key: id, name: id + ' ' + pt.label, short: id, x: p[0], z: p[1], icon: '', pri: 2 }; }))
       .concat(rp ? [{ kind: 'report', key: 'report', name: rp.name, short: '신고 지점', x: rp.at[0], z: rp.at[1], icon: '✖', pri: 5 }] : []);
   }
@@ -1219,7 +1232,7 @@ class UlsanRpgGame {
   evCat(e) { const t = e.title; return e.id === 'case' ? 'case' : /의 말$/.test(t) ? 'talk' : /^(📊|🧬|🔬|⚗)/.test(t) ? 'lab' : /^(🦐|💨|🛸|🧭)/.test(t) ? 'sensor' : /^(🧪|🗂|📍|🎣|🛶|⏪|🚓)/.test(t) ? 'field' : 'talk'; }
   openNote() {
     this.seenEv = this.evidence.length;
-    const tabs = [['all', '전체'], ['lab', '📊 분석'], ['sensor', '📈 센서'], ['talk', '💬 증언'], ['field', '🗂 현장·서류']], cnt = c => this.evidence.filter(e => this.evCat(e) === c).length;
+    const tabs = [['all', '전체'], ['lab', '📊 분석'], ['sensor', '📈 센서'], ['talk', '💬 증언·소식'], ['field', '🗂 현장·서류']], cnt = c => this.evidence.filter(e => this.evCat(e) === c).length;
     const list = this.evidence.slice().reverse().map(e => '<details data-cat="' + this.evCat(e) + '"' + (e.id === 'case' && this.evidence.length < 3 ? ' open' : '') + '><summary>' + e.title + '<small>' + (e.id === 'case' ? '' : this.hm(e.at)) + '</small></summary><div>' + e.html + '</div></details>').join('');
     this.dialog('📓', '수사 수첩 (' + this.evidenceCount + '건)', '<div class="u-tabs">' + tabs.map(([k, l], i) => '<button data-tab="' + k + '" class="' + (i ? '' : 'on') + '">' + l + (i ? ' <em>' + cnt(k) + '</em>' : '') + '</button>').join('') + '</div><div class="u-notes">' + (list || '아직 기록이 없어요') + '</div>', [['닫기', () => this.closeDialog()]], true);
     const dl = this.ui.dlg; dl.querySelectorAll('[data-tab]').forEach(b => b.addEventListener('click', () => { const k = b.dataset.tab; dl.querySelectorAll('[data-tab]').forEach(x => x.classList.toggle('on', x === b));
@@ -1243,7 +1256,7 @@ class UlsanRpgGame {
     const row = (t, ic, cls, title, sub, done) => { T[t.key] = t; const on = this.dest && this.dest.key === t.key, d = Math.hypot(t.at[0] - this.px, t.at[1] - this.pz);
       return '<div class="gl-row' + (done ? ' done' : '') + '"><i class="gl-ic k-' + cls + '">' + ic + '</i><div class="gl-tx"><b>' + title + (done ? ' <u>✓</u>' : '') + '</b><small>' + sub + '</small></div><div class="gl-bt"><button data-gd="' + t.key + '" class="' + (on ? 'on' : '') + '" aria-label="길 안내">📍<span>' + (on ? '안내 중' : km(d)) + '</span></button><button data-gg="' + t.key + '" aria-label="바로 가기">🚙<span>' + Math.max(1, Math.round(this.travelCost(t.at) * 60)) + '분</span></button></div></div>'; };
     const H = this.nextHint(), goal = H && H.to && !H.to.rep ? '<p class="gl-h">🧭 지금 갈 곳</p>' + row(H.to, '➤', 'goal', H.to.name, H.t.replace(/<[^>]+>/g, ''), false) : '';
-    const rp = this.set.diff !== 'hard' && water && !(H && H.to && H.to.key === this.hintReport().key) ? row(this.hintReport(), '✖', 'report', this.hintReport().name, '물고기 떼죽음이 신고된 강가 — 여기서 💧 물 시료를 떠요', false) : '';
+    const rp = this.set.diff === 'easy' && water && !(H && H.to && H.to.key === this.hintReport().key) ? row(this.hintReport(), '✖', 'report', this.hintReport().name, '물고기 떼죽음이 신고된 강가 — 여기서 💧 물 시료를 떠요', false) : '';
     const places = Object.keys(UC_PLACES).map(k => { const I = UlsanRpgGame.PLACE_INFO[k] || [], n = this.npcs.find(q => q.id === I[0]);
       return row(this.hintPlace(k), UlsanRpgGame.PLACE_ICON[k] || '🏛', 'place', UC_PLACES[k].name, (n ? n.emoji + ' ' + n.name + ' — ' : '') + (I[1] || ''), I[0] && this.talked[I[0]]); }).join('');
     const facs = Object.keys(UC_FAC).map(fid => { const F = UC_FAC[fid], ty = /\(([^)]+)\)/.exec(F.name), pts = F.outs.concat(F.stacks).filter(o => this.known[o.id]);
