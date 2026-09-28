@@ -450,12 +450,12 @@ class Track {
   }
 
   // 트랙을 한 번만 그려두고 매 프레임 이미지로 재사용 (태블릿 성능용)
-  buildSprite(scale) {
+  buildSprite(scale, maxSide) {
     const pad = this.def.width;
     const b = this.bounds;
-    // 태블릿 메모리를 위해 스프라이트 최대 변을 제한
+    // 태블릿 메모리를 위해 스프라이트 최대 변을 제한 (교사 화면 관전 지도는 크게 띄우므로 maxSide 로 더 크게)
     const rawW = b.maxX - b.minX + pad*2, rawH = b.maxY - b.minY + pad*2;
-    scale = Math.min(scale, 1700 / Math.max(rawW, rawH));
+    scale = Math.min(scale, (maxSide || 1700) / Math.max(rawW, rawH));
     const w = Math.ceil(rawW * scale);
     const h = Math.ceil(rawH * scale);
     const cv = document.createElement('canvas');
