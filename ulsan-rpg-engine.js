@@ -16,7 +16,25 @@ class UlsanRpgGame {
     this.initThree(); this.buildWorld(); this.buildPeople(); this.buildUI(); this.bindKeys(); this.resize(); if (!this.canStand(this.px, this.pz)) this.unstick();
     const saved = this.load();                                // 새로고침·다시 들어와도 이어서 (예전엔 사건 1 · 0점으로 처음부터 → 순위표 기록도 덮어씀)
     if (saved) this.restore(saved);
-    else { this.addEvidence({ id: 'case', title: '📄 사건 1 개요', key: false, html: this.caseBrief() }); this.revealPoints(); this.deliverNews(true); this.showIntro(true); }
+    else { this.addEvidence({ id: 'case', title: '📄 사건 1 개요', key: false, html: this.caseBrief() }); this.revealPoints(); this.deliverNews(true); this.showHowto(true); }
+  }
+  // ── 📖 조사관 안내 (v2026-10-20f): 처음 시작할 때 5쪽 설명 — 읽는 동안은 제한 시간이 흐르지 않음 · ❓ 단추로 언제든 다시 ──
+  showHowto(first) {
+    if (this.gameOver || this.replay) return; if (this.ov) this.exitOverview();
+    const water = UC_POL[this.C.pol].path === 'water', S = this.set, easy = S.diff === 'easy', hard = S.diff === 'hard', t0 = Date.now(); let pg = 0;
+    const pages = [
+      ['🕵', '나는 울산 환경 조사관!', '<p>어젯밤 울산에서 <b>오염 사고</b>가 났어요. ' + (S.cases > 1 ? '사건이 <b>' + S.cases + '개</b> 이어져요. ' : '') + '사건마다 <b>' + S.min + '분</b> 안에 네 가지를 밝혀 📝 <b>보고서</b>를 내요.</p>' +
+        '<div class="b-goal"><span>① 무슨 물질?</span><span>② 어느 공장?</span><span>③ 어느 배출구·굴뚝?</span><span>④ 언제?</span></div><p class="dim">범인은 한 곳뿐이에요. 추측이 아니라 <b>직접 모은 증거</b>로 밝혀요.</p>'],
+      ['🎮', '움직이고 조사하기', '<ul class="ht-list"><li><b>이동</b> — 왼쪽 아래 <b>조이스틱</b> (키보드: W A S D · 방향키)</li><li><b>🔍 조사·대화</b> — 사람·센서·강가·공장 정문에 가까이 가면 오른쪽 아래 🔍 가 빛나요 (키보드: E)</li><li><b>⤴ 점프</b> — 낮은 담장·상자 넘기 (키보드: 스페이스)</li><li><b>🚙 바로 가기</b> — 왼쪽 위 <b>다음 할 일</b>에서 먼 곳도 한 번에</li><li>위 단추: <b>📓 수첩</b>(모은 증거) · <b>🗺 지도</b> · <b>📝 보고서</b> · <b>❓ 이 안내</b></li></ul>'],
+      ['🔎', '이렇게 수사해요', '<ol class="ht-list"><li><b>단서 모으기</b> — 📱 제보 · 📰 소식 · 사람들 이야기로 <b>어디서</b> 일이 났는지 추리' + (easy ? '' : ' (신고 장소는 바로 알려 주지 않아요)') + '</li><li><b>시료 채취</b> — ' + (water ? '강가에서 💧 물 시료' : '냄새 센서에서 🌫 공기 시료') + ' → 🔬 연구원에서 실험(미니게임) · 분석 → <b>①</b></li><li><b>범인 좁히기</b> — ' + (water ? '🔬 물벼룩 독성 지도: 배출구 <b>바로 위는 깨끗</b>하고 <b>바로 아래부터 독하면</b> 그곳!' : '🧭 바람길: 냄새가 난 곳에서 <b>바람을 거슬러</b> 가면 그 공장!') + ' → <b>② ③</b></li><li><b>시각 맞추기</b> — 🗂 서류 · 💂 경비원 · ' + (water ? '⏪ 시간 되감기(거리 ÷ 물 빠르기)' : '💨 냄새가 치솟은 시각') + ' → <b>④</b></li></ol>'],
+      ['🧪', '과학 수사 규칙 3가지', '<ul class="ht-list"><li>💧 <b>강물은 위(상류)에서 아래(하류)로만</b> 흘러요 — 오염은 시작된 곳 아래에서만 나와요.</li><li>🌬 <b>냄새는 바람이 불어 가는 쪽</b>으로 퍼져요 — 거꾸로 거슬러 가면 출발점.</li><li>⏱ <b>걸린 시간 = 거리 ÷ 빠르기</b> — 도착한 시각에서 빼면 떠난 시각.</li></ul><p class="dim">📰 소문과 뉴스는 <b>증거가 아니에요</b>. 측정값으로 확인하세요. 공장 사람들은 범인이든 아니든 비슷하게 말해요 — 👔 심문에서 증거로 모순을 깨 보세요.</p>'],
+      ['🏆', '막히면 · 점수', '<ul class="ht-list"><li>' + (hard ? '왼쪽 위 <b>다음 할 일</b>은 짧게만 나와요 (어려움) — 📓 수첩의 사건 개요를 보세요.' : '막히면 왼쪽 위 <b>다음 할 일</b>을 보세요 — 📍 길 안내 · 🚙 바로 가기가 있어요.') + '</li><li>📝 보고서에 네 답 + <b>이유가 된 증거 3개</b>를 골라 제출해요. 시간이 다 되면 <b>자동 제출</b>돼요.</li><li>⭐ 미니게임 별 · 🧩 사건 재구성 보드로 <b>보너스 점수</b>!</li><li>순위는 선생님 화면에서 <b>총점 → 걸린 시간</b> 순이에요.</li></ul>' + (first ? '<p class="ht-go">📖 이 안내를 읽는 동안에는 <b>제한 시간이 멈춰 있어요</b>.</p>' : '')]];
+    const close = () => { this.closeDialog(); if (first) { const d = Math.min(180000, Math.max(0, Date.now() - Math.max(t0, this.caseStartReal))); this.caseStartReal += d; this.startReal += d; this.save(); this.showIntro(true); } };   // 처음: 읽은 시간만큼(최대 3분) 제한 시간·걸린 시간을 뒤로
+    const draw = () => { const [ic, tt, body] = pages[pg], last = pg === pages.length - 1;
+      this.dialog(ic, tt + ' <small class="ht-n">' + (pg + 1) + ' / ' + pages.length + '</small>', '<div class="ht">' + body + '</div><div class="ht-dots">' + pages.map((x, i) => '<i class="' + (i === pg ? 'on' : '') + '"></i>').join('') + '</div>',
+        [[last ? '🚀 수사 시작!' : '다음 ▶', () => { if (last) close(); else { pg++; draw(); } }]].concat(pg ? [['◀ 이전', () => { pg--; draw(); }]] : []).concat(last ? [] : [[first ? '건너뛰기 — 바로 시작' : '닫기', close]]), true);
+      this.ui.dlg.querySelector('.u-opts button').className = 'primary'; };
+    draw();
   }
   // 📰 수사 중 소식 (ucNews): 게임 속 시각이 되면 수첩으로 — 제보 · 공지 · 뉴스 (같은 제목은 한 번만)
   deliverNews(quiet) { if (typeof ucNews !== 'function' || !this.C) return; if (!quiet && this._newsH === this.nowH) return; this._newsH = this.nowH;
@@ -788,10 +806,10 @@ class UlsanRpgGame {
       '<div class="uq-obj"></div><div class="uq-hint"></div></div>' +
       '<div class="u-side"><div class="u-mapbox"><div class="u-mini"><canvas width="320" height="320"></canvas><i class="u-north">N</i><i class="mm-d mm-e">E</i><i class="mm-d mm-s">S</i><i class="mm-d mm-w">W</i>' +
       '<button class="mm-z mm-in" data-mz="-1" aria-label="지도 확대">＋</button><button class="mm-z mm-out" data-mz="1" aria-label="지도 축소">－</button></div><div class="u-locbar"><i class="u-loc"></i></div></div><div class="u-btns">' +
-      '<button data-a="wait" class="u-wait hidden"><span>⏳</span><small>기다리기</small></button><button data-a="note"><span>📓</span><small>수첩</small><em>0</em></button><button data-a="map"><span>🗺</span><small>지도</small></button><button data-a="rep"><span>📝</span><small>보고서</small></button><button data-a="cam" class="u-cam"><span>🎥</span><small>중간</small></button></div></div>' +
+      '<button data-a="wait" class="u-wait hidden"><span>⏳</span><small>기다리기</small></button><button data-a="note"><span>📓</span><small>수첩</small><em>0</em></button><button data-a="help" class="u-help"><span>❓</span><small>안내</small></button><button data-a="map"><span>🗺</span><small>지도</small></button><button data-a="rep"><span>📝</span><small>보고서</small></button><button data-a="cam" class="u-cam"><span>🎥</span><small>중간</small></button></div></div>' +
       '<div class="u-tags"></div><div class="u-plates"></div><div class="u-pin"><b>📍</b><span></span></div><div class="u-edge"><i>➤</i><span></span></div><div class="u-prompt"></div><div class="u-toast"></div><div class="u-intro"></div><div class="u-modal hidden"><div class="u-box"></div></div>';
     this.host.classList.add('urpg-host');   // 조이스틱 · 🔍 버튼도 같은 금색 테마로 (style.css)
-    const act = a => { if (this.ui.modalOpen || this.gameOver || this.replay) return; if (this.ov) this.exitOverview(); if (a === 'note') this.openNote(); if (a === 'map') this.openMap(); if (a === 'rep') this.openReport(); if (a === 'wait') this.waitResults(); if (a === 'cam') this.cycleCam(); if (a === 'quest') this.openQuest(); };
+    const act = a => { if (this.ui.modalOpen || this.gameOver || this.replay) return; if (this.ov) this.exitOverview(); if (a === 'note') this.openNote(); if (a === 'map') this.openMap(); if (a === 'rep') this.openReport(); if (a === 'wait') this.waitResults(); if (a === 'cam') this.cycleCam(); if (a === 'quest') this.openQuest(); if (a === 'help') this.showHowto(false); };
     root.querySelectorAll('.u-btns button').forEach(b => b.addEventListener('click', () => act(b.dataset.a)));
     root.querySelector('.u-mapbox').addEventListener('click', e => { if (this._mmPinch || performance.now() - (this._mmUsed || -1e9) < 500 || e.target.closest('.mm-z')) return; act('map'); }); root.querySelector('.u-quest').addEventListener('click', e => { if (e.target.closest('.uq-fold, .uq-go, .uq-meta button')) return; act('quest'); });   // 퀘스트 창 어디든 누르면 📋 할 일 자세히 (예전: 목표 칩만 · 보고서로)
     this.bindMini(root.querySelector('.u-mini'));

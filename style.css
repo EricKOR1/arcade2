@@ -1457,3 +1457,10 @@ body.fullgrid .spectate { grid-template-columns: 1fr 320px }
 .u-box .bd-arr { text-align: center; color: rgba(255,255,255,.35); font-size: 12px; line-height: 1 }
 .u-box .bd-h { margin: 8px 0 2px; font-weight: 800 }
 .u-box .bd-h small { font-weight: 500; opacity: .6 }
+/* 울산 수사대 (v2026-10-20f): 📖 조사관 안내 */
+.urpg-ui .ht { font-size: 14.5px; line-height: 1.6 }
+.urpg-ui .ht .ht-list { margin: 6px 0; padding-left: 20px } .urpg-ui .ht .ht-list li { margin: 6px 0 }
+.urpg-ui .ht .ht-go { margin-top: 10px; padding: 8px 12px; border-radius: 10px; background: rgba(54,224,143,.1); border-left: 3px solid #36E08F }
+.urpg-ui .ht-dots { display: flex; justify-content: center; gap: 6px; margin-top: 10px } .urpg-ui .ht-dots i { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,.2) } .urpg-ui .ht-dots i.on { background: #F5C451; width: 20px; border-radius: 4px }
+.urpg-ui h3 .ht-n { font-size: 12px; opacity: .6; font-weight: 600; margin-left: 6px }
+@media (max-width: 560px) { .urpg-ui .u-btns button { width: 46px } }
