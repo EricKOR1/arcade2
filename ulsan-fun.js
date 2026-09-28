@@ -12,7 +12,7 @@
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const TITLES = ['새내기 조사관', '현장 조사관', '수석 조사관', '환경 탐정', '명탐정', '전설의 환경 수사관'];
   const need = lv => 60 + (lv - 1) * 45;   // 다음 레벨까지 경험치 (60 · 105 · 150 …)
-  const MG = [[/^🔬 물벼룩/, 'daphnia', '🔬 물벼룩 박사'], [/^⚗️ 시약/, 'reagent', '⚗️ 시약 달인'], [/^⚗️ 검지관/, 'tubes', '⚗️ 검지관 명수'], [/^🧭/, 'wind', '🧭 바람 추적자'], [/^🎣/, 'fish', '🎣 강태공'], [/^🛶/, 'flow', '🛶 물길 계산왕'], [/^⏪/, 'rewind', '⏪ 시간 탐정'], [/^🛸/, 'drone', '🛸 드론 조종사'], [/^🚓/, 'chase', '🚓 추격왕']];
+  const MG = [[/^🔬 물벼룩/, 'daphnia', '🔬 물벼룩 박사'], [/^⚗️ 시약/, 'reagent', '⚗️ 시약 달인'], [/^⚗️ 검지관/, 'tubes', '⚗️ 검지관 명수'], [/^🧭/, 'wind', '🧭 바람 추적자'], [/^🎣/, 'fish', '🎣 강태공'], [/^🛶/, 'flow', '🛶 물길 계산왕'], [/^⏪/, 'rewind', '⏪ 시간 탐정'], [/^🛸/, 'drone', '🛸 드론 조종사'], [/^🚓/, 'chase', '🚓 추격왕'], [/^👔 .*심문/, 'probe', '👔 명심문관'], [/^🧩/, 'board', '🧩 사건 재구성가']];
   const FEED = { pol: '① 오염물질을 알아냈어요', warrant: '🔓 결정적 증거를 잡았어요', rep: '📝 보고서를 냈어요', lv: '🏅 레벨업!', chase: '🚓 달아나던 탱크로리를 잡았어요', badge: '🎖 칭호를 얻었어요', done: '🏁 수사를 모두 마쳤어요' };
   P.funState = function () { const F = this.fun = this.fun || {}; F.xp = F.xp || 0; F.lv = F.lv || 1; F.badges = F.badges || {}; F.cs = F.cs || {}; F.sent = F.sent || {}; F.case = F.case || 0;
     if (F.case !== this.caseNo) { F.case = this.caseNo; F.cs = {}; F.sent = {}; F.chase = null; F.clue = {}; } F.clue = F.clue || {}; return F; };   // cs: 이번 사건 미니게임 종류별 가장 좋은 별 · sent: 이번 사건에 보낸 소식
@@ -159,6 +159,7 @@
   P.startChase = function () {
     if (this.mg || this.report || this.replay || this.gameOver) return; if (this.ov) this.exitOverview(); const F = this.funState(); F.chase = 'playing'; clearTimeout(this._chT); this.funHud(true);
     const C = this.C, water = UC_POL[C.pol].path === 'water', LIM = 22, TR = 12, MAX = 20;
+    let tl = 1, tlx = 1, tlT = 1.8;   // 탱크로리 차선 — 예전엔 차선 사이를 사인파로 떠다녀 내 차(한 칸씩)가 탱크로리보다 더 많이 움직이는 것처럼 보였음
     let ph = 'ready', t = 0, lane = 1, lx = 1, dist = 140, spd = 0, hits = 0, boost = 0, shake = 0, obs = [], spawn = 0.6, road = 0, done = false, win = false, flash = 0;
     const finish = () => {
       if (done) return; done = true; if (ph !== 'end') { F.chase = 'missed'; this.funHud(true); return; } this.spend(0.25);
@@ -179,7 +180,9 @@
       frame: (dt, now, g, W, H) => {
         t += dt; shake = Math.max(0, shake - dt); boost = Math.max(0, boost - dt); flash = Math.max(0, flash - dt); lx += (lane - lx) * Math.min(1, dt * 14);
         const ppm = H / 60, RW = Math.min(W * 0.78, 360), rx = (W - RW) / 2, LW = RW / 3, PY = H * 0.8;   // 도로 · 차선
-        if (ph === 'run') { const tgt = boost > 0 ? MAX + 8 : MAX; spd += (tgt - spd) * Math.min(1, dt * 1.6); dist -= (spd - TR) * dt; road += spd * dt * ppm;
+        tlx += (tl - tlx) * Math.min(1, dt * 5); if (ph === 'run') { tlT -= dt; if (tlT <= 0) { tlT = 1.6 + Math.random() * 1.4; tl = tl === 1 ? (Math.random() < 0.5 ? 0 : 2) : 1; } }   // 한 칸씩 · 가운데를 거쳐 감
+        const draft = ph === 'run' && Math.round(tlx) === lane && dist < 90;   // 🌀 탱크로리와 같은 차선 = 바짝 추격 (조금 빨라짐)
+        if (ph === 'run') { const tgt = (boost > 0 ? MAX + 8 : MAX) + (draft ? 4 : 0); spd += (tgt - spd) * Math.min(1, dt * 1.6); dist -= (spd - TR) * dt; road += spd * dt * ppm;
           spawn -= dt; if (spawn <= 0) { spawn = 0.5 + Math.random() * 0.45; const free = [0, 1, 2].filter(l => !obs.some(o => o.lane === l && o.y < 0.25)); if (free.length > 1) { const l = free[Math.floor(Math.random() * free.length)]; obs.push({ lane: l, y: -0.08, k: Math.random() < 0.18 ? 'boost' : Math.random() < 0.55 ? 'cone' : 'car' }); } }
           obs.forEach(o => { o.y += (o.k === 'car' ? spd - 8 : spd) * dt * ppm / H; if (!o.hit && Math.abs(o.y * H - PY) < H * 0.06 && o.lane === lane) { o.hit = true; if (o.k === 'boost') { boost = 1.6; SND('gem'); } else { spd *= 0.25; hits++; shake = 0.45; flash = 0.3; SND('bump'); buzz(60); } } });
           obs = obs.filter(o => o.y < 1.1 && !(o.hit && o.k === 'boost'));
@@ -190,8 +193,8 @@
         g.fillStyle = '#3A3F4A'; g.fillRect(rx, 0, RW, H); g.fillStyle = '#E8E3D0'; g.fillRect(rx - 4, 0, 4, H); g.fillRect(rx + RW, 0, 4, H);
         g.fillStyle = '#F2D16B'; for (let y = road % 46 - 46; y < H; y += 46) { g.fillRect(rx + LW - 2, y, 4, 24); g.fillRect(rx + LW * 2 - 2, y, 4, 24); }
         // 탱크로리 (멀수록 위 · 작게)
-        const ty = clamp(H * 0.08 + (1 - clamp(dist / 140, 0, 1)) * (PY - H * 0.26 - H * 0.08), H * 0.06, PY - H * 0.2), tsc = 0.7 + (ty / PY) * 0.45, tx0 = rx + LW * (1 + Math.sin(now * 0.9) * 0.6) + LW / 2 - LW / 2;
-        g.save(); g.translate(tx0 + LW / 2, ty); g.scale(tsc, tsc); g.fillStyle = 'rgba(0,0,0,.3)'; g.fillRect(-20, 6, 44, 70); g.fillStyle = '#D9DDE3'; g.beginPath(); g.ellipse(0, 26, 20, 30, 0, 0, 7); g.fill(); g.fillStyle = '#B03A2E'; g.fillRect(-18, 54, 36, 22); g.fillStyle = '#1B1B1B'; g.fillRect(-14, 60, 28, 8); g.fillStyle = '#FFD166'; g.font = '900 12px Pretendard, sans-serif'; g.textAlign = 'center'; g.fillText('?', 0, 30); g.restore();
+        const ty = clamp(H * 0.08 + (1 - clamp(dist / 140, 0, 1)) * (PY - H * 0.26 - H * 0.08), H * 0.06, PY - H * 0.2), tsc = 0.7 + (ty / PY) * 0.45, tx0 = rx + LW * tlx + LW / 2;   // 내 차와 같은 차선 중심
+        g.save(); g.translate(tx0, ty); g.scale(tsc, tsc); g.fillStyle = 'rgba(0,0,0,.3)'; g.fillRect(-20, 6, 44, 70); g.fillStyle = '#D9DDE3'; g.beginPath(); g.ellipse(0, 26, 20, 30, 0, 0, 7); g.fill(); g.fillStyle = '#B03A2E'; g.fillRect(-18, 54, 36, 22); g.fillStyle = '#1B1B1B'; g.fillRect(-14, 60, 28, 8); g.fillStyle = '#FFD166'; g.font = '900 12px Pretendard, sans-serif'; g.textAlign = 'center'; g.fillText('?', 0, 30); g.restore();
         // 장애물 · ⚡
         obs.forEach(o => { const X = rx + LW * o.lane + LW / 2, Y = o.y * H; if (o.k === 'cone') { g.fillStyle = '#FF7A1A'; g.beginPath(); g.moveTo(X, Y - 16); g.lineTo(X + 12, Y + 12); g.lineTo(X - 12, Y + 12); g.closePath(); g.fill(); g.fillStyle = '#fff'; g.fillRect(X - 7, Y - 1, 14, 4); }
           else if (o.k === 'car') { g.fillStyle = '#5B8DD6'; g.fillRect(X - 15, Y - 22, 30, 44); g.fillStyle = '#9DD3F5'; g.fillRect(X - 11, Y - 14, 22, 10); }
@@ -207,8 +210,8 @@
         if (ph === 'ready') { g.fillStyle = 'rgba(12,17,29,.75)'; g.fillRect(W * 0.1, H * 0.34, W * 0.8, 96); g.fillStyle = '#FFF6DA'; g.textAlign = 'center'; const tt = '🚨 ' + LIM + '초 안에 탱크로리를 따라잡아요!'; g.font = '900 18px Pretendard, sans-serif'; g.font = '900 ' + Math.min(18, Math.floor(18 * W * 0.76 / Math.max(1, g.measureText(tt).width))) + 'px Pretendard, sans-serif'; g.fillText(tt, W / 2, H * 0.34 + 30); g.font = '700 13px Pretendard, sans-serif'; g.fillStyle = '#DDE3F0'; g.fillText('화면 왼쪽·오른쪽을 눌러 차선 바꾸기 (← →) · 🚧 피하고 ⚡ 밟기', W / 2, H * 0.34 + 58); }
         if (ph === 'end') { g.fillStyle = 'rgba(12,17,29,.85)'; g.fillRect(W * 0.08, H * 0.32, W * 0.84, 110); g.textAlign = 'center'; g.font = '900 20px Pretendard, sans-serif'; g.fillStyle = win ? '#7DF58F' : '#FF9A8A'; g.fillText(win ? '📸 찰칵! 따라잡았어요!' : '앗, 놓쳤어요…', W / 2, H * 0.32 + 36);
           g.font = '800 16px Pretendard, sans-serif'; g.fillStyle = '#FFD166'; g.fillText(win ? (hits <= 1 ? '★★★' : '★★☆') : '★☆☆', W / 2, H * 0.32 + 66); g.font = '700 13px Pretendard, sans-serif'; g.fillStyle = '#DDE3F0'; g.fillText(win ? '탱크로리가 들어간 곳을 수첩에 적어요' : '사라진 방향만 수첩에 적어요', W / 2, H * 0.32 + 92); }
-        m.sub(ph === 'run' ? (boost > 0 ? '⚡ 부스트!' : '차선 바꾸기: 화면 왼쪽/오른쪽') : '긴급 추격'); m.cnt(ph === 'run' ? Math.max(0, Math.round(dist)) + 'm' : '');
-        m.tip(ph === 'ready' ? '출발하면 탱크로리가 달아나요 — 부딪히면 느려져요' : ph === 'run' ? '🚧 콘·🚙 차는 피하고 ⚡ 는 밟아요' : '결과를 수첩에 적으면 증거가 돼요');
+        m.sub(ph === 'run' ? (boost > 0 ? '⚡ 부스트!' : draft ? '🌀 바짝 추격! (같은 차선)' : '차선 바꾸기: 화면 왼쪽/오른쪽') : '긴급 추격'); m.cnt(ph === 'run' ? Math.max(0, Math.round(dist)) + 'm' : '');
+        m.tip(ph === 'ready' ? '출발하면 탱크로리가 달아나요 — 부딪히면 느려져요' : ph === 'run' ? '🚧 콘·🚙 차는 피하고 ⚡ 는 밟아요 · 탱크로리와 같은 차선이면 더 빨라져요' : '결과를 수첩에 적으면 증거가 돼요');
         m.act(ph === 'ready' ? '출발! (누르기)' : ph === 'run' ? '◀ 왼쪽 / 오른쪽 ▶ 은 화면을 눌러요' : '📓 수첩에 적기');
       } });
     m.key = (e, isDown) => { if (!isDown) return; const c = e.code; if (c === 'ArrowLeft' || c === 'KeyA') { e.preventDefault(); if (ph === 'run') lane = Math.max(0, lane - 1); } else if (c === 'ArrowRight' || c === 'KeyD') { e.preventDefault(); if (ph === 'run') lane = Math.min(2, lane + 1); } else if (c === 'Space' || c === 'KeyE' || c === 'Enter') { e.preventDefault(); if (!e.repeat) m.down(null); } };
@@ -332,4 +335,115 @@
       '<p class="dim">❓ 환경 퀴즈 맞힌 수 <b>' + F.q.ok + '</b> · 사람과 이야기한 뒤 ❓ 단추로 풀 수 있어요</p>'); };
   const fin1 = P.finalReport; P.finalReport = function () { fin1.apply(this, arguments); const body = this.ui.dlg && this.ui.dlg.querySelector('.u-body'); if (!body) return; const F = this.funX();
     body.insertAdjacentHTML('beforeend', '<p class="dim">🏅 도전 과제 ' + Object.keys(F.ach).length + ' / ' + ACH.length + ' · 📖 생물 도감 ' + Object.keys(F.dex).length + ' / ' + DEX.length + ' · ❓ 퀴즈 ' + F.q.ok + '문제 정답</p>'); };
+})();
+
+// ════════════════════════════════════════════════════════════════════
+//  (v2026-10-20e) 👔 환경팀장 심문 · 🧩 사건 재구성 보드
+//   · 심문: 서류를 볼 수 있는(증거가 가리킨) 시설 정문에서 — 팀장의 주장 3개에 맞는 증거를 수첩에서 골라 내밀면 모순이 깨지고 사실을 털어놓음
+//          범인이 아닌 시설 팀장에게 내밀면 '관계없는 이야기' (헛짚기 3번이면 입을 닫음) · 증거 종류가 주장과 안 맞아도 헛짚기
+//   · 재구성 보드: 보고서에 고른 답으로 사건 카드를 만들어 원인 → 결과 순서로 놓기 · 거꾸로 된 인과 · 물리적으로 불가능한 카드 · 소문 카드는 빼야 함
+// ════════════════════════════════════════════════════════════════════
+(function () {
+  if (typeof UlsanRpgGame === 'undefined') return;
+  const P = UlsanRpgGame.prototype;
+  const SND = k => { try { if (window.Sound && Sound[k]) Sound[k](); } catch (e) {} };
+  const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const short = F => ucFacShort(F);
+  // 다른 창을 여는 함수에 단추 하나를 끼워 넣음 (그만두기·닫기 단추 바로 앞)
+  const withExtra = (self, extra, run) => { const d0 = self.dialog; self.dialog = function (e, t, b, opts) { self.dialog = d0; const i = opts.findIndex(o => /^(그만두기|닫기|취소)/.test(o[0])); opts.splice(i < 0 ? opts.length : i, 0, extra); return d0.apply(self, arguments); }; try { return run(); } finally { self.dialog = d0; } };
+
+  // ── 👔 심문 ──
+  P.probeState = function (fid) { const F = this.funState(); if (!F.probe || F.probe.case !== this.caseNo) F.probe = { case: this.caseNo }; return F.probe[fid] || (F.probe[fid] = { i: 0, strikes: 0, got: [], done: false }); };
+  P.probeClaims = function (fid) {
+    const C = this.C, Q = UC_POL[C.pol], water = Q.path === 'water', pt = ucPoint(C.point), metered = ucMetered(Object.assign({ kind: water ? 'water' : 'air' }, pt)), when = ucHm(C.t0, true).replace(/쯤$/, '');
+    const T = re => e => re.test(e.title);
+    return water ? [
+      { say: '어젯밤 저희 공장이 내보낸 물은 전부 <b>기준 안</b>이었어요. 재 보시면 알 거예요.', ok: T(/^(📊|🔬 물벼룩|🧬)/), kind: '측정 결과(📊 분석 · 🔬 물벼룩 · 🧬 환경DNA)',
+        conf: '…처리 설비가 고장 나서 <b>' + esc(ucJ(Q.name, '이', '가')) + '</b> 섞인 물이 나갔을 수는 있어요.' },
+      { say: '밤에는 강으로 가는 펌프를 <b>한 번도 돌리지 않았어요</b>. 경비원이 잘못 들은 거예요.', ok: T(/(경비원의 말$|^⏪|^🛸|^🦐|^🗂)/), kind: '시각 증거(💂 경비원 · ⏪ 시간 되감기 · 🛸 드론 · 🦐 센서 · 🗂 서류)',
+        conf: '…' + when + ' 무렵 펌프를 한두 시간 돌렸어요. 탱크가 넘칠 것 같아서요.' },
+      { say: metered ? '서류에 빈 칸이 있는 건 <b>계측기 통신 장애</b> 때문이에요. 그 시간엔 아무것도 안 나갔어요.' : '저희 관은 <b>자동측정기로 다 지켜보고</b> 있어요. 기록이 멀쩡하잖아요?', ok: T(/^(🔬 물벼룩|⏪|🛸)/), kind: '어느 관인지 가리키는 증거(🔬 독성 지도 · ⏪ 시간 되감기 · 🛸 드론)',
+        conf: '…<b>' + pt.id + ' ' + esc(ucJ(pt.label, '으로')) + '</b> 흘려보냈어요. ' + (metered ? '빈 기록은 통신 장애라고 둘러댄 거예요.' : '거긴 자동측정기가 없는 관이라서…') } ]
+    : [
+      { say: '저희 굴뚝 가스는 늘 <b>기준 안</b>이에요. 측정기가 증명해요.', ok: T(/^(📊|💨|⚗️ 검지관)/), kind: '측정 결과(📊 분석 · 💨 센서 · ⚗️ 검지관)',
+        conf: '…방지 설비가 고장 나서 <b>' + esc(ucJ(Q.name, '이', '가')) + '</b> 섞인 가스가 나갔을 수는 있어요.' },
+      { say: '냄새는 <b>다른 공장 쪽에서</b> 날아온 거예요. 바람을 보면 알아요.', ok: T(/(^🧭|예보관의 말$|^💨)/), kind: '바람 증거(🧭 바람길 · 🌤 예보관 · 💨 센서)',
+        conf: '…바람이 저희 쪽에서 그 동네로 분 건 맞아요. ' + when + ' 무렵이었죠.' },
+      { say: metered ? '서류가 끊긴 건 <b>계측기 통신 장애</b>였어요.' : '저희 굴뚝은 <b>자동측정 기록이 전부 정상</b>이에요.', ok: T(/(경비원의 말$|^🛸|^🗂)/), kind: '어느 굴뚝인지 가리키는 증거(💂 경비원 · 🛸 드론 · 🗂 서류)',
+        conf: '…<b>' + pt.id + ' ' + esc(pt.label) + '</b>에서 가스를 뺐어요. ' + (metered ? '통신 장애라고 둘러댄 거예요.' : '거긴 자동측정 대상이 아니라서…') } ];
+  };
+  P.startProbe = function (fid) {
+    const S = this.probeState(fid), F = UC_FAC[fid], cl = this.probeClaims(fid), guilty = fid === this.C.fac;
+    if (S.done) { this.toast('이미 심문을 마쳤어요 — 📓 수첩에 적혀 있어요'); return; }
+    if (S.i === 0 && !S.strikes) this.spend(0.2);
+    const ev = this.evidence.filter(e => e.id !== 'case' && !/^(📰|📱|👔|🧩)/.test(e.title));
+    const finish = () => { S.done = true; this._mgStars = S.got.length === 3 ? (S.strikes === 0 ? 3 : 2) : 1;
+      const html = (S.got.length ? '<p>팀장이 털어놓은 말:</p><ul class="mg-list">' + S.got.map(i => '<li>' + cl[i].conf + '</li>').join('') + '</ul>' : '<p>팀장의 말에서 모순을 찾지 못했어요.</p>') + '<p class="dim">헛짚기 ' + S.strikes + '번. ' + (S.got.length ? '털어놓은 말도 측정 증거와 맞는지 다시 확인하세요.' : '이 시설이 범인이 아니거나, 아직 맞는 증거가 없을 수 있어요.') + '</p>';
+      this.addEvidence({ title: '👔 ' + short(F) + ' 환경팀장 심문', key: S.got.length > 0 && guilty, html }); this.closeDialog(); this.toast(S.got.length ? '👔 팀장이 사실을 털어놓았어요 — 수첩에 적었어요' : '👔 심문을 마쳤어요 — 모순을 찾지 못했어요'); };
+    const show = (msg) => {
+      if (S.strikes >= 3) { this.dialog('👔', short(F) + ' 환경팀장', '<p class="pb-say">"더 이상 드릴 말씀이 없습니다. 변호사와 이야기하세요."</p><p class="dim">헛짚기 3번 — 팀장이 입을 닫았어요.</p>', [['수첩에 적기', finish]]); return; }
+      if (S.i >= 3) { finish(); return; }
+      const c = cl[S.i];
+      const body = (msg ? '<p class="pb-msg">' + msg + '</p>' : '') + '<p class="pb-n">주장 ' + (S.i + 1) + ' / 3 · 헛짚기 ' + '✖'.repeat(S.strikes) + '<span class="dim">' + '✖'.repeat(3 - S.strikes) + '</span></p><p class="pb-say">"' + c.say + '"</p>' +
+        '<p class="dim">📓 이 말과 <b>맞지 않는</b> 증거를 골라 내미세요 — 필요한 것: ' + c.kind + '</p><div class="pb-evs">' + (ev.length ? ev.map(e => '<button type="button" data-pe="' + e.id + '">' + esc(e.title) + '</button>').join('') : '<p class="dim">아직 증거가 없어요</p>') + '</div>';
+      this.dialog('👔', short(F) + ' 환경팀장 심문', body, [['🤐 넘어가기 — 반박할 증거가 없어요', () => { S.i++; show('다음 주장으로 넘어갔어요.'); }], ['그만두기 — 나중에 이어서', () => this.closeDialog()]], true);
+      this.ui.dlg.querySelectorAll('[data-pe]').forEach(b => b.addEventListener('click', () => { const e = this.evidence.find(x => x.id === b.dataset.pe); this.spend(0.1);
+        if (guilty && e && e.key && c.ok(e)) { S.got.push(S.i); S.i++; SND('levelup'); show('💥 <b>모순 발견!</b> 팀장이 잠시 말을 잃더니… "' + c.conf + '"'); }
+        else { S.strikes++; SND('bump'); show(!c.ok(e) ? '"그게 제 말이랑 무슨 상관이죠?" <span class="dim">— 이 주장엔 ' + c.kind + ' 중 하나가 필요해요</span>' : '"그건 저희 공장과 관계없는 이야기예요." <span class="dim">— 이 증거로는 이 시설의 말을 깰 수 없어요</span>'); } }));
+    };
+    show(S.i || S.strikes ? '이어서 심문해요.' : '팀장: "무엇이든 물어보세요. 저희는 떳떳합니다."');
+  };
+  const visit0 = P.visitFacility;
+  P.visitFacility = function (fid) {
+    const open = this.warrantFacs().has(fid), S = this.probeState(fid);
+    return withExtra(this, [open ? (S.done ? '👔 환경팀장 심문 — 이미 마쳤어요 (수첩)' : '👔 환경팀장 심문 (12분) — 수첩의 증거로 팀장 말의 모순 깨기') : '🔒 환경팀장 심문 — 증거가 있어야 해요', () => { if (!open) { this.toast('🔒 서류를 볼 수 있는 증거가 있어야 심문할 수 있어요'); return; } this.closeDialog(); this.startProbe(fid); }], () => visit0.call(this, fid));
+  };
+
+  // ── 🧩 사건 재구성 보드 ──
+  P.boardCards = function () {
+    const C = this.C, D = this.draft || {}, water = UC_POL[C.pol].path === 'water', pt = ucPoint(D.point), fac = UC_FAC[D.fac], slot = UC_SLOTS[+D.slot] || '어젯밤', rnd = ucRng(Math.abs(Math.floor(this.seed || 1)) % 9973 + this.caseNo * 71);
+    const T = water ? [
+      '🏭 ' + short(fac) + ' 폐수 처리 설비 고장 — 처리 못 한 폐수가 쌓임', '🌙 ' + slot + ' ' + pt.id + ' ' + ucJ(pt.label, '으로') + ' 몰래 흘려보냄', '🌊 오염된 물이 강을 따라 하류로 흘러감 (거리 ÷ 빠르기만큼 걸림)', '🐟 독한 물이 지나간 곳에서 물고기 떼죽음 → 아침 7시 제보', '🔬 오늘 조사: 배출구 바로 위는 깨끗, 바로 아래부터 독함']
+      : ['🏭 ' + short(fac) + ' 대기오염 방지 설비 고장', '🌙 ' + slot + ' ' + pt.id + ' ' + pt.label + '에서 가스를 내보냄', '🌬 가스가 그 시각의 바람을 타고 퍼짐', '😷 바람이 향한 동네 센서가 치솟고 냄새·두통 민원', '🧭 오늘 조사: 센서에서 바람을 거슬러 그은 선이 공장 쪽으로 모임'];
+    const X = (water ? [['🐟 물고기가 먼저 죽어서 강물이 오염됐다', '원인과 결과가 거꾸로예요 — 물고기 떼죽음은 오염의 <b>결과</b>예요.'], ['⬆️ 오염된 물이 강을 거슬러 위쪽으로 올라갔다', '강물은 위(상류)에서 아래(하류)로만 흘러요.'], ['🌧 어젯밤 큰비에 빗물 배수구가 넘쳤다', '📰 날씨 소식: 어젯밤엔 비가 오지 않았어요.']]
+      : [['😷 사람들이 냄새를 맡아서 바람 방향이 바뀌었다', '바람이 냄새를 옮기지, 냄새가 바람을 바꾸지 않아요 — 원인과 결과가 거꾸로예요.'], ['⬅️ 냄새가 바람을 거슬러 퍼졌다', '기체는 바람이 <b>불어 가는</b> 쪽으로 퍼져요.'], ['💧 강물이 오염돼서 냄새 민원이 났다', '이번 사건은 굴뚝·공기 사건이에요 — 대기센서 기록이 증거예요.']])
+      .concat(!C.noRumor && C.rumor && C.rumor !== D.fac ? [['📰 ' + short(UC_FAC[C.rumor]) + ' 증설 공사 때문에 오염됐다', '소문일 뿐 측정으로 확인되지 않았어요 — 오염이 시작된 곳·시각과 안 맞아요.']] : []);
+    const pick = X.map(x => [rnd(), x]).sort((a, b) => a[0] - b[0]).slice(0, 2).map(x => x[1]);
+    const cards = T.map((t, i) => ({ id: 't' + i, t, ord: i })).concat(pick.map((x, i) => ({ id: 'x' + i, t: x[0], why: x[1] })));
+    return cards.map(c => [rnd(), c]).sort((a, b) => a[0] - b[0]).map(x => x[1]);
+  };
+  P.openBoard = function () {
+    const D = this.draft || {}; if (!D.fac || !D.point || D.slot === '' || D.slot == null) { this.toast('🧩 보고서 ② 시설 · ③ 배출 지점 · ④ 시간대를 먼저 골라요'); return; }
+    const F = this.funState(); if (!F.board || F.board.case !== this.caseNo || F.board.key !== D.fac + D.point + D.slot) F.board = { case: this.caseNo, key: D.fac + D.point + D.slot, tries: 0, done: false };
+    const B = F.board, cards = this.boardCards(), chain = []; let msg = B.done ? '✅ 이미 맞혔어요 — 다시 놓아 봐도 돼요' : '';
+    const render = () => {
+      const byId = id => cards.find(c => c.id === id), slots = [0, 1, 2, 3, 4].map(i => chain[i] ? '<button type="button" class="bd-slot on" data-out="' + i + '"><i>' + (i + 1) + '</i>' + esc(byId(chain[i]).t) + '</button>' : '<div class="bd-slot"><i>' + (i + 1) + '</i><span class="dim">' + (i === 0 ? '맨 처음 (원인)' : i === 4 ? '맨 나중' : '') + '</span></div>').join('<b class="bd-arr">↓</b>');
+      const pool = cards.filter(c => chain.indexOf(c.id) < 0).map(c => '<button type="button" class="bd-card" data-in="' + c.id + '">' + esc(c.t) + '</button>').join('');
+      this.ui.dlg.querySelector('.u-body').innerHTML = '<p class="dim">보고서에 고른 답으로 만든 사건 카드예요. <b>원인 → 결과</b> 순서로 5장을 골라 놓으세요. 섞여 있는 <b>틀린 카드 2장</b>(거꾸로 된 원인·결과, 일어날 수 없는 일, 소문)은 빼야 해요. <span class="u-evn">시도 ' + B.tries + '/3</span></p>' + (msg ? '<p class="pb-msg">' + msg + '</p>' : '') + '<div class="bd-chain">' + slots + '</div><p class="bd-h">카드 <small>(누르면 다음 칸에 놓여요 · 놓인 카드를 누르면 빠져요)</small></p><div class="bd-pool">' + pool + '</div>';
+      this.ui.dlg.querySelectorAll('[data-in]').forEach(b => b.addEventListener('click', () => { if (chain.length < 5) { chain.push(b.dataset.in); msg = ''; SND('hitmark'); render(); } }));
+      this.ui.dlg.querySelectorAll('[data-out]').forEach(b => b.addEventListener('click', () => { chain.splice(+b.dataset.out, 1); msg = ''; render(); }));
+    };
+    const check = () => {
+      if (chain.length < 5) { msg = '5칸을 모두 채워요'; render(); return; }
+      if (B.tries >= 3 && !B.done) { msg = '시도를 다 썼어요'; render(); return; }
+      const byId = id => cards.find(c => c.id === id), bad = chain.map(byId).filter(c => c.why), ok = !bad.length && chain.every((id, i) => byId(id).ord === i);
+      if (!B.done) B.tries++;
+      if (ok) { SND('levelup'); if (!B.done) { B.done = true; this._mgStars = B.tries === 1 ? 3 : B.tries === 2 ? 2 : 1;
+          this.addEvidence({ title: '🧩 사건 재구성', key: false, html: '<ol class="mg-list">' + chain.map(id => '<li>' + esc(byId(id).t) + '</li>').join('') + '</ol><p class="dim">원인에서 결과로 이어지는 흐름이 맞아요 (시도 ' + B.tries + '번). 이 흐름이 증거와 맞는지 보고서를 다시 확인하세요.</p>' }); }
+        msg = '🎉 <b>원인 → 결과가 이어졌어요!</b>' + (this._mgStars ? '' : ''); render(); return; }
+      SND('bump');
+      const right = chain.filter((id, i) => byId(id).ord === i).length;
+      msg = (bad.length ? '❌ 틀린 카드가 섞여 있어요: <b>' + esc(bad[0].t) + '</b><br><span class="dim">' + bad[0].why + '</span>' : '🔁 제자리에 놓인 카드 ' + right + '/5 — 무엇이 먼저 일어나야 다음 일이 생길지 생각해 보세요.') + (B.tries >= 3 ? '<br>시도를 다 썼어요. 정답: ' + cards.filter(c => !c.why).sort((a, b) => a.ord - b.ord).map((c, i) => (i + 1) + '. ' + esc(c.t)).join(' → ') : '');
+      if (B.tries >= 3 && !B.done) { B.done = true; this._mgStars = 1; this.addEvidence({ title: '🧩 사건 재구성', key: false, html: '<p>세 번 안에 맞히지 못했어요. 올바른 흐름:</p><ol class="mg-list">' + cards.filter(c => !c.why).sort((a, b) => a.ord - b.ord).map(c => '<li>' + esc(c.t) + '</li>').join('') + '</ol>' }); }
+      render();
+    };
+    this.dialog('🧩', '사건 재구성 보드 — 원인 → 결과', '', [['✅ 확인하기', check], ['처음부터', () => { chain.length = 0; msg = ''; render(); }], ['닫기 — 보고서로', () => { this.closeDialog(); this.openReport(); }]], true);
+    this.ui.dlg.querySelector('.u-opts button').className = 'primary'; render();
+  };
+  const report0 = P.openReport;
+  P.openReport = function () {
+    if (this.report || this.gameOver) return report0.call(this);
+    const F = this.funState(), done = F.board && F.board.case === this.caseNo && F.board.done;
+    return withExtra(this, ['🧩 사건 재구성 보드 — 원인→결과 순서 맞추기 · 보너스 별' + (done ? ' ✓' : ''), () => { this.saveDraft(); this.closeDialog(); this.openBoard(); }], () => report0.call(this));
+  };
 })();

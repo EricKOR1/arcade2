@@ -1443,3 +1443,17 @@ body.fullgrid .spectate { grid-template-columns: 1fr 320px }
 .urpg-ui .u-box.quiz .qz-q { font: 800 16px/1.5 var(--serif); color: #FFF1C9; margin: 2px 0 6px; word-break: keep-all }
 /* 대화창(좁은 폰 세로): 단추가 세 개(수첩 · 미니게임 · ❓ 퀴즈)여도 창 안에 다 보이게 */
 @media (max-width: 600px) and (orientation: portrait) { .urpg-ui .u-box.talk { max-height: 76% } .urpg-ui .u-box.talk .u-body { max-height: 30vh } .urpg-ui .u-box.talk .u-opts button { padding: 8px 14px } }
+/* 울산 수사대 (v2026-10-20e): 👔 환경팀장 심문 · 🧩 사건 재구성 보드 */
+.u-box .pb-say { margin: 8px 0; padding: 12px 14px; border-radius: 14px; background: rgba(245,196,81,.1); border: 1px solid rgba(245,196,81,.35); font-size: 15px; line-height: 1.55; color: #FFF1C9 }
+.u-box .pb-msg { margin: 6px 0; padding: 8px 12px; border-radius: 10px; background: rgba(79,209,224,.1); border-left: 3px solid #4FD1E0; line-height: 1.5 }
+.u-box .pb-n { margin: 4px 0; font-size: 12px; font-weight: 700; color: #FF8A8A; letter-spacing: 1px }
+.u-box .pb-evs, .u-box .bd-pool { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; max-height: 34vh; overflow-y: auto }
+.u-box .pb-evs button, .u-box .bd-card { flex: 1 1 200px; text-align: left; padding: 9px 11px; border-radius: 10px; border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.06); color: #EAF0FA; font: 600 13px Pretendard, sans-serif; cursor: pointer; line-height: 1.4 }
+.u-box .pb-evs button:hover, .u-box .bd-card:hover { border-color: #F5C451; background: rgba(245,196,81,.12) }
+.u-box .bd-chain { display: flex; flex-direction: column; align-items: stretch; gap: 2px; margin: 8px 0 }
+.u-box .bd-slot { display: flex; align-items: center; gap: 8px; min-height: 38px; padding: 6px 10px; border-radius: 10px; border: 1.5px dashed rgba(255,255,255,.22); background: transparent; color: #EAF0FA; font: 600 13px Pretendard, sans-serif; text-align: left }
+.u-box .bd-slot.on { border-style: solid; border-color: #36E08F; background: rgba(54,224,143,.1); cursor: pointer }
+.u-box .bd-slot i { flex: none; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-weight: 800; font-size: 12px; background: rgba(255,255,255,.12) }
+.u-box .bd-arr { text-align: center; color: rgba(255,255,255,.35); font-size: 12px; line-height: 1 }
+.u-box .bd-h { margin: 8px 0 2px; font-weight: 800 }
+.u-box .bd-h small { font-weight: 500; opacity: .6 }
