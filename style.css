@@ -1163,6 +1163,11 @@ body.fullgrid .spectate { grid-template-columns: 1fr 320px }
 @keyframes uNear { 0%, 100% { box-shadow: 0 0 0 3px rgba(0,0,0,.45), 0 0 0 7px rgba(245,196,81,.18), 0 0 26px rgba(245,196,81,.55) } 50% { box-shadow: 0 0 0 3px rgba(0,0,0,.45), 0 0 0 12px rgba(245,196,81,.06), 0 0 36px rgba(245,196,81,.8) } }
 .urpg-host .arena-ctl .aboost:active, .urpg-host .arena-ctl .aboost.ready { transform: scale(.94); animation: none }
 @media (orientation: landscape) and (max-height: 540px) { .urpg-host .arena-ctl .aboost { bottom: 16px; right: 20px; width: 78px; height: 78px; font-size: 25px } }   /* 오른쪽 아래 구석 (조이스틱 맞은편 · 미니맵과 안 겹치게) */
+.urpg-host .arena-ctl .ajump { bottom: 46px; right: 138px; width: 72px; height: 72px; border: 3px solid transparent; color: #DDF6FF; font-size: 24px; gap: 0;
+  background: radial-gradient(circle at 50% 32%, #2F5A6E, #0F1A24 70%) padding-box, conic-gradient(from 200deg, #2E6A7A, #9FE3F0, #3C8496, #C8F1F8, #2E6A7A) border-box; box-shadow: 0 0 0 3px rgba(0,0,0,.45), 0 8px 20px rgba(0,0,0,.5) }
+.urpg-host .arena-ctl .ajump small { font: 800 11px Pretendard, sans-serif; color: #CDEFF7 }
+.urpg-host .arena-ctl .ajump.ready, .urpg-host .arena-ctl .ajump:active { transform: scale(.9); animation: none }
+@media (orientation: landscape) and (max-height: 540px) { .urpg-host .arena-ctl .ajump { bottom: 24px; right: 110px; width: 60px; height: 60px; font-size: 20px } }   /* 🔍 조사 버튼 왼쪽 */
 .arena-ctl .aboost.u-near { border-color: #F5C451; box-shadow: 0 0 0 3px rgba(245,196,81,.35), 0 0 22px rgba(245,196,81,.55); color: #FFE9B0 }
 @media (max-width: 900px) { .urpg-ui .u-modal.m-panel { padding: 6px 6px 6px 54px } .urpg-ui .u-box.panel { width: 100% } }   /* 왼쪽 위 ← 버튼과 겹치지 않게 */
 @media (orientation: landscape) and (max-height: 540px) { .urpg-ui .u-intro { top: 67%; max-width: 54%; padding: 12px 26px } .urpg-ui .u-intro em { margin-top: 5px; padding-top: 5px } .urpg-ui .u-intro > b { font-size: 23px } }

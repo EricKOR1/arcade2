@@ -1,7 +1,7 @@
 // 울산 환경 수사대 3D — 추리 롤플레잉 (어려움)
 //   울산을 본뜬 3D 지도를 돌아다니며 직접 조사한 사실로 오염물질 · 범인 시설 · 정확한 배출 지점 · 배출 시각을 밝힙니다
 //   사건·증거 계산은 ulsan-case.js (진실 하나에서 모든 증거가 일관되게)
-//   조작: 조이스틱(또는 WASD) 이동 · 🔍 버튼(또는 E·스페이스) 조사/대화 · 위 버튼 수첩·지도·보고서
+//   조작: 조이스틱(또는 WASD) 이동 · 🔍 버튼(또는 E·스페이스) 조사/대화 · ⤴ 버튼(또는 스페이스 — 가까이 조사할 것이 없을 때) 점프 · 위 버튼 수첩·지도·보고서
 class UlsanRpgGame {
   constructor(canvas, opts) {
     this.opts = opts || {}; this.glCanvas = canvas; this.host = canvas.parentElement; this.isTouch = (window.matchMedia && matchMedia('(pointer: coarse)').matches) || 'ontouchstart' in window;
@@ -61,6 +61,8 @@ class UlsanRpgGame {
   // ── 플랫폼 인터페이스 ──
   setMove(x, y) { this.mx = x; this.my = y; }
   setBoost(on) { if (on) this.interact(); }
+  // ── 점프 (v2026-10-20b): 낮은 담장·상자·화단 등(높이 UlsanRpgGame.JUMP_CLEAR 칸 이하)은 뛰어넘거나 위에 올라설 수 있음 ──
+  jump() { if (this.ui.modalOpen || this.ov || this.gameOver) return; const sup = this.supportH(this.px, this.pz); if (this.jv || (this.jh || 0) > sup + 0.02) return; this.jv = UlsanRpgGame.JUMP_V; this._actT = this.now || 0; }
   resize() { const W = this.host.clientWidth || 800, H = this.host.clientHeight || 600; if (!this.renderer || W < 10) return;
     if (this.touch && !this.noPace && (this.qLevel == null || this.qLevel > 0)) { const pr = Math.min(window.devicePixelRatio || 1, Math.max(1.25, Math.min(1.5, Math.sqrt(0.65e6 / (W * H))))); if (Math.abs(pr - this.renderer.getPixelRatio()) > 0.01) this.renderer.setPixelRatio(pr); }   // 절전: 폰·태블릿은 그릴 점 수를 약 65만 개 안쪽으로 (배율 1.25~1.5 · 예전 1.5 고정 — 태블릿은 약 220만 개)
     this.renderer.setSize(W, H, false); if (this.composer) this.composer.setSize(W, H); this.glCanvas.style.width = '100%'; this.glCanvas.style.height = '100%'; this.camera.aspect = W / H; this.camera.updateProjectionMatrix(); this.vw = W; this.vh = H;
@@ -98,8 +100,8 @@ class UlsanRpgGame {
   // ── 설 수 있는 곳 (v2026-10-18a) ──
   //   울산 땅 · 너무 높은 산이 아님 · 물에 잠긴 해안이 아님(그려진 땅이 바다 수면 -0.3 보다 높아야 — 예전엔 칸만 봐서 물 위를 걸었음) · 건물·탱크·담장이 아님
   //   강은 발목 깊이로 걸어 건널 수 있음 (강물 시료·배출구 조사)
-  canStand(x, z) {
-    if (this.blockedAt(x, z)) return false; const c = this.cellAt(x, z); if (c !== 'u' && c !== 'i' && c !== 'r') return false;
+  canStand(x, z, feet) {
+    const oh = this.obsH(x, z); if (oh > 0 && (oh > UlsanRpgGame.JUMP_CLEAR || oh > (feet || 0) + 0.02)) return false;   // feet: 땅에서 발까지 높이 (점프 중·낮은 구조물 위) — 발보다 낮은 구조물은 지나감 const c = this.cellAt(x, z); if (c !== 'u' && c !== 'i' && c !== 'r') return false;
     const h = this.meshH(x, z); if (h >= 30) return false; if (h >= -0.24) return true;
     const rn = this.riverNear(x, z); return rn.d < 1.2 || (rn.d < 5 && h > this.waterY(rn.rid, rn.s) - 0.75);   // 강물 속 · 하구의 얕은 강둑은 첨벙첨벙 건넘 (강 수면보다 0.65칸 안쪽)
   }
@@ -112,15 +114,20 @@ class UlsanRpgGame {
     return u + v <= 1 ? ha + (hd - ha) * u + (hb - ha) * v : hc + (hb - hc) * (1 - u) + (hd - hc) * (1 - v); }
   // 부딪힘 격자 (0.5칸 · 1048×1008): 건물·탱크·담장 자리를 캐릭터 몸 반지름(0.35칸)만큼 넓혀 칠함 → 한 칸만 보면 됨
   colGrid() { return this.col || (this.col = new Uint8Array(1048 * 1008)); }
+  // 격자 값 = 구조물 꼭대기 높이 × 20 (0.05칸 단위) · 255 = 아주 높음(넘을 수 없음)
+  obsH(x, z) { const C = this.col; if (!C) return 0; const i = Math.floor((x + 262) * 2), j = Math.floor((z + 252) * 2); if (i < 0 || j < 0 || i >= 1048 || j >= 1008) return 0; const v = C[j * 1048 + i]; return v >= 255 ? Infinity : v / 20; }
+  // 딛고 설 높이: 넘을 수 있는 낮은 구조물 위면 그 꼭대기 · 아니면 땅(0)
+  supportH(x, z) { const h = this.obsH(x, z); return h <= UlsanRpgGame.JUMP_CLEAR ? h : 0; }
+  static hv(top) { return top == null || !(top < 12) ? 255 : Math.max(1, Math.min(254, Math.ceil(top * 20))); }
   blockedAt(x, z) { const C = this.col; if (!C) return false; const i = Math.floor((x + 262) * 2), j = Math.floor((z + 252) * 2); return i >= 0 && j >= 0 && i < 1048 && j < 1008 && C[j * 1048 + i] > 0; }
-  colRect(x, z, w, d, a, pad) {                               // 돌아간 직사각형 (a: 라디안 · 실사풍 건물과 같은 방향)
-    const C = this.colGrid(), P = pad == null ? 0.35 : pad, hw = w / 2 + P, hd = d / 2 + P, c = Math.cos(a || 0), s = Math.sin(a || 0), ex = Math.abs(c) * hw + Math.abs(s) * hd, ez = Math.abs(s) * hw + Math.abs(c) * hd;
+  colRect(x, z, w, d, a, pad, top) {                          // 돌아간 직사각형 (a: 라디안 · 실사풍 건물과 같은 방향) · top: 꼭대기 높이(모르면 넘을 수 없음)
+    const C = this.colGrid(), V = UlsanRpgGame.hv(top), P = pad == null ? 0.35 : pad, hw = w / 2 + P, hd = d / 2 + P, c = Math.cos(a || 0), s = Math.sin(a || 0), ex = Math.abs(c) * hw + Math.abs(s) * hd, ez = Math.abs(s) * hw + Math.abs(c) * hd;
     const i0 = Math.max(0, Math.floor((x - ex + 262) * 2)), i1 = Math.min(1047, Math.floor((x + ex + 262) * 2)), j0 = Math.max(0, Math.floor((z - ez + 252) * 2)), j1 = Math.min(1007, Math.floor((z + ez + 252) * 2));
-    for (let j = j0; j <= j1; j++) { const pz = (j + 0.5) / 2 - 252 - z; for (let i = i0; i <= i1; i++) { const px = (i + 0.5) / 2 - 262 - x, u = px * c + pz * s, v = pz * c - px * s; if (u <= hw && u >= -hw && v <= hd && v >= -hd) C[j * 1048 + i] = 1; } }
+    for (let j = j0; j <= j1; j++) { const pz = (j + 0.5) / 2 - 252 - z; for (let i = i0; i <= i1; i++) { const px = (i + 0.5) / 2 - 262 - x, u = px * c + pz * s, v = pz * c - px * s; if (u <= hw && u >= -hw && v <= hd && v >= -hd && C[j * 1048 + i] < V) C[j * 1048 + i] = V; } }
   }
-  colCircle(x, z, r, pad) {
-    const C = this.colGrid(), R = r + (pad == null ? 0.35 : pad), R2 = R * R, i0 = Math.max(0, Math.floor((x - R + 262) * 2)), i1 = Math.min(1047, Math.floor((x + R + 262) * 2)), j0 = Math.max(0, Math.floor((z - R + 252) * 2)), j1 = Math.min(1007, Math.floor((z + R + 252) * 2));
-    for (let j = j0; j <= j1; j++) { const pz = (j + 0.5) / 2 - 252 - z; for (let i = i0; i <= i1; i++) { const px = (i + 0.5) / 2 - 262 - x; if (px * px + pz * pz <= R2) C[j * 1048 + i] = 1; } }
+  colCircle(x, z, r, pad, top) {
+    const C = this.colGrid(), V = UlsanRpgGame.hv(top), R = r + (pad == null ? 0.35 : pad), R2 = R * R, i0 = Math.max(0, Math.floor((x - R + 262) * 2)), i1 = Math.min(1047, Math.floor((x + R + 262) * 2)), j0 = Math.max(0, Math.floor((z - R + 252) * 2)), j1 = Math.min(1007, Math.floor((z + R + 252) * 2));
+    for (let j = j0; j <= j1; j++) { const pz = (j + 0.5) / 2 - 252 - z; for (let i = i0; i <= i1; i++) { const px = (i + 0.5) / 2 - 262 - x; if (px * px + pz * pz <= R2 && C[j * 1048 + i] < V) C[j * 1048 + i] = V; } }
   }
   colClear(x, z, r) { const C = this.colGrid(), R2 = r * r; for (let j = Math.max(0, Math.floor((z - r + 252) * 2)); j <= Math.min(1007, Math.floor((z + r + 252) * 2)); j++) for (let i = Math.max(0, Math.floor((x - r + 262) * 2)); i <= Math.min(1047, Math.floor((x + r + 262) * 2)); i++) { const px = (i + 0.5) / 2 - 262 - x, pz = (j + 0.5) / 2 - 252 - z; if (px * px + pz * pz <= R2) C[j * 1048 + i] = 0; } }
   // 조사할 곳 · 사람 · 도착 자리 (부딪힘을 넣어도 모두 닿을 수 있어야 하는 곳) — [x, z, 닿아야 하는 거리]
@@ -168,23 +175,23 @@ class UlsanRpgGame {
   }
   // 가벼운 화질: 모둠(장소·시설·측정소)의 상자·원통을 부딪힘 목록에 — 땅에 닿은 0.45칸 넘는 것만 (옥상·지붕 장식·꽃밭·부두 바닥은 지나감)
   colGroup(g, ox, oz) { g.children.forEach(m => { const P = m.geometry && m.geometry.parameters; if (!P || m.userData.walk) return; const y = m.position.y;
-    if (P.width != null) { if (y - P.height / 2 < 0.6 && P.height > 0.45) this._obs.push([ox + m.position.x, oz + m.position.z, P.width, P.depth, 0]); }
-    else if (P.radiusBottom != null && y - P.height / 2 < 0.6 && P.height > 0.45) this._obs.push([ox + m.position.x, oz + m.position.z, Math.max(P.radiusTop, P.radiusBottom)]); }); }
+    if (P.width != null) { if (y - P.height / 2 < 0.6 && P.height > 0.45) this._obs.push([ox + m.position.x, oz + m.position.z, P.width, P.depth, 0, y + P.height / 2]); }
+    else if (P.radiusBottom != null && y - P.height / 2 < 0.6 && P.height > 0.45) this._obs.push([ox + m.position.x, oz + m.position.z, Math.max(P.radiusTop, P.radiusBottom), y + P.height / 2]); }); }
   // 실사풍 세계 자료로 부딪힘: 건물 상자 · 원통(탱크·굴뚝·공정탑·수조) · 구형 탱크 · 비닐하우스 · 크레인 다리 · 광석 더미
   //   땅에 닿은(바닥 0.6칸 아래) 0.5칸 넘는 것만 — 꽃밭·부두 바닥·옥상 설비·높이 걸린 배관은 지나감 · 주차된 차·나무·가로등도 지나감
   colWorld() {
     const W = UWORLD, B = W.b;
-    for (let i = 0; i < B.length; i += 9) { const t = B[i], h = B[i + 5], y0 = B[i + 8], b0 = (t === 7 || t === 3) && y0 ? y0 : 0; if (b0 >= 0.6 || h < 0.5) continue; this.colRect(B[i + 1], B[i + 2], B[i + 3], B[i + 4], B[i + 6] * Math.PI / 180); }
-    for (let i = 0; i < W.cyl.length; i += 6) this.colCircle(W.cyl[i], W.cyl[i + 1], W.cyl[i + 2]);
+    for (let i = 0; i < B.length; i += 9) { const t = B[i], h = B[i + 5], y0 = B[i + 8], b0 = (t === 7 || t === 3) && y0 ? y0 : 0; if (b0 >= 0.6 || h < 0.5) continue; this.colRect(B[i + 1], B[i + 2], B[i + 3], B[i + 4], B[i + 6] * Math.PI / 180, null, b0 + h); }
+    for (let i = 0; i < W.cyl.length; i += 6) this.colCircle(W.cyl[i], W.cyl[i + 1], W.cyl[i + 2], null, W.cyl[i + 3]);
     for (let i = 0; i < W.sph.length; i += 3) this.colCircle(W.sph[i], W.sph[i + 1], W.sph[i + 2] * 0.95);
     for (let i = 0; i < W.gh.length; i += 4) this.colRect(W.gh[i], W.gh[i + 1], W.gh[i + 2], 1.24, W.gh[i + 3] * Math.PI / 180);
     for (let i = 0; i < W.cranes.length; i += 5) { const x = W.cranes[i], z = W.cranes[i + 1], span = W.cranes[i + 2], a = W.cranes[i + 3] * Math.PI / 180, c = Math.cos(a), s = Math.sin(a); [-1, 1].forEach(sd => this.colRect(x + c * sd * span / 2, z + s * sd * span / 2, 0.9, 1.6, a)); }
-    ((W.site || {}).pile || []).forEach(p => this.colCircle(p[0], p[1], p[2] * 0.85));
+    ((W.site || {}).pile || []).forEach(p => this.colCircle(p[0], p[1], p[2] * 0.85, null, p[3]));
   }
   // 부딪힘 격자 만들기 (세계를 다 그린 뒤 한 번)
   buildCollision() {
     this.col = null; this.colGrid(); if (this.real) this.colWorld();
-    (this._obs || []).forEach(o => { if (o.length === 3) this.colCircle(o[0], o[1], o[2]); else this.colRect(o[0], o[1], o[2], o[3], o[4] || 0); }); this._obs = null;
+    (this._obs || []).forEach(o => { if (o.length <= 4) this.colCircle(o[0], o[1], o[2], null, o[3]); else this.colRect(o[0], o[1], o[2], o[3], o[4] || 0, null, o[5]); }); this._obs = null;   // [x,z,r,(높이)] 원 · [x,z,w,d,각,(높이)] 상자
   }
   buildWorld() {
     const T = THREE, S = this.scene; this._obs = [];
@@ -217,7 +224,7 @@ class UlsanRpgGame {
     [-30, 10, 45, 80].forEach(x => { const p = ucProject(UC_RIVERS.taehwa.pts, x, 6), q = ucAt(UC_RIVERS.taehwa.pts, p.s); const b = new T.Mesh(new T.BoxGeometry(4, 0.6, UC_RIVERS.taehwa.w + 6), new T.MeshLambertMaterial({ color: '#C9CDD4' })); b.position.set(q[0], this.waterY('taehwa', p.s) + 0.75, q[1]); S.add(b); });
     // 도시 · 공단 건물 (인스턴스 두 번) — 조사할 곳·사람·시설 마당 둘레는 비움 (부딪힘이 생겨 길을 막지 않게)
     const { apts, sheds } = this.lowBlocks(ucRng(this.seed + 199)), R = ucRng(this.seed + 299); this._lowBlk = { apts, sheds };   // 따로 뽑음 (예전: 분석값 흔들림과 같은 난수를 써서 화질마다 분석값이 달랐음)
-    apts.forEach(b => this._obs.push([b[0], b[1], b[3], b[3], 0])); sheds.forEach(b => this._obs.push([b[0], b[1], b[3], b[3] * 0.7, 0]));
+    apts.forEach(b => this._obs.push([b[0], b[1], b[3], b[3], 0, b[2]])); sheds.forEach(b => this._obs.push([b[0], b[1], b[3], b[3] * 0.7, 0, b[2]]));
     // 아파트 창문 무늬 (층마다 창 · 몇 개는 불 켜짐)
     const wc = document.createElement('canvas'); wc.width = 64; wc.height = 128; const wg = wc.getContext('2d'); wg.fillStyle = '#EDEAE2'; wg.fillRect(0, 0, 64, 128);
     const ec = document.createElement('canvas'); ec.width = 64; ec.height = 128; const eg = ec.getContext('2d'); eg.fillStyle = '#000'; eg.fillRect(0, 0, 64, 128);   // 밤에 빛나는 창 (불 켜진 창만)
@@ -365,7 +372,7 @@ class UlsanRpgGame {
 
   // ── 매 프레임 ──
   bindKeys() {
-    this._kd = e => { if (e.repeat && (e.code === 'KeyE' || e.code === 'Space' || e.code === 'Enter')) { e.preventDefault(); return; } if (this.ui.modalOpen) { this.modalKey(e); return; } if (this.ov && (e.code === 'Escape' || e.code === 'KeyM')) { if (this.replay) this.stopReplay(); else this.exitOverview(); return; } if (this.ov) { this.keys[e.code] = true; if (e.code === 'Equal' || e.code === 'NumpadAdd') this.ovZoom(0.8); if (e.code === 'Minus' || e.code === 'NumpadSubtract') this.ovZoom(1.25); return; } this.keys[e.code] = true; if (e.code === 'KeyE' || e.code === 'Space') { e.preventDefault(); this.interact(); } if (e.code === 'KeyV') this.cycleCam(); };
+    this._kd = e => { if (e.repeat && (e.code === 'KeyE' || e.code === 'Space' || e.code === 'Enter')) { e.preventDefault(); return; } if (this.ui.modalOpen) { this.modalKey(e); return; } if (this.ov && (e.code === 'Escape' || e.code === 'KeyM')) { if (this.replay) this.stopReplay(); else this.exitOverview(); return; } if (this.ov) { this.keys[e.code] = true; if (e.code === 'Equal' || e.code === 'NumpadAdd') this.ovZoom(0.8); if (e.code === 'Minus' || e.code === 'NumpadSubtract') this.ovZoom(1.25); return; } this.keys[e.code] = true; if (e.code === 'KeyE' || (e.code === 'Space' && this.near)) { e.preventDefault(); this.interact(); } else if (e.code === 'Space') { e.preventDefault(); this.jump(); } if (e.code === 'KeyV') this.cycleCam(); };
     this._ku = e => { this.keys[e.code] = false; if (this.mg && this.mg.key) this.mg.key(e, false); }; addEventListener('keydown', this._kd); addEventListener('keyup', this._ku);
     this._blur = () => { this.keys = {}; this.mx = 0; this.my = 0; if (this.mg && this.mg.release) try { this.mg.release(); } catch (e) {} this.save(); }; addEventListener('blur', this._blur); document.addEventListener('visibilitychange', this._blur);   // 손 뗌이 전달되지 않아 계속 걷던 문제
   }
@@ -395,19 +402,24 @@ class UlsanRpgGame {
     let mx = this.mx, my = this.my; if (this.keys.KeyA || this.keys.ArrowLeft) mx -= 1; if (this.keys.KeyD || this.keys.ArrowRight) mx += 1; if (this.keys.KeyW || this.keys.ArrowUp) my -= 1; if (this.keys.KeyS || this.keys.ArrowDown) my += 1;
     const m = Math.hypot(mx, my); let moving = false;
     if (m > 0.1 && !this.ui.modalOpen && !this.ov) { const k = Math.min(1, m), dist = 16 * k * dt, dx = mx / m, dz = my / m, n = Math.max(1, Math.ceil(dist / 0.3)), st = dist / n;
-      if (!this.canStand(this.px, this.pz)) this.unstick();   // 건물 속 · 물 위에 놓였으면 가장 가까운 설 수 있는 곳으로
+      if (!this.canStand(this.px, this.pz, this.jh)) { this.unstick(); this.jh = 0; this.jv = 0; }   // 건물 속 · 물 위에 놓였으면 가장 가까운 설 수 있는 곳으로
       // 0.3칸씩 나눠 움직임 (얇은 담장을 뚫지 않게) · 막히면 벽을 따라 미끄러짐 (비스듬히 20°·40°·60° — 정면으로 부딪히면 멈춤)
       let moved = 0; const FAN = UlsanRpgGame.FAN;
       for (let q = 0; q < n; q++) { let ok = false;
-        for (let f = 0; f < FAN.length; f++) { const [ca, sa, sp] = FAN[f], ux = (dx * ca - dz * sa) * st * sp, uz = (dx * sa + dz * ca) * st * sp; if (this.canStand(this.px + ux, this.pz + uz)) { this.px += ux; this.pz += uz; moved += st * sp; ok = true; break; } }
+        for (let f = 0; f < FAN.length; f++) { const [ca, sa, sp] = FAN[f], ux = (dx * ca - dz * sa) * st * sp, uz = (dx * sa + dz * ca) * st * sp; if (this.canStand(this.px + ux, this.pz + uz, this.jh)) { this.px += ux; this.pz += uz; moved += st * sp; ok = true; break; } }
         if (!ok) break; }
       if (moved > 0.001) { this.spend(moved * 0.2 / 60); moving = true; }   // 조사 차량: 1칸(90 m)에 0.2분
       this.heading = Math.atan2(mx, my); }
-    const y = this.standY(this.px, this.pz); this.player.position.set(this.px, y, this.pz); this.player.rotation.y = this.heading;
+    // 점프·낙하: 발 높이 jh 가 딛고 설 높이(땅 0 · 낮은 구조물 꼭대기)보다 높으면 중력으로 내려옴 (정확한 포물선 — 느린 기기에서도 같은 높이)
+    { const sup = this.supportH(this.px, this.pz); this.jh = this.jh || 0; this.jv = this.jv || 0;
+      if (this.jv > 0 || this.jh > sup + 0.001) { const G = UlsanRpgGame.JUMP_G; this.jh += this.jv * dt - 0.5 * G * dt * dt; this.jv -= G * dt; if (this.jh <= sup) { this.jh = sup; this.jv = 0; } }
+      else { this.jh = sup; this.jv = 0; } }
+    const air = this.jh - this.supportH(this.px, this.pz), y = this.standY(this.px, this.pz) + this.jh; this.player.position.set(this.px, y, this.pz); this.player.rotation.y = this.heading;
     if (this.meWave) { const ph = (now / 1400) % 1; this.meWave.scale.setScalar(1 + ph * 2.6); this.meWave.material.opacity = 0.7 * (1 - ph);
       const rn = now - (this._wadeT || 0) > 250 ? (this._wadeT = now, this._wade = this.riverNear(this.px, this.pz)) : this._wade, wy = rn && rn.d < 0.2 ? this.waterY(rn.rid, rn.s) - 0.1 - y + 0.03 : 0.06;   // 강을 건널 땐 물결이 물 위에 퍼짐
-      this.meWave.position.y = Math.max(0.06, wy); this.meRing.position.y = Math.max(0.05, wy - 0.01); }
-    const u = this.player.userData, sw = moving ? Math.sin(now / 90) * 0.7 : 0; u.legL.rotation.x = sw; u.legR.rotation.x = -sw; u.armL.rotation.x = -sw * 0.8; u.armR.rotation.x = sw * 0.8;
+      this.meWave.position.y = Math.max(0.06, wy) - air; this.meRing.position.y = Math.max(0.05, wy - 0.01) - air; }
+    const u = this.player.userData, sw = air > 0.05 ? 0 : moving ? Math.sin(now / 90) * 0.7 : 0; u.legL.rotation.x = sw; u.legR.rotation.x = -sw; u.armL.rotation.x = -sw * 0.8; u.armR.rotation.x = sw * 0.8;
+    if (air > 0.05) { u.legL.rotation.x = -0.55; u.legR.rotation.x = 0.35; u.armL.rotation.x = u.armR.rotation.x = -0.9; }   // 공중: 다리를 모으고 팔을 올림
     this.npcs.forEach(n => { n.g.position.y = (n.y0 != null ? n.y0 : (n.y0 = this.standY(n.x, n.z))) + Math.abs(Math.sin(now / 600 + n.x)) * 0.04; const dd = Math.hypot(n.x - this.px, n.z - this.pz), v = !!(!this.ov && !this.talked[n.id] && dd < 150 && (dd >= 46 || this.ui.modalOpen) && this.camera.position.distanceTo(n.mark.position) > 8); if (n.mark.visible !== v) n.mark.visible = v;
       if (v) n.mark.position.y = n.y0 + 3.4 + Math.sin(now / 320 + n.x) * 0.18; });   // 아직 안 만난 사람: 멀리서는 3D 금색 느낌표(통통) · 가까우면 이름표(HTML)에 느낌표
     // 연기
@@ -809,7 +821,7 @@ class UlsanRpgGame {
   layoutToast() {
     const el = this.ui.toast, root = this.ui.root.getBoundingClientRect(), q = this.ui.quest.getBoundingClientRect(), sd = this.ui.root.querySelector('.u-side').getBoundingClientRect();
     const qr = q.right - root.left, sl = sd.left - root.left, W = root.width; let a, b, top;
-    this._avoid = ['aboost', 'fjoy'].map(id => { const e = document.getElementById(id); if (!e || e.style.visibility === 'hidden') return null; const r = e.getBoundingClientRect(); return r.width ? [r.left - root.left, r.top - root.top, r.right - root.left, r.bottom - root.top] : null; }).filter(Boolean);   // 조작 버튼 자리 (목적지 화살표가 피함)
+    this._avoid = ['aboost', 'ajump', 'fjoy'].map(id => { const e = document.getElementById(id); if (!e || e.style.visibility === 'hidden') return null; const r = e.getBoundingClientRect(); return r.width ? [r.left - root.left, r.top - root.top, r.right - root.left, r.bottom - root.top] : null; }).filter(Boolean);   // 조작 버튼 자리 (목적지 화살표가 피함)
     this._hudR = [q].concat(['.u-btns', '.u-mapbox'].map(k => this.ui.root.querySelector(k).getBoundingClientRect())).map(r => [r.left - root.left, r.top - root.top, r.right - root.left, r.bottom - root.top]).concat(this._avoid);   // 장소 이름표가 피할 곳: 퀘스트 창 · 메뉴 단추 · 미니맵 · 조작 단추 (오른쪽 위 묶음 전체 네모는 빈 곳까지 막았음)
     const th = el.classList.contains('on') ? Math.max(36, el.offsetHeight) : 36;   // 알림 띠 높이 (두 줄일 수 있음)
     this._feedTop = (sl - qr - 24 >= 380 ? 12 : q.bottom - root.top + 8) + th + 8; this._feedL = sl - qr - 24 >= 380 ? [qr + 12, sl - 12] : [8, W - 8];   // 반 친구 소식 띠 자리 (알림 띠 바로 아래)
@@ -1564,5 +1576,7 @@ UlsanRpgGame.PLACE_INFO = {
   onsanHarbor: ['fisherO', '외황강·회야강이 바다와 만나는 곳의 물고기 소식']
 };
 // 벽에 막혔을 때 시도하는 방향 (가려는 쪽 · 20° · 40° · 60° 비스듬히 — 속도는 벽을 따라 나아가는 만큼)
+// 점프: 사람 키 2.2칸 · 허리 높이(1.2칸) 이하 구조물까지 넘음 · 꼭대기 약 1.45칸(느린 기기도 1.2칸은 넘게 여유) · 공중 약 0.6초
+UlsanRpgGame.JUMP_CLEAR = 1.2; UlsanRpgGame.JUMP_G = 32; UlsanRpgGame.JUMP_V = Math.sqrt(2 * 32 * 1.55);
 UlsanRpgGame.FAN = [0, 0.35, -0.35, 0.7, -0.7, 1.05, -1.05].map(a => [Math.cos(a), Math.sin(a), Math.cos(a)]);
 if (typeof window !== 'undefined') window.UlsanRpgGame = UlsanRpgGame;
