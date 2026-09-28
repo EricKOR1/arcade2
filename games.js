@@ -344,7 +344,7 @@ const GAMES = {
     type: 'canvas',
     name: '울산 환경 수사대 3D',
     desc: '실제 울산 지도를 3D로 돌아다니며 직접 조사한 사실로 오염물질·범인 시설·정확한 배출 지점·배출 시각을 밝히는 추리 롤플레잉. 교사가 난이도·사건 수·사건당 시간을 정하고, 총점과 시간으로 순위를 매깁니다',
-    howto: '조이스틱(WASD) 이동 · 🔍 조사/대화(E) · 왼쪽 위 다음 할 일의 📍·🚙 로 갈 곳 찾기 · ⚗️ 시약 실험 → 연구원 분석 · 🔬 물벼룩 독성 지도 / 🧭 바람길 → 시설 서류 · ⭐ 미니게임 별 · 🚨 긴급 추격 · 사건마다 제한 시간 안에 📝 보고서',
+    howto: '조이스틱(WASD) 이동 · 🔍 조사/대화(E) · 왼쪽 위 할 일을 누르면 📋 자세히 · 📍·🚙 로 갈 곳 찾기 · ⚗️ 시약 실험 → 연구원 분석 · 🔬 물벼룩 독성 지도 / 🧭 바람길 → 시설 서류 · ⭐ 미니게임 별 · 🚨 긴급 추격 · 사건마다 제한 시간 안에 📝 보고서',
     meta: '개인 추리 RPG · 3D · 난이도 3단계 · 울산 특강 연계',
     primary: '70% 0.16 150', primaryContent: '100% 0 0', hex: '#1FBF6A',
     grid: { cols: 30, rows: 30 },
@@ -356,7 +356,7 @@ const GAMES = {
     controls: [], padLayout: 'rpg',
     create: function (canvas, opts) { return new UlsanRpgGame(canvas, opts); },
     // 순위표(교사 화면)용: 진행 사건 · 사건별 등급 · 해결 수 · 끝냈는지 · 걸린 시간(초)
-    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, ev: g.evidenceCount, caseNo: g.caseNo, caseTotal: g.caseTotal, cases: g.casesStr, solved: g.solvedCount, done: g.done, secs: g.elapsedSec, left: Math.ceil(g.caseLeftSec) }; }
+    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, ev: g.evidenceCount, caseNo: g.caseNo, caseTotal: g.caseTotal, cases: g.casesStr, solved: g.solvedCount, done: g.done, secs: g.done ? g.elapsedSec : 0, left: Math.ceil(g.caseLeftSec / 5) * 5, sid: (g.opts && g.opts.seed) || 0 }; }   // 남은 시간은 5초 단위 · 걸린 시간은 끝났을 때만 (매초 바뀌면 매초 전송됨)
   },
 
   shooter: {

@@ -13,7 +13,8 @@
       "$id": {
         ".write": true,
         ".validate": "newData.isString() && newData.val().length <= 12"
-      }
+      },
+      ".write": true
     },
     "players": {
       "$id": {
@@ -25,15 +26,17 @@
           ".validate": "newData.isNumber()"
         },
         "board": {
-          ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 4000)"
+          ".validate": "!newData.exists() || newData.hasChildren() || (newData.isString() && newData.val().length <= 4000)"
         }
-      }
+      },
+      ".write": true
     },
     "pos": {
       "$id": {
         ".write": true,
         ".validate": "newData.isString() && newData.val().length <= 200"
-      }
+      },
+      ".write": true
     },
     "hazards": {
       ".write": true
@@ -51,25 +54,29 @@
       "$id": {
         ".write": true,
         ".validate": "newData.isString() && newData.val().length <= 120000"
-      }
+      },
+      ".write": true
     },
     "finishes": {
       "$id": {
         ".write": true,
         ".validate": "newData.hasChildren(['ms'])"
-      }
+      },
+      ".write": true
     },
     "gems": {
       "$id": {
         ".write": true,
         ".validate": "newData.hasChildren(['x','y'])"
-      }
+      },
+      ".write": true
     },
     "picks": {
       "$id": {
         ".write": true,
         ".validate": "newData.isString() && newData.val().length < 20"
-      }
+      },
+      ".write": true
     }
   }
 }

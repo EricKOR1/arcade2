@@ -55,7 +55,7 @@
     if (T3.Sky) {   // 물리 하늘 (Preetham) — 밝기만 우리 조명에 맞게 줄임
       const sky = new T3.Sky(); sky.scale.setScalar(1800); sky.material.uniforms.turbidity.value = 7; sky.material.uniforms.rayleigh.value = 1.6; sky.material.uniforms.mieCoefficient.value = 0.006; sky.material.uniforms.mieDirectionalG.value = 0.82;
       sky.material.uniforms.skyGain = { value: 0.62 }; sky.material.fragmentShader = sky.material.fragmentShader.replace('uniform vec3 up;', 'uniform vec3 up;\nuniform float skyGain;').replace('gl_FragColor = vec4( retColor, 1.0 );', 'gl_FragColor = vec4( retColor * skyGain, 1.0 );');
-      sky.userData.noShadow = true; sky.frustumCulled = false; sky.renderOrder = -10; S.add(sky); this.sky = sky;
+      sky.userData.noShadow = true; sky.frustumCulled = false; sky.renderOrder = 1000; S.add(sky); this.sky = sky;   // 하늘은 먼 쪽 끝(깊이 1)에 그려지므로, 불투명한 것들 다음에 그리면 가려진 곳을 건너뜀
       this.skyScene = new T3.Scene(); const sky2 = new T3.Sky(); sky2.scale.setScalar(900); sky2.material = sky.material; this.skyScene.add(sky2); this.pmrem = new T3.PMREMGenerator(r); }
     // 별 (밤)
     const n = 1400, pos = new Float32Array(n * 3); for (let i = 0; i < n; i++) { const u = Math.random() * 2 - 1, a = Math.random() * Math.PI * 2, q = Math.sqrt(1 - u * u); pos.set([q * Math.cos(a) * 1500, Math.abs(u) * 1500 + 40, q * Math.sin(a) * 1500], i * 3); }
@@ -96,9 +96,10 @@
     const fc = new T3.Color('#B9CADB').lerp(new T3.Color('#E9B38E'), Math.max(0, low - 0.35) * 1.4 * day).lerp(new T3.Color('#0D1424'), night); fc.convertSRGBToLinear(); this.scene.fog.color.copy(fc);
     if (!this.sky) this.scene.background.copy(fc);
     this.renderer.toneMappingExposure = 0.88 + night * 0.62;
-    this._night = night; this.realU.uNight.value = Math.max(0, Math.min(1, (night - 0.15) * 1.3)); if (this.stars) this.stars.material.opacity = Math.max(0, night - 0.35) * 1.2;
+    this._night = night; this.realU.uNight.value = Math.max(0, Math.min(1, (night - 0.15) * 1.3)); if (this.stars) { this.stars.material.opacity = Math.max(0, night - 0.35) * 1.2; this.stars.visible = this.stars.material.opacity > 0.01; }   // 낮엔 별을 아예 그리지 않음
     // 환경광(반사·은은한 빛)을 하늘에서 다시 만듦 — 해가 조금 움직였을 때만
-    if (this.pmrem && (this._envEl == null || Math.abs(this._envEl - el) > 1.5 || Math.abs((this._envH || 0) - hour) > 0.4)) { this._envEl = el; this._envH = hour;
+    const envNow = performance.now(), envOld = this._envEl == null || ((Math.abs(this._envEl - el) > 3 || Math.abs((this._envH || 0) - hour) > 0.75) && !(el < -6 && this._envEl < -6));   // 해가 꽤 움직였을 때만 · 깊은 밤엔 그대로
+    if (this.pmrem && (this._envEl == null || (envOld && !this.replay && envNow - (this._envT || 0) > 1500))) { this._envEl = el; this._envH = hour; this._envT = envNow;   // 사건 재현 중엔 다시 만들지 않음 (끝나면 한 번)
       const rt = this.pmrem.fromScene(this.skyScene, 0, 0.1, 1000); if (this.envRT) this.envRT.dispose(); this.envRT = rt; this.scene.environment = rt.texture; }
     if (this.bloom) { this.bloom.strength = 0.12 + 0.5 * night; this.bloom.threshold = 0.93 - 0.23 * night; }   // 낮엔 아주 조금 (햇빛 반사) · 밤엔 불빛이 번짐
     if (this.lamps) this._lampsOn = night > 0.3; (this.glows || []).forEach(p => { p.material.opacity = Math.max(0, Math.min(1, (night - 0.25) * 1.6)); p.visible = night > 0.25; });
@@ -141,7 +142,7 @@
       m.onBeforeCompile = sh => { sh.uniforms.uTime = U.uTime;
         sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\n' + (flowAttr ? 'attribute float aFlow;\n' : '') + 'varying float vFlow;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvFlow = ' + (flowAttr ? 'aFlow' : '0.0') + ';');
         sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform float uTime;\nvarying float vFlow;')
-          .replace('vec3 mapN = texture2D( normalMap, vUv ).xyz * 2.0 - 1.0;', `vec2 fo = vec2(0.0, -uTime * vFlow * 0.22); vec2 dr = vec2(uTime * 0.011, uTime * 0.006);
+          .replace('#include <normal_fragment_maps>', T3.ShaderChunk.normal_fragment_maps).replace('vec3 mapN = texture2D( normalMap, vUv ).xyz * 2.0 - 1.0;', `vec2 fo = vec2(0.0, -uTime * vFlow * 0.22); vec2 dr = vec2(uTime * 0.011, uTime * 0.006);
             vec3 n1 = texture2D(normalMap, vUv + fo + dr).xyz * 2.0 - 1.0; vec3 n2 = texture2D(normalMap, vUv * 1.9 + fo * 1.35 - dr * 0.8 + vec2(0.37, 0.61)).xyz * 2.0 - 1.0;
             vec3 mapN = normalize(vec3(n1.xy + n2.xy, n1.z * n2.z));`); };
       m.customProgramCacheKey = () => 'ulwater' + (flowAttr ? 1 : 0); m.userData.lin = false; return m; };   // 강(흐름 있음)·바다 셰이더를 따로
@@ -368,7 +369,7 @@
     const T3 = T(), N = this.hq === 'high' ? 64 : 36, R = this.roadPaths || [], CARC = ['#F2F2F0', '#F2F2F0', '#151618', '#9EA3A8', '#9EA3A8', '#5C6168', '#2B4C7E', '#8E2B2B', '#D9D2C3', '#1F4E3D'];
     R.forEach(p => { let L = 0, x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9; p.cum = [0]; p.forEach((q, i) => { if (i) { L += Math.hypot(q[0] - p[i - 1][0], q[2] - p[i - 1][2]); p.cum.push(L); } x0 = Math.min(x0, q[0]); x1 = Math.max(x1, q[0]); z0 = Math.min(z0, q[2]); z1 = Math.max(z1, q[2]); }); p.L = L; p.bb = [x0, x1, z0, z1]; });
     const im = new T3.InstancedMesh(this.carGeo, this.carMat, N), cols = CARC.map(h => new T3.Color(h).convertSRGBToLinear()); im.instanceMatrix.setUsage(T3.DynamicDrawUsage); for (let i = 0; i < N; i++) im.setColorAt(i, cols[0]);   // 색 버퍼는 개수를 줄이기 전에
-    im.count = 0; im.castShadow = true; im.frustumCulled = false; this.scene.add(im); this.traffic = { im, cols, cars: [], N, near: [], nearT: -1e9, m4: new T3.Matrix4(), q: new T3.Quaternion(), e: new T3.Euler(), v: new T3.Vector3(), one: new T3.Vector3(1, 1, 1) };
+    im.count = 0; im.castShadow = false; im.userData.flat = true; im.frustumCulled = false; this.scene.add(im); this.traffic = { im, cols, cars: [], N, near: [], nearT: -1e9, m4: new T3.Matrix4(), q: new T3.Quaternion(), e: new T3.Euler(), v: new T3.Vector3(), one: new T3.Vector3(1, 1, 1) };
   };
   P.stepTraffic = function (dt, now) {
     const tr = this.traffic; if (!tr || !this.roadPaths) return; const cx = this.ov ? this.ov.cx : this.px, cz = this.ov ? this.ov.cz : this.pz, RAD = this.ov ? 140 : 95;
@@ -535,12 +536,14 @@
       for (let k = 0; k < L.length; k += stride) { const t = L[k], d = Math.hypot(t[0] - cx, t[2] - cz); if (d > R) continue; const ty = t[4] + (far && (ov || d > lod) ? 2 : 0); if (n[ty] >= cfg.max) continue;   // 가까운 나무만 잎 카드
         const f = Math.min(1, (R - d) / 12), s = t[3] * (0.35 + 0.65 * f) * (t[7] === 2 ? 0.75 : 1), sy = s * (t[7] === 3 ? 1.9 : 0.82 + t[5] * 0.45); e.set(0, t[6], 0); q.setFromEuler(e); m4.compose(v.set(t[0], t[1] - 0.05, t[2]), q, sc.set(s, sy, s)); M[ty].setMatrixAt(n[ty], m4);
         const tn = t[7] === 2 ? [1.05, 1.15, 0.7] : tints[Math.floor(t[5] * 4.99)]; col.setRGB(tn[0], tn[1], tn[2]); M[ty].setColorAt(n[ty], col); n[ty]++; } }
-    M.forEach((m, i) => { m.count = n[i]; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; });
+    M.forEach((m, i) => { m.count = n[i]; if (!n[i]) return; m.instanceMatrix.updateRange.offset = 0; m.instanceMatrix.updateRange.count = n[i] * 16; m.instanceMatrix.needsUpdate = true;
+      if (m.instanceColor) { m.instanceColor.updateRange.offset = 0; m.instanceColor.updateRange.count = n[i] * 3; m.instanceColor.needsUpdate = true; } });
+    this._shDirty = true;   // 그림자도 한 번 새로
   };
 
   // ── 매 프레임 ──
   P.realFrame = function (dt, now) {
-    const U = this.realU, cam = this.camera; U.uTime.value = now / 1000; U.uCloudOff.value.set(now * 0.0021, now * 0.0009);
+    const U = this.realU, cam = this.camera; U.uTime.value = now / 1000; U.uCloudOff.value.set((now * 0.0021) % 322.58, (now * 0.0009) % 322.58);   // 구름 무늬 반복 주기(1/0.0031)로 되감음 — 오래 켜 두면 숫자가 커져 정밀도가 떨어지던 것
     if (this.sky) this.sky.position.copy(cam.position); if (this.stars) this.stars.position.copy(cam.position); if (this.clouds) this.clouds.position.set(cam.position.x, 520, cam.position.z);
     this.stepTraffic(dt, now);
     const fo = this.ui.modalOpen && this.focus; U.uCam.value.copy(cam.position); U.uPlayer.value.set(fo ? fo.x : this.px, (this.player ? this.player.position.y : this.groundH(this.px, this.pz)) + 1.2, fo ? fo.z : this.pz);   // 대화 중엔 두 사람 사이를 비움

@@ -172,10 +172,20 @@ function ucMakeCase(seed, diff, want) {
   // 공기 사건은 연기띠가 센서 2곳 이상에 '치솟음'으로 보여야 풀 수 있음 — 그런 바람이 나올 때까지 다시 (기록 화면처럼 소수 첫째 자리 · 여유를 두고)
   if (path === 'air') {
     const hits = () => { const Cc = Object.assign({}, C, { decoys: [] }); return UC_AIR.filter(st => { let mx = 0; for (let h = 18; h <= 32; h++) mx = Math.max(mx, ucAirConc(Cc, pol, st.x, st.z, h + 0.5)); return ucAirSpike(pol, mx, 0.3); }).length; };
-    for (let k = 0; k < 300 && hits() < 2; k++) C.wind = makeWind();
+    // 🧭 바람길(미니게임)을 제대로 그리면 범인 시설이 후보에 들어가야 함 — 냄새 센서 전부 · 가장 진한 두 곳으로 그어도 (예전: 공기 사건 0.6% 에서 범인이 후보에 없었음)
+    const ok = () => hits() >= 2 && ucWindIdeal(C).every(cs => cs.indexOf(fac) >= 0);
+    for (let k = 0; k < 300 && !ok(); k++) C.wind = makeWind();
   }
   return C;
 }
+// 바람길 미니게임과 같은 계산: 냄새가 치솟은 센서에서 바람을 거슬러 그은 선 → 선이 모이는 곳에 가까운 굴뚝 2~3곳 (ulsan-mini.js startWind 의 cands 와 같음)
+function ucWindCands(rays) { const facs = Object.keys(UC_FAC).filter(k => UC_FAC[k].stacks.length); if (rays.length < 2) return [];
+  const rd = (r, x, z) => { const px = x - r.st.x, pz = z - r.st.z, d = px * r.u[0] + pz * r.u[1]; return d < 0 ? Math.hypot(px, pz) : Math.abs(px * r.u[1] - pz * r.u[0]); };
+  return facs.map(k => ({ k, sc: rays.reduce((a, r) => a + Math.min(...UC_FAC[k].stacks.map(q => rd(r, q.x, q.z))), 0) / rays.length })).sort((a, b) => a.sc - b.sc).filter((x, i) => i < 2 || (i < 3 && x.sc < 40)).map(x => x.k); }
+function ucWindIdeal(C) {   // [냄새 센서 전부로 그은 후보, 가장 진한 두 곳으로 그은 후보]
+  const sp = []; UC_AIR.forEach(st => { let pk = null; ucAirLog(C, st, 32.5).forEach(r => { const v = Math.max(r.voc / 8, r.h2s / 5); if (v > 1 && (!pk || v > pk.v)) pk = { h: r.h, v }; });
+    if (pk) { const w = C.wind[Math.max(0, Math.min(C.wind.length - 1, pk.h - 18))]; sp.push({ st, v: pk.v, u: [-Math.cos(w.dir), -Math.sin(w.dir)] }); } });
+  if (sp.length < 2) return [[]]; const top2 = sp.slice().sort((a, b) => b.v - a.v).slice(0, 2); return [ucWindCands(sp), ucWindCands(top2)]; }
 function ucPoint(id) { for (const f of Object.keys(UC_FAC)) { const F = UC_FAC[f]; for (const o of F.outs.concat(F.stacks)) if (o.id === id) return Object.assign({ fac: f }, o); } return null; }
 
 // ── 물: 하천 한 지점의 농도 (시각 h) ──
@@ -352,9 +362,9 @@ function ucSlot(h) { return h < 21 ? 0 : h < 24 ? 1 : h < 27 ? 2 : h < 30 ? 3 : 
 const UC_SLOTS = ['어젯밤 18~21시', '어젯밤 21~24시', '새벽 0~3시', '새벽 3~6시', '아침 6~8시'];
 function ucScore(C, rep) {
   const r = { pol: rep.pol === C.pol, fac: rep.fac === C.fac, point: rep.point === C.point, time: rep.slot === ucSlot(C.t0) };
-  const ev = (rep.evidence || []).slice(0, 3), keys = new Set(ev.filter(e => e && e.key).map(e => e.title)).size;   // 같은 증거를 여러 번 적어도 하나로 (예전엔 같은 말을 세 번 들으면 +20)
+  const ev = (rep.evidence || []).slice(0, 3), keys = new Set(ev.filter(e => e && e.key).map(e => String(e.title).replace(/\s*\(\d+\)$/, ''))).size;   // 같은 증거를 여러 번 적어도 하나로 — 다시 한 실험의 ' (2)' 도 같은 것으로 (예전: 바람길 3번 = +20)
   const score = (r.pol ? 20 : 0) + (r.fac ? 25 : 0) + (r.point ? 20 : 0) + (r.time ? 15 : 0) + Math.round(keys / 3 * 20);
   const grade = score >= 95 ? 'S' : score >= 80 ? 'A' : score >= 60 ? 'B' : score >= 40 ? 'C' : 'D';
   return Object.assign(r, { keys, score, grade });
 }
-if (typeof module !== 'undefined') module.exports = { ucRngH, UC_MODES, ucSettings, UC_KM, UC_RIVERS, UC_POL, UC_PANELS, UC_FAC, UC_PLACES, UC_START, UC_BIO, UC_AIR, UC_SLOTS, ucLen, ucAt, ucProject, ucDownstream, ucRng, ucMakeCase, ucPoint, ucWaterConc, ucAirConc, ucFieldKit, ucBioLog, ucEdna, ucAirLog, ucFacilityRecord, ucTestimony, ucGuardLine, ucHm, ucMouthArrive, ucReportSpot, ucAirHits, UC_REPORT_H, ucManagerLine, ucSlot, ucScore, ucYard, ucGate, ucFence, UC_NPC_AT, ucNpcAt, ucBioAt, UC_USE, ucNightEvents, ucEventAt, ucPlaceText, ucJ, UC_GLITCH_N, UC_ZONES, ucAirSpike, ucFacShort, UC_WATER_POLS, UC_AIR_POLS, ucCandOuts };
+if (typeof module !== 'undefined') module.exports = { ucRngH, UC_MODES, ucSettings, UC_KM, UC_RIVERS, UC_POL, UC_PANELS, UC_FAC, UC_PLACES, UC_START, UC_BIO, UC_AIR, UC_SLOTS, ucLen, ucAt, ucProject, ucDownstream, ucRng, ucMakeCase, ucPoint, ucWaterConc, ucAirConc, ucFieldKit, ucBioLog, ucEdna, ucAirLog, ucFacilityRecord, ucTestimony, ucGuardLine, ucHm, ucMouthArrive, ucReportSpot, ucAirHits, UC_REPORT_H, ucManagerLine, ucSlot, ucScore, ucYard, ucGate, ucFence, UC_NPC_AT, ucNpcAt, ucBioAt, UC_USE, ucNightEvents, ucEventAt, ucPlaceText, ucJ, UC_GLITCH_N, UC_ZONES, ucAirSpike, ucFacShort, UC_WATER_POLS, UC_AIR_POLS, ucCandOuts, ucWindCands, ucWindIdeal };

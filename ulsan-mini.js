@@ -46,7 +46,7 @@
     const m = this.mg = Object.assign(o, { cv, g: cv.getContext('2d'), btn, subEl: box.querySelector('.mg-sub'), cntEl: box.querySelector('.mg-cnt'), tipEl: box.querySelector('.mg-tip'), held: false, last: 0, W: 0, H: 0 });
     const pos = e => { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
     const down = (e, p) => { if (e && e.cancelable) e.preventDefault(); if (m.held || this.mg !== m) return; m.held = true; if (m.down) m.down(p); };
-    const up = p => { if (!m.held || this.mg !== m) return; m.held = false; if (m.up) m.up(p || null); };
+    const up = p => { if (!m.held || this.mg !== m) return; m.held = false; if (m.up) m.up(p || null); }; m.release = () => up(null);   // 다른 앱으로 갔다 오면 누른 상태를 풀 때 씀
     cv.addEventListener('pointerdown', e => { try { cv.setPointerCapture(e.pointerId); } catch (x) {} down(e, pos(e)); });
     cv.addEventListener('pointermove', e => { if (m.held && m.move && this.mg === m) m.move(pos(e)); });
     btn.addEventListener('pointerdown', e => { try { btn.setPointerCapture(e.pointerId); } catch (x) {} down(e, null); });
@@ -134,7 +134,7 @@
     if (r() > pBite) return { kind: 'none' };
     if (r() < (rid === 'dongcheon' || rid === 'yeocheon' ? 0.14 : 0.07)) { const t = TRASH[Math.floor(r() * TRASH.length)]; return { kind: 'trash', n: t[0], icon: t[1] }; }
     const tot = pool.reduce((a, b) => a + b[1], 0); let x = r() * tot, id = pool[0][0]; for (const [k, w] of pool) { x -= w; if (x <= 0) { id = k; break; } }
-    const F = FISH[id], pWeak = S < 0.04 ? 0.03 : S < 0.15 ? 0.15 + (S - 0.04) * 3 : S < 0.35 ? 0.62 : 0.9, weak = r() < pWeak, gs = weak && st.dom && SYMG[st.dom], gk = gs ? gs[Math.floor(r() * gs.length)] : null, sy = gk ? SG[gk] : ['기운이 없고 움직임이 느려요', null];
+    const F = FISH[id], pWeak = S < 0.04 ? 0 : S < 0.15 ? 0.15 + (S - 0.04) * 3 : S < 0.35 ? 0.62 : 0.9, weak = r() < pWeak, gs = weak && st.dom && SYMG[st.dom], gk = gs ? gs[Math.floor(r() * gs.length)] : null, sy = gk ? SG[gk] : ['기운이 없고 움직임이 느려요', null];
     return { kind: 'fish', id, F, len: Math.round(lerp(F.len[0], F.len[1], Math.pow(r(), 1.3)) * (weak ? 0.92 : 1)), weak, sg: gk, sym: weak ? sy[0] : '힘차게 퍼덕여요', gill: weak ? sy[1] : null, film: gk === 'film' };
   };
   P.startFishing = function (o, where) {
@@ -157,7 +157,7 @@
     const tint = S > 0.04 ? '#55604A' : null, tk = tint ? clamp(S * 1.4, 0, 0.5) : 0;   // 물빛은 오염 정도만 (예전엔 물질마다 색 · 기름 무지개로 물질이 바로 보였음 — 냄새·기름막은 🧪 현장 측정에서)
     const col = c => { let x = tint ? mixC(c, tint, tk) : c; if (night > 0.2) { const A = x.startsWith('#') ? hex(x) : x.match(/\d+/g).map(Number); x = 'rgb(' + A.map(v => Math.round(v * (1 - night * 0.62))).join(',') + ')'; } return x; };
     const kmTxt = where || (UC_RIVERS[rid].name + ' ' + (s / UC_KM).toFixed(1) + 'km');
-    const verdict = () => { const fishes = casts.filter(c => c.kind === 'fish'), wk = fishes.filter(c => c.weak).length; return !fishes.length && casts.filter(c => c.kind === 'none').length >= 2 ? '물고기가 거의 없어요 — 오염이 심했거나 물고기가 피한 곳일 수 있어요' : wk || sawDead ? '약한' + (sawDead ? '·죽은' : '') + ' 물고기가 보여요 — 최근 이 지점까지 독성 물질이 내려왔어요' : '물고기가 건강해요 — 지금 이 지점 물은 물고기가 살기 괜찮아요'; };
+    const verdict = () => { const fishes = casts.filter(c => c.kind === 'fish'), wk = fishes.filter(c => c.weak).length; return !fishes.length && casts.filter(c => c.kind === 'none').length >= 2 ? '물고기가 거의 없어요 — 오염이 심했거나 물고기가 피한 곳일 수 있어요' : !(wk || sawDead) && fishes.length < 2 ? '물고기를 충분히 못 봤어요 — 한 번 더 낚아 보면 알 수 있어요' : wk || sawDead ? '약한' + (sawDead ? '·죽은' : '') + ' 물고기가 보여요 — 최근 이 지점까지 독성 물질이 내려왔어요' : '물고기가 건강해요 — 지금 이 지점 물은 물고기가 살기 괜찮아요'; };
     const finish = () => {
       if (done) return; done = true; if (!casts.length && !insp) return;   // 던지기 전이라도 죽은 물고기를 살펴봤으면 기록
       const C = this.C, Q = UC_POL[C.pol], pt = ucPoint(C.point), fishes = casts.filter(c => c.kind === 'fish'), weak = fishes.filter(c => c.weak).length, healthy = fishes.length - weak, none = casts.filter(c => c.kind === 'none').length, bad = weak || sawDead || (!fishes.length && none >= 2);
@@ -166,10 +166,11 @@
       const hints = [];
       const gk = [...new Set(fishes.filter(c => c.weak && c.sg).map(c => c.sg))], both = gk.length ? Object.keys(PNAME).filter(p => gk.every(k => SG[k][2].indexOf(p) >= 0)) : [];
       if (weak) hints.push(['①', '약한 물고기의 증상: <b>' + [...new Set(fishes.filter(c => c.weak).map(c => c.sym))].join(' / ') + '</b> → 📖 도감의 후보: <b>' + (both.length ? both.map(p => PNAME[p]).join(' 또는 ') : '여러 물질') + '</b>' + (gk.length >= 2 && both.length === 1 ? ' (두 증상이 겹치는 물질)' : ' — 냄새 · ⚗️ 시약 · 📊 연구원 분석으로 하나를 골라요')]);
-      hints.push(['③', bad ? '여기까지 오염된 물이 내려왔어요 → 출발점은 이 지점보다 <b>위쪽(상류)</b>이에요. 더 위로 올라가 깨끗한 곳을 찾으면 그 사이가 출발점' : '물고기가 건강해요 → 이 강이 오염됐다면 출발점은 이 지점보다 <b>아래쪽(하류)</b>이에요']);
+      if (bad || fishes.length >= 2) hints.push(['③', bad ? '여기까지 오염된 물이 내려왔어요 → 출발점은 이 지점보다 <b>위쪽(상류)</b>이에요. 더 위로 올라가 깨끗한 곳을 찾으면 그 사이가 출발점' : '물고기가 건강해요 → 이 강이 오염됐다면 출발점은 이 지점보다 <b>아래쪽(하류)</b>이에요']);
       if (insp) hints.push(['④', '죽은 ' + ucJ(insp.F.n, '은', '는') + ' 죽은 지 약 ' + insp.fr[4] + ' → 오염이 여기 닿은 때: <b>' + whenTxt() + '</b>. 여기서 배출구까지 거리 ÷ 흐름 속도만큼 더 거슬러 가면 배출 시각이에요 (⏪ 시간 되감기)']);
       else if (sawDead) hints.push(['④', '떠내려가던 죽은 물고기를 눌러 건져 보면 언제 죽었는지(= 오염이 닿은 때) 알 수 있어요']);
       if (insp) { const M = this.miniState(); M.dead.push({ river: rid, s, a: insp.a, b: insp.b, band: insp.fr[4], where: kmTxt }); }
+      this._mgStars = fishes.length >= 3 || (fishes.length >= 2 && insp) ? 3 : fishes.length || insp ? 2 : 1;   // 별: 물고기를 많이 살펴볼수록 (예전: 늘 ★★ — 🎣 칭호를 받을 수 없었음)
       this.addEvidence({ title: '🎣 어류 조사 · ' + kmTxt + ' (' + this.hm(this.nowH) + ')', key: key || (!!insp && arrH != null), geo: { river: rid, s },
         html: (casts.length ? '<p>' + casts.length + '번 던져서: 건강 ' + healthy + ' · 약함 ' + weak + ' · 입질 없음 ' + none + '</p><ul class="mg-list">' + li + '</ul>' : '<p>던지기 전에 떠내려가던 죽은 물고기를 건져 살펴봤어요.</p>') + (insp ? '<p>⚰ 건져 본 죽은 ' + insp.F.n + ': 눈 ' + insp.fr[1] + ' · 아가미 ' + insp.fr[2] + ' · 몸 ' + insp.fr[3] + ' → <b>죽은 지 약 ' + insp.fr[4] + '</b></p>' : sawDead ? '<p>⚠ 죽은 물고기가 떠내려가는 것을 봤어요.</p>' : '') +
           '<p><b>' + verdict() + '</b></p>' + hintBox(hints) + GUIDE + '<p class="dim">물고기는 오염을 먼저 느끼는 생물 지표예요.</p>' });
@@ -182,10 +183,10 @@
         if (ph === 'inspect') { if (t > 0.3) { ph = back.ph; t = back.t; } return; }
         if (p && fl.length && ((ph === 'aim' && !charging) || (ph === 'wait' && winT <= 0))) { const f = fl.find(q => q.X != null && Math.hypot(q.X - p[0], q.Y - p[1]) < Math.max(30, q.L * 0.8)); if (f) { inspect(f); return; } }
         if (ph === 'aim') { charging = true; t = 0; }
-        else if (ph === 'wait') { if (winT > 0) { ph = 'reel'; t = 0; hookT = 0.35; buzz(40); const w = out.kind === 'trash' ? 0.2 : out.F.str * (out.weak ? 0.45 : 1); Object.assign(rl, { z: 0.35, v: 0, f: 0.45, ft: 0.5, fv: 0, prog: 0.32, str: w, zh: out.kind === 'trash' ? 0.36 : 0.3 - w * 0.06, next: 0 }); SND('hitmark'); }
+        else if (ph === 'wait') { if (winT > 0) { ph = 'reel'; t = 0; hookT = 0.35; winT = 0; buzz(40); const w = out.kind === 'trash' ? 0.2 : out.F.str * (out.weak ? 0.45 : 1); Object.assign(rl, { z: 0.35, v: 0, f: 0.45, ft: 0.5, fv: 0, prog: 0.32, str: w, zh: out.kind === 'trash' ? 0.36 : 0.3 - w * 0.06, next: 0 }); SND('hitmark'); }
           else { spooks++; biteAt += 1.2; m.flash = '너무 일찍 챘어요!'; m.flashT = 1; if (spooks >= 3 && out.kind !== 'none') endCast({ kind: 'miss' }); } }
-        else if (ph === 'result') { if (casts.length < N) nextCast(); else { ph = 'summary'; t = 0; } }
-        else if (ph === 'summary') { finish(); this.closeDialog(); }
+        else if (ph === 'result') { if (casts.length < N) nextCast(); else { ph = 'summary'; t = 0; m.sumAt = performance.now(); } }
+        else if (ph === 'summary') { if (performance.now() - (m.sumAt || 0) < 280) return; finish(); this.closeDialog(); }
       },
       up: () => { if (ph === 'aim' && charging) { charging = false; ph = 'fly'; t = 0; bob.tx = 0.44 + Math.random() * 0.12; bob.ty = lerp(0.72, 0.3, pow); SND('jump'); } },
       onClose: () => finish(),
@@ -267,7 +268,7 @@
               g.fillStyle = '#AEB6C6'; g.font = F6(13); wrapText(g, r.kind === 'trash' ? '강에 버려진 쓰레기예요 — 수첩에 함께 적어 둘게요' : r.kind === 'none' ? '물고기가 거의 없는 걸까요? 오염된 물은 물고기가 피하거나 죽어요' : '입질을 놓쳤어요 — 찌가 쑥 들어갈 때 바로 누르세요', W / 2, cy + chh * 0.62 + 24, cw - 40, 18); } }
           else { const lh = compact ? 21 : 28; txt(g, '어류 조사 결과 · ' + kmTxt, W / 2, cy + (compact ? 24 : 34), F9(compact ? 16 : 19), '#FFF6DA'); let y = cy + (compact ? 48 : 68);
             g.font = F7(compact ? 13.5 : 15); g.textAlign = 'left'; casts.forEach(c => { g.fillStyle = c.kind === 'fish' ? (c.weak ? '#FF9A8A' : '#7DF58F') : '#C9D0DD'; g.fillText((c.kind === 'fish' ? '🐟 ' + c.F.n + ' ' + c.len + 'cm · ' + (c.weak ? '약함' : '건강') : c.kind === 'trash' ? c.icon + ' ' + c.n : c.kind === 'none' ? '🫧 입질 없음' : '💨 놓침'), cx + 26, y); y += lh; });
-            if (insp) { g.fillStyle = '#FFD166'; g.fillText('⚰ 죽은 ' + insp.F.n + ' · 죽은 지 약 ' + insp.fr[4], cx + 26, y); y += lh; }
+            if (insp) { g.fillStyle = '#FFD166'; const dl = '⚰ 죽은 ' + insp.F.n + ' · 죽은 지 약 ' + insp.fr[4], f0 = g.font; g.font = fitF(g, dl, F7, compact ? 13.5 : 15, cw - 40); g.fillText(dl, cx + 26, y); g.font = f0; y += lh; }   // 좁은 폰에서 줄이 카드 밖으로 넘치던 것
             const wk1 = casts.find(c => c.kind === 'fish' && c.weak); if (wk1 && !compact) { g.fillStyle = '#FFB3BA'; g.font = F7(13); y = wrapText(g, '증상: ' + wk1.sym + ' → 📖 도감', cx + 26, y, cw - 52, 18); g.font = F7(15); }
             g.textAlign = 'center'; g.fillStyle = '#FFD166'; g.font = F8(compact ? 13 : 14); y = wrapText(g, verdict(), W / 2, y + 4, cw - 40, compact ? 17 : 20);
             g.fillStyle = '#AEB6C6'; g.font = F6(12.5); wrapText(g, '📓 수첩에 🔎 보고서 단서와 📖 증상 도감이 함께 적혀요', W / 2, Math.min(y + 4, cy + chh - 16), cw - 40, 16); }
@@ -325,7 +326,7 @@
       down: p => {
         if (ph === 'look') { if (!p) { ph = 'end'; t = 0; return; }
           let best = null, bd = 1e9; D.forEach(d => { const dx = cx + d.x * R - p[0], dy = cy + d.y * R - p[1], dd = Math.hypot(dx, dy); if (dd < bd) { bd = dd; best = d; } });
-          if (best && bd < R * (m.W < 500 ? 0.17 : 0.14)) { if (best.still) { if (!best.tag) { best.tag = 1; found++; SND('gem'); buzz(20); if (found >= k) { ph = 'end'; t = 0; } } } else { best.wrong = 0.8; wrong++; SND('bump'); } } }
+          if (best && bd < Math.max(22, R * (m.W < 500 ? 0.17 : 0.14))) { if (best.still) { if (!best.tag) { best.tag = 1; found++; SND('gem'); buzz(20); if (found >= k) { ph = 'end'; t = 0; } } } else { best.wrong = 0.8; wrong++; SND('bump'); } } }
         else if (ph === 'end' && t > 0.4) { finish(); this.closeDialog(); }
       },
       onClose: () => { if (ph === 'end') finish(); },
@@ -343,7 +344,7 @@
           if (!d.still) { d.hop -= dt; if (d.hop <= 0) { const a = d.a - Math.PI / 2 + (Math.random() - 0.5) * 1.6; d.vx += Math.cos(a) * 0.22; d.vy += Math.sin(a) * 0.22; d.hop = 0.35 + Math.random() * 0.5; d.ant = 0.25; d.a += (Math.random() - 0.5) * 0.9; }
             d.vy += 0.05 * dt; d.vx *= Math.pow(0.08, dt); d.vy *= Math.pow(0.08, dt); d.x += d.vx * dt; d.y += d.vy * dt; const rd = Math.hypot(d.x, d.y); if (rd > 0.8) { d.x *= 0.8 / rd; d.y *= 0.8 / rd; d.vx *= -0.5; d.vy *= -0.5; } d.ant = Math.max(0, d.ant - dt); }
           else { d.y = Math.min(0.78 - Math.abs(d.x) * 0.2, d.y + 0.004 * dt); }
-          const X = cx + d.x * R, Y = cy + d.y * R, L = R * (W < 500 ? 0.13 : 0.11) * d.s; g.save(); g.translate(X, Y); g.rotate(d.still ? d.a * 0.3 + 1.2 : Math.sin(now * 2 + d.hop) * 0.15 + d.a * 0.1);
+          const X = cx + d.x * R, Y = cy + d.y * R, L = Math.max(14, R * (W < 500 ? 0.13 : 0.11)) * d.s; g.save(); g.translate(X, Y); g.rotate(d.still ? d.a * 0.3 + 1.2 : Math.sin(now * 2 + d.hop) * 0.15 + d.a * 0.1);
           g.fillStyle = d.still ? 'rgba(150,120,70,.62)' : 'rgba(170,140,80,.42)'; g.strokeStyle = d.still ? 'rgba(90,70,40,.85)' : 'rgba(110,90,50,.75)'; g.lineWidth = 1.4;
           g.beginPath(); g.ellipse(0, 0, L * 0.42, L * 0.55, 0, 0, 7); g.fill(); g.stroke();   // 몸(투명한 껍데기)
           g.beginPath(); g.moveTo(-L * 0.1, L * 0.5); g.lineTo(L * 0.05, L * 0.85); g.stroke();   // 꼬리 가시
@@ -361,11 +362,11 @@
         g.strokeStyle = '#2A2F38'; g.lineWidth = 6; g.beginPath(); g.arc(cx, cy, R + 3, 0, 7); g.stroke();
         // 남은 시간 · 결과
         if (ph === 'look') { const f = 1 - t / LIM; g.strokeStyle = f > 0.3 ? '#FFD166' : '#FF7A59'; g.lineWidth = 5; g.beginPath(); g.arc(cx, cy, R + 12, -Math.PI / 2, -Math.PI / 2 + f * Math.PI * 2); g.stroke(); }
-        else { const pct = Math.round(k / N * 100), cw = Math.min(W * 0.84, 420), ch = 150; card(g, (W - cw) / 2, H2 - ch - 12, cw, ch, Math.min(1, t * 4));
-          txt(g, '움직이지 않는 물벼룩 ' + k + ' / ' + N + ' (' + pct + '%)', W / 2, H2 - ch + 22, F9(18), '#FFF6DA');
+        else { const pct = Math.round(k / N * 100), cw = Math.min(W * 0.84, 420), ch = H2 < 300 ? 112 : 150; card(g, (W - cw) / 2, H2 - ch - 12, cw, ch, Math.min(1, t * 4));
+          const h1 = '움직이지 않는 물벼룩 ' + k + ' / ' + N + ' (' + pct + '%)'; txt(g, h1, W / 2, H2 - ch + 22, fitF(g, h1, F9, 18, cw - 24), '#FFF6DA');
           txt(g, pct >= 50 ? '독성 높음 — 오염된 물이에요' : pct >= 20 ? '독성 있음 — 오염된 물이에요' : pct >= 10 ? '애매해요 — 조금 둔한 물벼룩이 있어요' : '깨끗해요 — 물벼룩이 모두 활발해요', W / 2, H2 - ch + 48, F8(16), pct >= 50 ? '#FF9A8A' : pct >= 20 ? '#FFD166' : pct >= 10 ? '#F1D38A' : '#7DF58F');
           txt(g, '내가 찾은 것 ' + found + ' / ' + k + (wrong ? ' · 잘못 누름 ' + wrong : '') + (k && found === k && !wrong ? ' · 완벽한 관찰! ⭐' : ''), W / 2, H2 - ch + 74, F6(13), '#AEB6C6');
-          g.font = F6(13); wrapText(g, '위·아래 시료를 더 시험하면 수첩에 🗺 독성 지도가 그려져요 (빨간 점선 = 놓친 물벼룩)', W / 2, H2 - ch + 98, cw - 36, 17); g.globalAlpha = 1; }
+          if (ch > 120) { g.font = F6(13); wrapText(g, '위·아래 시료를 더 시험하면 수첩에 🗺 독성 지도가 그려져요 (빨간 점선 = 놓친 물벼룩)', W / 2, H2 - ch + 98, cw - 36, 17); } g.globalAlpha = 1; }
         m.sub('시료 · ' + where); m.cnt(ph === 'look' ? '⏱ ' + Math.ceil(LIM - t) + '초 · 찾음 ' + found : '끝');
         m.tip(ph === 'look' ? '가만히 있는 물벼룩을 눌러요 (살아 있는 물벼룩은 더듬이를 저으며 폴짝 움직여요)' : '결과를 수첩에 적으면 증거로 쓸 수 있어요');
         m.act(ph === 'look' ? '다 찾았어요' : '📓 수첩에 적기');
@@ -388,11 +389,12 @@
     const endTry = r => { res = r; tries.push(r); ph = 'result'; t = 0; SND(r.ok ? 'gem' : 'bump'); };
     const fbTxt = r => { const f = (e, n) => e > 0.15 ? n + ' ' + e.toFixed(1) + '초 늦게' : e < -0.15 ? n + ' ' + (-e).toFixed(1) + '초 일찍' : n + ' 정확'; return f(r.ea, '시작') + ' · ' + f(r.eb, '멈춤'); };
     const finish = () => {
-      if (done) return; done = true; if (!tries.length) return; this.spend(0.17); const M = this.miniState(), b = best();
-      if (b) M.speeds[rid] = { kmh: +b.toFixed(2), at: this.nowH };
+      if (done) return; done = true; if (!tries.length) return; this.spend(0.17); const M = this.miniState(), b = best(), okT = tries.filter(r => r.ok), fm = okT.length ? Math.max(...okT.map(r => r.f)) : 0;
+      if (b && fm > 0.68) M.speeds[rid] = { kmh: +b.toFixed(2), at: this.nowH };   // 물살 가운데에서 정확히 잰 값만 (강가 값은 수첩에만)
+      const err = okT.length ? okT.reduce((a, r) => a + Math.abs(r.ea) + Math.abs(r.eb), 0) / (okT.length * 2) : 9; this._mgStars = okT.length >= 2 && fm > 0.68 && err < 0.2 ? 3 : okT.length ? 2 : 1;   // 별: 정확히 · 가운데서 · 두 번 이상
       const li = tries.map((r, i) => '<tr><th>' + (i + 1) + '번</th><td>' + lname(r.f) + '</td><td>' + (r.ok ? r.tm.toFixed(1) + '초' : '—') + '</td><td>' + (r.ok ? '<b>' + r.kmh.toFixed(1) + ' km/h</b>' : r.why) + '</td></tr>').join('');
       this.addEvidence({ title: '🛶 흐름 속도 · ' + where + (b ? ' · ' + b.toFixed(1) + 'km/h' : ''), key: false,
-        html: '<table><tr><th></th><th>띄운 자리</th><th>2 m 걸린 시간</th><th>흐름 속도</th></tr>' + li + '</table>' + (b ? '<p>대표 흐름 속도: <b>' + b.toFixed(1) + ' km/h</b> (물살 가운데에서 잰 값 — 강가는 물이 느려요)</p>' : '<p>제대로 잰 값이 없어요 — 다시 재 보세요.</p>') +
+        html: '<table><tr><th></th><th>띄운 자리</th><th>2 m 걸린 시간</th><th>흐름 속도</th></tr>' + li + '</table>' + (b ? '<p>대표 흐름 속도: <b>' + b.toFixed(1) + ' km/h</b>' + (fm > 0.68 ? ' (물살 가운데에서 잰 값 — 강가는 물이 느려요)</p>' : ' — ⚠ 강가 쪽에서 잰 값이라 실제 흐름보다 느려요. 계산에는 쓰지 않아요 (물살 가운데를 다시 재 보세요)</p>') : '<p>제대로 잰 값이 없어요 — 다시 재 보세요.</p>') +
           '<p class="dim">속도 = 거리 ÷ 시간 → 2 m ÷ (걸린 초) = m/s → × 3.6 = km/h. 오염물은 강물과 함께 이 속도로 떠내려가요.</p>' + hintBox(b ? [['④', '배출 시각 = (오염이 도착한 시각) − (배출구에서 도착한 곳까지 거리 km) ÷ <b>' + b.toFixed(1) + ' km/h</b> → ⏪ 시간 되감기로 바로 계산해 볼 수 있어요']] : []) });
       this.toast('🛶 흐름 속도를 수첩에 적었어요');
     };
@@ -400,9 +402,9 @@
       down: () => {
         if (ph === 'aim') { charging = true; t = 0; }
         else if (ph === 'drift') { if (bt.a == null) { bt.a = bt.tt; SND('hitmark'); buzz(20); }
-          else if (bt.b == null && bt.tt - bt.a > 0.25) { bt.b = bt.tt; const tm = bt.b - bt.a, ca = bt.ca != null ? bt.ca : bt.tt + (0 - bt.x) / bt.v, cb = bt.cb != null ? bt.cb : bt.tt + (DIST - bt.x) / bt.v; endTry({ ok: true, f: bt.f, tm, kmh: DIST / tm * 3.6, ea: bt.a - ca, eb: bt.b - cb }); buzz(30); } }
-        else if (ph === 'result') { if (tries.length < N) { ph = 'aim'; t = 0; pow = 0; bt = null; } else { ph = 'summary'; t = 0; } }
-        else if (ph === 'summary') { const ok = !!best(); finish(); this.closeDialog(); if (ok) this.afterFlow(); }
+          else if (bt.b == null && bt.tt - bt.a > 0.25) { bt.b = bt.tt; const tm = bt.b - bt.a, ca = bt.ca != null ? bt.ca : bt.tt + (0 - bt.x) / bt.v, cb = bt.cb != null ? bt.cb : bt.tt + (DIST - bt.x) / bt.v; const ea = bt.a - ca, eb = bt.b - cb, good = Math.abs(ea) <= 0.4 && Math.abs(eb) <= 0.4; endTry({ ok: good, f: bt.f, tm, kmh: DIST / tm * 3.6, ea, eb, why: good ? '' : '누른 때가 어긋났어요 (' + fbTxt({ ea, eb }) + ')' }); buzz(30); } }
+        else if (ph === 'result') { if (tries.length < N) { ph = 'aim'; t = 0; pow = 0; bt = null; } else { ph = 'summary'; t = 0; m.sumAt = performance.now(); } }
+        else if (ph === 'summary') { if (performance.now() - (m.sumAt || 0) < 280) return; const ok = !!best(); finish(); this.closeDialog(); if (ok) this.afterFlow(); }
       },
       up: () => { if (ph === 'aim' && charging) { charging = false; const f = 0.06 + 0.92 * pow; bt = { f, x: -RUN, v: vT * lk(f) * (0.97 + Math.random() * 0.06), tt: 0, a: null, b: null, ca: null, cb: null, wob: Math.random() * 6 }; ph = 'drift'; t = 0; SND('jump'); } },
       onClose: () => finish(),
@@ -436,7 +438,7 @@
           else { let y = cy + (compact ? 26 : 34); txt(g, '흐름 속도 결과 · ' + R.name, W / 2, y, F9(compact ? 16 : 19), '#FFF6DA'); y += lh + 4; g.textAlign = 'left'; g.font = F7(compact ? 13 : 14.5);
             tries.forEach((r, i) => { g.fillStyle = r.ok ? '#C9F7D3' : '#C9D0DD'; g.fillText((i + 1) + '번 · ' + lname(r.f) + ' · ' + (r.ok ? r.tm.toFixed(1) + '초 → ' + r.kmh.toFixed(1) + ' km/h' : r.why), cx + 24, y); y += lh; });
             const b = best(); g.textAlign = 'center'; y += 4; txt(g, b ? '대표 흐름 속도 ≈ ' + b.toFixed(1) + ' km/h' : '제대로 잰 값이 없어요', W / 2, y, F9(compact ? 16 : 18), b ? '#FFD166' : '#FF9A8A'); y += lh;
-            g.font = F6(12.5); g.fillStyle = '#AEB6C6'; wrapText(g, b ? '물살 가운데 값을 썼어요 · 수첩에 적은 뒤 ⏪ 시간 되감기로 배출 시각을 계산해 봐요' : '다시 해 보세요', W / 2, y, cw - 36, 16); }
+            g.font = F6(12.5); g.fillStyle = '#AEB6C6'; wrapText(g, b ? (tries.some(r => r.ok && r.f > 0.68) ? '물살 가운데 값을 썼어요 · 수첩에 적은 뒤 ⏪ 시간 되감기로 배출 시각을 계산해 봐요' : '⚠ 강가 쪽 값은 느려서 계산에 쓰지 않아요 — 더 멀리(물살 가운데) 띄워 다시 재 봐요') : '다시 해 보세요', W / 2, y, cw - 36, 16); }
           g.globalAlpha = 1; }
         m.sub(R.name + ' · 오른쪽으로 흘러요'); m.cnt('재기 ' + Math.min(N, tries.length + (ph === 'result' || ph === 'summary' ? 0 : 1)) + ' / ' + N);
         m.tip(ph === 'aim' ? (charging ? '떼면 띄워요 — 멀리 띄울수록 물살 가운데(빠른 곳)' : '누르고 있으면 힘이 모여요 · 떼면 종이배를 띄워요') : ph === 'drift' ? (bt.a == null ? '배가 A선을 지나는 순간 누르세요 (⏱ 시작)' : '배가 B선을 지나는 순간 누르세요 (⏱ 멈춤)') : ph === 'result' ? (tries.length < N ? '누르면 다시 재요' : '누르면 결과를 봐요') : '수첩에 적으면 ⏪ 시간 되감기에 쓸 수 있어요');
@@ -479,7 +481,7 @@
     const tTxt = (dh) => rng ? spanTxt(ha - dh, hb - dh) : H(A.h - dh), sTxt = r => r.sa === r.sb ? UC_SLOTS[r.sa] : r.sb === r.sa + 1 ? UC_SLOTS[r.sa] + ' 또는 ' + UC_SLOTS[r.sb].replace(/^(어젯밤|새벽|아침) /, '') : UC_SLOTS[r.sa] + ' ~ ' + UC_SLOTS[r.sb];
     const s0 = ucSlot(C.t0), covers = r => r.sa <= s0 && s0 <= r.sb;
     const finish = () => {
-      if (done) return; done = true; if (!tries.length) return; this.spend(0.08); const key = tries.some(r => r.id === C.point && covers(r));
+      if (done) return; done = true; if (!tries.length) return; this.spend(0.08); const key = tries.some(r => r.id === C.point && covers(r)); this._mgStars = key ? (tries.length <= 3 ? 3 : 2) : 1;
       const li = tries.map(r => '<li><b>▼' + r.id + '</b> ' + r.name + ' — 거리 ' + r.km.toFixed(1) + 'km ÷ ' + sp.v.toFixed(1) + 'km/h = ' + r.dh.toFixed(1) + '시간 전 → <b>' + tTxt(r.dh) + '</b> (④ ' + sTxt(r) + ')' + (hb - r.dh < 18 ? ' <span class="no">어제 낮 — 밤사이 사건과 안 맞아요</span>' : ha - r.dh > 32 ? ' <span class="no">아침 8시가 넘음 — 밤사이 사건과 안 맞아요</span>' : '') + '</li>').join('');
       this.addEvidence({ title: '⏪ 시간 되감기 · ' + A.label.replace(/^\S+ /, ''), key, html: '<p>도착 기록: ' + A.label + ' — ' + A.when + '<br>흐름 속도: ' + sp.v.toFixed(1) + ' km/h (' + sp.src + ')</p><ul class="mg-list">' + li + '</ul>' +
         hintBox([['④', '어느 배출구에서 떠났느냐에 따라 시각이 달라져요 — 위 시각 중 🗂 서류에서 <b>그 배출구의 기록이 빈 시각</b>과 맞는 것이 배출 시각이에요'], ['③', '계산한 시각이 서류(기록이 빈 시각) · 💂 경비원 말 · 🛸 드론 사진과 맞고, 그 바로 아래부터 물이 오염된 배출구가 범인이에요 (다른 곳의 빈 기록은 계측기 고장일 수 있어요)']]) });
@@ -551,23 +553,23 @@
     const items = RG.map((r, i) => { const f = r.p === 'bod' ? ex('bod') + 0.5 * ex('phenol') + 0.3 * ex('oil') : ex(r.p); return Object.assign({}, r, { i, lv: f < 0.03 ? 0 : f < 0.1 ? 1 : f < 0.3 ? 2 : 3, done: false, miss: 0 }); });   // 과망간산칼륨은 다른 유기물에도 반응
     let ph = 'pick', t = 0, cur = null, fb = null, fbT = 0, done = false; const hit = { tubes: [], sw: [] };
     const finish = () => {
-      if (done) return; done = true; const D = items.filter(i => i.done); if (!D.length) return; sm.rtest = true; this.spend(0.25);
+      if (done) return; done = true; const D = items.filter(i => i.done); if (!D.length) return; const all = D.length === items.length; if (all) sm.rtest = true; this.spend(0.25);   // 다 하지 않고 그만두면 그 시료로 다시 할 수 있음
       const Qc = UC_POL[C.pol], pt = ucPoint(C.point), cul = items.find(i => i.p === C.pol), top = D.slice().sort((a, b) => b.lv - a.lv || (a.p === 'bod') - (b.p === 'bod'))[0], strong = D.filter(i => i.lv >= 2);
       let key = false; if (Qc.path === 'water' && pt && pt.kind === 'water' && cul && cul.done) { const d = ucDownstream(pt.river, pt.s, sm.river, sm.s); if (d >= 0 && d < 140 && cul.lv >= 2) key = true; if (sm.river === pt.river && sm.s < pt.s && pt.s - sm.s < 70 && cul.lv <= 1) key = true; }   // 바로 위가 '평소·조금'(기준 안의 평소 배출 정도)이면 깨끗한 쪽
       const rows = D.map(i => '<tr' + (i.lv >= 2 ? ' class="hotrow"' : '') + '><th>' + i.n + '</th><td>' + i.r + '</td><td>' + (i.drops ? '빨간 방울 ' + ['거의 없음', '조금', '많음', '아주 많음'][i.lv] : '<span class="mg-sw" style="background:' + i.c[i.lv] + '"></span>') + '</td><td><b>' + LV[i.lv] + '</b></td></tr>').join('');
       const hints = []; if (top.lv >= 2) { hints.push(['①', '크게 반응한 시약: <b>' + strong.map(i => i.n + '(' + LV[i.lv] + ')').join(' · ') + '</b> → 오염물질 <b>후보</b>예요. 간이 시약은 비슷한 물질에도 반응해요 (과망간산칼륨은 페놀·기름 같은 다른 유기물에도) → 📊 연구원 분석 숫자로 확인하세요']); hints.push(['③', '이 시료를 뜬 곳까지 오염물질이 내려왔어요 → 출발점은 여기보다 위쪽(상류)']); }
       else hints.push(['①', '크게 반응한 시약이 없어요 → 이 자리는 깨끗하거나 오염이 아직 안 닿았어요 (조금 반응은 다른 시설의 평소 배출일 수 있어요)']);
-      const miss = items.reduce((a, i) => a + i.miss, 0); this._mgStars = miss === 0 ? 3 : miss <= 2 ? 2 : 1;   // ⭐ 색을 한 번에 맞힌 만큼
+      const miss = items.reduce((a, i) => a + i.miss, 0); this._mgStars = !all ? 1 : miss === 0 ? 3 : miss <= 2 ? 2 : 1;   // ⭐ 색을 한 번에 맞힌 만큼 (다 해야 별이 많음 — 예전: 하나만 하고 그만둬도 ★★★)
       this.addEvidence({ title: '⚗️ 시약 실험 · ' + where, key, html: '<table><tr><th>찾는 물질</th><th>시약</th><th>색</th><th>양</th></tr>' + rows + '</table><p class="dim">시료를 뜬 시각 ' + H(sm.takenH) + ' · 비교표: 평소 · 조금 · 많이 · 아주 많이 (시약마다 비교표가 달라요)</p>' + hintBox(hints) });
       this.toast('⚗️ 시약 실험 결과를 수첩에 적었어요');
     };
     const pickTube = it => { if (!it || it.done || ph !== 'pick') return; cur = it; ph = 'mix'; t = 0; fb = null; SND('jump'); };
     const choose = k => { if (ph !== 'match' || !cur) return; if (k === cur.lv) { cur.done = true; fb = { ok: true, txt: '✓ ' + cur.n + ' — ' + LV[k] }; SND('gem'); buzz(20); ph = 'pick'; }
       else { cur.miss++; if (cur.miss >= 2) { cur.done = true; fb = { ok: false, txt: '정답은 “' + LV[cur.lv] + '” — 색을 한 번 더 비교해 보세요' }; ph = 'pick'; SND('bump'); } else { fb = { ok: false, txt: k < cur.lv ? '실제로는 더 많아 보여요 — 오른쪽 칸과 비교해 보세요' : '실제로는 더 적어 보여요 — 왼쪽 칸과 비교해 보세요' }; SND('bump'); } }
-      fbT = 2.2; if (ph === 'pick' && items.every(i => i.done)) { ph = 'summary'; t = 0; } };
+      fbT = 2.2; if (ph === 'pick' && items.every(i => i.done)) { ph = 'summary'; t = 0; m.sumAt = performance.now(); } };
     const m = this.mgOpen({ emoji: '⚗️', title: '시약 실험 — ' + where, act: '다음 시약 넣기',
       down: p => {
-        if (ph === 'summary') { finish(); this.closeDialog(); return; }
+        if (ph === 'summary') { if (performance.now() - (m.sumAt || 0) < 280) return; finish(); this.closeDialog(); return; }
         if (p) { const tb = hit.tubes.find(q => Math.abs(q.x - p[0]) < q.w && p[1] > q.y0 - 10 && p[1] < q.y1 + 30); if (tb && ph === 'pick') { pickTube(items[tb.i]); return; } const sw = hit.sw.find(q => Math.abs(q.x - p[0]) < q.w / 2 + 6 && Math.abs(q.y - p[1]) < q.h / 2 + 10); if (sw) choose(sw.k); return; }
         if (ph === 'pick') pickTube(items.find(i => !i.done));
       },
@@ -598,7 +600,7 @@
           for (let k = 0; k < 4; k++) { const x = x0 + k * (sw + gap) + sw / 2; hit.sw.push({ k, x, y: sy, w: sw, h: shh }); g.fillStyle = cur.c[k]; rr(g, x - sw / 2, sy - shh / 2, sw, shh, 10); g.fill(); g.strokeStyle = 'rgba(40,50,60,.5)'; g.lineWidth = 1.5; g.stroke();
             if (cur.drops) drawDrops(g, x, sy - shh / 2 + 6, sw * 0.9, cur.drops[k], 9 + k); txt(g, LV[k], x, sy + shh / 2 + 14, F8(12), '#1B2230'); } }
         else if (ph === 'pick') { g.font = F7(compact ? 12.5 : 14); g.fillStyle = '#34404F'; g.textAlign = 'center'; wrapText(g, '시험관을 눌러 시약을 넣어요 — 색이 변하면 비교표에서 같은 색을 골라요', W / 2, H2 * (compact ? 0.8 : 0.76), W - 40, 18); }
-        if (fbT > 0 && fb) { g.globalAlpha = clamp(fbT * 2, 0, 1); rr(g, W / 2 - 170, H2 * (compact ? 0.64 : 0.6) + 4, 340, 26, 10); g.fillStyle = fb.ok ? 'rgba(31,191,106,.92)' : 'rgba(230,57,70,.9)'; g.fill(); txt(g, fb.txt, W / 2, H2 * (compact ? 0.64 : 0.6) + 22, F8(13), '#fff'); g.globalAlpha = 1; }
+        if (fbT > 0 && fb) { g.globalAlpha = clamp(fbT * 2, 0, 1); const bw = Math.min(W - 16, 340); rr(g, W / 2 - bw / 2, H2 * (compact ? 0.64 : 0.6) + 4, bw, 26, 10); g.fillStyle = fb.ok ? 'rgba(31,191,106,.92)' : 'rgba(230,57,70,.9)'; g.fill(); txt(g, fb.txt, W / 2, H2 * (compact ? 0.64 : 0.6) + 22, fitF(g, fb.txt, F8, 13, bw - 16), '#fff'); g.globalAlpha = 1; }
         // 요약
         if (ph === 'summary') { const cw = Math.min(W * 0.9, 460), chh = Math.min(H2 * 0.92, 290), cx = (W - cw) / 2, cy = (H2 - chh) / 2, lh = compact ? 19 : 24; card(g, cx, cy, cw, chh, Math.min(1, t * 5)); let y = cy + (compact ? 24 : 32);
           txt(g, '시약 실험 결과', W / 2, y, F9(compact ? 16 : 19), '#FFF6DA'); y += lh + 2; g.textAlign = 'left'; g.font = F7(compact ? 13 : 14.5);
@@ -616,22 +618,22 @@
     const items = DT.map((d, i) => { const v = pk(d.p) + (d.p === 'benzene' ? 0.15 * xs('toluene') : d.p === 'toluene' ? 0.4 * xs('benzene') : 0); return Object.assign({}, d, { i, v, fr: clamp(v / d.max, 0.02, 1), grow: 0, read: null, miss: 0, done: false }); });   // 벤젠관은 톨루엔에도, 톨루엔관은 벤젠에도 조금 반응
     let ph = 'pump', idx = 0, t = 0, fb = null, fbT = 0, done = false; const geo = [];
     const finish = () => {
-      if (done) return; done = true; const D = items.filter(i => i.done); if (!D.length) return; sm.rtest = true; this.spend(0.25);
+      if (done) return; done = true; const D = items.filter(i => i.done); if (!D.length) return; const all = D.length === items.length; if (all) sm.rtest = true; this.spend(0.25);   // 다 하지 않고 그만두면 그 시료로 다시 할 수 있음
       const Qc = UC_POL[C.pol], cul = items.find(i => i.p === C.pol), key = Qc.path === 'air' && !!cul && cul.done && cul.v > Qc.base * 5;
       const rat = i => i.v / UC_POL[i.p].base, top = D.slice().sort((a, b) => rat(b) - rat(a))[0];
       const rows = D.map(i => '<tr' + (rat(i) >= 5 ? ' class="hotrow"' : '') + '><th>' + i.n + '</th><td><b>' + (i.read != null ? i.read : Math.round(i.v)) + ' ppb</b></td><td class="dim">평소 ' + UC_POL[i.p].base + ' ppb · 약 ' + Math.max(1, Math.round(rat(i))) + '배</td></tr>').join('');
       const hi = D.filter(i => rat(i) >= 5).sort((a, b) => rat(b) - rat(a));
       const hints = rat(top) >= 5 ? [['①', '평소보다 크게 높은 관: <b>' + hi.map(i => i.n + ' ' + Math.round(rat(i)) + '배').join(' · ') + '</b> → 오염물질 <b>후보</b>예요. 검지관은 비슷한 물질에도 조금 반응해요 (벤젠관 ↔ 톨루엔관) → 📊 연구원 분석으로 확인하고, 냄새도 맞는지 보세요 (' + hi.map(i => i.n + ': ' + UC_POL[i.p].smell).join(' · ') + ')'], ['②', '그 물질을 허가받은 시설은 여럿이에요 — 🗂 서류(허가 물질)와 🧭 바람길로 좁혀요']] : [['①', '크게 높은 물질이 없어요 — 냄새가 심했던 다른 센서의 공기 시료도 확인해 보세요']];
-      const miss = items.reduce((a, i) => a + i.miss, 0); this._mgStars = miss === 0 ? 3 : miss <= 2 ? 2 : 1;   // ⭐ 눈금을 한 번에 읽은 만큼
+      const miss = items.reduce((a, i) => a + i.miss, 0); this._mgStars = !all ? 1 : miss === 0 ? 3 : miss <= 2 ? 2 : 1;   // ⭐ 눈금을 한 번에 읽은 만큼 (다 해야 별이 많음)
       this.addEvidence({ title: '⚗️ 검지관 · ' + where, key, html: '<table><tr><th>물질</th><th>읽은 눈금</th><th></th></tr>' + rows + '</table><p class="dim">센서가 밤사이 냄새가 가장 심했을 때 자동으로 채집해 둔 공기예요.</p>' + hintBox(hints) });
       this.toast('⚗️ 검지관 결과를 수첩에 적었어요');
     };
     const readAt = x => { const q = geo[idx]; if (!q || ph !== 'read') return; const it = items[idx], val = clamp((x - q.x0) / (q.x1 - q.x0), 0, 1) * it.max, ok = Math.abs(val - it.v) <= it.max * 0.07;
       if (ok) { it.read = Math.round(it.v); it.done = true; fb = { ok: true, txt: '✓ ' + it.n + ' 약 ' + it.read + ' ppb' }; SND('gem'); }
       else { it.miss++; if (it.miss >= 2) { it.read = Math.round(it.v); it.done = true; fb = { ok: false, txt: '번진 끝은 약 ' + it.read + ' ppb 눈금이에요' }; SND('bump'); } else { fb = { ok: false, txt: val < it.v ? '색이 번진 끝은 더 오른쪽이에요' : '색이 번진 끝은 더 왼쪽이에요' }; SND('bump'); } }
-      fbT = 2.2; if (it.done) { if (idx < items.length - 1) { idx++; ph = 'pump'; } else { ph = 'summary'; t = 0; } } };
+      fbT = 2.2; if (it.done) { if (idx < items.length - 1) { idx++; ph = 'pump'; } else { ph = 'summary'; t = 0; m.sumAt = performance.now(); } } };
     const m = this.mgOpen({ emoji: '⚗️', title: '검지관 — ' + where, act: '펌프 당기기 (누르고 있기)',
-      down: p => { if (ph === 'summary') { finish(); this.closeDialog(); return; } if (ph === 'read' && p) readAt(p[0]); },
+      down: p => { if (ph === 'summary') { if (performance.now() - (m.sumAt || 0) < 280) return; finish(); this.closeDialog(); return; } if (ph === 'read' && p) readAt(p[0]); },
       onClose: () => finish(),
       state: () => ({ ph, idx, geo: geo.map(q => [q.x0, q.x1, q.y]), items: items.map(i => ({ v: i.v, max: i.max, grow: i.grow, done: i.done })) }),   // 검사용
       frame: (dt, now, g, W, H2) => {
@@ -724,6 +726,7 @@
     const toW = (P2, px, py) => [bx0 + (px - P2.x - P2.ox) / P2.s, bz0 + (py - P2.y - P2.oz) / P2.s], toS = (P2, x, zz) => [P2.x + P2.ox + (x - bx0) * P2.s, P2.y + P2.oz + (zz - bz0) * P2.s];
     const finish = () => {
       if (done) return; done = true; if (ph !== 'end') return; this.spend(0.17);
+      { const fnd = diffs.filter(d => d.found).length; this._mgStars = fnd === diffs.length && wrongN <= 1 ? 3 : fnd >= Math.ceil(diffs.length / 2) ? 2 : 1; }
       const li = diffs.map(d => '<li>' + (d.found ? '✓ ' : '👀 (알려 줌) ') + d.label + '</li>').join(''), hot = diffs.filter(d => d.kind === 'hot'), wt = hot.length && hot[0].water ? '물' : '연기';
       const hints = hot.length ? [['②', '평소엔 없던 ' + (wt === '물' ? '뜨거운 물' : '진한 연기') + ': <b>' + hot.map(d => d.loc).join(' / ') + '</b> → 몰래 배출일 수도, 계측기가 고장 난 사이 흘려보낸 깨끗한 ' + (wt === '물' ? '물' : '수증기') + '일 수도 있어요. ' + (wt === '물' ? '그 아래 물 시료로 오염됐는지 확인하세요' : '냄새 센서가 그 시각에 반응했는지 확인하세요')],
           ['③', '위치를 🗂 시설 서류의 ' + ucJ(wt === '물' ? '배출구 위치(km)' : '굴뚝 위치', '과', '와') + ' 맞춰 보세요 — 어느 ' + (wt === '물' ? '배출구' : '굴뚝') + '인지는 사진에 안 나와요'], ['④', '<b>' + H(hr) + '</b>에 나오고 있었어요 → 언제 시작했는지는 앞뒤 시각 사진이나 ' + ucJ(wt === '물' ? '⏪ 되감기' : '센서가 처음 반응한 시각', '으로') + ' 좁혀요']]
@@ -846,8 +849,9 @@
         // 옆 칸(가로 화면) 또는 아래 줄: 냄새 센서 목록 · 결과
         const lines = smell.map(x => (rays.some(r => r.st === x.st) ? '✓ ' : '👃 ') + x.st.name.split(' ')[0] + ' ' + (x.h % 24) + '시 · 바람 ' + ARW(x.w.dir)), res = cd.length ? '선이 모이는 곳 근처 굴뚝: ' + cd.map(k => short(UC_FAC[k])).join(' · ') + ' — 허가 물질 · 서류 시각으로 가려요' : '';
         if (side) { const px = W - panW - 4; g.fillStyle = 'rgba(22,28,40,.92)'; rr(g, px, 6, panW, H2 - 12, 12); g.fill(); let y = 28; txt(g, '👃 냄새 난 센서', px + 12, y, F8(13), '#FFE7A8', 'left'); y += 22; g.font = F7(12.5); g.textAlign = 'left';
-          lines.forEach(l => { g.fillStyle = l[0] === '✓' ? '#9FE3B0' : '#EEF1F7'; g.fillText(l, px + 12, y); y += 19; }); y += 8; g.fillStyle = '#AEB6C6'; g.font = F6(12); y = wrapText(g, '① 센서를 눌러요 ② 파란 화살표(바람이 불어 간 쪽)의 반대쪽으로 끌어 선을 그어요 ③ 두 곳 이상 그으면 선이 모이는 굴뚝이 보여요', px + 12, y, panW - 24, 16);
-          if (res) { g.fillStyle = '#FFB3BA'; g.font = F8(13); wrapText(g, res, px + 12, y + 8, panW - 24, 18); } }
+          lines.forEach(l => { g.fillStyle = l[0] === '✓' ? '#9FE3B0' : '#EEF1F7'; g.fillText(l, px + 12, y); y += 19; }); y += 8;
+          if (res) { g.fillStyle = '#FFB3BA'; g.font = F8(13); wrapText(g, res, px + 12, y, panW - 24, 18); }   // 결과가 나오면 설명 대신 결과 (낮은 화면에서 결과가 칸 밖으로 잘리던 것)
+          else { g.fillStyle = '#AEB6C6'; g.font = F6(12); wrapText(g, '① 센서를 눌러요 ② 파란 화살표(바람이 불어 간 쪽)의 반대쪽으로 끌어 선을 그어요 ③ 두 곳 이상 그으면 선이 모이는 굴뚝이 보여요', px + 12, y, panW - 24, 16); } }
         else { g.fillStyle = 'rgba(22,28,40,.92)'; rr(g, 6, H2 - 56, W - 12, 50, 10); g.fill(); g.font = F7(12); g.textAlign = 'left'; g.fillStyle = res ? '#FFB3BA' : '#EEF1F7'; wrapText(g, res || lines.join('  '), 14, H2 - 36, W - 28, 16); }
         if (fbT > 0 && fb) { g.globalAlpha = clamp(fbT * 2, 0, 1); const fw = Math.min(mw - 12, 420); g.font = F8(12.5); const two = g.measureText(fb.s).width > fw - 16, fh = two ? 44 : 28; rr(g, 6 + mw / 2 - fw / 2, 10, fw, fh, 10); g.fillStyle = fb.ok ? 'rgba(31,120,80,.95)' : 'rgba(180,40,55,.95)'; g.fill(); g.fillStyle = '#fff'; g.textAlign = 'center'; wrapText(g, fb.s, 6 + mw / 2, 29, fw - 16, 16); g.globalAlpha = 1; }
         m.sub('냄새 센서 ' + smell.length + '곳 · 기록 본 센서만 보여요'); m.cnt('선 ' + rays.length + '개');

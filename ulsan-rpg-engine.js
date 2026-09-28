@@ -5,6 +5,7 @@
 class UlsanRpgGame {
   constructor(canvas, opts) {
     this.opts = opts || {}; this.glCanvas = canvas; this.host = canvas.parentElement; this.isTouch = (window.matchMedia && matchMedia('(pointer: coarse)').matches) || 'ontouchstart' in window;
+    this.touch = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches); this.noPace = /[?&]fps=full/.test(location.search);   // 절전 대상: 손가락으로 쓰는 기기(폰·태블릿) · ?fps=full 이면 절전 끔
     this.seed = this.opts.seed || Date.now(); this.set = ucSettings(this.opts.trackId);   // 교사 설정: 난이도 · 사건 수 · 사건당 시간
     this.caseNo = 1; this.caseTotal = this.set.cases; this.results = []; this.draft = {};
     this.startReal = Date.now() + Math.max(0, this.opts.countdown || 0) * 1000; this.caseStartReal = this.startReal; this.warned = {};
@@ -33,7 +34,7 @@ class UlsanRpgGame {
     if (!this.opts.seed || this._noSave) return; this._savedAt = this.now || 0; this._dirty = false;
     try { const js = JSON.stringify({ v: 3, caseNo: this.caseNo, results: this.results, startReal: this.startReal, caseStartReal: this.caseStartReal, doneAt: this.doneAt || 0, nowH: this.nowH, samples: this.samples, pending: this.pending,
         evidence: this.evidence, known: this.known, talked: this.talked, visited: this.visited, draft: this.draft, mini: this.mini || null, px: this.px, pz: this.pz, heading: this.heading, warned: this.warned, report: this.report, left: this._leftAtSubmit || 0, finished: !!this.finished, dest: this.dest, seenEv: this.seenEv, fun: this.fun || null });
-      const [k1, k2] = this.saveKeys; try { sessionStorage.setItem(k1, js); } catch (e) {}
+      const [k1, k2] = this.saveKeys; try { sessionStorage.setItem(k1, js); if (!this._ssPruned) { this._ssPruned = true; for (let i = sessionStorage.length - 1; i >= 0; i--) { const k = sessionStorage.key(i); if (k && k.indexOf('ulsan:') === 0 && k.indexOf('ulsan:' + this.seed + ':') !== 0) sessionStorage.removeItem(k); } } } catch (e) {}   // 지난 판 기록은 지움 (탭을 오래 열어 두면 쌓여 저장이 막히던 것)
       if (this.opts.myName) try { localStorage.setItem(k2, js); for (let i = localStorage.length - 1; i >= 0; i--) { const k = localStorage.key(i); if (k && k.indexOf('ulsan:') === 0 && k.indexOf('ulsan:' + this.seed + ':') !== 0) localStorage.removeItem(k); } } catch (e) {}   // 지난 판 기록은 지움
     } catch (e) {}
   }
@@ -60,9 +61,11 @@ class UlsanRpgGame {
   // ── 플랫폼 인터페이스 ──
   setMove(x, y) { this.mx = x; this.my = y; }
   setBoost(on) { if (on) this.interact(); }
-  resize() { const W = this.host.clientWidth || 800, H = this.host.clientHeight || 600; if (!this.renderer || W < 10) return; this.renderer.setSize(W, H, false); if (this.composer) this.composer.setSize(W, H); this.glCanvas.style.width = '100%'; this.glCanvas.style.height = '100%'; this.camera.aspect = W / H; this.camera.updateProjectionMatrix(); this.vw = W; this.vh = H;
+  resize() { const W = this.host.clientWidth || 800, H = this.host.clientHeight || 600; if (!this.renderer || W < 10) return;
+    if (this.touch && !this.noPace && (this.qLevel == null || this.qLevel > 0)) { const pr = Math.min(window.devicePixelRatio || 1, Math.max(1.25, Math.min(1.5, Math.sqrt(0.65e6 / (W * H))))); if (Math.abs(pr - this.renderer.getPixelRatio()) > 0.01) this.renderer.setPixelRatio(pr); }   // 절전: 폰·태블릿은 그릴 점 수를 약 65만 개 안쪽으로 (배율 1.25~1.5 · 예전 1.5 고정 — 태블릿은 약 220만 개)
+    this.renderer.setSize(W, H, false); if (this.composer) this.composer.setSize(W, H); this.glCanvas.style.width = '100%'; this.glCanvas.style.height = '100%'; this.camera.aspect = W / H; this.camera.updateProjectionMatrix(); this.vw = W; this.vh = H;
     if (this.ui.quest) { this.ui.quest.classList.toggle('compact', (H < 540 && W > H) || W < 600); this.ui.quest.classList.toggle('tiny', H < 540 && W > H); this._toastK = null; } }   // tiny(폰 가로): 다음 할 일 한 줄 + 안내 단추는 아이콘만 (조이스틱과 겹치지 않게)   // 낮은 가로 화면 · 폰 세로: 퀘스트 창을 줄여 조이스틱·3D 화면을 덜 가리게
-  destroy() { try { this.renderer.dispose(); this.ui.root.remove(); this.host.classList.remove('urpg-host'); removeEventListener('keydown', this._kd); removeEventListener('keyup', this._ku); removeEventListener('blur', this._blur); document.removeEventListener('visibilitychange', this._blur); } catch (e) {} }
+  destroy() { this._dead = true; try { this.renderer.dispose(); this.ui.root.remove(); this.host.classList.remove('urpg-host'); removeEventListener('keydown', this._kd); removeEventListener('keyup', this._ku); removeEventListener('blur', this._blur); document.removeEventListener('visibilitychange', this._blur); } catch (e) {} }
   captureTo(g, w, h) { this.renderer.render(this.scene, this.camera); g.drawImage(this.glCanvas, 0, 0, w, h); }
   get evidenceCount() { return this.evidence.length - 1; }
   get timeLeft() { return this.caseLeftSec / 3600; }
@@ -85,6 +88,7 @@ class UlsanRpgGame {
     this.hemi = new T.HemisphereLight(0xEAF4FF, 0x6F7F5A, 0.9); this.scene.add(this.hemi);
     this.sun = new T.DirectionalLight(0xFFF1D6, 0.75); this.sun.position.set(-40, 80, 30); this.scene.add(this.sun);
     if (window.ThreeQuality) { const pq = ThreeQuality.pick(this.renderer, this.opts); this.hq = pq.q; this.hqLocked = !!pq.locked; } else this.hq = 'low';
+    if (this.hq !== 'low' && !this.hqLocked && !this.renderer.capabilities.isWebGL2) this.hq = 'low';   // 오래된 기기(WebGL1): 실사풍 셰이더가 안 될 수 있어 가벼운 화면으로 (건물이 사라지던 문제 예방)
   }
   // 지형 높이: 서쪽·북쪽·남서쪽은 산, 동쪽은 바다, 하천은 파임
   // ── 실제 울산 지도 (ulsan-geo.js 격자) ──
@@ -363,16 +367,29 @@ class UlsanRpgGame {
   bindKeys() {
     this._kd = e => { if (e.repeat && (e.code === 'KeyE' || e.code === 'Space' || e.code === 'Enter')) { e.preventDefault(); return; } if (this.ui.modalOpen) { this.modalKey(e); return; } if (this.ov && (e.code === 'Escape' || e.code === 'KeyM')) { if (this.replay) this.stopReplay(); else this.exitOverview(); return; } if (this.ov) { this.keys[e.code] = true; if (e.code === 'Equal' || e.code === 'NumpadAdd') this.ovZoom(0.8); if (e.code === 'Minus' || e.code === 'NumpadSubtract') this.ovZoom(1.25); return; } this.keys[e.code] = true; if (e.code === 'KeyE' || e.code === 'Space') { e.preventDefault(); this.interact(); } if (e.code === 'KeyV') this.cycleCam(); };
     this._ku = e => { this.keys[e.code] = false; if (this.mg && this.mg.key) this.mg.key(e, false); }; addEventListener('keydown', this._kd); addEventListener('keyup', this._ku);
-    this._blur = () => { this.keys = {}; this.mx = 0; this.my = 0; this.save(); }; addEventListener('blur', this._blur); document.addEventListener('visibilitychange', this._blur);   // 손 뗌이 전달되지 않아 계속 걷던 문제
+    this._blur = () => { this.keys = {}; this.mx = 0; this.my = 0; if (this.mg && this.mg.release) try { this.mg.release(); } catch (e) {} this.save(); }; addEventListener('blur', this._blur); document.addEventListener('visibilitychange', this._blur);   // 손 뗌이 전달되지 않아 계속 걷던 문제
   }
   // 창이 열려 있을 때 키보드: 대화는 E·스페이스·엔터로 넘김 · Esc 는 닫기/그만두기
   modalKey(e) {
     if (this.mg) { if (e.code === 'Escape') { e.preventDefault(); this.closeDialog(); return; } if (this.mg.key) this.mg.key(e, true); return; }   // 미니게임: Space·E·Enter 누르기/떼기
     const box = this.ui.dlg, btns = [...box.querySelectorAll('.u-opts button')]; if (!btns.length) return;
     if (box.classList.contains('talk') && (e.code === 'KeyE' || e.code === 'Space' || e.code === 'Enter')) { e.preventDefault(); const bd = box.querySelector('.u-body'); if (bd && !bd.classList.contains('shown') && performance.now() - (this._talkT || 0) < 1000) { bd.classList.add('shown'); return; } btns[0].click(); return; }   // 글이 나타나는 중이면 먼저 다 보이게
-    if (e.code === 'Escape') { const q = btns.find(b => b.classList.contains('ghost') || /^닫기/.test(b.textContent)); if (q) { e.preventDefault(); q.click(); } }
+    if (e.code === 'Escape') { const q = btns.find(b => /^(그만두기|취소|닫기|알겠어요)/.test(b.textContent)) || btns.find(b => b.classList.contains('ghost') && !b.classList.contains('lockbtn')); if (q) { e.preventDefault(); q.click(); } }
+  }
+  // ── 절전 (v2026-10-19d) — 폰이 뜨거워지던 원인: 3D 를 쉬지 않고 초당 60장(120Hz 폰은 120장) 새로 그림 · 창에 가려져도 계속 그림 ──
+  //   폰·태블릿: 움직일 때 초당 30장 · 가만히 있으면 20장 · 창을 열면 12장 · 화면을 다 덮는 창(전체 지도·수첩 등)이면 3D 를 쉼(초당 5번 시계·분석만)
+  //   PC: 그대로 (다 덮는 창일 때만 3D 쉼) · 모습·조작은 같음
+  paceIv(now) {
+    if (this.mg || this.gameOver || this.replay || this.noPace) return 0; const U = this.ui;
+    if (U.modalOpen && this._cover) return 200;
+    if (!this.touch) return 0;
+    if ((now || this.now || 0) - (this._actT || 0) < 700) return 1000 / 30;
+    return U.modalOpen ? 1000 / 12 : 50;
   }
   tick(now) {
+    if (this._dead) return;   // 끝낸 게임(교사가 대기실로 · ← 뒤로)은 더 그리지 않음
+    const iv = this.lastTime ? this.paceIv(now) : 0; if (iv && now - this.lastTime < iv - 4) return;   // 절전: 이번 화면 차례는 건너뜀 (지난 시간은 다음 장에 한꺼번에)
+    this._paceIv = iv; this._drawnAt = now;
     const dt = this.lastTime ? Math.min(0.1, Math.max(0, (now - this.lastTime) / 1000)) : 0.016; this.lastTime = now; this.now = now;   // 느린 기기(초당 10프레임)에서도 같은 속도
     if (this.gameOver) { if (this.replay) { this.replay.objs.forEach(o => this.scene.remove(o)); this.replay = null; this.ui.root.classList.remove('rp-on'); this.ui.rp.classList.add('hidden'); } if (this.ov) this.exitOverview(); this.updateHud(); return this.draw(); }
     let mx = this.mx, my = this.my; if (this.keys.KeyA || this.keys.ArrowLeft) mx -= 1; if (this.keys.KeyD || this.keys.ArrowRight) mx += 1; if (this.keys.KeyW || this.keys.ArrowUp) my -= 1; if (this.keys.KeyS || this.keys.ArrowDown) my += 1;
@@ -405,25 +422,32 @@ class UlsanRpgGame {
       if (left <= 0) this.autoSubmit(); }
     // 카메라: 북쪽이 위 · 비스듬히 내려다봄
     this.stepWater(dt, now); if (this.real) this.realFrame(dt, now);
-    if (this.ov) { if (this.replay) this.stepReplay(dt); this.stepOverview(dt, now); this.stepBeacon(now); if (window.ThreeQuality) ThreeQuality.frame(this, this.px, 0, this.pz, now); this.cullLabels(); this.near = null; this.updateHud(); this.draw(); if (now - (this._savedAt || 0) > 4000) this.save(); return; }
-    const cam = this.camera, F = this.ui.modalOpen && this.focus, tx = F ? F.x : this.px, tz = F ? F.z : this.pz, ty = y;
+    if (this.ov) { this._actT = now; if (this.replay) this.stepReplay(dt); this.stepOverview(dt, now); this.stepBeacon(now); if (window.ThreeQuality) ThreeQuality.frame(this, this.px, 0, this.pz, now); this.cullLabels(); this.near = null; this.updateHud(); this.draw(); if (now - (this._savedAt || 0) > 4000) this.save(); return; }
+    const cam = this.camera, F = this.ui.modalOpen && this.focus, tx = F ? F.x : this.px, tz = F ? F.z : this.pz, ty = y, kf = a => 1 - Math.pow(1 - a, dt * 60);   // kf: 초당 60장 기준 비율 → 장수와 상관없이 같은 빠르기
     this.camK += (this.camKT - this.camK) * Math.min(1, dt * 4); const V = this.camView();   // 시점: 멀리(지도처럼) · 중간 · 가까이(지평선까지)
     this._camT = this._camT || new THREE.Vector3(); this._look = this._look || new THREE.Vector3(tx, ty + 1, tz - 4);
     const cb = F ? 11 : V.back, cy = Math.max(ty + (F ? 9 : V.h), this.groundH(tx, tz + cb) + 1.6);   // 카메라가 언덕 속으로 들어가지 않게
-    cam.position.lerp(this._camT.set(tx, cy, tz + cb), F ? 0.08 : 0.12); this._look.lerp(new THREE.Vector3(tx, ty + (F ? 1.6 : V.ly), tz - (F ? 0 : V.ahead)), F ? 0.1 : 0.3); cam.lookAt(this._look);
+    const c0x = cam.position.x, c0y = cam.position.y, c0z = cam.position.z; this._lookT = this._lookT || new THREE.Vector3();
+    cam.position.lerp(this._camT.set(tx, cy, tz + cb), kf(F ? 0.08 : 0.12)); this._look.lerp(this._lookT.set(tx, ty + (F ? 1.6 : V.ly), tz - (F ? 0 : V.ahead)), kf(F ? 0.1 : 0.3)); cam.lookAt(this._look);
+    if (moving || m > 0.1 || Math.abs(cam.position.x - c0x) + Math.abs(cam.position.y - c0y) + Math.abs(cam.position.z - c0z) > 0.01 || Math.abs(this.camKT - this.camK) > 0.004) this._actT = now;   // 움직이는 중 = 부드럽게(초당 30장)
     this.stepBeacon(now); if (now - (this._dayT || 0) > 500) { this._dayT = now; this.setDayTime(this.nowH); }   // 게임 속 시각에 맞춘 낮·밤
     if ((this._dirty && now - (this._savedAt || 0) > 800) || now - (this._savedAt || 0) > 4000) this.save();   // 진행 저장 (4초마다 · 바뀌면 곧바로)
     if (window.ThreeQuality) ThreeQuality.frame(this, this.px, 0, this.pz - V.ahead * 0.7, now);   // 그림자 범위를 보이는 쪽으로
     this.cullLabels(); this.near = this.nearest(); this.updateHud();
     if (this.near && this.near.kind === 'river' && !this.tipFish && this.startFishing && !this.ui.modalOpen) { this.tipFish = true; this.toast('🎣 강가에서 🔍 조사 → 낚시로 물고기 건강도 볼 수 있어요'); }   // 처음 강가에 왔을 때 한 번
-    if (this.mg) this.mgFrame(now); else this.draw();   // 미니게임 중엔 3D 를 다시 그리지 않음 (가벼움)
+    if (this.mg) this.mgFrame(now); else if (!(this.ui.modalOpen && this._cover)) this.draw();   // 미니게임 중 · 화면을 거의 다 덮는 창(전체 지도·수첩 등)이 열려 있으면 3D 를 다시 그리지 않음 (가벼움)
   }
-  draw() { if (this.composer) this.composer.render(); else this.renderer.render(this.scene, this.camera); }   // 고화질 실사풍: 빛 번짐·색감 후처리
+  draw() {
+    // 절전: 그림자 지도는 움직일 때만 매번 새로 · 가만히 있으면 0.2초에 한 번 (예전: 아무것도 안 움직여도 매 화면 도시 전체를 한 번 더 그렸음)
+    const SM = this.renderer && this.renderer.shadowMap; if (SM && SM.enabled) { const t = this.now || performance.now(); if (SM.autoUpdate) SM.autoUpdate = false;
+      if (!this._shT || this._shDirty || t - (this._actT || 0) < 700 || t - this._shT > 200 || t < this._shT) { SM.needsUpdate = true; this._shT = t; this._shDirty = false; } }
+    if (this.composer) this.composer.render(); else this.renderer.render(this.scene, this.camera); }   // 고화질 실사풍: 빛 번짐·색감 후처리
   // 화면이 버벅이면 플랫폼이 한 단계씩 낮춤 (2 최고 · 1 · 0 최저) — 실사풍: 후처리 → 나무 범위 → 그림자·구름 그림자 순으로 덜어냄
-  setQuality(q) { q = Math.max(0, Math.min(2, q | 0)); const was = this.qLevel; this.qLevel = q; if (!this.real) return;
+  setQuality(q) { q = Math.max(0, Math.min(2, q | 0)); const was = this.qLevel; this.qLevel = q; if (q === 0 && was !== 0 && this.renderer) { this.renderer.setPixelRatio(1); this.resize(); } if (!this.real) return;
     if (q < 2 && this.realPostOff) this.realPostOff(); else if (q >= 2 && this.realPost) this.realPost();
     this._treeK = q >= 2 ? 1 : q === 1 ? 0.78 : 0.55; this._treeC = null; if (this.realU) this.realU.uCloud.value = q === 0 ? 0 : 0.65;
-    if (q === 0 && was !== 0 && this.renderer.shadowMap.enabled) { this.renderer.shadowMap.enabled = false; this.sun.castShadow = false; this.scene.traverse(o => { if (o.material) [].concat(o.material).forEach(m => { m.needsUpdate = true; }); }); this.renderer.setPixelRatio(1); this.resize(); } }
+    if (this.clouds) this.clouds.visible = q > 0;   // 가장 가볍게: 구름 그림자 판도 그리지 않음
+    if (q === 0 && was !== 0 && this.renderer.shadowMap.enabled) { this.renderer.shadowMap.enabled = false; this.sun.castShadow = false; this.scene.traverse(o => { if (o.material) [].concat(o.material).forEach(m => { m.needsUpdate = true; }); }); } }
   // 시점 세 가지 (0 가까이 · 0.5 중간 · 1 멀리) — [높이, 뒤로, 앞쪽 바라보는 거리, 바라보는 높이] 사이를 부드럽게
   camView() { const P = [[5.5, 12, 18, 2.4], [13, 20, 14, 2], [40, 34, 4, 1]], k = Math.max(0, Math.min(2, this.camK * 2)), i = Math.min(1, Math.floor(k)), t = k - i, A = P[i], B = P[i + 1], f = j => A[j] + (B[j] - A[j]) * t;
     return { h: f(0), back: f(1), ahead: f(2), ly: f(3) }; }
@@ -473,7 +497,7 @@ class UlsanRpgGame {
         if (!this.canStand(px, pz) || !this.roomy(px, pz) || (dry && this.meshH(px, pz) < 0.05)) continue; let ok = true; for (let t = 0.3; t < r - 1.2; t += 0.3) { const f = t / r; if (!this.canStand(px + (x - px) * f, pz + (z - pz) * f)) { ok = false; break; } } if (ok) return [px, pz]; }
     return this.nearestLand(x, z) || [x, z];
   }
-  spend(h) { this.nowH = Math.min(this.C.startH + 20, this.nowH + h); }   // 게임 안 시계는 분석 대기용 — 제한은 실제 시간(사건당 N분)
+  spend(h) { this.nowH = Math.max(this.nowH, Math.min(this.C.startH + 20, this.nowH + h)); }   // 게임 안 시계는 분석 대기용 — 제한은 실제 시간(사건당 N분)
   nearest(px, pz) { if (px == null) { px = this.px; pz = this.pz; }
     let best = null, bd = 1e9, fac = null; this.inter.forEach(o => { const d = Math.hypot(o.x - px, o.z - pz); if (d < o.r && o.kind === 'facility' && (!fac || d < fac[1])) fac = [o, d]; if (d < o.r && d < bd) { bd = d; best = o; } });
     if (fac && best && best.kind === 'npc' && /^(guard|mgr)-/.test(best.id)) best = fac[0];   // 정문 앞: 시설 메뉴가 먼저 (경비원·환경팀장 이야기도 그 안에 · v2026-10-19a — 예전엔 🚙로 도착하면 경비원 대화만 떠서 서류를 못 찾았음)
@@ -531,11 +555,14 @@ class UlsanRpgGame {
     if (!this.samples.length) { this.dialog('🔬', '울산보건환경연구원', '들고 온 시료가 없어요.<br>💧 강가에서 <b>물 시료</b>를 뜨거나, 💨 대기센서에서 <b>공기 시료</b>를 받아 오세요.', [['알겠어요', () => this.closeDialog()]]); return; }
     const hrs = h => h < 1 ? Math.round(h * 60) + '분' : (h % 1 ? h.toFixed(1) : h) + '시간', what = s => s.kind === 'edna' ? '물고기 종 수 (환경DNA)' : s.kind === 'air' ? '공기 속 물질 3가지 — 벤젠 · 톨루엔 · 황화수소' : '물속 물질 5가지 — 페놀 · 카드뮴 · 암모니아 · 기름 · 유기물';
     const lock = s => this.needReagent(s.kind), anyLock = this.samples.some(lock), kindTx = s => s.kind === 'air' ? '⚗️ 검지관' : '⚗️ 시약 실험';
-    const body = (anyLock ? '<p class="lock">🔒 분석을 맡기기 전에 <b>⚗️ 시약 실험(미니게임)</b>으로 어떤 물질인지 먼저 짐작해 보세요 — 아래 <b>⚗️ 단추</b> (한 번 하면 그 뒤로는 바로 맡길 수 있어요)</p>' : '') +
-      '<p>맡길 시료를 고르세요. 시료 하나에 20분 · 결과는 <b>' + hrs(this.set.labH) + ' 뒤</b>' + (this.samples.some(s => s.kind === 'edna') ? ' (환경DNA ' + hrs(this.set.ednaH) + ')' : '') + ' 📓 수첩으로 와요. 기다리기 싫으면 위의 <b>⏳ 기다리기</b>를 누르세요.</p>' +
-      this.samples.map((s, i) => '<label class="sample' + (lock(s) ? ' locked' : '') + '"><input type="checkbox" data-i="' + i + '"' + (lock(s) ? ' disabled' : ' checked') + '><span><b>' + s.label + '</b><small>' + (lock(s) ? '🔒 먼저 ' + kindTx(s) : what(s)) + '</small></span></label>').join('');
-    const reag = this.reagentMenu ? [['⚗️ 시약 실험 (15분) — 색으로 어떤 물질인지 빠르게 짐작 (미니게임)' + (anyLock ? ' · 먼저 해요' : ''), () => this.reagentMenu()]] : [], daph = this.daphniaMenu ? [['🔬 물벼룩 독성 시험 (15분) — 물이 얼마나 독한지 · 🗺 독성 지도 (미니게임)', () => this.daphniaMenu()]] : [];
-    this.dialog('🔬', '울산보건환경연구원 — 시료 분석', body, (anyLock ? reag : []).concat([['분석 맡기기', () => {
+    const D = this.draft || {}, polSet = !(D.pol === '' || D.pol == null), pre = s => !(polSet && s.kind === 'water' && !s.dtest);   // ① 을 고른 뒤엔 물벼룩 시험용으로 떠 온 물은 미리 고르지 않음 (예전: 한꺼번에 맡겨져 독성 지도 시료가 사라졌음)
+    // (v2026-10-19c) 짧은 안내 → 시료 목록 → 작은 설명 순서 · 미니게임 설명은 여기에 (아래 단추는 짧게) — 예전엔 긴 안내와 세로로 쌓인 단추 4개 사이에 시료 목록이 가려졌음
+    const body = (anyLock ? '<p class="lock">🔒 먼저 <b>⚗️ ' + (this.samples.some(s => lock(s) && s.kind === 'air') && !this.samples.some(s => lock(s) && s.kind !== 'air') ? '검지관 실험' : '시약 실험') + '</b>(미니게임)을 한 번 해요 — 그다음 분석을 맡길 수 있어요</p>' : '') +
+      '<p class="lab-h">맡길 시료 <small>(' + this.samples.length + '개 · 하나에 20분)</small></p><div class="lab-list">' +
+      this.samples.map((s, i) => '<label class="sample' + (lock(s) ? ' locked' : '') + '"><input type="checkbox" data-i="' + i + '"' + (lock(s) ? ' disabled' : pre(s) ? ' checked' : '') + '><span><b>' + s.label + '</b><small>' + (lock(s) ? '🔒 먼저 ' + kindTx(s) : what(s)) + '</small></span></label>').join('') + '</div>' +
+      '<p class="dim lab-n">결과는 <b>' + hrs(this.set.labH) + ' 뒤</b>' + (this.samples.some(s => s.kind === 'edna') ? ' (환경DNA ' + hrs(this.set.ednaH) + ')' : '') + ' 📓 수첩으로 와요 · 기다리기 싫으면 <b>⏳ 기다리기</b>' + (this.daphniaMenu ? ' · 🔬 <b>물벼룩 시험</b> = 물이 얼마나 독한지 (🗺 독성 지도)' : '') + '</p>';
+    const reag = this.reagentMenu ? [['⚗️ 시약 실험 (15분) — 색으로 물질 짐작 (미니게임)' + (anyLock ? ' · 먼저 해요' : ''), () => this.reagentMenu()]] : [], daph = this.daphniaMenu ? [['🔬 물벼룩 시험 (15분) — 물이 얼마나 독한지 (미니게임)', () => this.daphniaMenu()]] : [];
+    this.dialog('🔬', '울산보건환경연구원 — 시료 분석', body, (anyLock ? reag : []).concat([['📨 분석 맡기기', () => {
       const idx = [...this.ui.dlg.querySelectorAll('input[data-i]:checked')].map(b => +b.dataset.i); if (!idx.length) { this.toast(anyLock ? '🔒 먼저 ⚗️ 시약 실험을 해요' : '시료를 하나 이상 고르세요'); return; }
       this.spend(idx.length * 0.33);   // 맡기는 시간(시료당 20분)을 먼저 — 그 뒤부터 분석 시간을 셈
       idx.forEach(i => { const s = this.samples[i], pn = s.kind === 'edna' ? 'edna' : s.kind === 'air' ? 'air' : 'water'; this.pending.push({ sample: s, panels: [pn], readyH: this.nowH + (pn === 'edna' ? this.set.ednaH : this.set.labH) }); });
@@ -558,11 +585,11 @@ class UlsanRpgGame {
       const over = !air && val > Q.limit && this.set.ratio !== 'none';   // 물: 법 기준(한도)을 넘었는가 — 허가된 평소 배출은 기준 안이라, 기준을 넘은 물질이 사건 물질
       const big = air ? ratio >= 5 : over, rtx = '평소의 ' + (ratio >= 10 ? Math.round(ratio) : ratio.toFixed(1)) + '배';
       const verdict = this.set.ratio === 'none' ? '' : strong ? (big ? '<b class="no">⚠ ' + (air ? '아주 높음' : '기준 초과') + '</b><small>' + rtx + '</small>' : ratio >= 2 ? '조금 높음<small>' + rtx + '</small>' : '보통') : (over ? '<b class="no">기준 초과</b> ' : '') + '<span class="dim">' + rtx + '</span>';   // 쉬움·보통: 판정 글자 · 어려움: 몇 배인지만
-      rows.push('<tr' + (strong && big ? ' class="hotrow"' : '') + '><th>' + Q.name + '<small>' + Q.desc + '</small></th><td><b>' + (val < 0.01 ? val.toFixed(4) : val < 1 ? val.toFixed(3) : val.toFixed(1)) + '</b> ' + Q.unit + '</td><td class="dim">평소 ' + Q.base + (air ? '' : '<br>기준 ' + Q.limit) + '</td>' + (verdict ? '<td>' + verdict + '</td>' : '') + '</tr>');
+      rows.push('<tr' + (strong && big ? ' class="hotrow"' : '') + (big ? ' data-big="1"' : '') + '><th>' + Q.name + '<small>' + Q.desc + '</small></th><td><b>' + (val < 0.01 ? val.toFixed(4) : val < 1 ? val.toFixed(3) : val.toFixed(1)) + '</b> ' + Q.unit + '</td><td class="dim">평소 ' + Q.base + (air ? '' : '<br>기준 ' + Q.limit) + '</td>' + (verdict ? '<td>' + verdict + '</td>' : '') + '</tr>');
       if (pid === C.pol && val > Q.base * 3) { if (s.kind === 'air') key = true; else { const d = ucDownstream(pt.river, pt.s, s.river, s.s); if (d >= 0 && d < 140) key = true; } }
       if (pid === C.pol && s.kind !== 'air' && P.path === 'water' && val <= Q.limit && s.river === pt.river && s.s < pt.s && pt.s - s.s < 70) key = true;   // 바로 위(상류)가 깨끗함 = 위치를 좁히는 증거
     }));
-    this.addEvidence({ title: '📊 분석 결과 · ' + s.label.replace(/^(💧 물 |🌫 공기 )/, ''), html: '<table class="u-lab">' + rows.join('') + '</table>' + (s.kind === 'air' ? '<p class="dim">평소보다 <b>크게</b> 높은 물질이 ① 답일 가능성이 커요. 냄새 · 아픈 사람들의 증상도 함께 보세요.</p>' : '<p class="dim"><b>기준</b> = 법으로 정한 한도예요. 공장이 평소 조금씩 내보내는 물은 기준 안이라, <b>기준을 넘은</b> 물질이 ① 답일 가능성이 커요.</p>'), key });
+    this.addEvidence({ title: '📊 분석 결과 · ' + s.label.replace(/^(💧 물 |🌫 공기 )/, ''), sk: s.kind, html: '<table class="u-lab">' + rows.join('') + '</table>' + (s.kind === 'air' ? '<p class="dim">평소보다 <b>크게</b> 높은 물질이 ① 답일 가능성이 커요. 냄새 · 아픈 사람들의 증상도 함께 보세요.</p>' : '<p class="dim"><b>기준</b> = 법으로 정한 한도예요. 공장이 평소 조금씩 내보내는 물은 기준 안이라, <b>기준을 넘은</b> 물질이 ① 답일 가능성이 커요.</p>'), key });
     this.toast('📊 분석 결과가 도착했어요 — 📓 수첩을 보세요');
   }
   readBio(st) {
@@ -604,7 +631,7 @@ class UlsanRpgGame {
       : ['🔒 서류 보기 — 증거가 필요해요', () => this.toast(water ? '🔒 🔬 물벼룩 독성 지도로 오염이 시작된 배출구를 먼저 찾아요' : '🔒 🧭 기상대에서 바람길을 먼저 그려요')],
       ['💂 경비원 이야기 (12분) — 어젯밤 들은 소리', () => { this.closeDialog(); this.talk('guard-' + fid); }]].concat(this.npcs.some(n => n.id === 'mgr-' + fid) ? [['👔 환경팀장 이야기 (12분) — 시설의 설명', () => { this.closeDialog(); this.talk('mgr-' + fid); }]] : []).concat([
       ['그만두기', () => this.closeDialog()]]));
-    if (!open) { const b = this.ui.dlg.querySelector('.u-opts button'); if (b) b.classList.add('ghost'); }
+    if (!open) { const b = this.ui.dlg.querySelector('.u-opts button'); if (b) b.classList.add('ghost', 'lockbtn'); }
   }
   talk(id) {
     const n = this.npcs.find(q => q.id === id), C = this.C, P = UC_POL[C.pol]; this.spend(0.2); this.talked[id] = true;
@@ -661,6 +688,9 @@ class UlsanRpgGame {
   hintFac(fid) { const F = UC_FAC[fid]; return { name: ucFacShort(F) + ' 정문', at: ucGate(F, 1), key: 'f:' + fid }; }
   hintSensor(st) { return { name: st.name, at: st.x != null ? [st.x, st.z] : ucBioAt(st), key: 's:' + st.id }; }
   hintReport() { if (this._rpc && this._rpc.C === this.C) return this._rpc.v; const r = ucReportSpot(this.C), p = ucAt(UC_RIVERS[r.river].pts, r.s); this._rpc = { C: this.C, v: { name: '신고 지점 · ' + UC_RIVERS[r.river].name + ' ' + (r.s / UC_KM).toFixed(1) + 'km', at: p, key: 'r' + this.caseNo } }; return this._rpc.v; }
+  hintUpReport() { const r = ucReportSpot(this.C), pt = ucPoint(this.C.point), R = UC_RIVERS[r.river]; let s = r.s - 1.5 * UC_KM;
+    if (pt.kind === 'water' && pt.river === r.river) s = Math.max(s, pt.s + 0.4 * UC_KM); if (s >= r.s - 0.2 * UC_KM) return this.hintReport();
+    return { name: '신고 지점 조금 위 · ' + R.name + ' ' + (s / UC_KM).toFixed(1) + 'km', at: ucAt(R.pts, s), key: 'u' + this.caseNo }; }
   hintPoint(id) { const pt = ucPoint(id), o = (this.inter || []).find(q => q.kind === 'point' && q.id === id), p = o ? [o.x, o.z] : pt.kind === 'water' ? ucAt(UC_RIVERS[pt.river].pts, pt.s) : [pt.x, pt.z]; return { name: id + ' ' + pt.label, at: p, key: 'o:' + id }; }   // 배출구 기둥(강둑) 자리 — 도착하면 🔍 가 '살펴보기'
   arriveFor(T) { const c = this._arr = this._arr || {}; if (c[T.key]) return c[T.key]; const k = T.key.split(':'), D = this.travelDests();
     let at = null; if (/^r\d/.test(T.key)) { const r = ucReportSpot(this.C); at = this.arriveRiver(r.river, r.s); } else if (k[0] === 'p') { const d = D.find(x => x[0] === UC_PLACES[k[1]].name); at = d && d[1]; } else if (k[0] === 'f') { const d = D.find(x => x[0] === ucFacShort(k[1])); at = d && d[1]; }
@@ -682,17 +712,19 @@ class UlsanRpgGame {
   nextHint() {
     if (this.set.guide === 'none' || this.report) return null;
     const C = this.C, P = UC_POL[C.pol], D = this.draft || {}, water = P.path === 'water', ev = this.evidence, has = re => ev.some(e => re.test(e.title)), lab = has(/^📊/), set = k => !(D[k] === '' || D[k] == null), hard = this.set.diff === 'hard', REP = { rep: true };
-    const LAB = this.hintPlace('lab'), M = this.mini || {};
+    const LAB = this.hintPlace('lab'), M = this.mini || {}, strong = this.set.ratio === 'strong', mine = e => /^📊/.test(e.title) && (!e.sk || e.sk === (water ? 'water' : 'air'));
+    const labs = ev.filter(mine), hot = labs.some(e => /hotrow|기준 초과|data-big="1"/.test(e.html)), open1 = !set('pol') && (strong ? !hot : !labs.length);   // ① 을 아직 못 찾음 (이 사건 종류의 분석 기준)
     // ① 물질: 시료 → ⚗️ 시약 실험(미니게임) → 연구원 분석
-    if (!lab && this.pending.length) return { t: '⏳ 분석 중이에요 — 위의 <b>⏳ 기다리기</b>를 누르거나 다른 조사를 하세요' };
+    if (open1 && this.pending.length) return { t: '⏳ 분석 중이에요 — 위의 <b>⏳ 기다리기</b>를 누르거나 다른 조사를 하세요' };
     const bag = this.samples.filter(x => x.kind === (water ? 'water' : 'air'));
-    if (!lab && bag.length) return this.needReagent(water ? 'water' : 'air') ? { t: '⚗️ 연구원에서 먼저 <b>' + (water ? '시약 실험' : '검지관 실험') + '</b>(미니게임)을 해요 — 색으로 어떤 물질인지 짐작 → 그다음 분석 맡기기', to: LAB } : { t: '🔬 시료를 <b>보건환경연구원</b>에 분석 맡기세요', to: LAB };
-    const hot = ev.some(e => /^📊/.test(e.title) && /hotrow|기준 초과/.test(e.html)), strong = this.set.ratio === 'strong';
+    if (open1 && bag.length) return this.needReagent(water ? 'water' : 'air') ? { t: '⚗️ 연구원에서 먼저 <b>' + (water ? '시약 실험' : '검지관 실험') + '</b>(미니게임)을 해요 — 색으로 어떤 물질인지 짐작 → 그다음 분석 맡기기', to: LAB } : { t: '🔬 시료를 <b>보건환경연구원</b>에 분석 맡기세요', to: LAB };
+    const tries = labs.length, weak = strong && !hot && !set('pol') && tries >= 2;   // 두 번 분석해도 기준을 넘은 게 없으면 — 가장 높은 물질로 넘어감
     const hs = water ? [] : ucAirHits(C), spk = water ? [] : UC_AIR.filter(st => ev.some(e => e.title === '💨 ' + st.name + ' 기록' && e.key));
-    if (water) { if (!lab) return { t: '💧 ' + (hard ? '신고된 강' : '<b>신고 지점</b>') + ' 강가에서 🔍 조사 → <b>물 시료</b>를 떠요', to: hard ? null : this.hintReport() };
-      if (strong && !hot && !set('pol')) return { t: '🔎 아직 기준을 넘은 물질이 없어요 — <b>신고 지점</b> 가까이(조금 위쪽)에서 다시 떠 보세요', to: this.hintReport() }; }
-    else { if (!spk.length && !lab) return { t: '💨 민원 동네의 <b>대기센서 기록</b>을 보세요 — 냄새가 <b>치솟은</b> 센서 찾기', to: hard || !hs.length ? null : this.hintSensor(hs[0].st) };
-      if (!lab) return { t: '🌫 ' + spk[0].name + '에서 <b>공기 시료</b>를 받아 오세요', to: this.hintSensor(spk[0]) };
+    if (weak) return { t: '🔎 기준을 넘은 물질이 안 보여요 — 오염된 물이 흘러가 옅어졌을 수 있어요. 분석 결과에서 평소보다 <b>가장 많이 높은</b> 물질을 <b>보고서 ①</b>에 골라요', to: REP };
+    if (water) { if (!labs.length) return { t: '💧 ' + (hard ? '신고된 강' : '<b>신고 지점</b>') + ' 강가에서 🔍 조사 → <b>물 시료</b>를 떠요', to: hard ? null : this.hintReport() };
+      if (strong && !hot && !set('pol')) return { t: '🔎 아직 기준을 넘은 물질이 없어요 — <b>신고 지점보다 조금 위쪽</b>(상류) 강가에서 다시 떠 보세요 · 오염이 시작된 곳에 가까울수록 진해요', to: this.hintUpReport() }; }
+    else { if (!spk.length && !labs.length) return { t: '💨 민원 동네의 <b>대기센서 기록</b>을 보세요 — 냄새가 <b>치솟은</b> 센서 찾기', to: hard || !hs.length ? null : this.hintSensor(hs[0].st) };
+      if (!labs.length) return { t: '🌫 ' + spk[0].name + '에서 <b>공기 시료</b>를 받아 오세요', to: this.hintSensor(spk[0]) };
       if (strong && !hot && !set('pol')) return { t: '🔎 이 공기 시료엔 크게 높은 물질이 없어요 — 냄새가 <b>치솟은</b> 센서에서 다시 받아 보세요', to: spk.length ? this.hintSensor(spk[0]) : hs.length && !hard ? this.hintSensor(hs[0].st) : null }; }
     if (!set('pol')) return { t: '📝 분석 결과에서 ' + (water ? '<b>기준을 넘은</b>' : '평소보다 <b>크게 높은</b>') + ' 물질을 <b>보고서 ①</b>에 고르세요', to: REP };
     // ② 시설: 서류를 볼 증거 — 물 = 🔬 독성 지도 · 공기 = 🧭 바람길 (미니게임)
@@ -722,10 +754,10 @@ class UlsanRpgGame {
 
   // ── 화면: 퀘스트 창 · 원형 미니맵 · 아이콘 버튼 · 떠 있는 안내 · 목적지 · 대화/메뉴/패널 ──
   buildUI() {
-    const root = document.createElement('div'); root.className = 'urpg-ui' + (this.hq === 'low' ? ' urpg-low' : ''); this.host.appendChild(root); this.ui.root = root;   // 가벼운 화질: 화면 전체를 덮는 효과(가장자리 그늘 · 흐림)는 끔
+    const root = document.createElement('div'); root.className = 'urpg-ui' + (this.hq === 'low' ? ' urpg-low' : '') + (this.touch ? ' urpg-touch' : ''); this.host.appendChild(root); this.ui.root = root;   // 가벼운 화질: 화면 전체를 덮는 효과(가장자리 그늘 · 흐림)는 끔
     root.innerHTML = '<div class="u-ov hidden"><div class="u-ovbar"><b>🛰 3D 전경</b><span>끌기: 둘러보기 · 두 손가락/휠: 확대 · 누르기: 목적지</span><button data-ov="out">－</button><button data-ov="in">＋</button><button data-ov="me">🎯 나</button><button data-ov="back" class="primary">돌아가기</button></div></div><div class="u-me"><b></b><span></span></div><div class="u-rplab"></div>' +
       '<div class="u-rp hidden"><div class="rp-top"><b>🎬 사건 재현</b><span class="rp-clock"></span></div><div class="rp-bar"><i></i></div><div class="rp-log"></div><div class="rp-btns"><button data-rp="play">⏸</button><button data-rp="speed">1×</button><button data-rp="restart">⟲</button><button data-rp="close" class="primary">결과로 돌아가기</button></div></div>' +
-      '<div class="u-quest"><div class="uq-head"><i class="uq-badge"></i><b class="uq-title"></b><button class="uq-fold" aria-label="접기">▾</button></div>' +
+      '<div class="u-quest"><div class="uq-head"><i class="uq-badge"></i><b class="uq-title"></b><button class="uq-more" aria-label="할 일 자세히">📋<span> 자세히</span></button><button class="uq-fold" aria-label="접기">▾</button></div>' +
       '<div class="u-clock"><b><i class="c-no"></i><i class="c-sep"> · </i><i class="c-t"></i></b><em class="c-bar"><i></i></em><span></span></div>' +
       '<div class="uq-obj"></div><div class="uq-hint"></div></div>' +
       '<div class="u-side"><div class="u-mapbox"><div class="u-mini"><canvas width="320" height="320"></canvas><i class="u-north">N</i><i class="mm-d mm-e">E</i><i class="mm-d mm-s">S</i><i class="mm-d mm-w">W</i>' +
@@ -733,9 +765,9 @@ class UlsanRpgGame {
       '<button data-a="wait" class="u-wait hidden"><span>⏳</span><small>기다리기</small></button><button data-a="note"><span>📓</span><small>수첩</small><em>0</em></button><button data-a="map"><span>🗺</span><small>지도</small></button><button data-a="rep"><span>📝</span><small>보고서</small></button><button data-a="cam" class="u-cam"><span>🎥</span><small>중간</small></button></div></div>' +
       '<div class="u-tags"></div><div class="u-plates"></div><div class="u-pin"><b>📍</b><span></span></div><div class="u-edge"><i>➤</i><span></span></div><div class="u-prompt"></div><div class="u-toast"></div><div class="u-intro"></div><div class="u-modal hidden"><div class="u-box"></div></div>';
     this.host.classList.add('urpg-host');   // 조이스틱 · 🔍 버튼도 같은 금색 테마로 (style.css)
-    const act = a => { if (this.ui.modalOpen || this.gameOver || this.replay) return; if (this.ov) this.exitOverview(); if (a === 'note') this.openNote(); if (a === 'map') this.openMap(); if (a === 'rep') this.openReport(); if (a === 'wait') this.waitResults(); if (a === 'cam') this.cycleCam(); };
+    const act = a => { if (this.ui.modalOpen || this.gameOver || this.replay) return; if (this.ov) this.exitOverview(); if (a === 'note') this.openNote(); if (a === 'map') this.openMap(); if (a === 'rep') this.openReport(); if (a === 'wait') this.waitResults(); if (a === 'cam') this.cycleCam(); if (a === 'quest') this.openQuest(); };
     root.querySelectorAll('.u-btns button').forEach(b => b.addEventListener('click', () => act(b.dataset.a)));
-    root.querySelector('.u-mapbox').addEventListener('click', e => { if (this._mmPinch || performance.now() - (this._mmUsed || -1e9) < 500 || e.target.closest('.mm-z')) return; act('map'); }); root.querySelector('.uq-obj').addEventListener('click', () => act('rep'));
+    root.querySelector('.u-mapbox').addEventListener('click', e => { if (this._mmPinch || performance.now() - (this._mmUsed || -1e9) < 500 || e.target.closest('.mm-z')) return; act('map'); }); root.querySelector('.u-quest').addEventListener('click', e => { if (e.target.closest('.uq-fold, .uq-go, .uq-meta button')) return; act('quest'); });   // 퀘스트 창 어디든 누르면 📋 할 일 자세히 (예전: 목표 칩만 · 보고서로)
     this.bindMini(root.querySelector('.u-mini'));
     root.querySelectorAll('.mm-z').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); this.setMiniZoom(+b.dataset.mz); }));   // 미니맵 확대·축소 (지도 창은 안 열림)
     try { const r = +localStorage.getItem('ulsanMiniR'); if (r >= 20 && r <= 120) this.miniR = r; } catch (e) {}
@@ -766,7 +798,7 @@ class UlsanRpgGame {
     const warn = left <= 180 && !this.report, danger = left <= 60 && !this.report;
     U.clock.parentNode.classList.toggle('warn', warn); U.clock.parentNode.classList.toggle('danger', danger); U.quest.classList.toggle('danger', danger);
     U.wait.classList.toggle('hidden', !this.pending.length);
-    U.noteN.textContent = this.evidenceCount; U.noteBtn.classList.toggle('new', this.evidence.length > (this.seenEv || 1));
+    const nN = String(this.evidenceCount); if (U.noteN.textContent !== nN) U.noteN.textContent = nN; U.noteBtn.classList.toggle('new', this.evidence.length > (this.seenEv || 1));
     this.placePrompt(); this.placeDest(); this.placePlates(); this.placeTags();
     const t = this.now || 0; if (t - (this._miniT || 0) > 66) { this._miniT = t; this.drawMini(); }   // 미니맵은 부드럽게 (내 위치 물결)
     if (t - (this._locT || 0) > 500) { this._locT = t; this._loc = this.whereAmI(); if (U.loc.textContent !== this._loc.short) U.loc.textContent = this._loc.short; }
@@ -779,7 +811,9 @@ class UlsanRpgGame {
     const qr = q.right - root.left, sl = sd.left - root.left, W = root.width; let a, b, top;
     this._avoid = ['aboost', 'fjoy'].map(id => { const e = document.getElementById(id); if (!e || e.style.visibility === 'hidden') return null; const r = e.getBoundingClientRect(); return r.width ? [r.left - root.left, r.top - root.top, r.right - root.left, r.bottom - root.top] : null; }).filter(Boolean);   // 조작 버튼 자리 (목적지 화살표가 피함)
     this._hudR = [q].concat(['.u-btns', '.u-mapbox'].map(k => this.ui.root.querySelector(k).getBoundingClientRect())).map(r => [r.left - root.left, r.top - root.top, r.right - root.left, r.bottom - root.top]).concat(this._avoid);   // 장소 이름표가 피할 곳: 퀘스트 창 · 메뉴 단추 · 미니맵 · 조작 단추 (오른쪽 위 묶음 전체 네모는 빈 곳까지 막았음)
-    this._feedTop = (sl - qr - 24 >= 380 ? 12 + 44 : q.bottom - root.top + 52); this._feedL = sl - qr - 24 >= 380 ? [qr + 12, sl - 12] : [8, W - 8];   // 반 친구 소식 띠 자리 (알림 띠 바로 아래)
+    const th = el.classList.contains('on') ? Math.max(36, el.offsetHeight) : 36;   // 알림 띠 높이 (두 줄일 수 있음)
+    this._feedTop = (sl - qr - 24 >= 380 ? 12 : q.bottom - root.top + 8) + th + 8; this._feedL = sl - qr - 24 >= 380 ? [qr + 12, sl - 12] : [8, W - 8];   // 반 친구 소식 띠 자리 (알림 띠 바로 아래)
+    const fb = this.ui.feed; if (fb && fb.children.length && fb.style.top !== this._feedTop + 'px') fb.style.top = this._feedTop + 'px';
     this._safeTop = Math.round(q.bottom - root.top + 40); this._safeTop2 = Math.round(Math.max(q.bottom, sd.bottom) - root.top + 30);   // 떠 있는 안내 · 목적지 화살표의 윗선
     if (sl - qr - 24 >= 380) { a = qr + 12; b = sl - 12; top = 12; } else { top = q.bottom - root.top + 8; a = 8; b = (sd.bottom - root.top > top ? sl : W) - 8; }
     const k = a.toFixed(0) + ',' + b.toFixed(0) + ',' + top.toFixed(0); if (k === this._toastK) return; this._toastK = k;
@@ -793,7 +827,7 @@ class UlsanRpgGame {
     this._hintT = T || null; if (key === this._objKey) return; this._objKey = key;
     this.ui.qObj.innerHTML = items.map(([l, x]) => '<span class="' + (x ? 'done' : '') + '"><i></i>' + l + (x ? ' <b>' + x + '</b>' : ' <u>?</u>') + '</span>').join('');
     const btns = !T ? '' : T.rep ? '<span class="uq-go"><button data-hg="rep" aria-label="보고서 열기">📝<span> 보고서 열기</span></button></span>' : '<span class="uq-go"><button data-hg="dest" aria-label="길 안내" class="' + (on ? 'on' : '') + '">📍<span>' + (on ? ' 안내 중' : ' 길 안내') + '</span></button><button data-hg="go" aria-label="바로 가기">🚙<span> 바로 가기</span></button></span>';
-    this.ui.qHint.innerHTML = this.report ? '🏁 보고서 제출 완료' : hint ? '<small>다음 할 일</small><span class="uq-t">' + hint + '</span>' + btns : ''; this.ui.qHint.classList.toggle('hidden', !this.ui.qHint.innerHTML);
+    this.ui.qHint.innerHTML = this.report ? '🏁 보고서 제출 완료' : hint ? '<small>다음 할 일<em class="uq-mr">📋<span> 자세히</span> ›</em></small><span class="uq-t">' + hint + '</span>' + btns : ''; this.ui.qHint.classList.toggle('hidden', !this.ui.qHint.innerHTML);
     if (this._lastHint != null && this._lastHint !== hint && hint) { const el = this.ui.qHint; el.classList.remove('upd'); void el.offsetWidth; el.classList.add('upd'); } this._lastHint = hint;   // 다음 할 일이 바뀌면 반짝 (퀘스트 갱신)
   }
   // 다음 할 일 단추: 📍 길 안내(목적지 표시 · 다시 누르면 끔) · 🚙 바로 가기(게임 속 시간만 듦) · 📝 보고서
@@ -803,6 +837,46 @@ class UlsanRpgGame {
     if (a === 'dest') { if (this.dest && this.dest.key === T.key) { this.setDest(null); this.toast('📍 길 안내를 껐어요'); } else this.setDest(T.at[0], T.at[1], T.name, false, T.key); }
     if (a === 'go') this.travelTo(T.name, this.arriveFor(T));
     this._objKey = null;
+  }
+  // 📋 할 일 자세히 (퀘스트 창을 누르면 · v2026-10-19c): 지금 할 일 전체 글 + 갈 곳 · 수사 순서(한 것 ✓ · 지금 ▶) · 보고서 답 · 모은 것
+  //   폰에서는 퀘스트 창이 좁아 다음 할 일이 한두 줄로 잘리고 보고서 답 칸도 숨겨져, 무엇을 해야 하는지 끝까지 읽을 수 없었음
+  questSteps() {
+    const C = this.C, water = UC_POL[C.pol].path === 'water', D = this.draft || {}, set = k => !(D[k] === '' || D[k] == null), ev = this.evidence, has = re => ev.some(e => re.test(e.title));
+    const hard = this.set.diff === 'hard', W = this.warrantFacs(), lab = has(/^📊/), rep = !!this.report, all4 = set('pol') && set('fac') && set('point') && set('slot');
+    const r = water ? ucReportSpot(C) : null, spot = water ? (hard ? UC_RIVERS[r.river].name : this.hintReport().name.replace(/^신고 지점 · /, '')) : '';
+    const S = water ? [
+      ['💧', '물 시료 뜨기', (hard ? '신고된 <b>' + spot + '</b>' : '신고 지점 <b>' + spot + '</b>') + ' 강가에서 🔍 조사 → 💧 물 뜨기', this.samples.some(x => x.kind === 'water') || lab],
+      ['⚗️', '무슨 물질? → ①', '🔬 보건환경연구원에서 ⚗️ <b>시약 실험</b>(미니게임) → 분석 맡기기 → <b>기준을 넘은 물질</b>을 보고서 ①에', set('pol')],
+      ['🦐', '어디서 시작됐나?', '그 물질을 쓰는 시설의 <b>배출구 바로 아래 물</b>(맨 위 배출구는 바로 위 물도)을 떠서 🔬 <b>물벼룩 독성 시험</b>(미니게임) → 독성이 <b>시작되는</b> 배출구', W.size > 0],
+      ['🗂', '누가 · 언제? → ② ③ ④', '🔓 그 시설 정문에서 🗂 <b>서류</b> → 밤에 <b>기록이 빈</b> 배출구와 시각을 보고서에', all4]]
+    : [
+      ['💨', '냄새 난 곳 찾기', '민원 동네의 <b>대기센서 기록</b> → 냄새가 <b>치솟은</b> 센서와 시각', ev.some(e => /^💨 /.test(e.title) && e.key) || lab],
+      ['⚗️', '무슨 물질? → ①', '그 센서에서 🌫 <b>공기 시료</b> → 🔬 연구원에서 ⚗️ <b>검지관 실험</b>(미니게임) → 분석 → 크게 높은 물질을 보고서 ①에', set('pol')],
+      ['🧭', '어디서 왔나?', '냄새 센서를 <b>한 곳 더</b> 본 뒤 🌤 기상대에서 🧭 <b>바람길</b>(미니게임) → 냄새가 온 쪽 <b>후보 시설</b>', W.size > 0],
+      ['🗂', '누가 · 언제? → ② ③ ④', '🔓 후보 시설 🗂 <b>서류</b> → 냄새가 난 무렵 <b>기록이 끊긴 굴뚝</b>과 시각을 보고서에', all4]];
+    S.push(['📝', '보고서 제출', '<b>이유가 된 증거</b>를 3개까지 고르고 📝 제출', rep]);
+    return S.map(([ic, t, d, done]) => ({ ic, t, d, done: !!done || rep }));
+  }
+  openQuest() {
+    if (this.ui.modalOpen || this.gameOver || this.replay) return; if (this.ov) this.exitOverview();
+    const D = this.draft || {}, v = k => (D[k] === '' || D[k] == null) ? '' : D[k], water = UC_POL[this.C.pol].path === 'water', H = this.nextHint(), T = H && H.to;
+    const km = d => { const x = d * 0.09; return x >= 1 ? x.toFixed(1) + 'km' : Math.round(x * 10) * 100 + 'm'; };
+    const steps = this.questSteps(), cur = steps.findIndex(s => !s.done), left = Math.ceil(this.caseLeftSec), on = T && !T.rep && this.dest && this.dest.key === T.key;
+    const go = !T ? '' : T.rep ? '<button data-qg="rep" class="q-rep">📝 보고서 열기</button>' : '<button data-qg="dest" class="' + (on ? 'on' : '') + '">📍 ' + (on ? '길 안내 끄기' : '길 안내') + '</button><button data-qg="go" class="q-go">🚙 바로 가기 <small>' + Math.max(1, Math.round(this.travelCost(T.at) * 60)) + '분</small></button>';
+    const now = this.report ? '<div class="q-now"><b>🏁 보고서를 냈어요</b><p>결과 화면에서 점수와 해설을 확인하세요.</p></div>'
+      : H ? '<div class="q-now"><small>🎯 지금 할 일</small><p>' + H.t + '</p>' + (T && !T.rep ? '<div class="q-to">📍 <b>' + T.name + '</b> · 여기서 ' + km(Math.hypot(T.at[0] - this.px, T.at[1] - this.pz)) + '</div>' : '') + (go ? '<div class="q-bt">' + go + '</div>' : '') + '</div>'
+      : '<div class="q-now"><small>🎯 지금 할 일</small><p>아래 수사 순서를 보고 스스로 찾아보세요. 📓 수첩의 사건 개요에 단서가 있어요.</p></div>';
+    const list = '<ol class="q-steps">' + steps.map((s, i) => '<li class="' + (s.done ? 'done' : i === cur ? 'cur' : '') + '"><i>' + (s.done ? '✓' : i === cur ? '▶' : i + 1) + '</i><div><b>' + s.ic + ' ' + s.t + '</b><span>' + s.d + '</span></div></li>').join('') + '</ol>';
+    const ans = [['①', '물질', v('pol') && UC_POL[v('pol')].name], ['②', '시설', v('fac') && ucFacShort(v('fac'))], ['③', water ? '배출구' : '굴뚝', v('point')], ['④', '시각', v('slot') !== '' && UC_SLOTS[v('slot')]], ['🔑', '증거', (D.ev || []).length ? (D.ev || []).length + ' / 3' : '']];
+    const M = this.mini || {}, kit = !this.needReagent(water ? 'water' : 'air'), m2 = water ? (M.dtests || []).length : (M.windC || []).length;
+    const got = '<div class="q-got"><span>🧪 시료 <b>' + this.samples.length + '/6</b>' + (this.pending.length ? ' · ⏳ 분석 중 ' + this.pending.length : '') + '</span><span>📓 증거 <b>' + this.evidenceCount + '</b>건</span><span class="' + (kit ? 'ok' : '') + '">⚗️ ' + (water ? '시약 실험' : '검지관') + ' ' + (kit ? '✓' : '—') + '</span><span class="' + (m2 ? 'ok' : '') + '">' + (water ? '🔬 독성 시험 ' + (m2 ? m2 + '번' : '—') : '🧭 바람길 ' + (m2 ? '✓' : '—')) + '</span></div>';
+    const body = '<div class="q-grid"><div class="q-top"><span>⏱ 남은 시간 <b>' + Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0') + '</b></span><span>🕗 게임 속 ' + this.hm(this.nowH) + '</span><span>' + this.set.name + '</span></div>' + now.replace('q-now', 'q-now q-sec') +
+      '<div class="q-sec q-st"><h4>🧭 수사 순서 <small>' + steps.filter(s => s.done).length + ' / ' + steps.length + ' 끝</small></h4>' + list + '</div>' +
+      '<div class="q-sec q-an"><h4>📝 보고서 답 <small>누르면 보고서</small></h4><div class="q-ans">' + ans.map(([n, l, x]) => '<button data-qg="rep" class="' + (x ? 'ok' : '') + '"><i>' + n + '</i><small>' + l + '</small><b>' + (x || '아직') + '</b></button>').join('') + '</div></div>' +
+      '<div class="q-sec q-go"><h4>🎒 모은 것</h4>' + got + '</div></div>';
+    this.dialog('📋', '사건 ' + this.caseNo + ' · ' + this.caseTitle(), body, [['📓 수첩', () => { this.closeDialog(); this.openNote(); }], ['닫기', () => this.closeDialog()]], true);
+    this.ui.dlg.classList.add('quest');
+    this.ui.dlg.querySelectorAll('[data-qg]').forEach(b => b.addEventListener('click', () => { const a = b.dataset.qg; this.closeDialog(); if (a === 'rep') this.openReport(); else { this._hintT = T; this.hintGo(a); } }));
   }
   // 오른쪽 아래 🔍 버튼: 가까운 것에 맞춰 아이콘·글자가 바뀜
   updateAct() {
@@ -856,11 +930,11 @@ class UlsanRpgGame {
   }
   placePrompt() {
     const el = this.ui.prompt, o = this.near, txt = o && !this.ui.modalOpen && !this.ov ? o.label : '';
-    if (el.dataset.t !== txt) { el.dataset.t = txt; el.innerHTML = txt ? '<b>' + (this.isTouch ? '🔍' : 'E') + '</b>' + txt : ''; el.classList.toggle('on', !!txt); }
+    if (el.dataset.t !== txt) { el.dataset.t = txt; el.innerHTML = txt ? '<b>' + (this.isTouch ? '🔍' : 'E') + '</b>' + txt : ''; el.classList.toggle('on', !!txt); this._promptW = txt ? el.offsetWidth : 0; }
     if (!txt) { this._promptR = null; return; } const x = o.x != null ? o.x : this.px, z = o.z != null ? o.z : this.pz, p = this.toScreen(x, this.groundH(x, z) + (o.kind === 'npc' ? 3.4 : 3), z);
     const px = Math.max(90, Math.min((this.vw || 800) - 90, p.x)), py = Math.max(this._safeTop || 150, Math.min((this.vh || 600) - 30, p.y));   // 퀘스트 창 아래로
     el.style.left = px.toFixed(0) + 'px'; el.style.top = py.toFixed(0) + 'px';
-    const w = (el.offsetWidth || 220) / 2 + 6; this._promptR = [px - w, py - 26, px + w, py + 26];   // 조사 안내 자리 (이름표들이 피함)
+    const w = (this._promptW || 220) / 2 + 6; this._promptR = [px - w, py - 26, px + w, py + 26];   // 조사 안내 자리 (이름표들이 피함)
   }
   // ── 목적지: 3D 빛기둥 + 화면 끝 화살표(거리) ──
   setDest(x, z, name, quiet, key) {
@@ -884,10 +958,11 @@ class UlsanRpgGame {
     if (p.on || this.ov) { if (!p.on) { pin.classList.remove('on'); return; } pin.classList.add('on'); edge.classList.remove('on'); pin.style.left = p.x.toFixed(0) + 'px'; pin.style.top = p.y.toFixed(0) + 'px'; if (pin.lastChild.textContent !== lab) pin.lastChild.textContent = lab; return; }
     pin.classList.remove('on'); edge.classList.add('on');
     let dx = p.x - W / 2, dy = p.y - H / 2; if (!p.front) { dx = -dx; dy = -dy; } const a = Math.atan2(dy, dx), mx = W / 2 - 70, my = H / 2 - 90, k = Math.min(mx / Math.abs(Math.cos(a) || 1e-6), my / Math.abs(Math.sin(a) || 1e-6));
-    const hw = (edge.offsetWidth || 160) / 2 + 6, top = this._safeTop2 || 120;   // 글자가 화면 밖 · 위쪽 창에 걸리지 않게
-    let ex = Math.max(hw, Math.min(W - hw, W / 2 + Math.cos(a) * k)), ey = Math.max(top, Math.min(H - 150, H / 2 + 20 + Math.sin(a) * k)); const hh = (edge.offsetHeight || 50) / 2 + 4;
+    if (edge.lastChild.textContent !== lab) { edge.lastChild.textContent = lab; this._edgeWH = null; } if (!this._edgeWH) this._edgeWH = [edge.offsetWidth || 160, edge.offsetHeight || 50];   // 글이 바뀔 때만 크기를 잼
+    const hw = this._edgeWH[0] / 2 + 6, top = this._safeTop2 || 120;   // 글자가 화면 밖 · 위쪽 창에 걸리지 않게
+    let ex = Math.max(hw, Math.min(W - hw, W / 2 + Math.cos(a) * k)), ey = Math.max(top, Math.min(H - 150, H / 2 + 20 + Math.sin(a) * k)); const hh = this._edgeWH[1] / 2 + 4;
     (this._avoid || []).forEach(r => { if (ex + hw > r[0] && ex - hw < r[2] && ey + hh > r[1] && ey - hh < r[3]) ex = r[0] > W / 2 ? r[0] - hw : r[2] + hw; });   // 조사 버튼·조이스틱과 겹치면 옆으로
-    edge.style.left = ex.toFixed(0) + 'px'; edge.style.top = ey.toFixed(0) + 'px'; edge.firstChild.style.transform = 'rotate(' + a.toFixed(2) + 'rad)'; if (edge.lastChild.textContent !== lab) edge.lastChild.textContent = lab;
+    edge.style.left = ex.toFixed(0) + 'px'; edge.style.top = ey.toFixed(0) + 'px'; edge.firstChild.style.transform = 'rotate(' + a.toFixed(2) + 'rad)';
   }
   // ── 지도 그림 (미니맵 · 큰 지도 · 드론/바람길 미니게임 공통 · v2026-10-18a) ──
   //   바탕(한 번만 · 2px/칸): 땅 덮개 색(숲·논밭·풀밭·도시·공단·모래) + 산 그림자(북서쪽 빛) + 울산 밖은 어둡게 + 동 경계
@@ -957,7 +1032,7 @@ class UlsanRpgGame {
   }
   // 둥근 배지 아이콘 (한 번 그려 두고 다시 씀) — 바탕 그라데이션 · 테두리 · 가운데 그림
   mapIcon(emoji, bg, ring, s, dark) {
-    const key = emoji + '|' + bg + '|' + ring + '|' + s, C = this._icons = this._icons || {}; if (C[key]) return C[key];
+    s = Math.max(8, Math.round(s / 2) * 2); const key = emoji + '|' + bg + '|' + ring + '|' + s, C = this._icons = this._icons || {}; if (C[key]) return C[key];
     const c = document.createElement('canvas'); c.width = c.height = s; const g = c.getContext('2d'), r = s / 2 - 2, [b0, b1] = bg.split(',');
     g.beginPath(); g.arc(s / 2, s / 2 + 1.5, r, 0, 7); g.fillStyle = 'rgba(0,0,0,.45)'; g.fill();
     const gr = g.createRadialGradient(s * 0.38, s * 0.32, r * 0.1, s / 2, s / 2, r); gr.addColorStop(0, b0); gr.addColorStop(1, b1);
@@ -1102,30 +1177,34 @@ class UlsanRpgGame {
     const next = Math.min(...this.pending.map(p => p.readyH)), mins = Math.max(1, Math.round((next - this.nowH) * 60));
     this.nowH = Math.max(this.nowH, next + 0.001); this.toast('⏳ ' + mins + '분 기다렸어요 — 결과를 수첩에 적었어요');   // 한도 없이 (예전: 게임 속 한도에 걸리면 결과가 영영 안 옴)
   }
-  toast(t) { const el = this.ui.toast; if (!el) return; el.textContent = t; el.classList.remove('on'); void el.offsetWidth; el.classList.add('on'); clearTimeout(this._tt); this._tt = setTimeout(() => el.classList.remove('on'), 2800); }
+  toast(t) { const el = this.ui.toast; if (!el) return; el.textContent = t; el.classList.remove('on'); void el.offsetWidth; el.classList.add('on'); clearTimeout(this._tt); this._tt = setTimeout(() => el.classList.remove('on'), 2800);
+    const dl = this.ui.dlg, inDlg = this.ui.modalOpen && dl && !/\b(map|game)\b/.test(dl.className); el.classList.toggle('over', !!this.ui.modalOpen && !inDlg); if (inDlg) this.dlgNote(t); }   // 창이 열려 있으면: 보통 창 = 창 안 단추 위에 · 전체 지도·미니게임 = 창 위에 띄움 (예전엔 알림이 창 뒤에 숨었음)
+  dlgNote(t) { const box = this.ui.dlg.querySelector(':scope > .u-opts'); if (!box) return; let n = box.querySelector(':scope > .u-dnote'); if (!n) { n = document.createElement('div'); n.className = 'u-dnote'; box.prepend(n); }
+    n.textContent = t; n.classList.remove('on'); void n.offsetWidth; n.classList.add('on'); clearTimeout(this._dnT); this._dnT = setTimeout(() => { if (n.isConnected) n.remove(); }, 3600); }
   // 창 종류: talk(아래 대화창 · 초상화) · sheet(아래 선택지) · panel(큰 창: 수첩·지도·보고서·결과)
   dialog(emoji, title, body, opts, wide, kind) {
     kind = kind || (wide ? 'panel' : 'sheet'); if (this.mg && kind !== 'game') this.mgEnd(); if (kind === 'talk') this._talkT = performance.now();
     this.ui.modalOpen = true; this.mx = 0; this.my = 0; this.keys = {}; this.ui.modal.className = 'u-modal m-' + kind; this.ui.dlg.className = 'u-box ' + kind + (wide ? ' wide' : '');
     this.ui.dlg.innerHTML = (kind === 'talk' ? '<div class="t-por"><span>' + emoji + '</span></div><h3>' + title + '</h3>' : '<h3><span>' + emoji + '</span>' + title + '</h3>') + '<div class="u-body">' + body + '</div><div class="u-opts"></div>';
     const box = this.ui.dlg.querySelector('.u-opts'), quit = /^(그만두기|취소|닫기|알겠어요)/;
-    opts.forEach(([label, fn]) => { const b = document.createElement('button'), m = /^(.*?)\s*\((\d+분)\)\s*(?:—\s*(.*))?$/.exec(label);
-      if (m && kind === 'sheet') b.innerHTML = '<b>' + m[1] + '</b><i class="chip">🕗 ' + m[2] + '</i>' + (m[3] ? '<small>' + m[3] + '</small>' : ''); else b.textContent = label;   // 걸리는 시간은 칩으로
+    opts.forEach(([label, fn]) => { const b = document.createElement('button'), m = /^(.*?)\s*(?:\((\d+분)\))?\s*(?:—\s*(.*))?$/.exec(label);
+      if (m && (m[2] || m[3]) && (kind === 'sheet' || kind === 'panel')) b.innerHTML = '<b>' + m[1] + '</b>' + (m[2] ? '<i class="chip">🕗 ' + m[2] + '</i>' : '') + (m[3] ? '<small>' + m[3] + '</small>' : ''); else b.textContent = label;   // 걸리는 시간은 칩으로 · 설명은 작은 글씨 (큰 창 단추도 — 예전엔 긴 글 한 줄이라 단추가 세로로 길게 쌓여 설명·목록을 가렸음)
       if (quit.test(label)) b.className = 'ghost'; b.addEventListener('click', fn); box.appendChild(b); });
     // 창 오른쪽 위 ✕ (그만두기·닫기 단추와 같음 — 그런 단추가 없는 창엔 없음)
     const q = [...box.querySelectorAll('button')].find(b => quit.test(b.textContent)), h = this.ui.dlg.querySelector('h3');
     if (q && h && kind !== 'talk') { const x = document.createElement('button'); x.className = 'u-x'; x.setAttribute('aria-label', '닫기'); x.textContent = '✕'; x.addEventListener('click', e => { e.stopPropagation(); q.click(); }); h.appendChild(x); }
     if (kind === 'talk') { const bd = this.ui.dlg.querySelector('.u-body'); bd.addEventListener('click', () => bd.classList.add('shown')); this.ui.dlg.querySelector('.t-por').addEventListener('click', () => bd.classList.add('shown')); }   // 글이 나타나는 중에 누르면 바로 다 보임
     this.ui.dlg.scrollTop = 0;
+    const R = this.ui.root.getBoundingClientRect(), B = this.ui.dlg.getBoundingClientRect(); this._cover = kind === 'map' || kind === 'game' || B.width * B.height > 0.72 * R.width * R.height; this._actT = this.now || 0;   // 절전: 뒤의 3D 가 거의 안 보이면 그리지 않음
   }
-  closeDialog() { if (this.mg) this.mgEnd(); this.ui.modalOpen = false; this.focus = null; this.ui.modal.className = 'u-modal hidden'; this._dirty = true; }
+  closeDialog() { if (this.mg) this.mgEnd(); this.ui.modalOpen = false; this._cover = false; this._actT = this.now || 0; this.focus = null; this.ui.modal.className = 'u-modal hidden'; this._dirty = true; }
   // 다시 볼 수 있는 기록(센서 · 서류 · 배출구 확인 · 사람의 말)은 같은 제목이면 새로 쌓지 않고 최신 내용으로 바꿔 맨 뒤(새 것)로 — 예전엔 같은 증언이 여러 개 쌓여 결정적 증거 점수를 부풀릴 수 있었음
   //   미니게임 결과처럼 매번 다른 실험은 따로 쌓되 제목에 (2)·(3)을 붙여 구별
   addEvidence(e) { e.at = this.nowH; this._dirty = true; const same = x => x.title === e.title && x.id !== 'case', i = e.id === 'case' ? -1 : this.evidence.findIndex(same);
     if (i >= 0 && (/^(🦐|💨|🗂|📍)/.test(e.title) || /의 말$/.test(e.title))) { e.id = this.evidence[i].id; this.evidence.splice(i, 1); this.evidence.push(e); this.seenEv = Math.min(this.seenEv, this.evidence.length - 1); return; }
     if (i >= 0) { const base = e.title; let k = 2; while (this.evidence.some(x => x.title === base + ' (' + k + ')')) k++; e.title = base + ' (' + k + ')'; }
     e.id = e.id || ('e' + this.evidence.length); this.evidence.push(e); const nb = this.ui.noteBtn; if (nb && e.id !== 'case') { nb.classList.remove('got'); void nb.offsetWidth; nb.classList.add('got'); } }   // 새 증거: 수첩 단추가 톡 튐
-  evCat(e) { const t = e.title; return e.id === 'case' ? 'case' : /의 말$/.test(t) ? 'talk' : /^(📊|🧬|🔬|⚗)/.test(t) ? 'lab' : /^(🦐|💨|🛸|🧭)/.test(t) ? 'sensor' : /^(🧪|🗂|📍|🎣|🛶|⏪)/.test(t) ? 'field' : 'talk'; }
+  evCat(e) { const t = e.title; return e.id === 'case' ? 'case' : /의 말$/.test(t) ? 'talk' : /^(📊|🧬|🔬|⚗)/.test(t) ? 'lab' : /^(🦐|💨|🛸|🧭)/.test(t) ? 'sensor' : /^(🧪|🗂|📍|🎣|🛶|⏪|🚓)/.test(t) ? 'field' : 'talk'; }
   openNote() {
     this.seenEv = this.evidence.length;
     const tabs = [['all', '전체'], ['lab', '📊 분석'], ['sensor', '📈 센서'], ['talk', '💬 증언'], ['field', '🗂 현장·서류']], cnt = c => this.evidence.filter(e => this.evCat(e) === c).length;
@@ -1142,7 +1221,7 @@ class UlsanRpgGame {
   }
   // 목적지로 쓸 자리: 시설 = 정문 앞 · 장소 = 그곳 사람 · 나머지 = 그 자리
   poiDest(p) { if (p.kind === 'fac') return ucGate(UC_FAC[p.key], 1); if (p.kind === 'place') { const id = Object.keys(UC_NPC_AT).find(k => UC_NPC_AT[k][0] === p.key); return id ? ucNpcAt(id) : [p.x, p.z]; } return [p.x, p.z]; }
-  mapSpots() { return this.mapPois().filter(p => !(p.kind === 'npc' && p.staff)).map(p => [p.name].concat(this.poiDest(p))); }   // 3D 전경에서 눌러 목적지
+  mapSpots() { return this.mapPois().filter(p => !(p.kind === 'npc' && p.staff)).map(p => { const T = this.poiTarget(p); return [T.name, T.at[0], T.at[1], T.key]; }); }   // 3D 전경에서 눌러 목적지
   // 지도·목록에서 고른 것 → 안내 목적지 (hintPlace 등과 같은 모양)
   poiTarget(p) { if (p.kind === 'place') return this.hintPlace(p.key); if (p.kind === 'fac') return this.hintFac(p.key); if (p.kind === 'point') return this.hintPoint(p.key); if (p.kind === 'report') return this.hintReport();
     if (p.kind === 'bio') return this.hintSensor(UC_BIO.find(b => b.id === p.key)); if (p.kind === 'air') return this.hintSensor(UC_AIR.find(a => a.id === p.key)); return { name: p.name, at: [p.x, p.z], key: 'n:' + p.key }; }
@@ -1195,7 +1274,7 @@ class UlsanRpgGame {
         let an = Math.atan2(tz(b[1]) - Y, tx(b[0]) - X); if (an > Math.PI / 2) an -= Math.PI; if (an < -Math.PI / 2) an += Math.PI;
         q.font = '900 ' + fs + 'px Pretendard, sans-serif'; const w = q.measureText(R.name).width, bx = [X - w / 2 - 4, Y - fs, X + w / 2 + 4, Y + fs]; if (placed.some(r => bx[0] < r[2] && bx[2] > r[0] && bx[1] < r[3] && bx[3] > r[1])) continue; placed.push(bx);
         q.save(); q.translate(X, Y); q.rotate(an); q.textAlign = 'center'; q.textBaseline = 'middle'; q.lineJoin = 'round'; q.lineWidth = Math.max(3, fs * 0.3); q.strokeStyle = 'rgba(6,30,52,.92)'; q.strokeText(R.name, 0, 0); q.fillStyle = '#BFE9FF'; q.fillText(R.name, 0, 0); q.restore(); } });
-    const drawLayer = () => { const q = layer.getContext('2d'), s = sc(), B = this.mapBase(), u = dpr, box = [fx(0), fz(0), fx(CW), fz(CH)];
+    const drawLayer = () => { this._mapAct = performance.now(); const q = layer.getContext('2d'), s = sc(), B = this.mapBase(), u = dpr, box = [fx(0), fz(0), fx(CW), fz(CH)];
       q.clearRect(0, 0, CW, CH); q.fillStyle = '#163B57'; q.fillRect(0, 0, CW, CH); q.imageSmoothingEnabled = true; q.drawImage(B.c, tx(-262), tz(-252), 524 * s, 504 * s);
       this.mapVectors(q, tx, tz, s, box);
       if (L.dong && this._lastDong) { q.fillStyle = 'rgba(54,224,143,.12)'; q.strokeStyle = 'rgba(54,224,143,.9)'; q.lineWidth = 2 * u; this._lastDong.rings.forEach(r => { q.beginPath(); r.forEach((p, i) => i ? q.lineTo(tx(p[0]), tz(p[1])) : q.moveTo(tx(p[0]), tz(p[1]))); q.closePath(); q.fill(); q.stroke(); }); }   // 내가 있는 동은 초록으로
@@ -1212,7 +1291,8 @@ class UlsanRpgGame {
       if (V.z >= 2) UG.dongs.forEach(d => { if (d.t === 'r' && d.gu === '울주군' && V.z < 4) return; this.mapLabel(q, d.n, tx(d.c[0]), tz(d.c[1]), Math.round(10.5 * u), 'rgba(220,228,240,.72)', placed); });
       if (V.z >= 4) rivK.forEach(([k, p]) => this.mapLabel(q, k + 'km', tx(p[0]) + 12 * u, tz(p[1]) - 9 * u, Math.round(10 * u), '#DDF4FF', placed)); };
     // 매 프레임: 바탕 + 지금 갈 곳 고리 + 목적지 + 나 — 내가 화면 밖이면 가장자리에 화살표
-    const frame = () => { if (!cv.isConnected) return; requestAnimationFrame(frame); if (this._mapTab !== 'map') return; if (fit()) { clampV(); drawLayer(); } g.drawImage(layer, 0, 0); const t = performance.now() / 1000, K = dpr;
+    const frame = () => { if (!cv.isConnected || !this.ui.modalOpen || this._dead) { if (this._mapPt && !cv.isConnected) this._mapPt = null; return; } requestAnimationFrame(frame);   // 창을 닫으면 멈춤 (예전: 닫은 뒤에도 숨은 지도를 다른 창을 열 때까지 초당 60번 그렸음)
+      if (this._mapTab !== 'map') return; const pn = performance.now(); if (this.touch && pn - (this._mapFT || 0) < (pn - (this._mapAct || 0) < 1000 ? 29 : 62)) return; this._mapFT = pn; if (fit()) { clampV(); drawLayer(); } g.drawImage(layer, 0, 0); const t = performance.now() / 1000, K = dpr;
       lay.forEach(a => { if (!a.p._goal || a.dot) return; const k = 0.5 + 0.5 * Math.sin(t * 5); g.beginPath(); g.arc(a.X, a.Y, a.r + (5 + 5 * k) * K, 0, 7); g.strokeStyle = 'rgba(255,209,102,' + (0.95 - 0.5 * k).toFixed(2) + ')'; g.lineWidth = 3.5 * K; g.stroke(); });
       if (this.dest) { const X = tx(this.dest.x), Y = tz(this.dest.z) + Math.sin(t * 4) * 3 * K; g.font = Math.round(28 * K) + 'px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif'; g.textAlign = 'center'; g.textBaseline = 'bottom'; g.fillText('📍', X, Y); }
       const X = tx(this.px), Y = tz(this.pz), S = 1.25 * K;
@@ -1270,14 +1350,14 @@ class UlsanRpgGame {
   }
   exitOverview() {
     if (!this.ov) return; const o = this.ov; this.ov = null; this.scene.fog.near = o.fog[0]; this.scene.fog.far = o.fog[1]; if (o.dens != null) this.scene.fog.density = o.dens; this.camera.far = o.far; this.camera.updateProjectionMatrix();
-    if (this.meBeacon) this.meBeacon.visible = false; this.npcs.forEach(n => { n.g.visible = true; }); (this.labels || []).forEach(l => { if (l.base) l.sp.scale.copy(l.base); });
+    if (this.meBeacon) this.meBeacon.visible = false; if (this.beacon) this.beacon.scale.set(1, 1, 1); this.npcs.forEach(n => { n.g.visible = true; }); (this.labels || []).forEach(l => { if (l.base) l.sp.scale.copy(l.base); });
     const ctl = document.getElementById('fps-ctl'); if (ctl) ctl.style.visibility = ''; this.ui.ov.classList.add('hidden'); this.ui.root.classList.remove('ov-on'); this.ui.me.classList.remove('on'); this._cullT = 0;
     this.camera.position.set(this.px, this.groundH(this.px, this.pz) + 60, this.pz + 50);
   }
   stepOverview(dt, now) {
     const o = this.ov, cam = this.camera; let kx = 0, kz = 0; if (this.keys.KeyA || this.keys.ArrowLeft) kx -= 1; if (this.keys.KeyD || this.keys.ArrowRight) kx += 1; if (this.keys.KeyW || this.keys.ArrowUp) kz -= 1; if (this.keys.KeyS || this.keys.ArrowDown) kz += 1;
     o.cx += kx * o.h * 0.9 * dt; o.cz += kz * o.h * 0.9 * dt; o.cx = Math.max(-240, Math.min(240, o.cx)); o.cz = Math.max(-230, Math.min(230, o.cz));
-    this._ovT = this._ovT || new THREE.Vector3(); cam.position.lerp(this._ovT.set(o.cx, o.h, o.cz + o.h * 0.62), 0.14); this._look = this._look || new THREE.Vector3(); this._look.lerp(new THREE.Vector3(o.cx, 0, o.cz - o.h * 0.05), 0.2); cam.lookAt(this._look);
+    this._ovT = this._ovT || new THREE.Vector3(); cam.position.lerp(this._ovT.set(o.cx, o.h, o.cz + o.h * 0.62), 1 - Math.pow(0.86, dt * 60)); this._look = this._look || new THREE.Vector3(); this._lookT = this._lookT || new THREE.Vector3(); this._look.lerp(this._lookT.set(o.cx, 0, o.cz - o.h * 0.05), 1 - Math.pow(0.8, dt * 60)); cam.lookAt(this._look);
     const s = Math.max(1, o.h / 60), k = 0.5 + 0.5 * Math.sin(now / 300); this.meBeacon.position.set(this.px, this.groundH(this.px, this.pz), this.pz); this.meBeacon.scale.set(s, 1 + o.h / 200, s); this.meBeacon.children[1].scale.setScalar(1 + 0.3 * k);
     if (this.beacon && this.dest) this.beacon.scale.set(s * 0.8, 1 + o.h / 200, s * 0.8);
     // 이름표를 높이에 맞게 키움 (멀리서도 읽히게) · 시설·장소·구 이름만
@@ -1299,7 +1379,7 @@ class UlsanRpgGame {
     if (this.lamps) { const on = (this._night || 0) > 0.3 && (now % 1400) < 700; if (this.lamps[0] && this.lamps[0].visible !== on) this.lamps.forEach(l => { l.visible = on; }); }
   }
   // ── 낮과 밤: 게임 속 시각에 따라 하늘 · 해 · 안개 · 창문 불빛 ──
-  setDayTime(h) {
+  setDayTime(h) { this._shDirty = true;
     const hour = ((h % 24) + 24) % 24, key = Math.round(hour * 30); if (key === this._dayKey) return; this._dayKey = key;
     if (this.real) return this.realDay(hour);
     const N = ['#0E1830', '#16223A', 0.16, '#9DB4FF', 0.45, '#7C8FB8', 1], K = [[0, ...N], [5, '#27325A', '#35416A', 0.22, '#A9B8FF', 0.5, '#8C9CC4', 0.85], [6.5, '#F2B58A', '#E8C3A6', 0.55, '#FFB27A', 0.72, '#E6D2C2', 0.25], [8, '#A9D3F0', '#BFDDF2', 1, '#FFF1D6', 1, '#EAF4FF', 0],
@@ -1391,7 +1471,7 @@ class UlsanRpgGame {
       const r = this.glCanvas.getBoundingClientRect(), rc = this._rc = this._rc || new THREE.Raycaster(); rc.setFromCamera({ x: (e.clientX - r.left) / r.width * 2 - 1, y: -((e.clientY - r.top) / r.height) * 2 + 1 }, this.camera);
       const hit = rc.intersectObject(this.ground)[0]; if (!hit) return; let best = null, bd = Math.max(14, this.ov.h * 0.09);
       this.mapSpots().forEach(s => { const q = Math.hypot(s[1] - hit.point.x, s[2] - hit.point.z); if (q < bd) { bd = q; best = s; } });
-      if (!best) { this.toast('장소·시설·센서 가까이를 눌러 주세요'); return; } if (this.dest && this.dest.name === best[0]) { this.setDest(null); this.toast('📍 목적지를 지웠어요'); } else this.setDest(best[1], best[2], best[0]); };
+      if (!best) { this.toast('장소·시설·센서 가까이를 눌러 주세요'); return; } if (this.dest && (this.dest.key === best[3] || this.dest.name === best[0])) { this.setDest(null); this.toast('📍 목적지를 지웠어요'); } else this.setDest(best[1], best[2], best[0], false, best[3]); };
     ov.addEventListener('pointerup', up); ov.addEventListener('pointercancel', e => { pts.delete(e.pointerId); drag = null; pin = null; });
     ov.addEventListener('wheel', e => { e.preventDefault(); this.ovZoom(e.deltaY > 0 ? 1.12 : 0.89); }, { passive: false });
     ov.querySelectorAll('[data-ov]').forEach(b => b.addEventListener('click', () => { const a = b.dataset.ov; if (a === 'in') this.ovZoom(0.75); if (a === 'out') this.ovZoom(1.33); if (a === 'me') { this.ov.cx = this.px; this.ov.cz = this.pz; } if (a === 'back') this.exitOverview(); }));

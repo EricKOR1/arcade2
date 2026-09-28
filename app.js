@@ -106,7 +106,7 @@ function rankHtml(list, label) {
       return '<li' + (p.k === me ? ' class="me"' : '') + '>' +
         '<span class="n">' + (["🥇", "🥈", "🥉"][i] || (i + 1) + ".") + '</span>' +
         '<span class="nm">' + esc(p.nm) + '</span>' +
-        '<span class="sc">' + (p.score || 0) + '</span></li>';
+        '<span class="sc">' + (Math.round(+p.score) || 0) + '</span></li>';
     }).join("") + '</ol></div>';
 }
 

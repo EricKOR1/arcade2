@@ -1313,12 +1313,12 @@ body.fullgrid .spectate { grid-template-columns: 1fr 320px }
 .urpg-ui .u-clue { position: absolute; left: 50%; top: 34%; width: min(320px, 80%); transform: translate(-50%, -50%); perspective: 800px; opacity: 0; pointer-events: none }
 .urpg-ui .u-clue.on { opacity: 1; pointer-events: auto; animation: clIn 2.6s ease-out forwards }
 .urpg-ui .u-clue .cl-in { position: relative; height: 128px; transform-style: preserve-3d; transform: rotateY(180deg) }
-.urpg-ui .u-clue.on .cl-in { animation: clFlip .7s .15s cubic-bezier(.3,1.4,.5,1) forwards }
+.urpg-ui .u-clue.on .cl-in { animation: clFlip .7s .15s cubic-bezier(.3,1.4,.5,1) both }   /* '?' 앞면 → 뒤집혀 내용이 보인 채로 멈춤 (예전: 내용 → '?' 로 끝나 글을 읽을 수 없었음) */
 .urpg-ui .u-clue .cl-f, .urpg-ui .u-clue .cl-b { position: absolute; inset: 0; border-radius: 16px; backface-visibility: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; box-shadow: 0 16px 40px rgba(0,0,0,.55), 0 0 30px rgba(255,209,102,.4) }
 .urpg-ui .u-clue .cl-f { font: 900 56px var(--serif); color: #3A2600; background: linear-gradient(135deg, #FFF0B8, #C9962F) }
 .urpg-ui .u-clue .cl-b { transform: rotateY(180deg); padding: 12px 16px; background: linear-gradient(180deg, #1F2A48, #0E1424) padding-box, var(--frame) border-box; border: 2px solid transparent }
 .urpg-ui .u-clue .cl-b small { font: 900 13px Pretendard, sans-serif; color: #FFD166; letter-spacing: 2px } .urpg-ui .u-clue .cl-b b { font: 800 15px/1.35 var(--serif); color: #FFF6DA; margin: 6px 0 4px } .urpg-ui .u-clue .cl-b em { font-style: normal; font-size: 12px; color: #C3CBDB; line-height: 1.4 }
-@keyframes clFlip { from { transform: rotateY(180deg) scale(.7) } to { transform: rotateY(360deg) scale(1) } }
+@keyframes clFlip { from { transform: rotateY(0deg) scale(.7) } to { transform: rotateY(180deg) scale(1) } }
 @keyframes clIn { 0% { opacity: 0; transform: translate(-50%, -40%) } 10% { opacity: 1; transform: translate(-50%, -50%) } 85% { opacity: 1 } 100% { opacity: 0; transform: translate(-50%, -56%) } }
 .urpg-ui .u-lvup { position: absolute; left: 50%; top: 24%; transform: translateX(-50%); text-align: center; opacity: 0 }
 .urpg-ui .u-lvup.on { animation: lvIn 2.4s ease-out forwards }
@@ -1341,3 +1341,100 @@ body.fullgrid .spectate { grid-template-columns: 1fr 320px }
 .urpg-ui .uq-pct { display: none !important; cursor: default !important } .urpg-ui .u-quest.compact .uq-pct { display: inline-flex !important } .urpg-ui .u-quest.compact .uq-track { display: none }   /* 폰: 추적 게이지는 칩 하나로 */
 @media (max-width: 600px) { .urpg-ui .u-clue { top: 52% } .urpg-ui .u-alert { top: 56% } .urpg-ui .u-lvup { top: 44% } }
 .urpg-ui .u-quest.tiny .uq-obj { display: none }   /* 폰 가로: 목표 칩 대신 🎯 추적 % 칩 (창을 낮게 — 조이스틱·시작 카드와 겹치지 않게) */
+
+/* ── (v2026-10-19c) 📋 할 일 자세히: 퀘스트 창을 누르면 — 지금 할 일 전체 · 수사 순서 · 보고서 답 · 모은 것 ── */
+.urpg-ui .u-quest { cursor: pointer }
+.urpg-ui .uq-more { pointer-events: auto; flex: none; border: 1px solid rgba(245,196,81,.55); background: rgba(245,196,81,.12); color: #FFE7A8; border-radius: 8px; padding: 2px 7px; font: 800 11px/1.3 Pretendard, sans-serif; cursor: pointer; white-space: nowrap }
+.urpg-ui .uq-more:active { transform: scale(.94) }
+.urpg-ui .u-quest:not(.tiny):not(.folded) .uq-more { display: none }   /* 평소엔 '다음 할 일' 줄 오른쪽의 📋 자세히 › · 폰 가로(한 줄)·접었을 때만 머리줄 단추 */
+.urpg-ui .uq-hint .uq-mr { float: right; font-style: normal; font-weight: 800; font-size: 10.5px; color: #FFE7A8; background: rgba(245,196,81,.14); border: 1px solid rgba(245,196,81,.45); border-radius: 7px; padding: 0 6px; margin-left: 6px; letter-spacing: 0 }
+@media (orientation: landscape) and (max-height: 540px) { .urpg-ui .u-modal.m-panel { padding: 6px 6px 6px 54px } }   /* 폰 가로: 왼쪽 위 ← 단추와 창이 겹치지 않게 */
+.urpg-ui .u-quest.compact .uq-more span { display: none } .urpg-ui .u-quest.compact .uq-more { padding: 1px 5px; font-size: 12px }
+.urpg-ui .u-box.panel.quest { width: min(620px, 96%) }
+.urpg-ui .u-box.quest .u-body { font-size: 14px; line-height: 1.5 }
+.urpg-ui .u-box.quest h3 { font-size: 16.5px; word-break: keep-all } .urpg-ui .u-box.quest .u-opts { flex-direction: row } .urpg-ui .u-box.quest .u-opts button { flex: 1; text-align: center }
+.urpg-ui .u-box.quest .q-top { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 10px } .urpg-ui .u-box.quest .q-top span { font-size: 12.5px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); border-radius: 8px; padding: 3px 9px; color: #C9D0DD } .urpg-ui .u-box.quest .q-top b { color: #FFE08A }
+.urpg-ui .u-box.quest .q-now { background: linear-gradient(90deg, rgba(245,196,81,.2), rgba(245,196,81,.05)); border: 1px solid rgba(245,196,81,.45); border-left: 4px solid var(--gold); border-radius: 4px 12px 12px 4px; padding: 10px 12px 11px }
+.urpg-ui .u-box.quest .q-now small { display: block; font: 900 11.5px/1.2 Pretendard, sans-serif; color: #FFE08A; letter-spacing: .3px; margin-bottom: 4px } .urpg-ui .u-box.quest .q-now p { margin: 0; font-size: 15.5px; line-height: 1.6; color: #fff; word-break: keep-all }
+.urpg-ui .u-box.quest .q-to { margin-top: 7px; font-size: 13px; color: #D8C79A } .urpg-ui .u-box.quest .q-to b { color: #FFF1C9 }
+.urpg-ui .u-box.quest .q-bt { display: flex; gap: 8px; margin-top: 9px; flex-wrap: wrap }
+.urpg-ui .u-box.quest .q-bt button { flex: 1; min-width: 120px; border-radius: 999px; padding: 10px 14px; font: 900 14px/1.2 Pretendard, sans-serif; color: #2A1C00; border: 0; background: linear-gradient(180deg, #FFF0B8, #E7B74C); box-shadow: 0 3px 0 #8C6424, 0 4px 10px rgba(0,0,0,.35); cursor: pointer }
+.urpg-ui .u-box.quest .q-bt button.q-go { color: #EAFBF2; background: linear-gradient(180deg, #3FBF7F, #16784A); box-shadow: 0 3px 0 #0C4A2D, 0 4px 10px rgba(0,0,0,.35) } .urpg-ui .u-box.quest .q-bt button small { font-weight: 700; opacity: .85 }
+.urpg-ui .u-box.quest .q-bt button.on { box-shadow: 0 0 0 2px rgba(255,224,138,.6), 0 3px 0 #8C6424 } .urpg-ui .u-box.quest .q-bt button:active { transform: translateY(2px) }
+.urpg-ui .u-box.quest h4 { margin: 14px 0 7px; font: 900 13.5px/1.2 Pretendard, sans-serif; color: #FFE7A8; display: flex; align-items: baseline; gap: 8px } .urpg-ui .u-box.quest h4 small { font-size: 11.5px; color: #8E97AB; font-weight: 700 }
+.urpg-ui .u-box.quest .q-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px }
+.urpg-ui .u-box.quest .q-steps li { display: flex; gap: 9px; align-items: flex-start; padding: 7px 10px; border-radius: 10px; background: rgba(255,255,255,.035); border: 1px solid rgba(255,255,255,.07); color: #9AA3B6 }
+.urpg-ui .u-box.quest .q-steps li > i { flex: none; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font: 900 12px/1 Pretendard, sans-serif; font-style: normal; background: rgba(255,255,255,.08); color: #9AA3B6; margin-top: 1px }
+.urpg-ui .u-box.quest .q-steps li > div > b { display: block; font-size: 14px; color: #C9D0DD } .urpg-ui .u-box.quest .q-steps li span b { color: #DDE2EC } .urpg-ui .u-box.quest .q-steps li span { display: block; font-size: 12.5px; line-height: 1.5; margin-top: 1px; word-break: keep-all }
+.urpg-ui .u-box.quest .q-steps li.done { background: rgba(54,224,143,.06); border-color: rgba(54,224,143,.25) } .urpg-ui .u-box.quest .q-steps li.done > i { background: #1E9E63; color: #fff } .urpg-ui .u-box.quest .q-steps li.done > div > b { color: #BFF3D8 } .urpg-ui .u-box.quest .q-steps li.done span { display: none }
+.urpg-ui .u-box.quest .q-steps li.cur { background: rgba(245,196,81,.1); border-color: rgba(245,196,81,.55); color: #E9E3CF } .urpg-ui .u-box.quest .q-steps li.cur > i { background: linear-gradient(#FFF0B8, #E7B74C); color: #2A1C00 } .urpg-ui .u-box.quest .q-steps li.cur > div > b { color: #FFF1C9 } .urpg-ui .u-box.quest .q-steps li.cur span b { color: #FFE7A8 }
+.urpg-ui .u-box.quest .q-ans { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px }
+.urpg-ui .u-box.quest .q-ans button { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 7px 4px; border-radius: 10px; background: rgba(255,255,255,.04); border: 1px dashed rgba(255,255,255,.18); color: #8E97AB; cursor: pointer; min-width: 0 }
+.urpg-ui .u-box.quest .q-ans i { font-style: normal; font-weight: 900; font-size: 13px; color: #D8C79A } .urpg-ui .u-box.quest .q-ans small { font-size: 11px } .urpg-ui .u-box.quest .q-ans b { font-size: 12.5px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #6E7891 }
+.urpg-ui .u-box.quest .q-ans button.ok { border: 1px solid rgba(54,224,143,.45); background: rgba(54,224,143,.08) } .urpg-ui .u-box.quest .q-ans button.ok b { color: #EAFBF2 }
+.urpg-ui .u-box.quest .q-got { display: flex; flex-wrap: wrap; gap: 6px } .urpg-ui .u-box.quest .q-got span { font-size: 12.5px; padding: 4px 9px; border-radius: 8px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1); color: #C9D0DD } .urpg-ui .u-box.quest .q-got span.ok { border-color: rgba(54,224,143,.4); color: #EAFBF2 } .urpg-ui .u-box.quest .q-got b { color: #fff }
+@media (max-width: 520px) { .urpg-ui .u-box.quest .q-ans { grid-template-columns: repeat(3, 1fr) } .urpg-ui .u-box.quest .q-now p { font-size: 15px } }
+.urpg-ui .u-box.quest .q-grid { display: grid; grid-template-columns: 1fr; grid-template-areas: 'top' 'now' 'st' 'an' 'go' } .urpg-ui .u-box.quest .q-top { grid-area: top } .urpg-ui .u-box.quest .q-now { grid-area: now } .urpg-ui .u-box.quest .q-st { grid-area: st } .urpg-ui .u-box.quest .q-an { grid-area: an } .urpg-ui .u-box.quest .q-go { grid-area: go; padding-bottom: 4px }
+@media (orientation: landscape) and (max-height: 540px) {   /* 폰 가로: 왼쪽 = 지금 할 일 · 보고서 답 · 모은 것 / 오른쪽 = 수사 순서 */
+  .urpg-ui .u-box.panel.quest { width: min(900px, 100%) } .urpg-ui .u-box.quest h3 { padding-top: 7px !important; padding-bottom: 7px !important; font-size: 15px }
+  .urpg-ui .u-box.quest .q-grid { grid-template-columns: 1.05fr 1fr; column-gap: 12px; grid-template-areas: 'top st' 'now st' 'an st' 'go st'; align-items: start }
+  .urpg-ui .u-box.quest .q-st h4 { margin-top: 0 } .urpg-ui .u-box.quest .q-top { margin-bottom: 7px } .urpg-ui .u-box.quest .q-now { padding: 8px 10px } .urpg-ui .u-box.quest .q-now p { font-size: 14px; line-height: 1.5 }
+  .urpg-ui .u-box.quest .q-bt button { padding: 7px 10px; font-size: 13px; min-width: 0 } .urpg-ui .u-box.quest h4 { margin: 9px 0 5px } .urpg-ui .u-box.quest .q-steps li { padding: 5px 8px } .urpg-ui .u-box.quest .q-steps li span { font-size: 12px }
+  .urpg-ui .u-box.quest .q-ans { grid-template-columns: repeat(5, 1fr) } .urpg-ui .u-box.quest .u-opts { padding-top: 8px !important; padding-bottom: 8px !important } .urpg-ui .u-box.quest .u-opts button { padding-top: 7px; padding-bottom: 7px } }
+
+/* ── (v2026-10-19c) 창 겹침 정리: 아래 단추 묶음이 위 설명·목록을 가리지 않게 ── */
+/* 큰 창(분석 · 보고서 · 결과 · 수첩 …) 단추: 세로로 쌓던 긴 단추 → 가로로 나란히(좁으면 두 줄) · 시간은 칩 · 설명은 작은 글씨(좁거나 낮은 화면에선 숨김 — 본문에 같은 설명) */
+.urpg-ui .u-box.panel .u-opts { flex-direction: row; flex-wrap: wrap; align-items: stretch; gap: 6px; background: linear-gradient(180deg, rgba(12,17,29,0), #0C111D 14px); padding-top: 10px; border-top: 1px solid rgba(245,196,81,.18) }
+.urpg-ui .u-box.panel .u-opts > button { flex: 1 1 128px; min-width: 0; min-height: 42px; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 3px 7px; text-align: center; padding: 8px 10px; line-height: 1.25; word-break: keep-all }
+.urpg-ui .u-box.panel .u-opts > button.ghost { flex: 0 1 auto; min-width: 76px }
+.urpg-ui .u-box.panel .u-opts > button b { font-weight: 800 } .urpg-ui .u-box.panel .u-opts > button .chip { padding: 1px 7px } .urpg-ui .u-box.panel .u-opts > button small { flex-basis: 100%; font-size: 11.5px; line-height: 1.3; color: #9AA3B5 }
+.urpg-ui .u-box.panel .u-opts > button.primary small { color: #5A4200 }
+@media (max-width: 560px), (max-height: 540px) { .urpg-ui .u-box.panel .u-opts > button small { display: none } }
+@media (max-height: 540px) { .urpg-ui .u-box.panel .u-opts { padding-top: 7px; padding-bottom: 7px } .urpg-ui .u-box.panel .u-opts > button { min-height: 36px; padding: 6px 9px; font-size: 13px } .urpg-ui .u-box.panel h3 { padding-top: 8px; padding-bottom: 8px; font-size: 15.5px } .urpg-ui .u-box.panel h3 .u-x { width: 28px; height: 28px } }
+/* 아래 선택지 창(강가 조사 · 시설 정문 …): 폰 가로에선 두 줄로 나란히 — 한 화면에 선택지가 다 보이게 */
+@media (orientation: landscape) and (max-height: 540px) {
+  .urpg-ui .u-box.sheet { max-height: 92%; width: min(760px, calc(100% - 100px)); padding: 9px 12px 10px } .urpg-ui .u-box.sheet h3 { font-size: 15px; margin-bottom: 5px }
+  .urpg-ui .u-box.sheet .u-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px } .urpg-ui .u-box.sheet .u-opts > button { padding-top: 7px; padding-bottom: 7px } .urpg-ui .u-box.sheet .u-opts > button small { font-size: 11px }
+  .urpg-ui .u-box.sheet .u-opts > .u-dnote { grid-column: 1 / -1 } }
+/* 창이 열려 있을 때의 알림: 창 안 단추 바로 위 (예전엔 알림 띠가 창 뒤에 숨어 안 보였음) · 전체 지도·미니게임은 창 위로 */
+.urpg-ui .u-dnote { flex: 1 0 100%; box-sizing: border-box; padding: 7px 11px; border-radius: 9px; background: rgba(245,196,81,.14); border: 1px solid rgba(245,196,81,.55); color: #FFF1C9; font: 800 13px/1.4 Pretendard, sans-serif; text-align: center; word-break: keep-all }
+.urpg-ui .u-dnote.on { animation: uDn .35s ease-out } @keyframes uDn { from { opacity: 0; transform: translateY(4px) } }
+.urpg-ui .u-toast.over { z-index: 40 }
+.urpg-ui .u-box.quest .u-opts > button { flex: 1 1 120px }
+.urpg-ui .u-body .lab-h { margin: 8px 0 5px; font-weight: 900; color: #FFE7A8 } .urpg-ui .u-body .lab-h small { font-weight: 600; color: #9AA3B5 } .urpg-ui .u-body .lab-n { margin: 9px 0 2px; font-size: 12.5px; line-height: 1.5 }
+/* 수첩 목록: 제목 옆 시각이 줄 아래 테두리에 겹치던 것 (float) → 제목 · 시각 나란히 */
+.urpg-ui summary { display: flex; align-items: baseline; gap: 0 6px } .urpg-ui summary::before { flex: none } .urpg-ui summary small { float: none; flex: none; margin-left: auto; padding-left: 8px; white-space: nowrap }
+.urpg-ui .u-box.panel .u-opts > button.primary .chip { color: #3A2800; background: rgba(255,255,255,.5); border-color: rgba(90,66,0,.35) }
+.urpg-ui .u-box.panel .u-opts > button.ghost:only-child { flex: 1 1 auto }
+.urpg-ui .lab-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 0 8px } .urpg-ui .lab-list label.sample { margin: 4px 0 }
+@media (max-height: 540px) { .urpg-ui .lab-list label.sample { padding: 5px 9px } .urpg-ui .u-body .lab-h { margin: 6px 0 2px } .urpg-ui .u-box.panel .lock { padding: 5px 9px; font-size: 12.5px } }
+/* 대화창: 폰 가로에서 글이 길면 단추가 창 아래로 밀리던 것 */
+@media (max-height: 540px) { .urpg-ui .u-box.talk { max-height: 76% } .urpg-ui .u-box.talk .u-body { max-height: calc(76vh - 118px) } }
+/* 퀘스트 창 '다음 할 일' 줄: 📋 자세히 › 가 글을 옆으로 밀지 않게 (float → 한 줄 나란히) */
+.urpg-ui .u-quest:not(.tiny) .uq-hint > small { display: flex; align-items: center; gap: 6px } .urpg-ui .uq-hint .uq-mr { float: none; margin-left: auto; flex: none }
+.urpg-ui .u-quest:not(.tiny) .uq-hint > small { white-space: nowrap } .urpg-ui .u-quest.compact .uq-hint .uq-mr { font-size: 10px; padding: 0 5px }
+@media (orientation: landscape) and (max-height: 540px) {   /* 할 일 자세히 (폰 가로): 지금 할 일을 왼쪽 맨 위에 — 단추가 아래 단추 묶음에 가리지 않게 · 시간 칩은 오른쪽 위 */
+  .urpg-ui .u-box.quest .q-grid { grid-template-areas: 'now top' 'now st' 'an st' 'go st'; grid-template-rows: auto auto auto 1fr }
+  .urpg-ui .u-box.quest .q-top { margin: 0 0 6px } .urpg-ui .u-box.quest .q-top span { font-size: 11.5px; padding: 2px 7px }
+  .urpg-ui .u-box.quest .q-now p { font-size: 13.5px } .urpg-ui .u-box.quest .q-to { margin-top: 4px; font-size: 12px } .urpg-ui .u-box.quest .q-bt { margin-top: 6px } .urpg-ui .u-box.quest .q-bt button { padding: 6px 8px; font-size: 12.5px } }
+@media (max-width: 600px) { .urpg-ui .u-quest.compact .uq-hint .uq-mr span { display: none } }   /* 폰 세로(좁은 퀘스트 창): 📋 › 만 */
+/* (v2026-10-19d) 절전: 폰·태블릿은 창 뒤 흐림 효과를 끔 — 3D 가 바뀔 때마다 창 뒤를 다시 흐리게 계산했음 (창 바탕은 원래 거의 불투명이라 모습은 같음) */
+.urpg-ui.urpg-touch .u-quest, .urpg-ui.urpg-touch .u-modal.m-panel, .urpg-ui.urpg-touch .u-modal.m-game { backdrop-filter: none; -webkit-backdrop-filter: none }
+
+/* ── (v2026-10-19d) 더 재미있게: 🏅 도전 과제 소식 · 📖 생물 도감 카드 · 📰 뉴스 · ❓ 퀴즈 ── */
+.urpg-ui .u-feed .fd.ach { background: linear-gradient(90deg, rgba(120,84,10,.94), rgba(70,48,6,.94)); border-color: rgba(255,214,102,.75); color: #FFF3C8; box-shadow: 0 0 16px rgba(255,209,102,.35), 0 4px 12px rgba(0,0,0,.4) }
+.urpg-ui .u-feed .fd.ach b { color: #FFE08A } .urpg-ui .u-feed .fd.ach small { color: #F1D9A0; font-weight: 600; margin-left: 4px }
+.urpg-ui .u-clue.dex.on { animation-duration: 4.2s } .urpg-ui .u-clue.dex .cl-in { height: 164px }
+.urpg-ui .u-clue.dex .cl-f { background: linear-gradient(135deg, #C9F7D3, #2E9E62); color: #0B3B22 } .urpg-ui .u-clue.dex .cl-b { background: linear-gradient(180deg, #16382A, #0B1D16) padding-box, linear-gradient(135deg, #BFF3D8, #2E9E62) border-box }
+.urpg-ui .u-clue.dex .cl-b small { color: #9FF0C0; letter-spacing: 1px } .urpg-ui .u-clue.dex .cl-b em { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; font-size: 12.5px; color: #D9F5E6 }
+.urpg-ui .u-news { margin: 2px 0 12px; padding: 10px 12px 11px; border-radius: 10px; background: linear-gradient(180deg, #F4EEDC, #E4DCC4); color: #2A2418; border: 1px solid #BFB08A; box-shadow: inset 0 0 0 3px rgba(255,255,255,.35), 0 6px 16px rgba(0,0,0,.35); text-align: left }
+.urpg-ui .u-news small { display: block; font: 900 11.5px/1.2 Pretendard, sans-serif; color: #8A2B20; letter-spacing: .5px; border-bottom: 2px solid #2A2418; padding-bottom: 4px; margin-bottom: 6px } .urpg-ui .u-news small i { font-style: normal; font-weight: 600; color: #6B6450; letter-spacing: 0 }
+.urpg-ui .u-news b { display: block; font: 800 16.5px/1.35 var(--serif); color: #1B1610; word-break: keep-all } .urpg-ui .u-news span { display: block; margin-top: 4px; font-size: 12.5px; color: #4A4234 }
+.urpg-ui .u-achs, .urpg-ui .u-dex { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; margin-bottom: 10px }
+.urpg-ui .u-achs span, .urpg-ui .u-dex span { display: flex; flex-direction: column; gap: 1px; padding: 6px 9px; border-radius: 10px; background: rgba(255,255,255,.04); border: 1px dashed rgba(255,255,255,.18); color: #7E8799 }
+.urpg-ui .u-achs span b, .urpg-ui .u-dex span b { font-size: 12.5px; color: #9AA3B5 } .urpg-ui .u-achs span small, .urpg-ui .u-dex span small { font-size: 11px; line-height: 1.35 }
+.urpg-ui .u-achs span.on { border: 1px solid rgba(255,214,102,.6); background: rgba(255,214,102,.1) } .urpg-ui .u-achs span.on b { color: #FFE08A } .urpg-ui .u-achs span.on small { color: #D8C79A }
+.urpg-ui .u-dex span i { font-style: normal; font-size: 22px; line-height: 1.1 } .urpg-ui .u-dex span.on { border: 1px solid rgba(54,224,143,.5); background: rgba(54,224,143,.08) } .urpg-ui .u-dex span.on b { color: #BFF3D8 } .urpg-ui .u-dex span.on small { color: #C9D0DD }
+.urpg-ui .u-box.quiz .qz-q { font: 800 16px/1.5 var(--serif); color: #FFF1C9; margin: 2px 0 6px; word-break: keep-all }
+/* 대화창(좁은 폰 세로): 단추가 세 개(수첩 · 미니게임 · ❓ 퀴즈)여도 창 안에 다 보이게 */
+@media (max-width: 600px) and (orientation: portrait) { .urpg-ui .u-box.talk { max-height: 76% } .urpg-ui .u-box.talk .u-body { max-height: 30vh } .urpg-ui .u-box.talk .u-opts button { padding: 8px 14px } }

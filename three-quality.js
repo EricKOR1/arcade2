@@ -39,7 +39,7 @@
   TQ.frame = function (game, x, y, z, now) {
     if (!game.hq || game.hq === 'low') return;
     if (game.sun && game.renderer.shadowMap.enabled) { const off = game.sunOffset; game.sun.position.set(x + off.x, y + off.y, z + off.z); game.sun.target.position.set(x, y, z); game.sun.target.updateMatrixWorld(); }
-    if (game.hqLocked) return;
+    if (game.hqLocked || game._paceIv) { game._fpsN = 0; game._fpsT = 0; return; }   // 절전으로 일부러 장수를 줄인 게임(울산 수사대 폰·태블릿)은 느린 것으로 보지 않음
     game._fpsN = (game._fpsN || 0) + 1; if (!game._fpsT) game._fpsT = now;
     if (now - game._fpsT > 3000) { const fps = game._fpsN * 1000 / (now - game._fpsT); game._fpsN = 0; game._fpsT = now;
       if (fps < 24 && game.renderer.shadowMap.enabled) { game.renderer.shadowMap.enabled = false; if (game.sun) game.sun.castShadow = false;
