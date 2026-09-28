@@ -55,15 +55,15 @@ const UC_WATER_POLS = ['phenol', 'cadmium', 'ammonia', 'oil', 'bod'], UC_AIR_POL
 //   v2026-10-19a: 실제 회사·처리장과 헷갈릴 수 있던 이름을 누가 봐도 가상인 이름으로 바꿈
 const UC_FAC = {
   F1: { name: '무지개화학 (석유화학 수지공장)', zone: '남구 석유화학단지', at: [112.7, 23.4], can: ['phenol', 'benzene', 'toluene', 'oil'],
-        outs: [{ id: 'F1-A', kind: 'water', river: 'yeocheon', s: 41.5, label: '폐수 방류구', type: 'waste' }, { id: 'F1-B', kind: 'water', river: 'yeocheon', s: 23.8, label: '빗물 배수구', type: 'rain' }, { id: 'F1-C', kind: 'water', river: 'yeocheon', s: 32.5, label: '냉각수 배출구', type: 'cool' }], stacks: [{ id: 'F1-S', x: 116.8, z: 27.1, label: '공정 굴뚝' }] },
+        outs: [{ id: 'F1-A', kind: 'water', river: 'yeocheon', s: 41.5, label: '폐수 방류구', type: 'waste' }, { id: 'F1-B', kind: 'water', river: 'yeocheon', s: 23.8, label: '빗물 배수구', type: 'rain' }, { id: 'F1-C', kind: 'water', river: 'yeocheon', s: 32.5, label: '냉각수 배출구', type: 'cool' }], stacks: [{ id: 'F1-S', x: 116.8, z: 27.1, label: '공정 굴뚝' }, { id: 'F1-S2', x: 100.7, z: 26.9, label: '보일러 굴뚝', meter: false, note: '작은 보일러 굴뚝 · 자동측정 대상 아님' }, { id: 'F1-S3', x: 110.2, z: 17.4, label: '폐가스 소각로 굴뚝' }] },
   F2: { name: '고래정유 (정유공장)', zone: '남구 석유화학단지', at: [137.9, 44.4], can: ['benzene', 'h2s', 'oil', 'phenol'],
-        outs: [{ id: 'F2-A', kind: 'water', river: 'yeocheon', s: 68.9, label: '폐수 방류구', type: 'waste' }, { id: 'F2-B', kind: 'water', river: 'yeocheon', s: 78, label: '빗물 배수구', type: 'rain' }, { id: 'F2-C', kind: 'water', river: 'yeocheon', s: 60.5, label: '냉각수 배출구', type: 'cool' }], stacks: [{ id: 'F2-S1', x: 132.9, z: 46.8, label: '가열로 굴뚝' }, { id: 'F2-S2', x: 146.0, z: 40.7, label: '황 회수 굴뚝' }] },
+        outs: [{ id: 'F2-A', kind: 'water', river: 'yeocheon', s: 68.9, label: '폐수 방류구', type: 'waste' }, { id: 'F2-B', kind: 'water', river: 'yeocheon', s: 78, label: '빗물 배수구', type: 'rain' }, { id: 'F2-C', kind: 'water', river: 'yeocheon', s: 60.5, label: '냉각수 배출구', type: 'cool' }], stacks: [{ id: 'F2-S1', x: 132.9, z: 46.8, label: '가열로 굴뚝' }, { id: 'F2-S2', x: 146.0, z: 40.7, label: '황 회수 굴뚝' }, { id: 'F2-S3', x: 128.9, z: 59.2, label: '플레어 스택', meter: false, note: '비상시 남는 가스를 태우는 굴뚝 · 자동측정 대상 아님' }] },
   F3: { name: '은별제련 (금속 제련소)', zone: '온산 공단', at: [132.9, 99.9], can: ['cadmium'], outs: [{ id: 'F3-A', kind: 'water', river: 'oehwang', s: 102.2, label: '폐수 방류구', type: 'waste' }, { id: 'F3-B', kind: 'water', river: 'oehwang', s: 111.5, label: '빗물 배수구', type: 'rain' }], stacks: [] },
   F4: { name: '풀잎비료 (비료공장)', zone: '청량·온산', at: [80.5, 67.8], can: ['ammonia', 'cadmium'], outs: [{ id: 'F4-A', kind: 'water', river: 'oehwang', s: 50.4, label: '폐수 방류구', type: 'waste' }, { id: 'F4-B', kind: 'water', river: 'oehwang', s: 59.5, label: '빗물 배수구', type: 'rain' }, { id: 'F4-C', kind: 'water', river: 'oehwang', s: 41.5, label: '냉각수 배출구', type: 'cool' }], stacks: [] },
-  F5: { name: '파랑새자동차 (도장공장)', zone: '북구 양정동', at: [169.1, -43.1], can: ['toluene'], outs: [], stacks: [{ id: 'F5-S1', x: 165.1, z: -46.8, label: '도장 1라인 굴뚝' }, { id: 'F5-S2', x: 174.2, z: -39.4, label: '도장 2라인 굴뚝' }] },
+  F5: { name: '파랑새자동차 (도장공장)', zone: '북구 양정동', at: [169.1, -43.1], can: ['toluene'], outs: [], stacks: [{ id: 'F5-S1', x: 165.1, z: -46.8, label: '도장 1라인 굴뚝' }, { id: 'F5-S2', x: 174.2, z: -39.4, label: '도장 2라인 굴뚝' }, { id: 'F5-S3', x: 180.6, z: -45.1, label: '건조로 굴뚝', meter: false, note: '페인트를 말리는 건조로 굴뚝 · 자동측정 대상 아님' }] },
   F6: { name: '푸른강 하수처리장', zone: '울주군 범서읍', at: [32.2, -28.4], can: ['ammonia', 'bod'], outs: [{ id: 'F6-A', kind: 'water', river: 'taehwa', s: 259.4, label: '처리수 방류구', type: 'waste' }, { id: 'F6-B', kind: 'water', river: 'taehwa', s: 248, label: '비상 우회 방류구', type: 'bypass' }, { id: 'F6-C', kind: 'water', river: 'taehwa', s: 270, label: '빗물 배수구', type: 'rain' }], stacks: [] },
   F7: { name: '꿀맛식품 (식품공장)', zone: '울주군 언양읍', at: [-102.7, -40.7], can: ['bod', 'ammonia'], outs: [{ id: 'F7-A', kind: 'water', river: 'taehwa', s: 115.3, label: '폐수 방류구', type: 'waste' }, { id: 'F7-B', kind: 'water', river: 'taehwa', s: 105, label: '세척수 배수구', type: 'wash' }, { id: 'F7-C', kind: 'water', river: 'taehwa', s: 126, label: '빗물 배수구', type: 'rain' }], stacks: [] },
-  F8: { name: '바닷가 하수처리장', zone: '남구 용연동', at: [118.8, 60.4], can: ['ammonia', 'h2s'], outs: [{ id: 'F8-A', kind: 'water', river: 'oehwang', s: 91.3, label: '처리수 방류구', type: 'waste' }, { id: 'F8-B', kind: 'water', river: 'oehwang', s: 82, label: '비상 우회 방류구', type: 'bypass' }], stacks: [{ id: 'F8-S', x: 122.8, z: 57.9, label: '찌꺼기 창고 배기구' }] }
+  F8: { name: '바닷가 하수처리장', zone: '남구 용연동', at: [118.8, 60.4], can: ['ammonia', 'h2s'], outs: [{ id: 'F8-A', kind: 'water', river: 'oehwang', s: 91.3, label: '처리수 방류구', type: 'waste' }, { id: 'F8-B', kind: 'water', river: 'oehwang', s: 82, label: '비상 우회 방류구', type: 'bypass' }], stacks: [{ id: 'F8-S', x: 122.8, z: 57.9, label: '찌꺼기 창고 배기구' }, { id: 'F8-S2', x: 106.8, z: 53.4, label: '소화조 가스 배출구', meter: false, note: '찌꺼기를 썩히는 소화조의 가스 배출구 · 자동측정 대상 아님' }] }
 };
 // 한 강에서 그 물질을 쓰는 시설의 배출구 (상류 → 하류) — 🔬 독성 지도 후보
 function ucCandOuts(pol, river) { const out = []; Object.keys(UC_FAC).forEach(k => { const F = UC_FAC[k]; if (F.can.indexOf(pol) < 0) return; F.outs.forEach(o => { if (o.river === river) out.push(Object.assign({ fac: k }, o)); }); }); return out.sort((a, b) => a.s - b.s); }
@@ -75,7 +75,7 @@ const UC_OUT_TYPE = { waste: { n: '폐수·처리수 방류구', meter: true, us
   wash: { n: '세척수 배수구', meter: false, use: '설비를 씻은 물이 낮 동안 나오는 관 · 밤엔 멈춤' },
   bypass: { n: '비상 우회 방류구', meter: false, use: '처리 설비가 고장 났을 때만 여는 관 · 열면 구청에 신고해야 함' } };
 function ucOutType(o) { return UC_OUT_TYPE[(o && o.type) || 'waste'] || UC_OUT_TYPE.waste; }
-function ucMetered(o) { return !o || o.kind !== 'water' ? true : ucOutType(o).meter; }   // 굴뚝은 모두 자동측정
+function ucMetered(o) { if (!o) return true; if (o.kind === 'water' || o.river) return ucOutType(o).meter; return o.meter !== false; }   // 굴뚝: 큰 공정 굴뚝만 자동측정 (보일러·플레어·건조로 등 작은 굴뚝은 기록 없음)
 function ucFacShort(F) { return (typeof F === 'string' ? UC_FAC[F] : F).name.split(' (')[0]; }   // '무지개화학'
 // 허가 물질을 어디에 쓰는지 (서류에 함께 적힘) — 같은 물질을 다루는 시설이 늘 두 곳 이상 (물질만으로 시설이 정해지지 않게)
 const UC_USE = { F1: { phenol: '수지 원료', benzene: '원료', toluene: '수지를 녹이는 용제', oil: '공정 기름' }, F2: { benzene: '휘발유 성분', h2s: '원유의 황', oil: '원유·기름', phenol: '정유 폐수에 섞여 나옴' },
@@ -283,14 +283,14 @@ function ucEventAt(C, pointId, h) { return ucNightEvents(C).find(e => e.point ==
 function ucPlaceText(o) {
   if (o.kind === 'water') return UC_RIVERS[o.river].name + ' ' + (o.s / UC_KM).toFixed(1) + 'km';
   let best = null, bd = 1e9; UC_AIR.forEach(a => { const d = Math.hypot(a.x - o.x, a.z - o.z); if (d < bd) { bd = d; best = a; } });
-  const F = UC_FAC[o.fac], dx = F ? o.x - F.at[0] : 0, dz = F ? o.z - F.at[1] : 0, dir = Math.abs(dx) >= Math.abs(dz) ? (dx >= 0 ? '동쪽' : '서쪽') : (dz >= 0 ? '남쪽' : '북쪽');   // 같은 동네 굴뚝끼리도 구별되게 (공장 안 위치)
+  const F = UC_FAC[o.fac], dx = F ? o.x - F.at[0] : 0, dz = F ? o.z - F.at[1] : 0, dir = ['동쪽', '남동쪽', '남쪽', '남서쪽', '서쪽', '북서쪽', '북쪽', '북동쪽'][((Math.round(Math.atan2(dz, dx) / (Math.PI / 4)) % 8) + 8) % 8];   // 8방위 (z = 남쪽) — 한 공장 굴뚝이 늘어 4방위로는 이름이 겹쳤음   // 같은 동네 굴뚝끼리도 구별되게 (공장 안 위치)
   return (best ? best.name.split(' ')[0] + ' 쪽 ' : '') + '굴뚝' + (F ? ' (공장 ' + dir + ')' : '');
 }
 // ── 시설 서류: 허가 물질(쓰는 곳) · 배출 지점(위치) · 야간 자동측정(유량/TMS) — 기록이 빈 칸은 범인 배출이든 계측기 고장이든 똑같이 '—'·'통신 장애' ──
 function ucFacilityRecord(C, facId) {
   const F = UC_FAC[facId], rows = [];
   F.outs.concat(F.stacks).forEach(o => { const kind = o.kind || 'air', ox = Object.assign({ kind, fac: facId }, o);
-    if (!ucMetered(ox)) { rows.push({ id: o.id, label: o.label, kind, pos: ucPlaceText(ox), rec: [], meter: false, note: ucOutType(ox).use }); return; }   // 계측 대상이 아닌 관: 기록 자체가 없음 (몰래 내보내도 빈 칸이 안 생김)
+    if (!ucMetered(ox)) { rows.push({ id: o.id, label: o.label, kind, pos: ucPlaceText(ox), rec: [], meter: false, note: kind === 'water' ? ucOutType(ox).use : (o.note || '자동측정 대상 아님') }); return; }   // 계측 대상이 아닌 관: 기록 자체가 없음 (몰래 내보내도 빈 칸이 안 생김)
     const rec = []; for (let h = 18; h <= 31; h++) { const hit = ucNightEvents(C).some(e => e.point === o.id && h + 1 > e.h && h < e.h + e.dur);
       rec.push({ h, v: kind === 'water' ? (hit ? '—' : String(Math.round(40 + ((h * 13 + o.id.length * 7) % 9)))) : (hit ? '통신 장애' : '정상') }); }
     rows.push({ id: o.id, label: o.label, kind, pos: ucPlaceText(ox), rec, meter: true, note: kind === 'water' ? ucOutType(ox).use : '' }); });

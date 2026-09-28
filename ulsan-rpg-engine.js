@@ -278,7 +278,8 @@ class UlsanRpgGame {
       g.position.set(fx, y0, fz); S.add(g);
       F.stacks.forEach(st => { const sy = this.groundH(st.x, st.z), sh = new T.Group();
         const cc = document.createElement('canvas'); cc.width = 16; cc.height = 64; const cg = cc.getContext('2d'); for (let y = 0; y < 64; y += 16) { cg.fillStyle = (y / 16) % 2 ? '#FFFFFF' : '#E63946'; cg.fillRect(0, y, 16, 16); }
-        if (!this.real) { const stack = new T.Mesh(new T.CylinderGeometry(0.7, 1, 16, 12), new T.MeshLambertMaterial({ map: new T.CanvasTexture(cc) })); stack.position.y = 8; sh.add(stack); sh.position.set(st.x, sy, st.z); S.add(sh); this._obs.push([st.x, st.z, 1]); }   // 실사풍: 굴뚝은 realSites 가 (빨강·흰 띠 원통)
+        const inWorld = this.real && typeof UWORLD !== 'undefined' && (() => { const c = UWORLD.cyl; for (let i = 0; i < c.length; i += 6) if (Math.hypot(c[i] - st.x, c[i + 1] - st.z) < 1.5) return true; return false; })();   // 실사풍 세계 자료에 이미 있는 굴뚝
+        if (!inWorld) { const stack = new T.Mesh(new T.CylinderGeometry(0.7, 1, 16, 12), new T.MeshLambertMaterial({ map: new T.CanvasTexture(cc) })); stack.position.y = 8; sh.add(stack); sh.position.set(st.x, sy, st.z); S.add(sh); this._obs.push([st.x, st.z, 1]); }   // 실사풍: 세계 자료의 굴뚝은 realSites 가 · 새로 늘린 굴뚝(지붕 위·마당)은 여기서 (빨강·흰 띠 원통)
         this.smokes.push({ x: st.x, y: sy + 16.5, z: st.z, id: st.id, parts: [] });
         const lamp = new T.Mesh(new T.SphereGeometry(0.55, 8, 6), new T.MeshBasicMaterial({ color: '#FF3B3B' })); lamp.position.set(st.x, sy + 16.4, st.z); lamp.visible = false; lamp.userData.noShadow = true; S.add(lamp); (this.lamps = this.lamps || []).push(lamp);   // 밤: 굴뚝 꼭대기 항공 경고등
         this.inter.push({ x: st.x, z: st.z, r: 6, kind: 'point', id: st.id, fac: fid, label: st.label + ' 살펴보기' }); });
@@ -697,7 +698,7 @@ class UlsanRpgGame {
     const P = UC_POL[this.C.pol], water = P.path === 'water', g = this.set.guide;
     const lead = water ? '오늘 아침 7시, ' + this.reportWhere() + '에서 물고기가 떼죽음을 당했다는 신고가 들어왔어요.' : '어젯밤, ' + this.reportWhere() + '에서 심한 냄새와 두통 민원이 잇따랐어요.';
     const steps = water ? [(this.set.diff === 'easy' ? '📍 <b>신고 지점</b> 강가에서 🔍 조사 → 💧 <b>물 시료</b>를 떠요' : '🕵 <b>신고 지점 추리</b>: 📱 제보(어느 동네?) + 🏞 하천관리소 · 🎣 어민 · 🩺 보건소 · 🦐 바이오센서(어느 강?) → 그 강가에서 💧 <b>물 시료</b>'), '🔬 <b>연구원</b>에서 ⚗️ <b>시약 실험</b>(미니게임) → 분석 맡기기 → <b>기준을 넘은 물질</b> → ①', '▼ 그 물질을 쓰는 시설의 <b>배출구 바로 아래 물</b>(맨 위 배출구는 바로 위 물도)을 떠서 🔬 <b>물벼룩 독성 시험</b>(미니게임) → 🗺 독성 지도에서 독성이 <b>시작되는</b> 배출구 → ② ③', '🔓 독성 지도가 증거! 그 시설 🗂 <b>서류</b> · 💂 경비원 · ⏪ 시간 되감기(거리 ÷ 빠르기)로 배출 시각 → ④ <span class="dim">(자동측정기는 폐수 방류구에만 있어 다른 관은 기록이 안 남아요)</span>']
-      : ['💨 민원 동네의 <b>대기센서 기록</b>을 봐요 → 냄새가 <b>치솟은 시각</b>', '🌫 그 센서에서 <b>공기 시료</b> → 🔬 연구원에서 ⚗️ <b>검지관 실험</b>(미니게임) → 분석 맡기기 → ①', '💨 냄새 센서를 한 곳 더 본 뒤 🌤 <b>기상대</b>에서 🧭 <b>바람길</b>(미니게임) → 냄새가 온 쪽 <b>후보 시설</b> → ②', '🔓 바람길이 증거! 후보 시설 🗂 <b>서류</b>에서 냄새가 난 무렵 <b>기록이 끊긴 굴뚝</b> → ③ ④'];
+      : ['💨 민원 동네의 <b>대기센서 기록</b>을 봐요 → 냄새가 <b>치솟은 시각</b>', '🌫 그 센서에서 <b>공기 시료</b> → 🔬 연구원에서 ⚗️ <b>검지관 실험</b>(미니게임) → 분석 맡기기 → ①', '💨 냄새 센서를 한 곳 더 본 뒤 🌤 <b>기상대</b>에서 🧭 <b>바람길</b>(미니게임) → 냄새가 온 쪽 <b>후보 시설</b> → ②', '🔓 바람길이 증거! 후보 시설 🗂 <b>서류</b> · 💂 경비원 · 🛸 드론으로 냄새가 난 무렵 연기를 뿜은 <b>굴뚝</b> → ③ ④ <span class="dim">(작은 굴뚝은 자동측정 기록이 없어요)</span>'];
     return '<p class="b-lead">📢 ' + lead + '</p>' +
       '<p>🕵 환경 조사관이 되어 <b>' + this.set.min + '분 안에</b> 네 가지를 밝혀 📝 보고서를 내세요. 시간이 다 되면 그때까지 고른 답으로 자동 제출돼요.</p>' +
       '<div class="b-goal"><span>① 무슨 물질?</span><span>② 어느 시설?</span><span>③ 어느 ' + (water ? '배출구' : '굴뚝') + '?</span><span>④ 언제?</span></div>' +
@@ -771,8 +772,8 @@ class UlsanRpgGame {
       if (todo.length) return { t: '🔓 증거가 생겼어요! <b>' + todo.map(ucFacShort).join(' · ') + '</b> 정문에서 🗂 <b>서류</b>를 보고 <b>보고서 ②</b>', to: hard ? null : this.hintFac(todo[0]) };
       if (gap.length > 1) return { t: '🤔 기록이 끊긴 굴뚝이 여럿이에요 (하나는 계측기 고장) — 냄새가 <b>처음 치솟은 시각</b>과 끊긴 시각이 맞는 곳이 범인 → <b>보고서 ②</b>', to: REP };
       return { t: water ? '🏭 🗺 독성 지도가 가리킨 배출구의 <b>시설</b>을 <b>보고서 ②</b>에 고르세요' : '🏭 서류에서 밤에 <b>기록이 빈</b> 시설을 <b>보고서 ②</b>에 고르세요', to: REP }; }
-    if (!set('point')) return { t: water ? '📍 🗺 독성 지도에서 <b>바로 위는 깨끗하고 바로 아래부터 독한</b> ▼배출구를 <b>보고서 ③</b>에 — 한 시설에 관이 여러 개예요' : '📍 서류에서 밤에 <b>기록이 빈</b> 굴뚝을 <b>보고서 ③</b>에 고르세요', to: REP };
-    if (!set('slot')) return { t: water ? '⏱ 배출 시각 → <b>보고서 ④</b>: 🗂 서류(폐수 방류구만 기록) · 💂 경비원이 들은 소리 · ⏪ <b>시간 되감기</b>(도착 기록에서 거리 ÷ 빠르기)를 맞춰 보세요' : '⏱ 그 굴뚝의 <b>기록이 빈 시각</b>을 <b>보고서 ④</b>에 고르세요', to: REP };
+    if (!set('point')) return { t: water ? '📍 🗺 독성 지도에서 <b>바로 위는 깨끗하고 바로 아래부터 독한</b> ▼배출구를 <b>보고서 ③</b>에 — 한 시설에 관이 여러 개예요' : '📍 어느 굴뚝? → <b>보고서 ③</b>: 🗂 서류의 빈 기록(큰 굴뚝만 자동측정) · 💂 경비원이 본 연기 · 🛸 드론 열화상을 맞춰 보세요 — 작은 굴뚝은 기록이 안 남아요', to: REP };
+    if (!set('slot')) return { t: water ? '⏱ 배출 시각 → <b>보고서 ④</b>: 🗂 서류(폐수 방류구만 기록) · 💂 경비원이 들은 소리 · ⏪ <b>시간 되감기</b>(도착 기록에서 거리 ÷ 빠르기)를 맞춰 보세요' : '⏱ 배출 시각 → <b>보고서 ④</b>: 💨 냄새가 <b>처음 치솟은 시각</b> · 💂 경비원이 본 시각 · 🗂 기록이 빈 시각(있다면)을 맞춰 보세요', to: REP };
     if (!(D.ev || []).length) return { t: '🔑 답을 고른 <b>이유가 된 증거</b>를 3개까지 골라요', to: REP };
     return { t: '✅ 준비 끝! <b>📝 보고서</b>를 제출하세요', to: REP };
   }
@@ -878,7 +879,7 @@ class UlsanRpgGame {
       ['💨', '냄새 난 곳 찾기', '민원 동네의 <b>대기센서 기록</b> → 냄새가 <b>치솟은</b> 센서와 시각', ev.some(e => /^💨 /.test(e.title) && e.key) || lab],
       ['⚗️', '무슨 물질? → ①', '그 센서에서 🌫 <b>공기 시료</b> → 🔬 연구원에서 ⚗️ <b>검지관 실험</b>(미니게임) → 분석 → 크게 높은 물질을 보고서 ①에', set('pol')],
       ['🧭', '어디서 왔나?', '냄새 센서를 <b>한 곳 더</b> 본 뒤 🌤 기상대에서 🧭 <b>바람길</b>(미니게임) → 냄새가 온 쪽 <b>후보 시설</b>', W.size > 0],
-      ['🗂', '누가 · 언제? → ② ③ ④', '🔓 후보 시설 🗂 <b>서류</b> → 냄새가 난 무렵 <b>기록이 끊긴 굴뚝</b>과 시각을 보고서에', all4]];
+      ['🗂', '누가 · 언제? → ② ③ ④', '🔓 후보 시설 🗂 <b>서류</b> · 💂 경비원 · 🛸 드론 → 냄새가 난 무렵 <b>연기를 뿜은 굴뚝</b>과 시각을 보고서에', all4]];
     S.push(['📝', '보고서 제출', '<b>이유가 된 증거</b>를 3개까지 고르고 📝 제출', rep]);
     return S.map(([ic, t, d, done]) => ({ ic, t, d, done: !!done || rep }));
   }
@@ -1506,8 +1507,8 @@ class UlsanRpgGame {
     const opt = list => '<option value="">— 고르세요 —</option>' + list.map(([v, t]) => '<option value="' + v + '">' + t + '</option>').join('');
     const ev = this.evidence.filter(e => e.id !== 'case'), D = this.draft, water = UC_POL[this.C.pol].path === 'water', g = this.set.guide;
     const tips = g === 'none' ? {} : water
-      ? { '①': '⚗️ 시약 실험으로 짐작 → 📊 분석 결과에서 기준을 넘은 물질', '②': '🔬 독성 지도에서 독성이 시작되는 배출구의 시설 — 소문만으로는 못 정해요', '③': '독성 지도: 바로 아래는 독하고 바로 위는 깨끗한 ▼배출구', '④': '🗂 그 시설 서류에서 그 배출구의 기록이 빈 시각' }
-      : { '①': '⚗️ 검지관으로 짐작 → 📊 공기 시료 분석에서 평소보다 크게 높은 물질', '②': '🧭 바람길 후보 중 ① 물질을 쓰고, 냄새가 난 무렵 서류 기록이 끊긴 시설 — 소문만으로는 못 정해요', '③': '그 시설 서류에서 냄새가 난 무렵 기록이 끊긴 굴뚝', '④': '냄새가 처음 치솟은 시각 = 굴뚝 기록이 끊긴 시각' };
+      ? { '①': '⚗️ 시약 실험으로 짐작 → 📊 분석 결과에서 기준을 넘은 물질', '②': '🔬 독성 지도에서 독성이 시작되는 배출구의 시설 — 소문만으로는 못 정해요', '③': '독성 지도: 바로 아래는 독하고 바로 위는 깨끗한 ▼배출구', '④': '⏪ 시간 되감기(거리 ÷ 빠르기) · 💂 경비원이 들은 소리 · 🗂 서류의 빈 기록(폐수 방류구만)이 맞는 시각' }
+      : { '①': '⚗️ 검지관으로 짐작 → 📊 공기 시료 분석에서 평소보다 크게 높은 물질', '②': '🧭 바람길 후보 중 ① 물질을 쓰고, 냄새가 난 무렵 연기를 뿜은 굴뚝이 있는 시설 — 소문만으로는 못 정해요', '③': '서류의 빈 기록(큰 굴뚝만) · 💂 경비원이 본 연기 · 🛸 드론 열화상이 가리키는 굴뚝', '④': '냄새가 처음 치솟은 시각 · 경비원이 본 시각' };
     const row = (n, t, sel) => '<label class="f-row"><i>' + n + '</i><span>' + t + '</span>' + sel + '</label>' + (tips[n] ? '<p class="f-tip">💡 ' + tips[n] + '</p>' : '');
     const polOpts = Object.keys(UC_POL).filter(k => UC_POL[k].path === (water ? 'water' : 'air')).concat(Object.keys(UC_POL).filter(k => UC_POL[k].path !== (water ? 'water' : 'air')));   // 이번 사건 종류(물·공기) 물질을 먼저
     const body = '<p class="dim">보고서는 한 번만 낼 수 있어요. 고른 답은 저장돼서 창을 닫았다 열어도 그대로예요. 시간이 다 되면 지금 고른 답으로 자동 제출돼요.</p>' +
