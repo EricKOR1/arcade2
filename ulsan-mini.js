@@ -484,7 +484,7 @@
       if (done) return; done = true; if (!tries.length) return; this.spend(0.08); const key = tries.some(r => r.id === C.point && covers(r)); this._mgStars = key ? (tries.length <= 3 ? 3 : 2) : 1;
       const li = tries.map(r => '<li><b>▼' + r.id + '</b> ' + r.name + ' — 거리 ' + r.km.toFixed(1) + 'km ÷ ' + sp.v.toFixed(1) + 'km/h = ' + r.dh.toFixed(1) + '시간 전 → <b>' + tTxt(r.dh) + '</b> (④ ' + sTxt(r) + ')' + (hb - r.dh < 18 ? ' <span class="no">어제 낮 — 밤사이 사건과 안 맞아요</span>' : ha - r.dh > 32 ? ' <span class="no">아침 8시가 넘음 — 밤사이 사건과 안 맞아요</span>' : '') + '</li>').join('');
       this.addEvidence({ title: '⏪ 시간 되감기 · ' + A.label.replace(/^\S+ /, ''), key, html: '<p>도착 기록: ' + A.label + ' — ' + A.when + '<br>흐름 속도: ' + sp.v.toFixed(1) + ' km/h (' + sp.src + ')</p><ul class="mg-list">' + li + '</ul>' +
-        hintBox([['④', '어느 배출구에서 떠났느냐에 따라 시각이 달라져요 — 위 시각 중 🗂 서류에서 <b>그 배출구의 기록이 빈 시각</b>과 맞는 것이 배출 시각이에요'], ['③', '계산한 시각이 서류(기록이 빈 시각) · 💂 경비원 말 · 🛸 드론 사진과 맞고, 그 바로 아래부터 물이 오염된 배출구가 범인이에요 (다른 곳의 빈 기록은 계측기 고장일 수 있어요)']]) });
+        hintBox([['④', '어느 배출구에서 떠났느냐에 따라 시각이 달라져요 — 위 시각 중 🗂 서류의 <b>기록이 빈 시각</b>(자동측정기가 있는 폐수 방류구만) · 💂 경비원이 들은 소리 시각과 맞는 것이 배출 시각이에요'], ['③', '계산한 시각이 서류(기록이 빈 시각) · 💂 경비원 말 · 🛸 드론 사진과 맞고, 그 바로 아래부터 물이 오염된 배출구가 범인이에요 (다른 곳의 빈 기록은 계측기 고장일 수 있어요)']]) });
       this.toast('⏪ 되감기 결과를 수첩에 적었어요');
     };
     let X = s => s, Sx = x => x;   // 화면 ↔ 강 거리 (frame 에서 채움)
