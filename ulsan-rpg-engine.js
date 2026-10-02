@@ -383,9 +383,9 @@ class UlsanRpgGame {
     npc('forecaster', '기상대 최예보관', '🌬️', P('forecaster'), { shirt: '#23395B', pants: '#1B1B2F', hair: '#1B1B1B' });
     npc('doctor', '보건소 윤의사', '🩺', P('doctor'), { coat: '#FFFFFF', shirt: '#B3E5FC', hair: '#1B1B1B' });
     npc('resident', '산책하던 주민 이씨', '🚶', P('resident'), { shirt: '#F28FB5', pants: '#5A6272', hair: '#8B5A2B' });
-    npc('riverman', '하천관리원 정씨', '🦺', P('riverman'), { shirt: '#FF9F1C', vest: '#FF9F1C', hat: 'helmet', hatCol: '#FFD166' });
+    npc('riverman', '하천 담당 주무관 정씨', '🦺', P('riverman'), { shirt: '#FF9F1C', vest: '#FF9F1C', hat: 'helmet', hatCol: '#FFD166' });
     npc('fisherT', '태화강 하구 어민 김씨', '🎣', P('fisherT'), { coat: '#FFD166', hat: 'rain' });
-    npc('fisherO', '온산 어촌계 한씨', '🎣', P('fisherO'), { coat: '#FFD166', hat: 'rain', skin: '#D9A77A' });
+    npc('fisherO', '온산항 어민 한씨', '🎣', P('fisherO'), { coat: '#FFD166', hat: 'rain', skin: '#D9A77A' });
     npc('fisherP', '울산항 어민 배씨', '🎣', P('fisherP'), { coat: '#9DD3F5', hat: 'rain', hatCol: '#FFFFFF', skin: '#E0B08A' });
     npc('activist', '환경단체 활동가 오씨', '📢', [34, 24], { shirt: '#2A9D5C', vest: '#7DF58F', hair: '#1B1B1B' });
     Object.keys(UC_FAC).forEach(fid => { const F = UC_FAC[fid];
@@ -526,7 +526,7 @@ class UlsanRpgGame {
   roomy(x, z) { let k = 0; for (const [a, b] of [[0.6, 0], [-0.6, 0], [0, 0.6], [0, -0.6]]) if (this.canStand(x + a, z + b)) k++; return k >= 3; }
   unstick() { const e = this.nearestLand(this.px, this.pz); if (e) { this.px = e[0]; this.pz = e[1]; } else { this.px = UC_START[0]; this.pz = UC_START[1]; } }
   // 빠른 이동 도착 자리: 그 사람(정문) 둘레 2.5~7칸 중 곧게 걸어갈 수 있는 곳 — a0 쪽(기본: 남쪽 = 카메라 쪽) 먼저
-  //   예전엔 사람 뒤 2.5칸에 내려 바다 위나 담장 너머에 떨어질 수 있었음 (온산항 어촌계: 물 위에 떠서 못 움직임)
+  //   예전엔 사람 뒤 2.5칸에 내려 바다 위나 담장 너머에 떨어질 수 있었음 (온산항: 물 위에 떠서 못 움직임)
   arriveNear(x, z, a0) {
     const base = a0 == null ? Math.PI / 2 : a0;
     for (const dry of [true, false])   // 마른 땅 먼저 (강둑 얕은 물은 그다음)
@@ -689,7 +689,7 @@ class UlsanRpgGame {
     else if (id.indexOf('mgr-') === 0) text = ucManagerLine(C, id.slice(4));
     this.addEvidence({ title: n.emoji + ' ' + n.name + '의 말', html: '<p>' + text + '</p>', key });
     n.g.rotation.y = Math.atan2(this.px - n.x, this.pz - n.z); this.heading = Math.atan2(n.x - this.px, n.z - this.pz);   // 서로 마주 봄
-    this.dialog(n.emoji, n.name, text, [['수첩에 적었어요 ▸', () => this.closeDialog()]].concat(this.talkExtra ? this.talkExtra(id) : []), false, 'talk'); this.focus = { x: (n.x + this.px) / 2, z: (n.z + this.pz) / 2 };   // 대화: 카메라가 두 사람 쪽으로 다가감 · 하천관리원·예보관은 미니게임 단추도
+    this.dialog(n.emoji, n.name, text, [['수첩에 적었어요 ▸', () => this.closeDialog()]].concat(this.talkExtra ? this.talkExtra(id) : []), false, 'talk'); this.focus = { x: (n.x + this.px) / 2, z: (n.z + this.pz) / 2 };   // 대화: 카메라가 두 사람 쪽으로 다가감 · 하천 담당 주무관·예보관은 미니게임 단추도
   }
   windTable() {
     const arrow = d => { const a = ((d * 180 / Math.PI) % 360 + 360) % 360; return ['→', '↘', '↓', '↙', '←', '↖', '↑', '↗'][Math.round(a / 45) % 8]; };
@@ -715,7 +715,7 @@ class UlsanRpgGame {
   caseBrief() {
     const P = UC_POL[this.C.pol], water = P.path === 'water', g = this.set.guide;
     const lead = water ? '오늘 아침 7시, ' + this.reportWhere() + '에서 물고기가 떼죽음을 당했다는 신고가 들어왔어요.' : '어젯밤, ' + this.reportWhere() + '에서 심한 냄새와 두통 민원이 잇따랐어요.';
-    const steps = water ? [(this.set.diff === 'easy' ? '📍 <b>신고 지점</b> 강가에서 🔍 조사 → 💧 <b>물 시료</b>를 떠요' : '🕵 <b>신고 지점 추리</b>: 📱 제보(어느 동네?) + 🏞 하천관리소 · 🎣 어민 · 🩺 보건소 · 🦐 바이오센서(어느 강?) → 그 강가에서 💧 <b>물 시료</b>'), '🔬 <b>연구원</b>에서 ⚗️ <b>시약 실험</b>(미니게임) → 분석 맡기기 → <b>기준을 넘은 물질</b> → ①', '▼ 그 물질을 쓰는 시설의 <b>배출구 바로 아래 물</b>(맨 위 배출구는 바로 위 물도)을 떠서 🔬 <b>물벼룩 독성 시험</b>(미니게임) → 🗺 독성 지도에서 독성이 <b>시작되는</b> 배출구 → ② ③', '🔓 독성 지도가 증거! 그 시설 🗂 <b>서류</b> · 💂 경비원 · ⏪ 시간 되감기(거리 ÷ 빠르기)로 배출 시각 → ④ <span class="dim">(자동측정기는 폐수 방류구에만 있어 다른 관은 기록이 안 남아요)</span>']
+    const steps = water ? [(this.set.diff === 'easy' ? '📍 <b>신고 지점</b> 강가에서 🔍 조사 → 💧 <b>물 시료</b>를 떠요' : '🕵 <b>신고 지점 추리</b>: 📱 제보(어느 동네?) + 🏞 시청 재난상황실 · 🎣 어민 · 🩺 보건소 · 🦐 바이오센서(어느 강?) → 그 강가에서 💧 <b>물 시료</b>'), '🔬 <b>연구원</b>에서 ⚗️ <b>시약 실험</b>(미니게임) → 분석 맡기기 → <b>기준을 넘은 물질</b> → ①', '▼ 그 물질을 쓰는 시설의 <b>배출구 바로 아래 물</b>(맨 위 배출구는 바로 위 물도)을 떠서 🔬 <b>물벼룩 독성 시험</b>(미니게임) → 🗺 독성 지도에서 독성이 <b>시작되는</b> 배출구 → ② ③', '🔓 독성 지도가 증거! 그 시설 🗂 <b>서류</b> · 💂 경비원 · ⏪ 시간 되감기(거리 ÷ 빠르기)로 배출 시각 → ④ <span class="dim">(자동측정기는 폐수 방류구에만 있어 다른 관은 기록이 안 남아요)</span>']
       : ['💨 민원 동네의 <b>대기센서 기록</b>을 봐요 → 냄새가 <b>치솟은 시각</b>', '🌫 그 센서에서 <b>공기 시료</b> → 🔬 연구원에서 ⚗️ <b>검지관 실험</b>(미니게임) → 분석 맡기기 → ①', '💨 냄새 센서를 한 곳 더 본 뒤 🌤 <b>기상대</b>에서 🧭 <b>바람길</b>(미니게임) → 냄새가 온 쪽 <b>후보 시설</b> → ②', '🔓 바람길이 증거! 후보 시설 🗂 <b>서류</b> · 💂 경비원 · 🛸 드론으로 냄새가 난 무렵 연기를 뿜은 <b>굴뚝</b> → ③ ④ <span class="dim">(작은 굴뚝은 자동측정 기록이 없어요)</span>'];
     return '<p class="b-lead">📢 ' + lead + '</p>' +
       '<p>🕵 환경 조사관이 되어 <b>' + this.set.min + '분 안에</b> 네 가지를 밝혀 📝 보고서를 내세요. 시간이 다 되면 그때까지 고른 답으로 자동 제출돼요.</p>' +
@@ -764,7 +764,7 @@ class UlsanRpgGame {
     if (weak) return { t: '🔎 기준을 넘은 물질이 안 보여요 — 오염된 물이 흘러가 옅어졌을 수 있어요. 분석 결과에서 평소보다 <b>가장 많이 높은</b> 물질을 <b>보고서 ①</b>에 골라요', to: REP };
     const easy = this.set.diff === 'easy';
     if (water) { if (!labs.length) { if (easy) return { t: '💧 <b>신고 지점</b> 강가에서 🔍 조사 → <b>물 시료</b>를 떠요', to: this.hintReport() };
-        if (!this.talked.riverman && !this.samples.some(x => x.kind === 'water')) return { t: '🕵 신고 지점은 알려 주지 않았어요 — 📱 <b>제보</b>(수첩)에서 <b>동네</b>를 보고, 🏞 <b>하천관리소</b>에서 아침 CCTV 순찰 이야기로 <b>어느 강</b>인지 알아내요', to: hard ? null : this.hintPlace('riverOffice') };
+        if (!this.talked.riverman && !this.samples.some(x => x.kind === 'water')) return { t: '🕵 신고 지점은 알려 주지 않았어요 — 📱 <b>제보</b>(수첩)에서 <b>동네</b>를 보고, 🏞 <b>시청 재난상황실</b>에서 아침 CCTV 순찰 이야기로 <b>어느 강</b>인지 알아내요', to: hard ? null : this.hintPlace('riverOffice') };
         return { t: '🗺 지도에서 제보의 <b>동네</b>를 지나는 그 <b>강</b>을 찾아 강가에서 🔍 → 💧 <b>물 시료</b> <span class="dim">(동네가 안 보이면 🩺 보건소 · 🎣 어민 이야기도)</span>', to: null }; }
       if (strong && !hot && !set('pol')) return { t: '🔎 아직 기준을 넘은 물질이 없어요 — 뜬 곳보다 <b>조금 위쪽</b>(상류) 강가에서 다시 떠 보세요 · 오염이 시작된 곳에 가까울수록 진해요 (다른 강이었을 수도 있어요)', to: easy ? this.hintUpReport() : null }; }
     else { if (!spk.length && !labs.length) return { t: '💨 민원 동네의 <b>대기센서 기록</b>을 보세요 — 냄새가 <b>치솟은</b> 센서 찾기', to: hard || !hs.length ? null : this.hintSensor(hs[0].st) };
@@ -1595,7 +1595,7 @@ class UlsanRpgGame {
   }
 }
 // 장소 아이콘 · 장소 목록에 적는 '여기서 알 수 있는 것' (사람 id · 설명) — v2026-10-19a
-UlsanRpgGame.PLACE_MINI = { lab: '연구원', weather: '기상대', clinic: '보건소', garden: '국가정원', riverOffice: '하천관리소', port: '울산항', onsanHarbor: '어촌계', mouth: '선착장' };
+UlsanRpgGame.PLACE_MINI = { lab: '연구원', weather: '기상대', clinic: '보건소', garden: '국가정원', riverOffice: '시청', port: '울산항', onsanHarbor: '온산항', mouth: '명촌교' };
 UlsanRpgGame.PLACE_ICON = { lab: '🔬', weather: '🌤️', clinic: '🏥', garden: '🌷', riverOffice: '🚩', port: '⚓', onsanHarbor: '🎣', mouth: '⛵' };
 UlsanRpgGame.PLACE_INFO = {
   lab: ['researcher', '가져온 물·공기 시료를 분석해 무슨 물질인지 알려 줘요 · 🔬 물벼룩 · ⚗️ 시약 실험'],

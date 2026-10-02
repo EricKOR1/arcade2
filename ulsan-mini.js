@@ -2,9 +2,9 @@
 //   🎣 낚시 어류 조사 (강가): 물고기 증상 → ① 후보 둘 (증상은 여러 물질이 비슷해요) · 상류/하류 비교 → ③ · 떠내려가는 죽은 물고기를 건져 죽은 지 몇 시간인지 → ④
 //   🔬 물벼룩 독성 시험 (연구원): 시료 독성 · 🗺 강을 따라 그린 독성 지도(▼ 알고 있는 배출구와 함께) → ③
 //   🛶 종이배 흐름 속도 (강가): 2 m 를 흘러가는 시간 → 흐름 속도 (강가는 느리고 물살 가운데가 빠름) → ④ 계산에 씀
-//   ⏪ 시간 되감기 (하천관리소 · 🛶 뒤): 도착 기록(바이오센서·어민·죽은 물고기)에서 오염을 강 위로 끌어 배출구에 대면 떠난 시각 → ④ ③
+//   ⏪ 시간 되감기 (시청 재난상황실 · 🛶 뒤): 도착 기록(바이오센서·어민·죽은 물고기)에서 오염을 강 위로 끌어 배출구에 대면 떠난 시각 → ④ ③
 //   ⚗️ 시약 실험 (연구원): 물 시료 = 시약 5가지 색 비교표 · 공기 시료 = 검지관 3가지 눈금 읽기 → ① 후보 (비슷한 물질에도 반응 → 📊 연구원 분석으로 확인)
-//   🛸 드론 열화상 (하천관리소): 평소 밤 사진 ↔ 어젯밤 사진 틀린 그림 찾기 (뜨거운 폐수·연기 — 범인 것인지 계측기 고장 때 흘려보낸 깨끗한 물인지는 다른 증거로) → ②③④ 후보
+//   🛸 드론 열화상 (시청 재난상황실): 평소 밤 사진 ↔ 어젯밤 사진 틀린 그림 찾기 (뜨거운 폐수·연기 — 범인 것인지 계측기 고장 때 흘려보낸 깨끗한 물인지는 다른 증거로) → ②③④ 후보
 //   🧭 바람길 거꾸로 (기상대): 냄새 난 센서에서 그 시각 바람을 거슬러 선 긋기 → 선이 모이는 근처 굴뚝 후보 · 처음 냄새 난 시각 → ② ④ 후보
 //   화면: 3D 위에 뜨는 창(캔버스) · 누르기/떼기 · 끌기로 조작(터치 · 마우스 · Space/E) · 미니게임 중엔 3D 를 멈춰 가벼움
 (function () {
@@ -27,8 +27,8 @@
   const fitF = (g, s, F, n, maxW) => { g.font = F(n); const w = g.measureText(s).width; return w <= maxW ? F(n) : F(Math.max(10, Math.floor(n * maxW / w * 10) / 10)); };   // 칸보다 길면 글자를 줄여 맞춤
   // 미니게임에서 모은 것 (저장·복원됨): 물벼룩 시험 · 잰 흐름 속도 · 죽은 물고기 · 본 드론 사진
   P.miniState = function () { const M = this.mini = this.mini || {}; M.dtests = M.dtests || []; M.speeds = M.speeds || {}; M.dead = M.dead || []; M.drone = M.drone || []; return M; };
-  // 흐름 속도: 🛶 로 잰 값이 있으면 그것 · 없으면 하천관리원에게 들은 값 · 둘 다 없으면 모름
-  P.riverSpeed = function (rid) { const M = this.miniState(); if (M.speeds[rid]) return { v: M.speeds[rid].kmh, src: '🛶 종이배로 잰 값' }; if (this.talked && this.talked.riverman) return { v: UC_RIVERS[rid].speed, src: '하천관리원에게 들은 값' }; return null; };
+  // 흐름 속도: 🛶 로 잰 값이 있으면 그것 · 없으면 하천 담당 주무관에게 들은 값 · 둘 다 없으면 모름
+  P.riverSpeed = function (rid) { const M = this.miniState(); if (M.speeds[rid]) return { v: M.speeds[rid].kmh, src: '🛶 종이배로 잰 값' }; if (this.talked && this.talked.riverman) return { v: UC_RIVERS[rid].speed, src: '하천 담당 주무관에게 들은 값' }; return null; };
   // 사람 대화창에 붙는 미니게임 단추
   P.talkExtra = function (id) {
     if (id === 'riverman') return [['🛸 야간 드론 열화상 사진', () => this.droneMenu()], ['⏪ 시간 되감기', () => this.rewindMenu()]];
@@ -468,7 +468,7 @@
     const A = this.rewindArrivals();
     if (!A.length) { this.dialog('⏪', '시간 되감기', '오염이 <b>언제 어디에 도착했는지</b> 아직 몰라요. 먼저 아래 중 하나를 해 보세요.<br>· 🦐 하류 <b>바이오센서 기록</b> 보기 (활동이 떨어진 시각)<br>· 🎣 낚시하다 <b>죽은 물고기</b>를 건져 살펴보기<br>· 하구 <b>어민</b> 이야기 듣기', [['알겠어요', () => this.closeDialog()]]); return; }
     this.dialog('⏪', '시간 되감기 — 어느 도착 기록에서 되감을까요?', '오염을 도착한 곳에서 강 <b>위쪽</b>으로 끌어 올리면 흐름 속도만큼 시계가 거꾸로 가요. <b>▼ 배출구</b>에 대면 그곳을 떠난 시각이 나와요.',
-      A.map(a => { const sp = this.riverSpeed(a.river); return [a.label + (sp ? '' : ' (흐름 속도 모름)') + ' — ' + a.when, () => { if (!sp) { this.toast(UC_RIVERS[a.river].name + ' 흐름 속도를 먼저 알아 오세요 — 🛶 종이배 또는 하천관리원'); return; } this.closeDialog(); this.startRewind(a, sp); }]; }).concat([['그만두기', () => this.closeDialog()]]));
+      A.map(a => { const sp = this.riverSpeed(a.river); return [a.label + (sp ? '' : ' (흐름 속도 모름)') + ' — ' + a.when, () => { if (!sp) { this.toast(UC_RIVERS[a.river].name + ' 흐름 속도를 먼저 알아 오세요 — 🛶 종이배 또는 하천 담당 주무관'); return; } this.closeDialog(); this.startRewind(a, sp); }]; }).concat([['그만두기', () => this.closeDialog()]]));
   };
   P.startRewind = function (A, sp) {
     if (this.mg) return; const C = this.C, rid = A.river, R = UC_RIVERS[rid], L = ucLen(R.pts), v = sp.v * UC_KM;   // 칸/시간
@@ -663,7 +663,7 @@
       } });
   };
 
-  // ── 🛸 드론 열화상 사진 (하천관리소) ── 밤마다 1시간 간격으로 찍은 공단 열화상 사진: 평소 밤 ↔ 어젯밤 틀린 그림 찾기
+  // ── 🛸 드론 열화상 사진 (시청 재난상황실) ── 밤마다 1시간 간격으로 찍은 공단 열화상 사진: 평소 밤 ↔ 어젯밤 틀린 그림 찾기
   //   뜨거운 폐수·연기는 밝게 보여요 · 트럭·작업등처럼 상관없는 것도 달라져요 · 허가된 평소 배출은 두 사진 모두에 있음
   //   평소엔 없던 열은 범인의 몰래 배출일 수도, 계측기 고장 때 흘려보낸 깨끗한 물·수증기일 수도 있어요 (ucNightEvents) — 사진엔 시설·배출구 이름 대신 위치만
   //   배터리가 한정돼 사진은 몇 장만 (다른 조사로 시각을 좁힌 뒤 확인하는 도구 — 예전엔 이름까지 나와 이것 하나로 ②③④가 풀렸음)

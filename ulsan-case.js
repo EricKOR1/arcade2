@@ -54,16 +54,16 @@ const UC_WATER_POLS = ['phenol', 'cadmium', 'ammonia', 'oil', 'bod'], UC_AIR_POL
 // ── 시설 (모두 가상 이름 · 실제 회사·처리장과 관계없음 — 실제 산단·처리장 자리에 배치) — 배출구(물) · 굴뚝(공기) ──
 //   v2026-10-19a: 실제 회사·처리장과 헷갈릴 수 있던 이름을 누가 봐도 가상인 이름으로 바꿈
 const UC_FAC = {
-  F1: { name: '무지개화학 (석유화학 수지공장)', zone: '남구 석유화학단지', at: [112.7, 23.4], can: ['phenol', 'benzene', 'toluene', 'oil'],
+  F1: { name: '무지개화학 (석유화학 수지공장)', zone: '울산미포국가산업단지 (남구 석유화학단지)', at: [112.7, 23.4], can: ['phenol', 'benzene', 'toluene', 'oil'],
         outs: [{ id: 'F1-A', kind: 'water', river: 'yeocheon', s: 41.5, label: '폐수 방류구', type: 'waste' }, { id: 'F1-B', kind: 'water', river: 'yeocheon', s: 23.8, label: '빗물 배수구', type: 'rain' }, { id: 'F1-C', kind: 'water', river: 'yeocheon', s: 32.5, label: '냉각수 배출구', type: 'cool' }], stacks: [{ id: 'F1-S', x: 116.8, z: 27.1, label: '공정 굴뚝' }, { id: 'F1-S2', x: 100.7, z: 26.9, label: '보일러 굴뚝', meter: false, note: '작은 보일러 굴뚝 · 자동측정 대상 아님' }, { id: 'F1-S3', x: 110.2, z: 17.4, label: '폐가스 소각로 굴뚝' }] },
-  F2: { name: '고래정유 (정유공장)', zone: '남구 석유화학단지', at: [137.9, 44.4], can: ['benzene', 'h2s', 'oil', 'phenol'],
+  F2: { name: '고래정유 (정유공장)', zone: '울산미포국가산업단지 (남구 석유화학단지)', at: [137.9, 44.4], can: ['benzene', 'h2s', 'oil', 'phenol'],
         outs: [{ id: 'F2-A', kind: 'water', river: 'yeocheon', s: 68.9, label: '폐수 방류구', type: 'waste' }, { id: 'F2-B', kind: 'water', river: 'yeocheon', s: 78, label: '빗물 배수구', type: 'rain' }, { id: 'F2-C', kind: 'water', river: 'yeocheon', s: 60.5, label: '냉각수 배출구', type: 'cool' }], stacks: [{ id: 'F2-S1', x: 132.9, z: 46.8, label: '가열로 굴뚝' }, { id: 'F2-S2', x: 146.0, z: 40.7, label: '황 회수 굴뚝' }, { id: 'F2-S3', x: 128.9, z: 59.2, label: '플레어 스택', meter: false, note: '비상시 남는 가스를 태우는 굴뚝 · 자동측정 대상 아님' }] },
-  F3: { name: '은별제련 (금속 제련소)', zone: '온산 공단', at: [132.9, 99.9], can: ['cadmium'], outs: [{ id: 'F3-A', kind: 'water', river: 'oehwang', s: 102.2, label: '폐수 방류구', type: 'waste' }, { id: 'F3-B', kind: 'water', river: 'oehwang', s: 111.5, label: '빗물 배수구', type: 'rain' }], stacks: [] },
-  F4: { name: '풀잎비료 (비료공장)', zone: '청량·온산', at: [80.5, 67.8], can: ['ammonia', 'cadmium'], outs: [{ id: 'F4-A', kind: 'water', river: 'oehwang', s: 50.4, label: '폐수 방류구', type: 'waste' }, { id: 'F4-B', kind: 'water', river: 'oehwang', s: 59.5, label: '빗물 배수구', type: 'rain' }, { id: 'F4-C', kind: 'water', river: 'oehwang', s: 41.5, label: '냉각수 배출구', type: 'cool' }], stacks: [] },
+  F3: { name: '은별제련 (금속 제련소)', zone: '온산국가산업단지', at: [132.9, 99.9], can: ['cadmium'], outs: [{ id: 'F3-A', kind: 'water', river: 'oehwang', s: 102.2, label: '폐수 방류구', type: 'waste' }, { id: 'F3-B', kind: 'water', river: 'oehwang', s: 111.5, label: '빗물 배수구', type: 'rain' }], stacks: [] },
+  F4: { name: '풀잎비료 (비료공장)', zone: '울주군 청량읍', at: [80.5, 67.8], can: ['ammonia', 'cadmium'], outs: [{ id: 'F4-A', kind: 'water', river: 'oehwang', s: 50.4, label: '폐수 방류구', type: 'waste' }, { id: 'F4-B', kind: 'water', river: 'oehwang', s: 59.5, label: '빗물 배수구', type: 'rain' }, { id: 'F4-C', kind: 'water', river: 'oehwang', s: 41.5, label: '냉각수 배출구', type: 'cool' }], stacks: [] },
   F5: { name: '파랑새자동차 (도장공장)', zone: '북구 양정동', at: [169.1, -43.1], can: ['toluene'], outs: [], stacks: [{ id: 'F5-S1', x: 165.1, z: -46.8, label: '도장 1라인 굴뚝' }, { id: 'F5-S2', x: 174.2, z: -39.4, label: '도장 2라인 굴뚝' }, { id: 'F5-S3', x: 180.6, z: -45.1, label: '건조로 굴뚝', meter: false, note: '페인트를 말리는 건조로 굴뚝 · 자동측정 대상 아님' }] },
-  F6: { name: '푸른강 하수처리장', zone: '울주군 범서읍', at: [32.2, -28.4], can: ['ammonia', 'bod'], outs: [{ id: 'F6-A', kind: 'water', river: 'taehwa', s: 259.4, label: '처리수 방류구', type: 'waste' }, { id: 'F6-B', kind: 'water', river: 'taehwa', s: 248, label: '비상 우회 방류구', type: 'bypass' }, { id: 'F6-C', kind: 'water', river: 'taehwa', s: 270, label: '빗물 배수구', type: 'rain' }], stacks: [] },
-  F7: { name: '꿀맛식품 (식품공장)', zone: '울주군 언양읍', at: [-102.7, -40.7], can: ['bod', 'ammonia'], outs: [{ id: 'F7-A', kind: 'water', river: 'taehwa', s: 115.3, label: '폐수 방류구', type: 'waste' }, { id: 'F7-B', kind: 'water', river: 'taehwa', s: 105, label: '세척수 배수구', type: 'wash' }, { id: 'F7-C', kind: 'water', river: 'taehwa', s: 126, label: '빗물 배수구', type: 'rain' }], stacks: [] },
-  F8: { name: '바닷가 하수처리장', zone: '남구 용연동', at: [118.8, 60.4], can: ['ammonia', 'h2s'], outs: [{ id: 'F8-A', kind: 'water', river: 'oehwang', s: 91.3, label: '처리수 방류구', type: 'waste' }, { id: 'F8-B', kind: 'water', river: 'oehwang', s: 82, label: '비상 우회 방류구', type: 'bypass' }], stacks: [{ id: 'F8-S', x: 122.8, z: 57.9, label: '찌꺼기 창고 배기구' }, { id: 'F8-S2', x: 106.8, z: 53.4, label: '소화조 가스 배출구', meter: false, note: '찌꺼기를 썩히는 소화조의 가스 배출구 · 자동측정 대상 아님' }] }
+  F6: { name: '푸른강 하수처리장', zone: '남구 무거동', at: [32.2, -28.4], can: ['ammonia', 'bod'], outs: [{ id: 'F6-A', kind: 'water', river: 'taehwa', s: 259.4, label: '처리수 방류구', type: 'waste' }, { id: 'F6-B', kind: 'water', river: 'taehwa', s: 248, label: '비상 우회 방류구', type: 'bypass' }, { id: 'F6-C', kind: 'water', river: 'taehwa', s: 270, label: '빗물 배수구', type: 'rain' }], stacks: [] },
+  F7: { name: '꿀맛식품 (식품공장)', zone: '울주군 삼남읍', at: [-102.7, -40.7], can: ['bod', 'ammonia'], outs: [{ id: 'F7-A', kind: 'water', river: 'taehwa', s: 115.3, label: '폐수 방류구', type: 'waste' }, { id: 'F7-B', kind: 'water', river: 'taehwa', s: 105, label: '세척수 배수구', type: 'wash' }, { id: 'F7-C', kind: 'water', river: 'taehwa', s: 126, label: '빗물 배수구', type: 'rain' }], stacks: [] },
+  F8: { name: '바닷가 하수처리장', zone: '울주군 청량읍', at: [118.8, 60.4], can: ['ammonia', 'h2s'], outs: [{ id: 'F8-A', kind: 'water', river: 'oehwang', s: 91.3, label: '처리수 방류구', type: 'waste' }, { id: 'F8-B', kind: 'water', river: 'oehwang', s: 82, label: '비상 우회 방류구', type: 'bypass' }], stacks: [{ id: 'F8-S', x: 122.8, z: 57.9, label: '찌꺼기 창고 배기구' }, { id: 'F8-S2', x: 106.8, z: 53.4, label: '소화조 가스 배출구', meter: false, note: '찌꺼기를 썩히는 소화조의 가스 배출구 · 자동측정 대상 아님' }] }
 };
 // 한 강에서 그 물질을 쓰는 시설의 배출구 (상류 → 하류) — 🔬 독성 지도 후보
 function ucCandOuts(pol, river) { const out = []; Object.keys(UC_FAC).forEach(k => { const F = UC_FAC[k]; if (F.can.indexOf(pol) < 0) return; F.outs.forEach(o => { if (o.river === river) out.push(Object.assign({ fac: k }, o)); }); }); return out.sort((a, b) => a.s - b.s); }
@@ -92,13 +92,13 @@ function ucFence(F) { const [a0, b0, a1, b1] = F.yard, [ga, gb] = F.gate, G = 4,
 // 조사 장소 (실제 위치 근사)
 const UC_PLACES = {
   lab:     { name: '울산보건환경연구원', at: [85.6, -14.8] },
-  weather: { name: '울산기상대', at: [98.7, -51.8] },
+  weather: { name: '울산기상대', at: [106.6, -57.9] },   // 실제 위치: 중구 약사동 (2015년 북정동에서 옮김)
   clinic:  { name: '남구보건소', at: [112.7, -19.7] },
   garden:  { name: '태화강 국가정원', at: [72.5, -29.6] },
-  riverOffice: { name: '태화강 하천관리소', at: [92.6, -32.1] },
+  riverOffice: { name: '울산시청 재난상황실', at: [92.6, -32.1] },
   port:    { name: '울산항', at: [159.1, 21.0] },
-  onsanHarbor: { name: '온산항 어촌계', at: [132.9, 93.7] },
-  mouth:   { name: '태화강 하구 선착장', at: [153.0, -21.0] }
+  onsanHarbor: { name: '온산항', at: [132.9, 93.7] },
+  mouth:   { name: '명촌교 (태화강 하구)', at: [153.0, -21.0] }
 };
 const UC_START = [90.6, -29.6];
 // 장소 사람들 자리 (장소 기준 · 물가에서 한 발 물러남) — 온산 어민: 위판장 뒤 마른 땅 (v2026-10-18a · 예전 자리는 제련소 담장과 바다 사이 좁은 틈이라 물에 잠긴 땅 · 카메라와 사이에 제련소가 없게) · 울산항 어민: 부두 창고 사이 마른 땅 (예전 자리는 여천천 하구 물에 잠긴 강둑)
@@ -106,7 +106,7 @@ const UC_NPC_AT = { researcher: ['lab', -5, 7], forecaster: ['weather', 4, 7], d
 function ucNpcAt(id) { const [k, a, b] = UC_NPC_AT[id], P = UC_PLACES[k].at; return [P[0] + a, P[1] + b]; }
 // 고정 측정소: 물벼룩 바이오센서(물) · 대기·악취 센서(공기)
 const UC_BIO = [
-  { id: 'B-T1', river: 'taehwa', s: 187.3, name: '태화강 범서 바이오센서' },
+  { id: 'B-T1', river: 'taehwa', s: 187.3, name: '태화강 언양 바이오센서' },
   { id: 'B-T2', river: 'taehwa', s: 386.4, name: '태화강 하류 바이오센서', side: 1 },
   { id: 'B-D', river: 'dongcheon', s: 55, name: '동천 바이오센서' },
   { id: 'B-Y', river: 'yeocheon', s: 55.2, name: '여천천 바이오센서' },
@@ -261,7 +261,7 @@ function ucAirLog(C, st, nowH) {
 //   다른 시설 일은 일부러 헷갈리지 않는 시각에: 그 배출구가 범인이었다면 나왔을 출발 시각에서 1.5시간 넘게 떨어뜨림
 const UC_GLITCH_N = { easy: 0, normal: 1, hard: 2 };   // v2026-10-19a (예전 1 · 2 · 2)
 // 드론 열화상 구역 (🛸) — 구역마다 한 번에 찍히는 시설
-const UC_ZONES = [{ id: 'petro', n: '여천천 석유화학단지', f: ['F1', 'F2'] }, { id: 'onsan', n: '외황강·온산', f: ['F3', 'F4', 'F8'] }, { id: 'gulhwa', n: '태화강 굴화', f: ['F6'] }, { id: 'eonyang', n: '태화강 언양', f: ['F7'] }, { id: 'yangjeong', n: '북구 양정동', f: ['F5'] }];
+const UC_ZONES = [{ id: 'petro', n: '여천천 석유화학단지', f: ['F1', 'F2'] }, { id: 'onsan', n: '외황강·온산', f: ['F3', 'F4', 'F8'] }, { id: 'gulhwa', n: '태화강 무거·굴화', f: ['F6'] }, { id: 'eonyang', n: '태화강 삼남·언양', f: ['F7'] }, { id: 'yangjeong', n: '북구 양정동', f: ['F5'] }];
 function ucNightEvents(C) {
   if (C._ev) return C._ev;
   const rnd = ucRngH(Math.floor(Math.abs(Number(C.seed) || 1)) % 99991 * 31 + 4242), pt = ucPoint(C.point), water = UC_POL[C.pol].path === 'water';
@@ -398,8 +398,8 @@ function ucNews(C) {
     const smell = P.smell ? '물에서 ' + P.smell + '가 나요' : '냄새는 안 나는데 물이 좀 뿌옇고요';
     const where = d === 'easy' ? R.name + ' ' + dg + ' 쪽' : d === 'normal' ? dg + ' 쪽 강 산책로' : rc.gu + ' 강 산책로';
     out.push({ h: 32, title: '📱 SNS 제보 · 아침 7시 12분', key: true, html: '<p class="sns">"' + where + ', 아침 운동 나왔다가 깜짝 놀람. 물고기 수십 마리가 하얗게 배를 뒤집고 떠 있어요 😢 ' + smell + '. ' + ucJ(rc.mark, '이에요', '예요') + '." <small>#울산 #' + (rc.dongs[0] || rc.gu) + '</small></p>' +
-      '<p class="dim">🔎 제보는 <b>어느 동네</b>인지만 알려 줘요. 🗺 지도에서 그 동네를 지나는 강을 찾고, 🏞 <b>하천관리소</b>(아침 CCTV 순찰) · 🎣 하구 어민 · 🦐 바이오센서 기록으로 <b>어느 강</b>인지 맞춰 보세요.</p>' });
-    out.push({ h: 33, title: '📰 날씨 · 하천 정보', key: false, html: '<p>어젯밤 울산은 <b>비가 오지 않았어요</b>(맑음). 강물 높이는 평소와 같아요.</p><p class="dim">🔎 비가 안 왔다면 <b>빗물 배수구</b>로 물이 나올 까닭이 없어요. 강물 빠르기도 평소대로라 🏞 하천관리원이 알려 준 빠르기로 <b>거리 ÷ 빠르기</b> 계산을 할 수 있어요.</p>' }); }
+      '<p class="dim">🔎 제보는 <b>어느 동네</b>인지만 알려 줘요. 🗺 지도에서 그 동네를 지나는 강을 찾고, 🏞 <b>시청 재난상황실</b>(아침 CCTV 순찰) · 🎣 하구 어민 · 🦐 바이오센서 기록으로 <b>어느 강</b>인지 맞춰 보세요.</p>' });
+    out.push({ h: 33, title: '📰 날씨 · 하천 정보', key: false, html: '<p>어젯밤 울산은 <b>비가 오지 않았어요</b>(맑음). 강물 높이는 평소와 같아요.</p><p class="dim">🔎 비가 안 왔다면 <b>빗물 배수구</b>로 물이 나올 까닭이 없어요. 강물 빠르기도 평소대로라 🏞 하천 담당 주무관이 알려 준 빠르기로 <b>거리 ÷ 빠르기</b> 계산을 할 수 있어요.</p>' }); }
   else { const hs = ucAirHits(C), area = hs.length ? hs[0].area : '울산';
     out.push({ h: 32, title: '📱 SNS 제보 · 밤 사이', key: true, html: '<p class="sns">"' + (d === 'hard' ? '우리 동네' : area) + ' 사는데 밤새 ' + P.smell + ' 때문에 잠을 못 잤어요. 창문 닫아도 들어와요 😷 ' + (P.sym ? P.sym + '까지…' : '') + '"</p><p class="dim">🔎 냄새는 바람을 타고 와요. 냄새가 난 동네의 💨 <b>대기센서 기록</b>으로 치솟은 시각을 찾고, 🌤 기상대의 그 시각 바람으로 거슬러 올라가 보세요.</p>' });
     out.push({ h: 33, title: '📰 날씨 정보', key: false, html: '<p>어젯밤은 맑고 바람이 시간마다 방향을 조금씩 바꿨어요. 🌤 <b>기상대</b>에서 시간별 바람 기록을 볼 수 있어요.</p><p class="dim">🔎 바람 방향이 바뀌었으니 <b>냄새가 치솟은 시각의 바람</b>을 써야 해요 — 다른 시각 바람으로 거슬러 가면 엉뚱한 공장이 나와요.</p>' }); }
