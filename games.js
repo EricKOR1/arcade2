@@ -252,6 +252,23 @@ const GAMES = {
     sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, level: g.level }; }
   },
 
+  stack: {
+    type: 'canvas',
+    name: '블록 쌓기 타이밍',
+    desc: '왔다 갔다 하는 블록을 톡 눌러 멈추세요. 아래 블록과 겹친 부분만 남고 삐져나온 곳은 잘려 떨어집니다',
+    howto: '화면 톡(스페이스·↑) = 블록 멈추기 · 딱 맞추면 퍼펙트(크기 유지, 3번 연속부터 다시 커짐) · 완전히 빗나가면 끝 · 층마다 1점 + 퍼펙트 보너스',
+    meta: '개인전 · 타이밍 · 하늘 끝까지 탑 쌓기',
+    primary: '72% 0.17 330', primaryContent: '100% 0 0', hex: '#E86FC4',
+    grid: { cols: 9, rows: 16 },
+    adminView: 'grid',
+    needsPeers: false, hasNext: false,
+    stats: [{ key: 'height', label: '층' }, { key: 'perfects', label: '퍼펙트' }],
+    detail: function (g) { return g.height + '층 · 퍼펙트 ' + g.perfects + '번 · 최고 연속 ' + g.bestStreak; },
+    controls: [], padLayout: 'tap',
+    create: function (canvas, opts) { return new StackGame(canvas, opts.cellSize); },
+    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, height: g.height, perfects: g.perfects }; }
+  },
+
   runner: {
     type: 'canvas',
     name: '지하철 달리기',
