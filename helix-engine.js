@@ -16,7 +16,7 @@ const HX_THEMES = [
   { p: '#06D6A0', b1: '#114D4A', b2: '#06201F', col: '#E6FFF7', n: 5 },
   { p: '#FFD166', b1: '#5A3A1C', b2: '#21130A', col: '#FFF6E2', n: 4 },
   { p: '#4361EE', b1: '#1C2A6B', b2: '#0A0F2B', col: '#E8ECFF', n: 2 },
-  { p: '#F79824', b1: '#5B2A12', b2: '#200C05', col: '#FFF0E2', n: 10 }
+  { p: '#8AA2FF', b1: '#2B2F5E', b2: '#0E1024', col: '#EEF0FF', n: 25 }
 ];
 
 class HelixGame {
@@ -49,7 +49,7 @@ class HelixGame {
         if (seg[k] !== 1) continue;
         // 윗층 틈 아래는 최소 한 칸 이상 남기기 (틈 아래 전부가 빨강이 되지 않게)
         if (safe.has(k) && [...safe].filter(j => j !== k && seg[j] !== 2).length < 1) continue;
-        if (safe.has(k) && Math.random() < 0.6) continue;
+        if (safe.has(k) && (L <= 3 || Math.random() < 0.7)) continue;   // 낮은 단계: 틈 바로 아래엔 빨강 없음
         seg[k] = 2; put++;
       }
       if (i === 0) for (let k = 0; k < HX_SEG; k++) if (seg[k] === 2) seg[k] = 1;
@@ -105,7 +105,9 @@ class HelixGame {
     // 다음으로 만날 층 (아직 안 깨진 것)
     while (this.next < this.floors.length && this.floors[this.next].broken) this.next++;
     const fl = this.floors[this.next]; if (!fl || !(prev <= fl.y && b.y >= fl.y)) return;
-    const k = this.segAt(this.rot), v = fl.seg[k];
+    let k = this.segAt(this.rot), v = fl.seg[k];
+    // 빨강 가장자리에 살짝 걸친 것은 봐줌 (이웃 조각으로)
+    if (v === 2 && !this.fire) for (const e of [0.13, -0.13]) { const k2 = this.segAt(this.rot + e); if (fl.seg[k2] !== 2) { k = k2; v = fl.seg[k2]; break; } }
     if (fl.goal) { b.y = fl.y; this.land(fl, k); this.stageClear(fl); return; }
     if (v === 0) { this.passFloor(fl, false); return; }                       // 틈으로 통과
     if (this.fire) { this.passFloor(fl, true); b.vy = Math.min(b.vy, 0.18); return; }   // 불꽃 공: 부수고 지나감

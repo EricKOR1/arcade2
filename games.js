@@ -337,6 +337,23 @@ const GAMES = {
     sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, maxCombo: g.maxCombo, accuracy: g.accuracy }; }
   },
 
+  helix: {
+    type: 'canvas',
+    name: '나선 탑 내려가기',
+    desc: '통통 튀는 공 아래로 탑을 돌려 원판의 빈 틈으로 떨어뜨려요. 빨간 조각에 닿으면 끝! 바닥 목표판에 닿으면 다음 단계',
+    howto: '화면을 좌우로 끌어 탑 돌리기(←/→ 한 칸씩) · 틈으로 떨어질 때마다 점수 · 3층 이상 한 번에 떨어지면 불꽃 공이 되어 다음 판(빨간 조각도)을 부숨',
+    meta: '개인전 · 하이퍼캐주얼 · 나선 탑 내려가기',
+    primary: '78% 0.12 220', primaryContent: '0% 0 0', hex: '#4CC9F0',
+    grid: { cols: 9, rows: 16 },
+    adminView: 'grid',
+    needsPeers: false, hasNext: false,
+    stats: [{ key: 'level', label: '단계' }, { key: 'floorsPassed', label: '지난 층' }],
+    detail: function (g) { return g.level + '단계 · ' + g.floorsPassed + '층 · 불꽃 ' + g.smashes + '번'; },
+    controls: [], padLayout: 'drag',
+    create: function (canvas, opts) { return new HelixGame(canvas, opts.cellSize); },
+    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, level: g.level, floorsPassed: g.floorsPassed }; }
+  },
+
   runner: {
     type: 'canvas',
     name: '지하철 달리기',
