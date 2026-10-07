@@ -119,7 +119,7 @@ const LPgen = {
     return g;
   },
   nonoMake(cfg) {
-    const n = cfg.n; let tries = 0;
+    const n = cfg.n; let tries = 0, got = 0, best = null;
     while (true) {
       tries++;
       const g = LPgen.nonoPic(n); let fill = 0; for (const v of g) fill += v;
@@ -128,8 +128,13 @@ const LPgen = {
       for (let r = 0; r < n; r++) { const l = []; for (let c = 0; c < n; c++) l.push(g[r * n + c]); rc.push(LPgen.clues(l)); if (!rc[r].length) empty++; }
       for (let c = 0; c < n; c++) { const l = []; for (let r = 0; r < n; r++) l.push(g[r * n + c]); cc.push(LPgen.clues(l)); if (!cc[c].length) empty++; }
       if (empty > (n <= 5 ? 0 : 1) && tries < 300) continue;
-      if (LPgen.nonoSolve(n, rc, cc)) return { sol: Array.from(g), rc, cc, tries };
-      if (tries > 2000) return null;
+      if (LPgen.nonoSolve(n, rc, cc)) {
+        // 풀리는 그림 몇 장 중 덩어리가 가장 다양한(힌트 숫자가 많은) 것을 고름 — 큰 통짜 덩어리만 나오지 않게
+        let runs = 0; rc.concat(cc).forEach(l => runs += l.length);
+        if (!best || runs > best.runs) best = { sol: Array.from(g), rc, cc, tries, runs };
+        if (++got >= 6) return best;
+      }
+      if (tries > 1500) return best;
     }
   }
 };
@@ -358,9 +363,9 @@ class LogicPuzzleGame {
     ctx.globalAlpha = 1;
     if (this.hintT > 0 && this.screen === 'play' && !this.gameOver) {
       ctx.globalAlpha = Math.min(1, this.hintT / 500);
-      const msg = this.kind === 'sudoku' ? '빈칸 톡 → 아래 숫자 톡' : '숫자만큼 칸을 톡! 이어진 칸 덩어리';
-      ctx.fillStyle = 'rgba(43,45,66,0.86)'; FX.rr(ctx, W / 2 - 4.3 * cs, 6.0 * cs, 8.6 * cs, 1.2 * cs, cs * 0.6); ctx.fill();
-      FX.text(ctx, msg, W / 2, 6.6 * cs, { size: cs * 0.42, weight: 800, color: '#fff', align: 'center', baseline: 'middle' });
+      const msg = this.kind === 'sudoku' ? '빈칸 톡 → 아래 숫자 톡' : '힌트 숫자 = 이어서 칠할 칸 수';
+      ctx.fillStyle = 'rgba(43,45,66,0.86)'; FX.rr(ctx, W / 2 - 4.3 * cs, 9.7 * cs, 8.6 * cs, 1.1 * cs, cs * 0.55); ctx.fill();
+      FX.text(ctx, msg, W / 2, 10.25 * cs, { size: cs * 0.42, weight: 800, color: '#fff', align: 'center', baseline: 'middle' });
       ctx.globalAlpha = 1;
     }
     if (this.gameOver) this.drawOver(ctx, cs, W, H);

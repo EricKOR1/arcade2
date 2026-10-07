@@ -269,6 +269,23 @@ const GAMES = {
     sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, height: g.height, perfects: g.perfects }; }
   },
 
+  watersort: {
+    type: 'canvas',
+    name: '색깔 물 정리',
+    desc: '시험관을 톡, 다른 시험관을 톡! 맨 위 같은 색 물을 옮겨 시험관마다 한 색으로 모으세요',
+    howto: '시험관 톡 → 받을 시험관 톡 · 받는 쪽 맨 위가 같은 색이거나 비어 있어야 옮겨짐 · 되돌리기 5번 · 시험관+1 한 번 · 5분 동안 몇 단계 푸나',
+    meta: '개인전 · 색 정렬 퍼즐 · 5분 동안 몇 단계?',
+    primary: '72% 0.14 230', primaryContent: '100% 0 0', hex: '#4CC9F0',
+    grid: { cols: 9, rows: 14 },
+    adminView: 'grid',
+    needsPeers: false, hasNext: false,
+    stats: [{ key: 'level', label: '단계' }, { key: 'solved', label: '푼 수' }],
+    detail: function (g) { return g.solved + '단계 풀기 · 옮김 ' + g.totalMoves + '번'; },
+    controls: [], padLayout: 'tap',
+    create: function (canvas, opts) { return new WaterSortGame(canvas, opts.cellSize); },
+    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, level: g.level, solved: g.solved }; }
+  },
+
   runner: {
     type: 'canvas',
     name: '지하철 달리기',
