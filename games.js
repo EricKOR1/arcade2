@@ -303,6 +303,23 @@ const GAMES = {
     sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, solved: g.solved, mistakes: g.mistakes }; }
   },
 
+  slingshot: {
+    type: 'canvas',
+    name: '새총 물리 놀이',
+    desc: '새총으로 돌멩이·물방울을 날려 쓰레기 상자 탑을 무너뜨리고 쓰레기 봉투를 모두 치워요. 포물선 궤적·각도·세기로 배우는 물리',
+    howto: '새총을 뒤로 끌었다 놓아 발사 · 끄는 동안 예상 궤적·각도(°)·세기(%) 표시 · 키보드 ←→ 각도, ↑↓ 세기, 스페이스 발사 · 봉투를 다 치우면 다음 단계(남은 공 1개당 +1000) · 공을 다 쓰면 끝',
+    meta: '개인전 · 물리 퍼즐 · 포물선 운동',
+    primary: '72% 0.17 150', primaryContent: '100% 0 0', hex: '#2FBF71',
+    grid: { cols: 10, rows: 14 },
+    adminView: 'grid',
+    needsPeers: false, hasNext: false,
+    stats: [{ key: 'level', label: '단계' }, { key: 'targetsHit', label: '치운 봉투' }],
+    detail: function (g) { return '단계 ' + g.level + ' · 봉투 ' + g.targetsHit + '개 · 공 ' + g.shots + '개'; },
+    controls: [], padLayout: 'drag',
+    create: function (canvas, opts) { return new SlingshotGame(canvas, opts.cellSize); },
+    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, level: g.level, targetsHit: g.targetsHit }; }
+  },
+
   runner: {
     type: 'canvas',
     name: '지하철 달리기',

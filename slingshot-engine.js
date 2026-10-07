@@ -537,8 +537,8 @@ class SlingshotGame {
       ctx.beginPath(); ctx.moveTo((SL_SLING.x - 0.32) * cs, fy); ctx.quadraticCurveTo(x + k * cs * 0.5, fy + cs * 0.15, (SL_SLING.x + 0.32) * cs, fy); ctx.stroke(); }
     this.drawSlingFront(ctx, cs);
     // 남은 공 (새총 옆 땅 위)
-    for (let i = 1; i < this.ballsLeft + (aiming ? 0 : 1) && i < 6; i++) { const idx = this.ballsTotal - this.ballsLeft + i - (aiming ? 0 : 1); const type = this.queue[idx] || 'stone';
-      this.drawBall(ctx, cs, type, SL_SLING.x - 0.55 - (i - 1) * 0.5, SL_GROUND - 0.22, 0.2, 0); }
+    for (let i = 1; i < this.ballsLeft + (aiming ? 0 : 1) && i < 4; i++) { const idx = this.ballsTotal - this.ballsLeft + i - (aiming ? 0 : 1); const type = this.queue[idx] || 'stone';
+      this.drawBall(ctx, cs, type, SL_SLING.x - 0.5 - (i - 1) * 0.42, SL_GROUND - 0.19, 0.18, 0); }
     // 예상 궤적 점선 + 각도 호
     if (aiming && (this.drag || this.kbAim > 0)) {
       const pts = this.predict(this._pred || (this._pred = []));
@@ -602,7 +602,7 @@ class SlingshotGame {
     if (this.gameOver) {
       ctx.fillStyle = 'rgba(8,14,30,0.68)'; ctx.fillRect(0, 0, W, H);
       FX.text(ctx, '공을 다 썼어요', W / 2, H * 0.42, { size: cs * 0.7, weight: 900, color: '#fff', align: 'center' });
-      FX.text(ctx, this.score + '점 · ' + this.cleared + '단계 깨끗', W / 2, H * 0.42 + cs * 0.9, { size: cs * 0.42, weight: 800, color: '#FFD166', align: 'center' });
+      FX.text(ctx, this.score + '점 · 단계 ' + this.level + '에서 끝', W / 2, H * 0.42 + cs * 0.9, { size: cs * 0.42, weight: 800, color: '#FFD166', align: 'center' });
       FX.text(ctx, '치운 봉투 ' + this.targetsHit + '개 · 쏜 공 ' + this.shots + '개', W / 2, H * 0.42 + cs * 1.5, { size: cs * 0.32, weight: 700, color: '#cfe3ff', align: 'center' });
     }
   }
