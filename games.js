@@ -320,6 +320,23 @@ const GAMES = {
     sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, level: g.level, targetsHit: g.targetsHit }; }
   },
 
+  rhythm: {
+    type: 'canvas',
+    name: '리듬 터치',
+    desc: '네 줄로 떨어지는 노트가 하얀 판정선에 닿을 때 그 줄을 톡! 직접 만든 곡 3개를 연주하세요',
+    howto: '노트가 선에 닿을 때 그 줄(화면 아래쪽 절반)을 톡 · 키보드 D F J K 또는 ← ↓ ↑ → · 완벽 ±0.05초 / 좋음 ±0.11초 · 콤보를 이어 S 등급에 도전',
+    meta: '개인전 · 리듬 · 곡 3개(쉬움·보통·어려움)',
+    primary: '68% 0.2 300', primaryContent: '100% 0 0', hex: '#B15DFF',
+    grid: { cols: 8, rows: 14 },
+    adminView: 'grid',
+    needsPeers: false, hasNext: false,
+    stats: [{ key: 'maxCombo', label: '최대 콤보' }, { key: 'accuracy', label: '정확도' }],
+    detail: function (g) { return (g.songName || '곡 고르는 중') + ' · ' + g.grade + ' 등급 · 정확도 ' + g.accuracy + '% · 최대 콤보 ' + g.maxCombo; },
+    controls: [], padLayout: 'tap',
+    create: function (canvas, opts) { return new RhythmGame(canvas, opts.cellSize); },
+    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, maxCombo: g.maxCombo, accuracy: g.accuracy }; }
+  },
+
   runner: {
     type: 'canvas',
     name: '지하철 달리기',

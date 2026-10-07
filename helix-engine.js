@@ -25,7 +25,7 @@ class HelixGame {
     this.score = 0; this.gameOver = false; this.level = 1; this.floorsPassed = 0; this.bestStreak = 0; this.smashes = 0;
     this.lastTime = 0; this.now = 0; this.t = 0;
     this.shards = []; this.parts = []; this.pops = []; this.trail = [];
-    this.drag = null; this.clearT = 0; this.squash = 0; this.hitFlash = 0;
+    this.drag = null; this.clearT = 0; this.squash = 0; this.hitFlash = 0; this.introT = 3.2;
     this.buildStage();
   }
   // ── 단계 만들기 ── 층 수·위험 조각이 단계마다 늘어남. 모든 층에 틈이 있고, 틈 바로 아래를 빨강이 다 막지 않게
@@ -62,7 +62,7 @@ class HelixGame {
     // 첫 층 앞쪽이 판이 되도록 시작 각도
     this.rot = 0; this.rotTarget = 0;
     this.ball = { y: 0.2, vy: 0 }; this.streak = 0; this.fire = false;
-    this.camY = 0; this.next = 0; this.introT = 3.2;
+    this.camY = 0; this.next = 0;
   }
   // ── 조작 ──
   segAt(rot) { let a = (HX_FRONT - rot) % (Math.PI * 2); if (a < 0) a += Math.PI * 2; return Math.floor(a / HX_SA) % HX_SEG; }
@@ -91,7 +91,7 @@ class HelixGame {
     this.squash *= Math.pow(0.82, f); this.hitFlash = Math.max(0, this.hitFlash - 0.04 * f);
     for (const fl of this.floors) if (fl.flash > 0) fl.flash = Math.max(0, fl.flash - 0.06 * f);
     for (let i = this.shards.length - 1; i >= 0; i--) { const p = this.shards[i];
-      p.x += p.vx * f; p.y += p.vy * f; p.vy += 0.012 * f; p.a += p.va * f; p.l -= 0.022 * f; if (p.l <= 0) this.shards.splice(i, 1); }
+      p.x += p.vx * f; p.y += p.vy * f; p.vy += 0.012 * f; p.a += p.va * f; p.l -= 0.034 * f; if (p.l <= 0) this.shards.splice(i, 1); }
     this.parts = FX.stepParts(this.parts, f, 0.04);
     for (let i = this.pops.length - 1; i >= 0; i--) if ((this.pops[i].t -= 0.022 * f) <= 0) this.pops.splice(i, 1);
     if (this.fire || this.ball.vy > 0.2) { this.trail.push({ y: this.ball.y, l: 1 }); if (this.trail.length > 14) this.trail.shift(); }
@@ -124,7 +124,7 @@ class HelixGame {
   passFloor(fl, smash) {
     fl.broken = true; this.passed++; this.floorsPassed++;
     this.streak++; this.bestStreak = Math.max(this.bestStreak, this.streak);
-    const gain = this.level * Math.max(1, this.streak) + (smash ? 5 * this.level : 0);
+    const gain = this.level * Math.min(10, Math.max(1, this.streak)) + (smash ? 5 * this.level : 0);
     this.score += gain;
     this.pops.push({ y: fl.y, t: 1, txt: '+' + gain, c: smash ? '#FF9F43' : '#FFE38A' });
     this.shatter(fl);
@@ -189,12 +189,12 @@ class HelixGame {
       const prevY = i > 0 ? sy(this.floors[i - 1].y) : -cs * 3;
       if (!fl.broken) this.drawFloor(ctx, fl, cx, fy, rX, rY, pX, pY, T, cs);
       // 이 층 위쪽 기둥 (윗층까지)
-      this.drawPillar(ctx, cx, prevY, fy, pX, pY, th, i === this.floors.length - 1);
+      this.drawPillar(ctx, cx, i > 0 ? prevY : fy - cs * 2.2, fy, pX, pY, th, i === 0);
     }
     if (!ballDrawn) this.drawBall(ctx, cs, cx, sy);
     // 흩어지는 조각
     for (const p of this.shards) { ctx.globalAlpha = Math.max(0, p.l); ctx.save(); ctx.translate(p.x * cs, sy(p.y)); ctx.rotate(p.a);
-      const w = p.w * cs * 0.8, h = cs * 0.32; ctx.fillStyle = p.c; FX.rr(ctx, -w / 2, -h / 2, w, h, h * 0.35); ctx.fill();
+      const w = p.w * cs * 0.6, h = cs * 0.26; ctx.fillStyle = p.c; FX.rr(ctx, -w / 2, -h / 2, w, h, h * 0.35); ctx.fill();
       ctx.fillStyle = 'rgba(255,255,255,.3)'; ctx.fillRect(-w / 2 + 2, -h / 2 + 1, w - 4, h * 0.3); ctx.restore(); }
     ctx.globalAlpha = 1;
     for (const p of this.parts) { ctx.globalAlpha = Math.max(0, Math.min(1, p.l)); ctx.fillStyle = p.c; ctx.beginPath(); ctx.arc(p.x * cs, sy(p.y) + HX_MID * HX_TILT * cs, cs * (p.w ? 0.07 : 0.1), 0, 7); ctx.fill(); }
@@ -211,6 +211,7 @@ class HelixGame {
     g.addColorStop(0, FX.tint(th.col, -0.35)); g.addColorStop(0.35, th.col); g.addColorStop(1, FX.tint(th.col, -0.45));
     ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(cx - pX, y0); ctx.lineTo(cx - pX, y1);
     ctx.ellipse(cx, y1, pX, pY, 0, Math.PI, 0, true); ctx.lineTo(cx + pX, y0); ctx.closePath(); ctx.fill();
+    if (last) { ctx.fillStyle = FX.tint(th.col, 0.3); ctx.beginPath(); ctx.ellipse(cx, y0, pX, pY, 0, 0, 7); ctx.fill(); }   // 탑 꼭대기 뚜껑
   }
   // 원판 한 장: 조각마다 옆면(앞쪽만) + 윗면, 뒤쪽 조각부터
   drawFloor(ctx, fl, cx, fy, rX, rY, pX, pY, T, cs) {

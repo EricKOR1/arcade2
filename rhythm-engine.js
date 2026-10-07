@@ -101,7 +101,7 @@ class RhythmGame {
       if (!window.__rhythmKeyBound) {
         window.__rhythmKeyBound = true;
         window.addEventListener('keydown', e => {
-          const g = window.__rhythmActive; if (!g || g.gameOver || e.repeat) return;
+          const g = window.__rhythmActive; if (!g || g.gameOver || e.repeat || performance.now() - (g._tickWall || 0) > 600) return;
           const tg = e.target && e.target.tagName; if (tg === 'INPUT' || tg === 'TEXTAREA') return;
           const lane = RH_KEYS[(e.key || '').toLowerCase()];
           if (lane != null) g.press(lane);
@@ -217,6 +217,7 @@ class RhythmGame {
   }
 
   tick(now) {
+    this._tickWall = performance.now();
     const gap = this._prevNow ? now - this._prevNow : 0; this._prevNow = now;
     const { dt, f } = FX.frame(this, now);
     if (typeof performance !== 'undefined') this._tickReal = performance.now();
