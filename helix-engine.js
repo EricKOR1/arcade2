@@ -3,9 +3,9 @@
 //   (하이퍼캐주얼 '나선 탑' 장르를 학교용으로 새로 만든 것 — 이름·그림은 모두 새로 그림)
 
 const HX_COLS = 9, HX_ROWS = 16, HX_SEG = 12, HX_SA = Math.PI * 2 / HX_SEG;
-const HX_GAP = 2.7;              // 층 사이 높이 (칸)
+const HX_GAP = 3.0;              // 층 사이 높이 (칸)
 const HX_R = 3.85, HX_r = 0.85;  // 원판 바깥·안쪽(기둥) 반지름 (칸)
-const HX_TILT = 0.42, HX_TH = 0.38, HX_BALL = 0.36;
+const HX_TILT = 0.34, HX_TH = 0.38, HX_BALL = 0.36;
 const HX_MID = (HX_R + HX_r) / 2 + 0.2;   // 공이 튀는 자리 (기둥에서 떨어진 거리)
 const HX_FRONT = Math.PI / 2;             // 공은 늘 화면 앞쪽 (아래쪽 타원 위)
 const HX_G = 0.0135, HX_BOUNCE = 0.235, HX_VMAX = 0.42;
@@ -37,7 +37,7 @@ class HelixGame {
       const seg = new Array(HX_SEG).fill(1);
       const gw = L <= 2 ? 2 + (Math.random() < 0.4 ? 1 : 0) : 2;
       let g0 = Math.floor(Math.random() * HX_SEG);
-      if (i === 0) g0 = 2 + Math.floor(Math.random() * 3);              // 첫 층: 공 바로 아래(앞쪽)는 판
+      if (i === 0) g0 = 5 + Math.floor(Math.random() * 4);              // 첫 층: 공 바로 아래(앞쪽 3번 조각)는 판
       for (let k = 0; k < gw; k++) seg[(g0 + k) % HX_SEG] = 0;
       // 위험 조각 수: 단계가 오를수록 많이 (첫 층은 없음)
       let nd = 0;

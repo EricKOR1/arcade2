@@ -13,7 +13,7 @@ const SL_SLING = { x: 1.55, y: 10.75 };   // 새총 고무줄 가운데(공 놓�
 const SL_PULL = 1.7;          // 최대 당김 (칸)
 // 재질: 밀도 · 체력 · 마찰 · 점수 · 색
 const SL_MAT = {
-  wood:  { d: 1.0, hp: 13, mu: 0.55, pts: 60,  c1: '#E2A35C', c2: '#A8642C', snap: 43 },
+  wood:  { d: 1.0, hp: 10, mu: 0.55, pts: 60,  c1: '#E2A35C', c2: '#A8642C', snap: 43 },
   stone: { d: 2.4, hp: 40, mu: 0.6,  pts: 100, c1: '#B7BFCC', c2: '#6E7889', snap: 45 },
   glass: { d: 0.7, hp: 4,  mu: 0.35, pts: 30,  c1: '#BDF3FF', c2: '#5EC8E8', snap: 1 }
 };
@@ -22,7 +22,7 @@ const SL_BALLS = { stone: { m: 2.6, r: 0.27, e: 0.25, c1: '#C9CED6', c2: '#5B627
 
 // 고정 단계 8개 — b.box(가운데x, 바닥y, 너비, 높이, 재질) / b.t(가운데x, 바닥y) 목표물. 같은 너비 상자를 꼭 맞춰 쌓지 않기(모서리 겹침 방지)
 const SL_STAGES = [
-  { balls: 3, build(b) { b.box(6.2, 13, 0.3, 1.4, 'wood'); b.box(7.8, 13, 0.3, 1.4, 'wood'); b.box(7.0, 11.6, 2.2, 0.26, 'wood');
+  { balls: 3, build(b) { b.box(6.2, 13, 0.3, 1.4, 'wood'); b.box(7.8, 13, 0.3, 1.4, 'wood'); b.box(7.0, 11.6, 2.2, 0.26, 'glass');
       b.t(7.0, 13); b.t(7.0, 11.34); } },
   { balls: 3, build(b) { b.box(6.0, 13, 0.9, 0.9, 'glass'); b.box(6.0, 12.1, 0.78, 0.8, 'glass'); b.t(6.0, 11.3);
       b.box(8.0, 13, 0.3, 1.2, 'wood'); b.box(9.3, 13, 0.3, 1.2, 'wood'); b.box(8.65, 11.8, 1.7, 0.26, 'wood'); b.t(8.65, 13); b.t(8.65, 11.54); } },
@@ -32,13 +32,13 @@ const SL_STAGES = [
   { balls: 3, build(b) { b.box(7.5, 13, 2.6, 0.6, 'stone'); b.box(6.5, 12.4, 0.3, 1.3, 'wood'); b.box(8.5, 12.4, 0.3, 1.3, 'wood');
       b.box(7.5, 11.1, 2.6, 0.26, 'wood'); b.box(7.5, 10.84, 0.7, 0.7, 'glass'); b.t(7.5, 10.14); b.t(7.5, 12.4); b.t(9.5, 13); } },
   { balls: 4, build(b) { b.box(6.6, 13, 0.3, 1.2, 'wood'); b.box(7.8, 13, 0.3, 1.2, 'wood'); b.box(7.2, 11.8, 1.7, 0.26, 'wood');
-      b.box(6.8, 11.54, 0.26, 1.0, 'glass'); b.box(7.6, 11.54, 0.26, 1.0, 'glass'); b.box(7.2, 10.54, 1.2, 0.26, 'glass');
+      b.box(6.62, 11.54, 0.26, 1.0, 'glass'); b.box(7.78, 11.54, 0.26, 1.0, 'glass'); b.box(7.2, 10.54, 1.5, 0.26, 'glass');
       b.box(8.85, 13, 0.36, 1.0, 'stone'); b.t(7.2, 13); b.t(7.2, 11.54); b.t(7.2, 10.28); b.t(9.45, 13); } },
   { balls: 3, build(b) { b.box(6.2, 13, 0.8, 0.8, 'wood'); b.box(7.1, 13, 0.8, 0.8, 'wood'); b.box(8.0, 13, 0.8, 0.8, 'wood');
       b.box(6.65, 12.2, 0.7, 0.7, 'wood'); b.box(7.55, 12.2, 0.7, 0.7, 'wood'); b.box(7.1, 11.5, 0.6, 0.6, 'glass');
       b.t(7.1, 10.9); b.t(9.2, 13); b.t(5.3, 13); } },
-  { balls: 4, build(b) { b.box(5.6, 13, 0.3, 1.6, 'stone'); b.box(6.4, 13, 0.3, 1.6, 'stone'); b.box(8.4, 13, 0.3, 1.6, 'stone'); b.box(9.2, 13, 0.3, 1.6, 'stone');
-      b.box(7.4, 11.4, 4.0, 0.26, 'wood'); b.t(6.0, 13); b.t(8.8, 13); b.t(7.4, 13); b.t(7.4, 11.14); } },
+  { balls: 4, build(b) { b.box(5.5, 13, 0.3, 1.6, 'stone'); b.box(6.5, 13, 0.3, 1.6, 'stone'); b.box(8.3, 13, 0.3, 1.6, 'stone'); b.box(9.3, 13, 0.3, 1.6, 'stone');
+      b.box(7.4, 11.4, 4.2, 0.26, 'wood'); b.t(6.0, 13); b.t(8.8, 13); b.t(7.4, 13); b.t(7.4, 11.14); } },
   { balls: 4, build(b) { b.box(5.8, 13, 0.4, 1.0, 'stone'); b.box(6.6, 13, 0.3, 1.4, 'wood'); b.box(8.0, 13, 0.3, 1.4, 'wood'); b.box(9.4, 13, 0.3, 1.4, 'wood');
       b.box(8.0, 11.6, 3.2, 0.26, 'wood'); b.box(7.0, 11.34, 0.26, 1.0, 'glass'); b.box(8.9, 11.34, 0.26, 1.0, 'glass'); b.box(7.95, 10.34, 2.3, 0.26, 'glass');
       b.t(7.3, 13); b.t(8.7, 13); b.t(8.0, 11.34); b.t(7.95, 10.08); } }
@@ -82,19 +82,20 @@ class SlingshotGame {
       mods.push({ kind, x0: x, w, m1: pick(mats), m2: pick(mats), two: R() < 0.5 + n * 0.02 });
       x += w + 0.25 + R() * 0.4;
     }
-    let tg = 0; mods.forEach(m => { tg += m.kind === 'frame' ? (m.two ? 3 : 2) : m.kind === 'crates' ? 1 : 1; });
-    return { balls: Math.max(3, Math.min(5, Math.ceil(tg * 0.7) + 1)), build(b) {
+    let tg = 0; mods.forEach(m => { tg += m.kind === 'frame' ? 2 : m.kind === 'crates' ? 1 : 1; });
+    return { balls: Math.max(3, Math.min(4, Math.ceil(tg * 0.5) + 1)), build(b) {
       mods.forEach(m => {
         const cx = m.x0 + m.w / 2;
         if (m.kind === 'frame') {
           const h = 1.0 + R() * 0.5, L = m.x0 + 0.15, Rr = m.x0 + m.w - 0.15;
           b.box(L, 13, 0.3, h, m.m1); b.box(Rr, 13, 0.3, h, m.m1); const top = b.box(cx, 13 - h, m.w, 0.26, m.m2 === 'stone' ? 'wood' : m.m2);
-          b.t(cx, 13); b.t(cx, top);
-          if (m.two && m.w > 1.6) {
+          b.t(cx, 13);
+          if (m.two && m.w > 1.95) {
             const h2 = 0.8 + R() * 0.3, w2 = m.w - 0.6;
             b.box(cx - w2 / 2 + 0.15, top, 0.26, h2, m.m2); b.box(cx + w2 / 2 - 0.15, top, 0.26, h2, m.m2);
-            b.box(cx, top - h2, w2 + 0.2, 0.26, 'glass');
-          } else if (m.two) b.box(cx, top, 0.6, 0.6, 'glass');
+            b.box(cx, top - h2, w2 + 0.2, 0.26, 'glass'); b.t(cx, top);
+          } else if (m.two) b.t(cx, b.box(cx, top, 0.6, 0.6, 'glass'));
+          else b.t(cx, top);
         } else if (m.kind === 'crates') {
           b.box(m.x0 + 0.45, 13, 0.8, 0.8, m.m1); b.box(m.x0 + 1.35, 13, 0.8, 0.8, m.m1);
           const top = b.box(cx, 12.2, 0.7, 0.7, m.m2); b.t(cx, top);
@@ -417,7 +418,8 @@ class SlingshotGame {
       g.fillStyle = sun; g.fillRect(0, 0, W, cs * 5);
       // 구름
       g.fillStyle = 'rgba(255,255,255,0.85)';
-      [[1.6, 3.2, 1], [5.2, 2.2, 0.8], [7.6, 4.6, 0.65]].forEach(([x, y, k]) => { g.beginPath(); g.arc(x * cs, y * cs, cs * 0.5 * k, 0, 7); g.arc((x + 0.55 * k) * cs, (y - 0.25 * k) * cs, cs * 0.6 * k, 0, 7); g.arc((x + 1.2 * k) * cs, y * cs, cs * 0.45 * k, 0, 7); g.fill(); g.fillRect(x * cs, y * cs, 1.2 * k * cs, 0.45 * k * cs); });
+      [[1.6, 3.2, 1], [5.2, 2.2, 0.8], [7.6, 4.6, 0.65]].forEach(([x, y, k]) => { [[0, 0, 0.5], [0.55, -0.25, 0.6], [1.2, 0, 0.45]].forEach(([dx, dy, r]) => { g.beginPath(); g.arc((x + dx * k) * cs, (y + dy * k) * cs, cs * r * k, 0, 7); g.fill(); });
+        g.beginPath(); g.ellipse((x + 0.6 * k) * cs, (y + 0.22 * k) * cs, cs * 1.0 * k, cs * 0.28 * k, 0, 0, 7); g.fill(); });
       // 먼 언덕 · 나무
       g.fillStyle = '#9BD7A8'; g.beginPath(); g.moveTo(0, cs * 11.2);
       for (let x = 0; x <= SL_COLS; x += 0.5) g.lineTo(x * cs, (11.1 - Math.sin(x * 0.7) * 0.6 - Math.sin(x * 1.9) * 0.15) * cs);
