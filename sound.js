@@ -191,6 +191,7 @@ const Sound = (function () {
     clear:     function (n) { if (!allow('clear', 60, 0.6)) return; for (let i = 0; i < n; i++) tone(520 * Math.pow(1.26, i), 0.13, 'square', 0.26, i * 0.06); if (n >= 4) tone(1568, 0.4, 'triangle', 0.3, 0.26); },
     levelUp:   function () { if (allow('levelUp', 200, 0.5)) [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.14, 'triangle', 0.26, i * 0.07)); },
     gameOver:  function () { if (allow('gameOver', 500, 0.8)) [440, 370, 294, 220].forEach((f, i) => tone(f, 0.3, 'sawtooth', 0.26, i * 0.13)); },
+    note:      function (f, dur, type, vol, delay) { if (!on()) return; tone(f, dur || 0.2, type || 'triangle', vol == null ? 0.22 : vol, delay || 0); },   // 음 하나 (리듬 터치 등 — 음소거·교사 전체 음소거를 그대로 따름)
     start:     function () { if (allow('start', 300, 0.4)) [392, 523, 659].forEach((f, i) => tone(f, 0.12, 'square', 0.24, i * 0.08)); }
   }, W, K);
 })();

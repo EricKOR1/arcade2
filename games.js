@@ -166,6 +166,23 @@ const GAMES = {
     sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: Math.round(Math.max(g.best, g.len)), len: Math.round(g.len), kills: g.kills }; }
   },
 
+  territory: {
+    type: 'canvas',
+    name: '땅따먹기 대전',
+    desc: '내 땅 밖으로 나가 선을 긋고 돌아오면 둘러싼 곳이 모두 내 땅! 반 전체가 한 경기장에서 실시간으로 땅을 넓혀요',
+    howto: '밀기·방향키로 방향 바꾸기 · 내 땅 밖에 있는 동안 꼬리를 밟히면 탈락 · 친구 꼬리를 밟으면 친구가 탈락 · 벽·내 꼬리 조심 · 3초 뒤 다시 시작',
+    meta: '실시간 대전 · 최대 30명 · 개인전 · 인기 io 땅따먹기 장르',
+    primary: '72% 0.15 230', primaryContent: '100% 0 0', hex: '#4CC9F0',
+    grid: { cols: 12, rows: 18 },
+    adminView: 'grid', fullBleed: true,
+    needsPeers: true, realtime: true, hasNext: false,
+    stats: [{ key: 'pct', label: '내 땅(%)' }, { key: 'kills', label: '자르기' }],
+    detail: function (g) { return '최고 ' + (Math.round(g.best / 3136 * 1000) / 10) + '% · 꼬리 자르기 ' + g.kills + '번'; },
+    controls: ['up', 'left', 'down', 'right'],
+    create: function (canvas, opts) { return new TerritoryGame(canvas, opts); },
+    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.best, pct: g.pct, kills: g.kills }; }
+  },
+
   fpsclassic: {
     type: 'canvas',
     name: '레이저 태그 클래식',
@@ -233,6 +250,108 @@ const GAMES = {
     controls: [], padLayout: 'drag',
     create: function (canvas, opts) { return new Match3Game(canvas, opts.cellSize); },
     sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, level: g.level }; }
+  },
+
+  stack: {
+    type: 'canvas',
+    name: '블록 쌓기 타이밍',
+    desc: '왔다 갔다 하는 블록을 톡 눌러 멈추세요. 아래 블록과 겹친 부분만 남고 삐져나온 곳은 잘려 떨어집니다',
+    howto: '화면 톡(스페이스·↑) = 블록 멈추기 · 딱 맞추면 퍼펙트(크기 유지, 3번 연속부터 다시 커짐) · 완전히 빗나가면 끝 · 층마다 1점 + 퍼펙트 보너스',
+    meta: '개인전 · 타이밍 · 하늘 끝까지 탑 쌓기',
+    primary: '72% 0.17 330', primaryContent: '100% 0 0', hex: '#E86FC4',
+    grid: { cols: 9, rows: 16 },
+    adminView: 'grid',
+    needsPeers: false, hasNext: false,
+    stats: [{ key: 'height', label: '층' }, { key: 'perfects', label: '퍼펙트' }],
+    detail: function (g) { return g.height + '층 · 퍼펙트 ' + g.perfects + '번 · 최고 연속 ' + g.bestStreak; },
+    controls: [], padLayout: 'tap',
+    create: function (canvas, opts) { return new StackGame(canvas, opts.cellSize); },
+    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, height: g.height, perfects: g.perfects }; }
+  },
+
+  watersort: {
+    type: 'canvas',
+    name: '색깔 물 정리',
+    desc: '시험관을 톡, 다른 시험관을 톡! 맨 위 같은 색 물을 옮겨 시험관마다 한 색으로 모으세요',
+    howto: '시험관 톡 → 받을 시험관 톡 · 받는 쪽 맨 위가 같은 색이거나 비어 있어야 옮겨짐 · 되돌리기 5번 · 시험관+1 한 번 · 5분 동안 몇 단계 푸나',
+    meta: '개인전 · 색 정렬 퍼즐 · 5분 동안 몇 단계?',
+    primary: '72% 0.14 230', primaryContent: '100% 0 0', hex: '#4CC9F0',
+    grid: { cols: 9, rows: 14 },
+    adminView: 'grid',
+    needsPeers: false, hasNext: false,
+    stats: [{ key: 'level', label: '단계' }, { key: 'solved', label: '푼 수' }],
+    detail: function (g) { return g.solved + '단계 풀기 · 옮김 ' + g.totalMoves + '번'; },
+    controls: [], padLayout: 'tap',
+    create: function (canvas, opts) { return new WaterSortGame(canvas, opts.cellSize); },
+    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, level: g.level, solved: g.solved }; }
+  },
+
+  logic: {
+    type: 'canvas',
+    name: '두뇌 퍼즐 (스도쿠·네모로직)',
+    desc: '해가 하나뿐인 스도쿠·네모로직이 끝없이 만들어집니다. 8분 동안 많이, 빨리, 틀리지 않고 풀어 점수를 모으세요',
+    howto: '시작 화면에서 종류·난이도 톡 · 스도쿠: 빈칸 톡 → 아래 숫자 톡 (메모·지우개) · 네모로직: 힌트 숫자만큼 칸 칠하기 (칠하기/X 표시 버튼) · 실수 1번 −15점 · 다 풀면 다음 퍼즐 자동 · 키보드: 화살표 이동, 스페이스 선택/확정',
+    meta: '개인전 · 두뇌 퍼즐 · 제한 시간 8분 점수 경쟁',
+    primary: '58% 0.2 268', primaryContent: '100% 0 0', hex: '#4361EE',
+    grid: { cols: 10, rows: 14 },
+    adminView: 'grid',
+    needsPeers: false, hasNext: false,
+    stats: [{ key: 'solved', label: '푼 퍼즐' }, { key: 'mistakes', label: '실수' }],
+    detail: function (g) { return '퍼즐 ' + g.solved + '개 풂 · 실수 ' + g.mistakes + '번'; },
+    controls: [], padLayout: 'tap',
+    create: function (canvas, opts) { return new LogicPuzzleGame(canvas, opts.cellSize); },
+    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, solved: g.solved, mistakes: g.mistakes }; }
+  },
+
+  slingshot: {
+    type: 'canvas',
+    name: '새총 물리 놀이',
+    desc: '새총으로 돌멩이·물방울을 날려 쓰레기 상자 탑을 무너뜨리고 쓰레기 봉투를 모두 치워요. 포물선 궤적·각도·세기로 배우는 물리',
+    howto: '새총을 뒤로 끌었다 놓아 발사 · 끄는 동안 예상 궤적·각도(°)·세기(%) 표시 · 키보드 ←→ 각도, ↑↓ 세기, 스페이스 발사 · 봉투를 다 치우면 다음 단계(남은 공 1개당 +1000) · 공을 다 쓰면 끝',
+    meta: '개인전 · 물리 퍼즐 · 포물선 운동',
+    primary: '72% 0.17 150', primaryContent: '100% 0 0', hex: '#2FBF71',
+    grid: { cols: 10, rows: 14 },
+    adminView: 'grid',
+    needsPeers: false, hasNext: false,
+    stats: [{ key: 'level', label: '단계' }, { key: 'targetsHit', label: '치운 봉투' }],
+    detail: function (g) { return '단계 ' + g.level + ' · 봉투 ' + g.targetsHit + '개 · 공 ' + g.shots + '개'; },
+    controls: [], padLayout: 'drag',
+    create: function (canvas, opts) { return new SlingshotGame(canvas, opts.cellSize); },
+    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, level: g.level, targetsHit: g.targetsHit }; }
+  },
+
+  rhythm: {
+    type: 'canvas',
+    name: '리듬 터치',
+    desc: '네 줄로 떨어지는 노트가 하얀 판정선에 닿을 때 그 줄을 톡! 직접 만든 곡 3개를 연주하세요',
+    howto: '노트가 선에 닿을 때 그 줄(화면 아래쪽 절반)을 톡 · 키보드 D F J K 또는 ← ↓ ↑ → · 완벽 ±0.05초 / 좋음 ±0.11초 · 콤보를 이어 S 등급에 도전',
+    meta: '개인전 · 리듬 · 곡 3개(쉬움·보통·어려움)',
+    primary: '68% 0.2 300', primaryContent: '100% 0 0', hex: '#B15DFF',
+    grid: { cols: 8, rows: 14 },
+    adminView: 'grid',
+    needsPeers: false, hasNext: false,
+    stats: [{ key: 'maxCombo', label: '최대 콤보' }, { key: 'accuracy', label: '정확도' }],
+    detail: function (g) { return (g.songName || '곡 고르는 중') + ' · ' + g.grade + ' 등급 · 정확도 ' + g.accuracy + '% · 최대 콤보 ' + g.maxCombo; },
+    controls: [], padLayout: 'tap',
+    create: function (canvas, opts) { return new RhythmGame(canvas, opts.cellSize); },
+    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, maxCombo: g.maxCombo, accuracy: g.accuracy }; }
+  },
+
+  helix: {
+    type: 'canvas',
+    name: '나선 탑 내려가기',
+    desc: '통통 튀는 공 아래로 탑을 돌려 원판의 빈 틈으로 떨어뜨려요. 빨간 조각에 닿으면 끝! 바닥 목표판에 닿으면 다음 단계',
+    howto: '화면을 좌우로 끌어 탑 돌리기(←/→ 한 칸씩) · 틈으로 떨어질 때마다 점수 · 3층 이상 한 번에 떨어지면 불꽃 공이 되어 다음 판(빨간 조각도)을 부숨',
+    meta: '개인전 · 하이퍼캐주얼 · 나선 탑 내려가기',
+    primary: '78% 0.12 220', primaryContent: '0% 0 0', hex: '#4CC9F0',
+    grid: { cols: 9, rows: 16 },
+    adminView: 'grid',
+    needsPeers: false, hasNext: false,
+    stats: [{ key: 'level', label: '단계' }, { key: 'floorsPassed', label: '지난 층' }],
+    detail: function (g) { return g.level + '단계 · ' + g.floorsPassed + '층 · 불꽃 ' + g.smashes + '번'; },
+    controls: [], padLayout: 'drag',
+    create: function (canvas, opts) { return new HelixGame(canvas, opts.cellSize); },
+    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, level: g.level, floorsPassed: g.floorsPassed }; }
   },
 
   runner: {
