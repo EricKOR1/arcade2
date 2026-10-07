@@ -166,6 +166,23 @@ const GAMES = {
     sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: Math.round(Math.max(g.best, g.len)), len: Math.round(g.len), kills: g.kills }; }
   },
 
+  territory: {
+    type: 'canvas',
+    name: '땅따먹기 대전',
+    desc: '내 땅 밖으로 나가 선을 긋고 돌아오면 둘러싼 곳이 모두 내 땅! 반 전체가 한 경기장에서 실시간으로 땅을 넓혀요',
+    howto: '밀기·방향키로 방향 바꾸기 · 내 땅 밖에 있는 동안 꼬리를 밟히면 탈락 · 친구 꼬리를 밟으면 친구가 탈락 · 벽·내 꼬리 조심 · 3초 뒤 다시 시작',
+    meta: '실시간 대전 · 최대 30명 · 개인전 · 인기 io 땅따먹기 장르',
+    primary: '72% 0.15 230', primaryContent: '100% 0 0', hex: '#4CC9F0',
+    grid: { cols: 12, rows: 18 },
+    adminView: 'grid', fullBleed: true,
+    needsPeers: true, realtime: true, hasNext: false,
+    stats: [{ key: 'pct', label: '내 땅(%)' }, { key: 'kills', label: '자르기' }],
+    detail: function (g) { return '최고 ' + (Math.round(g.best / 3136 * 1000) / 10) + '% · 꼬리 자르기 ' + g.kills + '번'; },
+    controls: ['up', 'left', 'down', 'right'],
+    create: function (canvas, opts) { return new TerritoryGame(canvas, opts); },
+    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.best, pct: g.pct, kills: g.kills }; }
+  },
+
   fpsclassic: {
     type: 'canvas',
     name: '레이저 태그 클래식',
