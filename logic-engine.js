@@ -156,7 +156,16 @@ class LogicPuzzleGame {
   down() { this.kbd = true; this.nav(0, 1); }
   rotate() { if (this.screen !== 'play') return; if (this.kind === 'sudoku') this.memo = !this.memo; else this.nonoMode = this.nonoMode === 'fill' ? 'x' : 'fill'; }
   softDrop() {}                                           // ↓ 는 tick 에서 softDropping 으로 감지
-  hardDrop() { this.kbd = true; if (this.gameOver || this.cel) return; const it = this.items().find(i => i.key === this.focus); if (it) it.act(); }
+  hardDrop() {
+    this.kbd = true; if (this.gameOver || this.cel) return;
+    const it = this.items().find(i => i.key === this.focus); if (!it) return;
+    // 스도쿠 키보드: 칸에서 스페이스 → 숫자판으로, 숫자판에서 스페이스 → 넣고 칸으로 돌아오기
+    if (this.screen === 'play' && this.kind === 'sudoku') {
+      if (it.cell != null) { this.sel = it.cell; this.focus = 'p:' + (this.lastNum || 1); if (window.Sound) Sound.move(); return; }
+      if (it.key.startsWith('p:')) { it.act(); if (this.screen === 'play' && !this.cel && this.sel >= 0) this.focus = 'c:' + this.sel; return; }
+    }
+    it.act();
+  }
   tapAt(x, y) {
     if (this.gameOver || this.cel) return;
     const it = this.items().find(i => x >= i.x && x < i.x + i.w && y >= i.y && y < i.y + i.h);
@@ -225,7 +234,7 @@ class LogicPuzzleGame {
     } else {
       const cfg = LP_NONO[this.diff], m = LPgen.nonoMake(cfg);
       this.pz = { n: cfg.n, sol: m.sol, rc: m.rc, cc: m.cc, st: new Array(cfg.n * cfg.n).fill(0), wrong: new Array(cfg.n * cfg.n).fill(false), done: { r: [], c: [] }, elapsed: 0, miss: 0 };
-      this.focus = 'c:0';
+      this.focus = '';                                      // 첫 톡/화살표 전에는 줄 강조 없음
     }
     this.genMs = (typeof performance !== 'undefined' ? performance : Date).now() - t0;
     this.layout();
@@ -241,6 +250,7 @@ class LogicPuzzleGame {
 
   // 스도쿠 숫자 넣기
   input(v) {
+    this.lastNum = v;
     const P = this.pz, i = this.sel; if (i < 0 || P.given[i]) { if (window.Sound) Sound.bump(); return; }
     if (this.memo) { if (P.val[i]) return; P.notes[i] ^= 1 << v; if (window.Sound) Sound.note(520 + v * 40, 0.05, 'sine', 0.12); return; }
     if (P.val[i] === v) return;

@@ -286,6 +286,23 @@ const GAMES = {
     sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, level: g.level, solved: g.solved }; }
   },
 
+  logic: {
+    type: 'canvas',
+    name: '두뇌 퍼즐 (스도쿠·네모로직)',
+    desc: '해가 하나뿐인 스도쿠·네모로직이 끝없이 만들어집니다. 8분 동안 많이, 빨리, 틀리지 않고 풀어 점수를 모으세요',
+    howto: '시작 화면에서 종류·난이도 톡 · 스도쿠: 빈칸 톡 → 아래 숫자 톡 (메모·지우개) · 네모로직: 힌트 숫자만큼 칸 칠하기 (칠하기/X 표시 버튼) · 실수 1번 −15점 · 다 풀면 다음 퍼즐 자동 · 키보드: 화살표 이동, 스페이스 선택/확정',
+    meta: '개인전 · 두뇌 퍼즐 · 제한 시간 8분 점수 경쟁',
+    primary: '58% 0.2 268', primaryContent: '100% 0 0', hex: '#4361EE',
+    grid: { cols: 10, rows: 14 },
+    adminView: 'grid',
+    needsPeers: false, hasNext: false,
+    stats: [{ key: 'solved', label: '푼 퍼즐' }, { key: 'mistakes', label: '실수' }],
+    detail: function (g) { return '퍼즐 ' + g.solved + '개 풂 · 실수 ' + g.mistakes + '번'; },
+    controls: [], padLayout: 'tap',
+    create: function (canvas, opts) { return new LogicPuzzleGame(canvas, opts.cellSize); },
+    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, solved: g.solved, mistakes: g.mistakes }; }
+  },
+
   runner: {
     type: 'canvas',
     name: '지하철 달리기',
