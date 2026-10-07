@@ -201,6 +201,57 @@ const GAMES = {
     sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, best: g.best }; }
   },
 
+  blockpuzzle: {
+    type: 'canvas',
+    name: '블록 퍼즐',
+    desc: '블록 3개를 8×8 판에 끌어다 놓아요. 가로·세로 한 줄이 꽉 차면 사라져요. 놓을 곳이 없으면 끝',
+    howto: '아래 블록을 손가락(마우스)으로 끌어 판에 놓기 · 줄을 연달아 지우면 콤보 · 한 번에 여러 줄이면 큰 점수',
+    meta: '개인전 · 퍼즐 · 2026 모바일 다운로드 1위 장르',
+    primary: '70% 0.16 250', primaryContent: '100% 0 0', hex: '#4361EE',
+    grid: { cols: 8, rows: 12 },
+    adminView: 'grid',
+    needsPeers: false, hasNext: false,
+    stats: [{ key: 'lines', label: '지운 줄' }, { key: 'bestCombo', label: '최고 콤보' }],
+    detail: function (g) { return g.lines + '줄 지움 · 최고 콤보 ' + g.bestCombo; },
+    controls: [], padLayout: 'drag',
+    create: function (canvas, opts) { return new BlockPuzzleGame(canvas, opts.cellSize); },
+    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, lines: g.lines }; }
+  },
+
+  match3: {
+    type: 'canvas',
+    name: '보석 맞추기',
+    desc: '이웃한 보석을 바꿔 같은 보석 3개 이상을 맞춰요. 4개 · L자 · 5개를 맞추면 특수 보석! 이동 안에 목표 점수',
+    howto: '보석을 이웃 쪽으로 밀기(또는 두 개를 차례로 톡) · 4개 = 줄 지우기 · L·T자 = 폭탄 · 5개 = 무지개 · 목표를 넘으면 다음 단계(이동 +10)',
+    meta: '개인전 · 퍼즐 · 인기 3매치 장르',
+    primary: '65% 0.2 330', primaryContent: '100% 0 0', hex: '#D9468F',
+    grid: { cols: 8, rows: 9 },
+    adminView: 'grid',
+    needsPeers: false, hasNext: false,
+    stats: [{ key: 'level', label: '단계' }, { key: 'moves', label: '남은 이동' }],
+    detail: function (g) { return g.level + '단계 · 최고 ' + g.bestChain + '연쇄 · 특수 보석 ' + g.specials + '개'; },
+    controls: [], padLayout: 'drag',
+    create: function (canvas, opts) { return new Match3Game(canvas, opts.cellSize); },
+    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, level: g.level }; }
+  },
+
+  runner: {
+    type: 'canvas',
+    name: '지하철 달리기',
+    desc: '철길 3줄을 달려요. 열차는 옆 줄로 피하고, 낮은 차단봉은 점프, 높은 차단봉은 미끄러지기. 동전을 모아요',
+    howto: '← → (밀기) 줄 바꾸기 · ↑ (위로 밀기·톡) 점프 · ↓ (아래로 밀기) 미끄러지기 · 🧲 자석 · 🛡 방패(한 번 버팀)',
+    meta: '개인전 · 무한 달리기 · 다운로드 상위 장르',
+    primary: '72% 0.17 45', primaryContent: '100% 0 0', hex: '#FF7A1A',
+    grid: { cols: 9, rows: 16 },
+    adminView: 'grid',
+    needsPeers: false, hasNext: false,
+    stats: [{ key: 'best', label: '거리(m)' }, { key: 'coins', label: '동전' }],
+    detail: function (g) { return Math.floor(g.dist) + 'm · 동전 ' + g.coins + '개'; },
+    controls: ['up', 'left', 'down', 'right'],
+    create: function (canvas, opts) { return new RunnerGame(canvas, opts.cellSize); },
+    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, dist: Math.floor(g.dist), coins: g.coins }; }
+  },
+
   frogger: {
     type: 'canvas',
     name: '길 건너기',
