@@ -15,6 +15,7 @@ class KartGame3D extends KartGame {
     const orig = this.opts.onAttack; this.opts.onAttack = (type, target, data) => { try { this.fxAttack(type, target, data); } catch (e) {} return orig ? orig(type, target, data) : undefined; };
     this.initThree(); this.resize();
     this.hq = this.pickQuality(); this.applyQuality(); if (this.enableReal) this.enableReal();   // PC 고화질 낮 트랙: 사진 하늘·물리 재질·빛 번짐(kart3d-real.js)
+    this.initRes3D(); this.tuneTextures();
     if (this.hq !== 'low' && window.Kart3DHQ) Kart3DHQ.loadAssets().then(a => { if (this.renderer) this.onAssets(a); });
   }
 
@@ -26,6 +27,30 @@ class KartGame3D extends KartGame {
     let gpu = ''; try { const gl = this.renderer.getContext(), e = gl.getExtension('WEBGL_debug_renderer_info'); gpu = e ? String(gl.getParameter(e.UNMASKED_RENDERER_WEBGL)) : ''; } catch (e) {}
     if (/swiftshader|llvmpipe|software/i.test(gpu)) return 'low';
     return (window.matchMedia && matchMedia('(pointer: coarse)').matches) ? 'mid' : 'high';
+  }
+  // 적응형 해상도(3D): 시작은 예전 배율(태블릿 1.25)에서, 여유 있으면 고화질 2 · 보통 1.75 까지 천천히 올리고 느리면 바로 내림 (racing-engine.js resStep)
+  //   교사 관전(minDpr 를 준 경우)은 정해 준 배율 그대로
+  initRes3D() {
+    const dpr = window.devicePixelRatio || 1, start = this.renderer.getPixelRatio();
+    if (this.opts.minDpr) { this.resInit(start, start, start); return; }
+    const cap = Math.min(dpr, this.hq === 'high' ? 2 : this.hq === 'mid' ? 1.75 : 1.25), floor = Math.min(start, this.hq === 'high' ? 1 : this.hq === 'mid' ? 0.85 : 0.75);
+    this.resInit(start, Math.max(cap, start), floor);
+  }
+  applyRes3D() {
+    const pr = this.resScale; if (pr == null || !this.renderer || this._prApplied === pr) return; this._prApplied = pr;
+    const W = this.vw || 800, H = this.vh || 600;
+    if (Math.abs(this.renderer.getPixelRatio() - pr) > 0.001) { this.renderer.setPixelRatio(pr); this.renderer.setSize(W, H, false); }
+    if (this.composer) { this.composer.setPixelRatio(pr); this.composer.setSize(W, H); if (this.bloom) this.bloom.setSize(W, H); }   // (빛 번짐은 예전처럼 화면 크기로 — 가볍게)
+  }
+  // 텍스처 필터: 밉맵 + 이방성 필터(비스듬히 보이는 먼 도로·연석·간판이 반짝이거나 뭉개지지 않게) — 화질별로 GPU 가 허용하는 범위 안에서
+  tuneTextures() {
+    const T = THREE, mx = this.renderer.capabilities.getMaxAnisotropy ? this.renderer.capabilities.getMaxAnisotropy() : 1;
+    const an = Math.max(1, Math.min(mx, this.hq === 'high' ? 16 : this.hq === 'mid' ? 8 : 2)); this.aniso = an;
+    const seen = new Set();
+    this.scene.traverse(o => { const ms = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : []; ms.forEach(m => { ['map', 'emissiveMap'].forEach(k => { const t = m && m[k];
+      if (!t || seen.has(t) || t.isCubeTexture || t.isDataTexture) return; seen.add(t);
+      if (t.anisotropy !== an) { t.anisotropy = an; t.needsUpdate = true; }
+      if (t.generateMipmaps === false || t.minFilter !== T.LinearMipmapLinearFilter) { t.generateMipmaps = true; t.minFilter = T.LinearMipmapLinearFilter; t.needsUpdate = true; } }); }); });
   }
   // 색을 선형 공간으로 (sRGB 출력 + 톤 매핑에서 원래 색이 나오게) — 한 재질은 한 번만
   lin(root) {
@@ -148,7 +173,13 @@ class KartGame3D extends KartGame {
   initThree() {
     const T = THREE, tr = this.track, d = tr.def, sky = d.sky || {}, night = (sky.stars || 0) >= 0.5;   // 별이 많은 하늘 = 야경 트랙
     this.night = night;
-    this.renderer = new T.WebGLRenderer({ canvas: this.glCanvas, antialias: (window.devicePixelRatio || 1) < 2 });
+    // 안티에일리어싱(MSAA): 그래픽 가속이 있는 기기면 늘 켬 — 예전엔 화면 배율 2 이상(대부분의 태블릿·폰)에서 꺼져 있어 테두리가 계단졌음
+    //   (태블릿 GPU 는 MSAA 를 칩 안에서 처리해 거의 공짜) · 소프트웨어 그리기(가속 꺼짐)만 끔 · 주소 ?aa=0/1 로 고정
+    let aa = true; { const am = typeof location !== 'undefined' && location.search.match(/[?&]aa=([01])/);
+      if (am) aa = am[1] === '1';
+      else try { const c = document.createElement('canvas'), gl = c.getContext('webgl'), ex = gl && gl.getExtension('WEBGL_debug_renderer_info'), nm = ex ? String(gl.getParameter(ex.UNMASKED_RENDERER_WEBGL)) : '';
+        if (/swiftshader|llvmpipe|software/i.test(nm)) aa = false; const lc = gl && gl.getExtension('WEBGL_lose_context'); if (lc) lc.loseContext(); } catch (e) {} }
+    this.renderer = new T.WebGLRenderer({ canvas: this.glCanvas, antialias: aa });
     this.renderer.setPixelRatio(Math.max(this.opts.minDpr || 0, Math.min(window.devicePixelRatio || 1, this.opts.maxDpr || 1.25)));   // minDpr: 교사 관전 화면은 모니터보다 촘촘히 그려 또렷하게
     this.scene = new T.Scene();
     this.scene.fog = new T.Fog(new T.Color(sky.haze || sky.low || '#BFE0F5'), 180, 820);   // 안개를 멀리 — 먼 도로가 보이게
@@ -454,14 +485,19 @@ class KartGame3D extends KartGame {
   farKartMesh() {
     if (this._farK) return this._farK;
     const T = THREE, pos = [], nor = [], col = [];
-    const add = (geo, x, y, z, c) => { const g = geo.index ? geo.toNonIndexed() : geo; g.translate(x, y, z); const pa = g.attributes.position.array, na = g.attributes.normal.array;
+    const add = (geo, x, y, z, c, rx, rz) => { let g = geo.index ? geo.toNonIndexed() : geo; if (rx) g.rotateX(rx); if (rz) g.rotateZ(rz); g.translate(x, y, z); const pa = g.attributes.position.array, na = g.attributes.normal.array;
       for (let i = 0; i < pa.length; i++) { pos.push(pa[i]); nor.push(na[i]); } for (let i = 0; i < pa.length / 3; i++) col.push(c, c, c); };
-    add(new T.BoxGeometry(1.5, 0.22, 2.9), 0, 0.3, 0, 1);                 // 바닥 판 (카트 색)
-    add(new T.BoxGeometry(1.2, 0.3, 0.8), 0, 0.48, 1.2, 1);               // 앞 코
-    add(new T.BoxGeometry(0.9, 0.5, 1.3), 0, 0.62, -0.7, 0.22);           // 좌석 · 엔진 (어둡게)
-    add(new T.BoxGeometry(0.55, 0.6, 0.45), 0, 1.0, -0.3, 0.7);           // 운전자 몸
-    add(new T.IcosahedronGeometry(0.36, 0), 0, 1.55, -0.25, 1);           // 헬멧
-    [[0.82, 1.05, 0.3], [-0.82, 1.05, 0.3], [0.86, -1.0, 0.38], [-0.86, -1.0, 0.38]].forEach(([x, z, r]) => add(new T.BoxGeometry(0.32, r * 2, r * 2), x, r, z, 0.12));   // 바퀴
+    // 자세한 카트(kart3d-style)와 같은 배치·비율로 — 가까워져 자세한 모델로 바뀔 때 툭 달라져 보이지 않게 (삼각형 약 300개)
+    add(new T.BoxGeometry(1.5, 0.14, 2.9), 0, 0.26, 0, 0.17);             // 바닥 판 (어둡게)
+    add(new T.BoxGeometry(0.34, 0.3, 1.5), 0.72, 0.42, 0.1, 1); add(new T.BoxGeometry(0.34, 0.3, 1.5), -0.72, 0.42, 0.1, 1);   // 옆 포드 (카트 색)
+    add(new T.BoxGeometry(1.2, 0.26, 0.75), 0, 0.42, 1.2, 1, -0.18);      // 앞 코
+    add(new T.CylinderGeometry(0.09, 0.09, 1.7, 6), 0, 0.32, 1.62, 0.62, 0, Math.PI / 2);   // 앞 범퍼
+    add(new T.BoxGeometry(0.9, 0.5, 0.7), 0, 0.6, -0.35, 0.17);           // 좌석
+    add(new T.BoxGeometry(0.8, 0.45, 0.6), 0, 0.62, -1.1, 0.45);          // 엔진
+    add(new T.BoxGeometry(1.6, 0.12, 0.14), 0, 0.36, -1.55, 0.62);        // 뒤 범퍼
+    add(new T.CylinderGeometry(0.26, 0.33, 0.62, 7), 0, 1.05, -0.3, 0.75, -0.12);   // 운전자 몸
+    add(new T.IcosahedronGeometry(0.34, 1), 0, 1.55, -0.25, 1);           // 헬멧 (카트 색)
+    [[0.82, 1.05, 0.3, 0.26], [-0.82, 1.05, 0.3, 0.26], [0.86, -1.0, 0.38, 0.36], [-0.86, -1.0, 0.38, 0.36]].forEach(([x, z, r, w]) => add(new T.CylinderGeometry(r, r, w, 9), x, r, z, 0.12, 0, Math.PI / 2));   // 바퀴
     const geo = new T.BufferGeometry(); geo.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); geo.setAttribute('normal', new T.Float32BufferAttribute(nor, 3)); geo.setAttribute('color', new T.Float32BufferAttribute(col, 3));
     const mat = new T.MeshLambertMaterial({ vertexColors: true }); mat.userData.lin = true;
     const im = new T.InstancedMesh(geo, mat, 64); im.castShadow = false; im.receiveShadow = false; im.frustumCulled = false;
@@ -473,7 +509,7 @@ class KartGame3D extends KartGame {
   //   (예전엔 30대 모두 자세한 모델 — 카트마다 그리기 3번 + 그림자 3번, 삼각형 1,100개 → 화면이 무거웠음)
   drawPeers3D(now) {
     const T = THREE, cl = this.track.carLen, S = this.S, ids = this._pIds || (this._pIds = []); ids.length = 0;
-    const NEAR = cl * 18, FAR = cl * 140, nearN = this.hq === 'high' ? 10 : this.hq === 'low' ? 4 : 8;   // 가벼움(상자 카트는 부품이 많음)은 4대까지
+    const NEAR = cl * 18, FAR = ((this.scene.fog ? this.scene.fog.far : 820) / S) * 0.97, nearN = this.hq === 'high' ? 10 : this.hq === 'low' ? 4 : 8;   // 가벼움(상자 카트는 부품이 많음)은 4대까지
     const fx = Math.cos(this.angle), fy = Math.sin(this.angle);
     for (const id in this.peers) { if (this.spectator && id === this.followId) continue;   // 관전: 따라가는 학생은 '나' 자리에 그림
       const pr = this.peers[id]; if (pr.x == null) continue; const dx = pr.x - this.x, dy = pr.y - this.y; pr._d2 = dx * dx + dy * dy;
@@ -486,10 +522,10 @@ class KartGame3D extends KartGame {
       const id = ids[i], pr = this.peers[id]; pr.look = pr.look || kartLook(pr.name || id);
       const d = Math.sqrt(pr._d2), k = this.karts[id];
       const o = po[id] || (po[id] = new T.Object3D()); o.position.set(pr.x * S, Math.max((pr.e || 0) * S, this.groundY + 0.2), pr.y * S);
-      const lim = (k && k.g.visible) ? NEAR * 1.15 : NEAR;                      // 경계에서 모델이 깜박이지 않게
+      const lim = (k && k.g.visible) ? NEAR * 1.25 : NEAR;                      // 경계에서 모델이 깜박이지 않게
       if (d < lim && nNear < nearN && !pr._back) { nNear++; this.placeKart(id, pr.x, pr.y, pr.angle, pr.z, pr.look, false, { spin: pr.spin, shield: pr.shield, boost: pr.boost }); continue; }
       if (k) { k.g.visible = false; k.seen = true; }                           // 자세한 모델은 숨겨 두었다가 다시 가까워지면 그대로 씀 (다시 만들지 않음)
-      if (d > FAR || nFar >= 64) continue;
+      if (d > FAR || nFar >= 64) continue;                                     // (안개 끝까지 그림 — 예전엔 안개가 덜 낀 거리에서 갑자기 나타났음)
       q.setFromAxisAngle(up, Math.PI / 2 - pr.angle + (pr.spin ? now / 70 : 0)); m4.compose(o.position, q, one); fm.setMatrixAt(nFar, m4);
       if (pr._lc !== pr.look.color) { pr._lc = pr.look.color; pr._c3 = new T.Color(pr.look.color); if (this.hq !== 'low') pr._c3.convertSRGBToLinear(); }
       fm.setColorAt(nFar, pr._c3); nFar++;
@@ -502,6 +538,7 @@ class KartGame3D extends KartGame {
   draw() {
     if (!this.renderer) return;
     const T = THREE, now = this.clock(), tr = this.track;
+    if (!this.spectator || this.opts.minDpr == null) { this.resStep(now); this.applyRes3D(); }   // 적응형 해상도 (그리기 바로 전에 바꾸므로 깜빡이지 않음)
     Object.keys(this.karts).forEach(id => { this.karts[id].seen = false; });
     // 나
     this.placeKart('__me', this.x, this.y, this.angle, this.airZ, this.look, true, { spin: now < this.spinUntil || now < this.stunUntil, shield: now < this.shieldUntil, boost: now < this.boostUntil || now < this.starUntil, star: now < this.starUntil });
@@ -563,9 +600,10 @@ class KartGame3D extends KartGame {
       this.sun.position.set(sb.x + 45, sb.y + 95, sb.z + 30); this.sun.target.position.copy(sb); this.sun.target.updateMatrixWorld(); }
     if (this.composer) this.composer.render(); else this.renderer.render(this.scene, this.camera);
     // 느리면 화질을 한 단계씩 자동으로 낮춤 (3초 평균 초당 26프레임 미만: high → mid, 22 미만: mid → 그림자 끔)
-    if (this.hq !== 'low' && !this.spectator && !this.hqLocked) { this._fpsN = (this._fpsN || 0) + 1; if (!this._fpsT) this._fpsT = now;
+    if (this.resScale > this.resFloor + 0.001) { this._fpsN = 0; this._fpsT = 0; }      // (해상도를 먼저 낮추고, 가장 낮췄는데도 느리면 그때 그림자 등을 줄임)
+    else if (this.hq !== 'low' && !this.spectator && !this.hqLocked) { this._fpsN = (this._fpsN || 0) + 1; if (!this._fpsT) this._fpsT = now;
       if (now - this._fpsT > 3000) { const fps = this._fpsN * 1000 / (now - this._fpsT); this._fpsN = 0; this._fpsT = now;
-        if (fps < 26 && this.hq === 'high') { this.hq = 'mid'; this.composer = null; this.sun.shadow.mapSize.set(1024, 1024); if (this.sun.shadow.map) { this.sun.shadow.map.dispose(); this.sun.shadow.map = null; } }
+        if (fps < 26 && this.hq === 'high') { this.hq = 'mid'; this.composer = null; this.resCap = Math.max(this.resFloor, Math.min(this.resCap, 1.75)); this.sun.shadow.mapSize.set(1024, 1024); if (this.sun.shadow.map) { this.sun.shadow.map.dispose(); this.sun.shadow.map = null; } }
         else if (fps < 22 && this.hq === 'mid' && this.renderer.shadowMap.enabled) { this.renderer.shadowMap.enabled = false; this.sun.castShadow = false; this.scene.traverse(o => { if (o.material) { const ms = Array.isArray(o.material) ? o.material : [o.material]; ms.forEach(m => { m.needsUpdate = true; }); } }); } } }
     // ── 오버레이: 2D 판의 미니맵·순위·카운트다운·알림을 그대로 ──
     const ctx = this.ctx, W = this.vw || 800, H = this.vh || 600; ctx.setTransform(this.hudDpr || 1, 0, 0, this.hudDpr || 1, 0, 0); ctx.clearRect(0, 0, W, H);
