@@ -1056,7 +1056,42 @@ class KartGame {
   smooth(k, f) { return 1 - Math.pow(1 - k, Math.max(0.2, f || 1)); }
 
   // 화질 단계 (2 최고 · 0 최저) — 시야 거리 · 지물 · 입자 · 정밀 모델 범위를 줄입니다
-  setQuality(q) { this.q = Math.max(0, Math.min(2, q | 0)); this.pts = null; }
+  setQuality(q) { this.q = Math.max(0, Math.min(2, q | 0)); this.pts = null;
+    // 학생 화면이 화질을 낮췄으면(느린 기기) 해상도 상한도 함께 낮춤 — 서로 엇갈려 올렸다 내렸다 하지 않게
+    if (this._q0 == null) this._q0 = this.q; else if (this.q < this._q0 && this.resScale != null) { this.resCap = Math.max(this.resFloor, Math.min(this.resCap, this.resScale * 0.85)); this.resScale = Math.min(this.resScale, this.resCap); }
+  }
+
+  // ── 적응형 해상도: 기기가 여유 있으면 화면을 더 촘촘히(계단·흐림이 줄어듦), 느려지면 바로 낮춤 ──
+  //   내릴 땐 빨리(1초 평균 45fps 밑 → ×0.85) · 올릴 땐 천천히(3초 연속 54fps 이상 → +0.125)
+  //   내려야 했던 값은 한동안(30초부터 점점 길게) 다시 넘지 않음(오르내림 반복 방지) · 주소에 ?dpr=1.5 처럼 주면 그 값으로 고정
+  resInit(start, cap, floor) {
+    const m = typeof location !== 'undefined' && location.search.match(/[?&]dpr=([\d.]+)/);
+    if (m) { const v = Math.max(0.5, Math.min(3, +m[1])); this.resScale = this.resCap = this.resFloor = v; return; }
+    this.resCap = cap; this.resFloor = Math.min(floor, cap); this.resScale = Math.max(this.resFloor, Math.min(cap, start));
+  }
+  resStep(now) {
+    if (this.resScale == null || this.resCap === this.resFloor) return false;
+    const st = this._ar || (this._ar = { t0: now, n: 0, sum: 0, good: 0, last: now, ceil: Infinity, ceilUntil: 0, hold: now + 2500 });
+    const dt = now - st.last; st.last = now; if (dt > 0 && dt < 250) { st.sum += dt; st.n++; }
+    if (now - st.t0 < 1000) return false;
+    const avg = st.n ? st.sum / st.n : 16.7; st.t0 = now; st.sum = 0; st.n = 0;
+    if (now < st.hold) return false;                                     // 시작 직후 · 바꾼 직후엔 잠깐 지켜봄
+    let pr = this.resScale;
+    if (avg > 22 && pr > this.resFloor + 0.001) { st.cd = Math.min(240000, (st.cd || 15000) * 2); st.ceil = pr - 0.05; st.ceilUntil = now + st.cd; pr = Math.max(this.resFloor, pr * 0.85); st.good = 0; st.hold = now + 1500; }   // 다시 넘지 않는 시간: 30초 → 1분 → 2분 … (자꾸 느려지는 기기는 점점 오래)
+    else if (avg < 18.5) { if (++st.good >= 3) { st.good = 0; const c = Math.min(this.resCap, now < st.ceilUntil ? st.ceil : Infinity); if (pr < c - 0.01) { pr = Math.min(c, pr + 0.125); st.hold = now + 2000; } } }
+    else st.good = 0;
+    if (Math.abs(pr - this.resScale) < 0.001) return false;
+    this.resScale = pr; return true;
+  }
+  // 2D 판: 캔버스 화소 수를 적응형 해상도에 맞춤 (학생 화면이 정한 크기를 그리기 직전에 덮어씀 — 바로 이어 그리므로 깜빡이지 않음)
+  res2D(now) {
+    const cv = this.canvas; if (this.spectator || !cv || typeof window === 'undefined' || !cv.clientWidth || !cv.clientHeight) return;
+    if (this.resScale == null) { const dpr = window.devicePixelRatio || 1, q = this.q == null ? 2 : this.q;
+      this.resInit(cv.width / cv.clientWidth || 1, Math.min(dpr, [1.0, 1.5, 2][q]), Math.min(dpr, 0.85)); }
+    this.resStep(now);
+    const sc = this.resScale, w = Math.round(cv.clientWidth * sc), h = Math.round(cv.clientHeight * sc);
+    if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; this.ctx.setTransform(sc, 0, 0, sc, 0, 0); }
+  }
 
   destroy() { if (window.Sound && Sound.engineStop) { Sound.engineStop(); if (Sound.skidSet) Sound.skidSet(0); } }
 
@@ -1574,6 +1609,8 @@ class KartGame {
   // ── 그리기 (원근 투영 3D 뷰 · 고저차 반영) ──
   draw() {
     const ctx = this.ctx;
+    this.res2D(this.clock());
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';   // 이름표·원경·미니맵 그림을 늘리거나 줄일 때 계단 없이
     const W = this.canvas.clientWidth || this.canvas.width;
     const H = this.canvas.clientHeight || this.canvas.height;
     const now = this.clock();
@@ -1758,17 +1795,18 @@ class KartGame {
     if (far === 'ocean') return this.drawFarLive(ctx, W, H, hy, d, sk);
     // 지평선 높이(hy)는 경사에 따라 계속 바뀌므로 띠는 기준 높이로 한 번만 그리고 세로로 늘려 붙임
     // (예전엔 hy 가 1px 바뀔 때마다 캔버스 3장을 새로 만들어 그렸음)
-    const hb = Math.max(40, Math.round(H * 0.4)), key = far + ':' + W + 'x' + hb;
-    if (!this.farCache || this.farCache.key !== key) this.farCache = { key: key, hb: hb, layers: this.buildFarLayers(far, W, hb, d) };
+    const hb = Math.max(40, Math.round(H * 0.4)), ps = Math.min(2, Math.max(1, Math.round((this.resScale || 1) * 4) / 4)), key = far + ':' + W + 'x' + hb + '@' + ps;   // ps: 화면 배율만큼 촘촘히 (고해상도 화면에서 흐리지 않게)
+    if (!this.farCache || this.farCache.key !== key) this.farCache = { key: key, hb: hb, layers: this.buildFarLayers(far, W, hb, d, ps) };
     const k = hy / this.farCache.hb;
     this.farCache.layers.forEach(L => {
-      const period = L.canvas.width, ch = L.canvas.height;
+      const period = L.pw, ch = L.ph;
       const shift = ((-this.angle * W * L.k) % period + period) % period;
       for (let i = -1; i <= Math.ceil(W / period); i++) ctx.drawImage(L.canvas, shift + i * period - period, hy - (ch - 1) * k, period, ch * k);
     });
   }
 
-  buildFarLayers(far, W, hy, d) {
+  buildFarLayers(far, W, hy, d, ps) {
+    ps = ps || 1;
     const specs = {
       city:  [{ k: 0.30, w: 1.4, c: '#0A1128', h: 0.34, win: 0.10 }, { k: 0.52, w: 1.0, c: '#141C3A', h: 0.24, win: 0.16 }],
       mesa:  [{ k: 0.32, w: 1.5, c: '#4A2439', h: 0.30 }, { k: 0.52, w: 1.1, c: '#6E3A3A', h: 0.20 }],
@@ -1779,8 +1817,8 @@ class KartGame {
       const period = Math.max(64, Math.round(W * L.w));
       const cv = document.createElement('canvas');
       const ch = Math.ceil(hy * L.h * 1.3) + 12;
-      cv.width = period; cv.height = ch;
-      const g = cv.getContext('2d');
+      cv.width = Math.round(period * ps); cv.height = Math.round(ch * ps);
+      const g = cv.getContext('2d'); g.scale(ps, ps);
       const base = ch - 1;                                   // 띠 안에서의 지평선 위치
       if (far === 'city') {
         for (let b = 0; b < 5; b++) {
@@ -1824,7 +1862,7 @@ class KartGame {
         }
         g.lineTo(period * 3, base + 1); g.closePath(); g.fill();
       }
-      return { k: L.k, canvas: cv };
+      return { k: L.k, canvas: cv, pw: period, ph: ch };
     });
   }
 
@@ -2709,7 +2747,7 @@ class KartGame {
       if (name && screenLen > 12) {
         const sp = this.nameSprite(name, isMe), sc = Math.max(0.45, Math.min(0.8, screenLen / 40));
         const top = this.project(cam, x, y, e + Hh * 3.6);
-        if (top) ctx.drawImage(sp, top.x - sp.width * sc / 2, top.y - sp.height * sc, sp.width * sc, sp.height * sc);
+        if (top) ctx.drawImage(sp, top.x - sp.lw * sc / 2, top.y - sp.lh * sc, sp.lw * sc, sp.lh * sc);
       }
       return;
     }
@@ -2878,7 +2916,7 @@ class KartGame {
       if (!top) return;
       const sc = Math.max(0.6, Math.min(1, 3200 * c.s / 100 / 15));
       const sp = this.nameSprite(name, isMe);
-      ctx.drawImage(sp, top.x - sp.width * sc / 2, top.y - sp.height * sc, sp.width * sc, sp.height * sc);
+      ctx.drawImage(sp, top.x - sp.lw * sc / 2, top.y - sp.lh * sc, sp.lw * sc, sp.lh * sc);
     }
   }
 
@@ -2887,10 +2925,10 @@ class KartGame {
     this._names = this._names || {};
     const key = (isMe ? '*' : '') + name;
     if (this._names[key]) return this._names[key];
-    const fs = 15, cv = document.createElement('canvas'), g = cv.getContext('2d');
+    const fs = 15, cv = document.createElement('canvas'), g = cv.getContext('2d'), zs = 2;   // 2배로 촘촘히 그려 둠 (고해상도 화면에서 이름이 흐리지 않게) — 붙일 땐 lw·lh(원래 크기)
     g.font = '700 ' + fs + 'px Pretendard, sans-serif';
     const tw = Math.ceil(g.measureText(name).width + fs);
-    cv.width = tw + 2; cv.height = Math.ceil(fs * 1.5) + 2;
+    cv.lw = tw + 2; cv.lh = Math.ceil(fs * 1.5) + 2; cv.width = cv.lw * zs; cv.height = cv.lh * zs; g.scale(zs, zs);
     g.font = '700 ' + fs + 'px Pretendard, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
     g.fillStyle = isMe ? 'rgba(76,201,240,0.92)' : 'rgba(12,15,22,0.8)';
     g.beginPath(); if (g.roundRect) g.roundRect(1, 1, tw, fs * 1.5, fs * 0.35); else g.rect(1, 1, tw, fs * 1.5); g.fill();
@@ -3063,9 +3101,10 @@ class KartGame {
     FX.rr(ctx, ox, oy, size, size, 16); ctx.fill();
     ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 1; ctx.stroke();
     // 트랙 선은 한 번만 그려 두고 이미지로 붙입니다 (매 프레임 400점 선긋기 2번 → drawImage 1번)
-    if (!this._mmTrack || this._mmSize !== size) {
-      const cv = document.createElement('canvas'); cv.width = Math.ceil(size); cv.height = Math.ceil(size);
-      const g = cv.getContext('2d');
+    const mps = Math.min(2, Math.max(1, Math.round((ctx.getTransform ? ctx.getTransform().a : 1) * 4) / 4));   // 화면 배율만큼 촘촘히
+    if (!this._mmTrack || this._mmSize !== size || this._mmPs !== mps) {
+      const cv = document.createElement('canvas'); cv.width = Math.ceil(size * mps); cv.height = Math.ceil(size * mps); this._mmPs = mps;
+      const g = cv.getContext('2d'); g.scale(mps, mps);
       const lx = v => 11 + (v - b.minX) * sc, ly = v => 11 + (v - b.minY) * sc;
       g.lineJoin = 'round'; g.lineCap = 'round';
       g.strokeStyle = 'rgba(255,255,255,0.22)'; g.lineWidth = 6;
@@ -3076,7 +3115,7 @@ class KartGame {
       g.fillStyle = '#F4F6FA'; g.beginPath(); g.arc(lx(c[0][0]), ly(c[0][1]), 3.5, 0, Math.PI * 2); g.fill();
       this._mmTrack = cv; this._mmSize = size;
     }
-    ctx.drawImage(this._mmTrack, ox, oy);
+    ctx.drawImage(this._mmTrack, ox, oy, this._mmTrack.width / this._mmPs, this._mmTrack.height / this._mmPs);
     // 상대 (카트 색)
     Object.keys(this.peers).forEach(id => {
       const p = this.peers[id];
