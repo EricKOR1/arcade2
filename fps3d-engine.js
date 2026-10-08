@@ -163,6 +163,158 @@ function f3MapJungle() {
   return { rows: m.rows(), spawns: [[3.5, 3.5], [40.5, 40.5], [7.5, 3.5], [36.5, 40.5], [3.5, 8.5], [40.5, 35.5], [22, 2.5], [22, 41.5], [2.5, 22], [41.5, 22], [12.5, 12.5], [31.5, 31.5]] };
 }
 
+// ── 인원에 맞춘 맵 크기 ──
+// 교사 화면이 시작할 때 접속 인원을 맵 이름 뒤에 붙여 알려 줍니다 ('plaza:24'). 모든 학생(늦게 들어온 학생 포함)이 같은 값을 받아 같은 맵을 만듭니다.
+// 8명까지 기본(1배), 그 위로는 √(인원/8) 배를 0.25 단위로: 12명 1.25 · 16명 1.5 · 24명 1.75 · 30명 2배
+function f3ScaleFor(n) { n = +n || 0; if (n <= 8) return 1; return Math.min(2, Math.max(1, Math.round(Math.sqrt(n / 8) * 4) / 4)); }
+// 기기마다 똑같이 나오는 난수 (Math.random 대신 — 벽 위치가 기기마다 다르면 안 됨)
+function f3Hash(a, b, c) { let h = (Math.imul(a | 0, 374761393) + Math.imul(b | 0, 668265263) + Math.imul(c | 0, 1274126177)) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); h ^= h >>> 16; return (h >>> 0) / 4294967296; }
+const F3_LINE = '#=BHWLX';   // 이어진 줄로 늘리는 구조물 (P 기둥 · T 나무 · R 바위는 낱개로 자리만 옮김)
+// 맵을 s 배로 넓힘: 각 칸을 새 자리로 옮기고, 이어져 있던 벽은 그 사이를 다시 이어 붙입니다 (벽 두께는 1칸 그대로 · 방·골목이 넓어짐)
+function f3Scale(rows, spawns, s) {
+  const N0 = rows.length, N1 = Math.round(N0 * s), half = (N0 - 1) / 2;
+  const f = p => p <= half ? Math.floor((p + 0.5) * s) : N1 - 1 - Math.floor((N0 - 1 - p + 0.5) * s);   // 점대칭이 그대로 유지되는 자리 옮김
+  const m = f3Grid(N1), { set } = m; m.rect(0, 0, N1, N1, '#');
+  const at = (x, y) => (rows[y] && rows[y][x]) || '#', inner = (x, y) => x > 0 && y > 0 && x < N0 - 1 && y < N0 - 1;
+  for (let y = 1; y < N0 - 1; y++) for (let x = 1; x < N0 - 1; x++) {
+    const c = at(x, y); if (c === '.') continue;
+    const X = f(x), Y = f(y); set(X, Y, c);
+    if (F3_LINE.indexOf(c) < 0) continue;
+    if (inner(x + 1, y) && at(x + 1, y) === c) for (let k = X + 1; k < f(x + 1); k++) set(k, Y, c);
+    if (inner(x, y + 1) && at(x, y + 1) === c) for (let k = Y + 1; k < f(y + 1); k++) set(X, k, c);
+    if (inner(x + 1, y + 1) && at(x + 1, y) === c && at(x, y + 1) === c && at(x + 1, y + 1) === c) for (let yy = Y + 1; yy < f(y + 1); yy++) for (let xx = X + 1; xx < f(x + 1); xx++) set(xx, yy, c);
+    // 바깥 벽에 붙어 있던 벽은 계속 붙어 있게 (새 틈이 생기지 않게)
+    if (x === 1) for (let k = 1; k < X; k++) set(k, Y, c);
+    if (x === N0 - 2) for (let k = X + 1; k < N1 - 1; k++) set(k, Y, c);
+    if (y === 1) for (let k = 1; k < Y; k++) set(X, k, c);
+    if (y === N0 - 2) for (let k = Y + 1; k < N1 - 1; k++) set(X, k, c);
+  }
+  const sp = spawns.map(([sx, sy]) => { const cx = Math.min(N0 - 1, Math.floor(sx)), cy = Math.min(N0 - 1, Math.floor(sy)); return [f(cx) + (sx - cx), f(cy) + (sy - cy)]; });
+  return { m, spawns: sp };
+}
+// 가운데를 S×S 로 잘라 작은 맵 (매칭전 1:1 ~ 5:5). 점대칭은 그대로
+function f3Crop(rows, spawns, S) {
+  const N0 = rows.length, m = f3Grid(Math.min(S, N0)), o = Math.max(0, (N0 - m.N) >> 1);
+  for (let y = 0; y < m.N; y++) for (let x = 0; x < m.N; x++) m.g[y][x] = rows[y + o][x + o];
+  m.rect(0, 0, m.N, m.N, '#');
+  const sp = spawns.map(([x, y]) => [x - o, y - o]).filter(([x, y]) => x > 1.4 && y > 1.4 && x < m.N - 1.4 && y < m.N - 1.4 && m.g[Math.floor(y)][Math.floor(x)] === '.');
+  return { m, spawns: sp };
+}
+// 넓어진 빈터에 까는 엄폐물 — 테마별 [낮은 엄폐물], [시야를 가리는 큰 구조물]
+const F3_PIECES = {
+  crate: [[0, 0, 'X']], crate2: [[0, 0, 'X'], [1, 0, 'X']], low3: [[-1, 0, 'L'], [0, 0, 'L'], [1, 0, 'L']], bunker: [[-1, 0, 'L'], [0, 0, 'X'], [1, 0, 'L']],
+  rock: [[0, 0, 'R']], rock2: [[0, 0, 'R'], [1, 1, 'R']], pillar: [[0, 0, 'P']], trees: [[0, 0, 'T'], [1, 1, 'T'], [-1, 1, 'T']],
+  wallB: [[-1, 0, 'B'], [0, 0, 'B'], [1, 0, 'B']], wallM: [[-1, 0, '='], [0, 0, '='], [1, 0, '=']], window: [[-1, 0, 'W'], [0, 0, 'W'], [1, 0, 'W']],
+  shelf: [[-1, 0, 'H'], [0, 0, 'H'], [1, 0, 'H'], [2, 0, 'H']], block: [[0, 0, 'H'], [1, 0, 'H'], [0, 1, 'H'], [1, 1, 'H']]
+};
+const F3_COVER = {
+  plaza: [['crate', 'crate2', 'low3', 'bunker'], ['wallB', 'wallM']],
+  desert: [['crate', 'rock2', 'low3', 'crate2'], ['wallB', 'pillar']],
+  warehouse: [['crate', 'crate2', 'low3', 'bunker'], ['shelf', 'wallM']],
+  arctic: [['low3', 'rock2', 'crate'], ['trees', 'window']],
+  city: [['crate2', 'rock', 'low3'], ['block', 'pillar']],
+  jungle: [['rock2', 'crate', 'rock'], ['trees', 'wallB']]
+};
+// 빈칸마다 가장 가까운 구조물까지의 거리 (8방향 칸 수)
+function f3Clear(m) {
+  const N = m.N, D = new Int16Array(N * N).fill(-1), q = [];
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) if (m.g[y][x] !== '.') { D[y * N + x] = 0; q.push(y * N + x); }
+  for (let h = 0; h < q.length; h++) { const i = q[h], x = i % N, y = (i / N) | 0;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const nx = x + dx, ny = y + dy; if (nx < 0 || ny < 0 || nx >= N || ny >= N) continue; const j = ny * N + nx; if (D[j] < 0) { D[j] = D[i] + 1; q.push(j); } } }
+  return D;
+}
+// 마무리: 빈터에 엄폐물 · 출발 위치 더하기 · 막힌 곳 뚫기 (모두 점대칭 · 결정적)
+function f3Finish(m, spawns, o) {
+  const N = m.N, g = m.g, seed = o.seed | 0, open = o.passable || '.XLR';   // 지나갈 수 있는 칸 (상자·방벽·바위는 점프로 넘음)
+  const mir = (x, y) => [N - 1 - x, N - 1 - y];
+  const nearSpawn = (x, y, r) => spawns.some(s => Math.abs(s[0] - x - 0.5) < r && Math.abs(s[1] - y - 0.5) < r);
+  if (o.fill) {
+    const D = f3Clear(m), cover = F3_COVER[o.theme] || F3_COVER.plaza, step = o.step || 6;
+    for (let y0 = 3; y0 < N - 3; y0 += step) for (let x0 = 3; x0 < N - 3; x0 += step) {
+      const x = x0 + Math.floor(f3Hash(x0, y0, seed) * 3) - 1, y = y0 + Math.floor(f3Hash(y0, x0, seed + 7) * 3) - 1;
+      if (y * N + x >= (N * N) / 2 || Math.abs(x - (N - 1) / 2) < 3 && Math.abs(y - (N - 1) / 2) < 3) continue;   // 앞 절반만 놓고 거울로 복사 · 한가운데는 비움
+      const d = D[y * N + x], r = f3Hash(x, y, seed + 3);
+      if (d < 3 || r > (o.density || 0.8)) continue;
+      const tall = d >= 4 && f3Hash(x, y, seed + 5) < 0.4, list = cover[tall ? 1 : 0], piece = F3_PIECES[list[Math.floor(f3Hash(x, y, seed + 9) * list.length)]];
+      const rot = f3Hash(x, y, seed + 11) < 0.5, cells = piece.map(([dx, dy, c]) => rot ? [x + dy, y + dx, c] : [x + dx, y + dy, c]);
+      const mine = (ax, ay) => cells.some(([cx, cy]) => cx === ax && cy === ay);
+      const freeAround = (cx, cy) => { for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (g[cy + dy][cx + dx] !== '.' && !mine(cx + dx, cy + dy)) return false; return true; };   // 먼저 놓은 엄폐물과 붙지 않게 (통로가 막히지 않게)
+      const ok = cells.every(([cx, cy]) => { const [mx, my] = mir(cx, cy); return cx > 1 && cy > 1 && cx < N - 2 && cy < N - 2 && g[cy][cx] === '.' && D[cy * N + cx] >= 2 && freeAround(cx, cy) && g[my][mx] === '.' && !nearSpawn(cx, cy, 1.6) && !nearSpawn(mx, my, 1.6) && !(Math.abs(cx - mx) < 2 && Math.abs(cy - my) < 2); });
+      if (ok) cells.forEach(([cx, cy, c]) => { const [mx, my] = mir(cx, cy); g[cy][cx] = c; g[my][mx] = c; });
+    }
+  }
+  // 막힌 곳(잘린 맵의 닫힌 방 등): 첫 출발점에서 갈 수 없는 빈칸 무리는 벽 한 칸을 뚫어 잇고, 안 되면 메움
+  const reach = () => { const R = new Uint8Array(N * N), q = []; let st = spawns.find(s => g[Math.floor(s[1])] && open.indexOf(g[Math.floor(s[1])][Math.floor(s[0])]) >= 0);
+    if (!st) { for (let y = 1; y < N - 1 && !st; y++) for (let x = 1; x < N - 1; x++) if (g[y][x] === '.') { st = [x + 0.5, y + 0.5]; break; } }
+    if (!st) return R; const s0 = Math.floor(st[1]) * N + Math.floor(st[0]); R[s0] = 1; q.push(s0);
+    for (let h = 0; h < q.length; h++) { const i = q[h], x = i % N, y = (i / N) | 0; [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([dx, dy]) => { const j = (y + dy) * N + x + dx; if (!R[j] && open.indexOf(g[y + dy][x + dx]) >= 0) { R[j] = 1; q.push(j); } }); }
+    return R; };
+  for (let pass = 0; pass < 12; pass++) {
+    const R = reach(); let fixed = false, lost = null;
+    for (let y = 1; y < N - 1 && !fixed; y++) for (let x = 1; x < N - 1 && !fixed; x++) {
+      if (g[y][x] !== '.' || R[y * N + x]) continue;
+      lost = lost || [x, y];
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        for (let t = 1; t <= 2 && !fixed; t++) {   // 두께 1~2칸 벽
+          const bx = x + dx * (t + 1), by = y + dy * (t + 1); if (bx < 1 || by < 1 || bx > N - 2 || by > N - 2) break;
+          let wallOk = true; for (let k = 1; k <= t; k++) { const wx = x + dx * k, wy = y + dy * k; if (wx < 1 || wy < 1 || wx > N - 2 || wy > N - 2 || open.indexOf(g[wy][wx]) >= 0) wallOk = false; }
+          if (wallOk && R[by * N + bx]) { for (let k = 1; k <= t; k++) { const wx = x + dx * k, wy = y + dy * k, [mx, my] = mir(wx, wy); g[wy][wx] = '.'; g[my][mx] = '.'; } fixed = true; }
+        }
+        if (fixed) break;
+      }
+    }
+    if (!fixed) { if (lost) { for (let y = 1; y < N - 1; y++) for (let x = 1; x < N - 1; x++) if (g[y][x] === '.' && !R[y * N + x]) g[y][x] = '#'; } break; }
+  }
+  const R = reach();
+  spawns = spawns.filter(([x, y]) => R[Math.floor(y) * N + Math.floor(x)] && g[Math.floor(y)][Math.floor(x)] === '.');
+  // 출발 위치 더하기: 넓게 흩어진 빈칸 (점대칭 짝으로)
+  const want = o.want || spawns.length;
+  if (spawns.length < want) {
+    const D = f3Clear(m), cand = [];
+    for (let y = 2; y < N - 2; y += 2) for (let x = 2; x < N - 2; x += 2) if (y * N + x < (N * N) / 2 && D[y * N + x] >= 2 && R[y * N + x]) cand.push([x, y, f3Hash(x, y, seed + 21)]);
+    cand.sort((a, b) => a[2] - b[2]);
+    for (let gap = Math.max(5, N / 6); gap >= 3 && spawns.length < want; gap -= 1.5)
+      for (const [x, y] of cand) { if (spawns.length >= want) break; const [mx, my] = mir(x, y);
+        if (spawns.some(s => Math.hypot(s[0] - x - 0.5, s[1] - y - 0.5) < gap || Math.hypot(s[0] - mx - 0.5, s[1] - my - 0.5) < gap)) continue;
+        spawns.push([x + 0.5, y + 0.5], [mx + 0.5, my + 0.5]); }
+  }
+  return { rows: m.rows(), spawns };
+}
+// 여러 도형을 한 도형으로 합침 (같은 재질이면 그리기 호출 한 번) — position · normal · uv · color 를 이어 붙임
+function f3MergeGeos(list) {
+  const T = THREE, out = new T.BufferGeometry(), keys = ['position', 'normal', 'uv', 'color'].filter(k => list.every(g => g.attributes[k]));
+  const arr = {}, idx = []; keys.forEach(k => arr[k] = []); let base = 0;
+  list.forEach(g => { keys.forEach(k => { const a = g.attributes[k].array; for (let i = 0; i < a.length; i++) arr[k].push(a[i]); });
+    const n = g.attributes.position.count; if (g.index) { const ia = g.index.array; for (let i = 0; i < ia.length; i++) idx.push(ia[i] + base); } else for (let i = 0; i < n; i++) idx.push(i + base);
+    base += n; g.dispose(); });
+  keys.forEach(k => out.setAttribute(k, new T.BufferAttribute(new Float32Array(arr[k]), k === 'uv' ? 2 : 3)));
+  out.setIndex(idx); return out;
+}
+// 트랙 문자열 → 실제 맵. 'plaza' 기본 · 'plaza:24' 24명 크기 · 'v2' 매칭전 2:2 (match = 경기 번호, 경기마다 다른 맵)
+const F3_MAP_CACHE = {};
+const F3_MATCH_ORDER = ['plaza', 'desert', 'arctic', 'city', 'jungle', 'warehouse'];
+const F3_MATCH_SIZE = [0, 24, 28, 32, 36, 40];      // N:N 경기 맵 한 변
+const F3_MATCH_GOAL = [0, 5, 7, 9, 11, 13];         // 먼저 이 킬 수에 닿는 팀이 승리
+const F3_MATCH_TIME = 180000;                       // 한 판 제한 시간 3분
+const F3_MATCH_REST = 9000;                         // 판이 끝난 뒤 결과를 보여 주는 시간
+function f3MatchVs(track) { const m = /^v([1-5])/.exec(String(track || '')); return m ? +m[1] : 0; }
+function f3MapFor(track, match) {
+  const t = String(track || 'plaza'), vs = f3MatchVs(t), key = t + '|' + (vs ? (match | 0) : '');
+  if (F3_MAP_CACHE[key]) return F3_MAP_CACHE[key];
+  let res;
+  if (vs) {
+    const k = Math.max(0, match | 0), mapId = F3_MATCH_ORDER[k % F3_MATCH_ORDER.length], base = F3_MAPS[mapId].build(), c = f3Crop(base.rows, base.spawns, F3_MATCH_SIZE[vs]);
+    res = f3Finish(c.m, c.spawns, { theme: F3_MAPS[mapId].theme, seed: 101 + vs * 13 + k, fill: true, density: 0.6, step: 5, want: Math.max(8, vs * 4 + 4) });
+    Object.assign(res, { mapId, vs, match: k, scale: 1 });
+  } else {
+    const parts = t.split(':'), mapId = F3_MAPS[parts[0]] ? parts[0] : 'plaza', base = F3_MAPS[mapId].build(), s = f3ScaleFor(parts[1]);
+    if (s <= 1) res = { rows: base.rows, spawns: base.spawns };
+    else { const sc = f3Scale(base.rows, base.spawns, s); res = f3Finish(sc.m, sc.spawns, { theme: F3_MAPS[mapId].theme, seed: Math.round(s * 100) + mapId.length, fill: true, want: Math.round(12 * s * s) }); }
+    Object.assign(res, { mapId, vs: 0, scale: s });
+  }
+  F3_MAP_CACHE[key] = res; return res;
+}
+
 const F3_THEMES = {
   plaza:     { sky: ['#5FA8FF', '#A9D3FF', '#E8F3FF'], fog: [0xCFE6FF, 28, 95], sun: 0xFFF2D6, hemi: [0xCFE8FF, 0x8A7A5A], floor: ['#C9BFA6', 'rgba(0,0,0,0.18)'], ground: 0xC9B98E,
                walls: { '#': '#B9BFC9', '=': '#8F98A8', B: '#9A5A50', X: '#B98A55', P: '#C9CFD8', T: '#2E7D46', R: '#8A8F98', W: '#B9BFC9' }, far: 'hills', decor: 'barrels', night: false },
@@ -185,6 +337,10 @@ const F3_MAPS = {
   city:      { name: '네온 시티',   tag: '★4 · 교차로', desc: '밤거리. 건물 안으로 들어가 매복하거나 교차로를 장악하세요',            theme: 'city',      build: f3MapCity },
   jungle:    { name: '정글 유적',   tag: '★4 · 매복', desc: '나무가 시야를 가르고 중앙엔 돌 신전. 매복과 우회의 맵',                theme: 'jungle',    build: f3MapJungle }
 };
+// 매칭전 인원 (교사 화면의 맵 고르기 자리에 카드로 나옴) — 맵은 경기마다 돌아가며 정해지고, 인원에 맞게 작게 잘림
+const F3_MATCH_MODES = {};
+[1, 2, 3, 4, 5].forEach(n => { F3_MATCH_MODES['v' + n] = { name: n + ' : ' + n + ' 매칭', tag: (n * 2) + '명씩 · ' + F3_MATCH_GOAL[n] + '킬 승리',
+  desc: '반 학생을 ' + n + ':' + n + ' 경기들로 자동으로 나눕니다. 경기마다 다른 작은 맵 · 같은 경기 친구만 보여요', build: () => f3MapFor('v' + n, 0) }; });
 const F3_MAP = F3_MAPS.plaza.build().rows;
 const F3_SPAWNS = F3_MAPS.plaza.build().spawns;
 const F3_TEAM = { red: 0xFF5C7A, blue: 0x2E9BFF };
@@ -195,6 +351,11 @@ const F3_WEAPONS = {
 };
 const F3_MAG = 30;
 const F3_EYE = 1.6;
+const F3_HIT_GAP = 200;          // 명중 신호를 묶는 간격(ms)
+const F3_BASE_LAT = 80;          // 서버 시계를 모를 때 가정하는 기본 지연(ms)
+const F3_LEAD = 0.6;             // 신호 나이의 몇 %만큼 앞당겨 그릴지
+const F3_STAMP_WRAP = 60466176;  // 보낸 시각을 36진수 5자리로 (약 16.8시간마다 한 바퀴)
+const F3_GRAV = 22.3;            // 중력 (칸/초²) — 점프 예측용
 
 class Fps3DGame {
   constructor(canvas, opts) {
@@ -203,11 +364,16 @@ class Fps3DGame {
     this.myId = this.opts.myId || 'me';
     this.myName = this.opts.myName || '';
     this.teamMode = !!this.opts.teamMode;
-    this.team = this.teamMode ? Fps3DGame.teamOf(this.myId) : null;
-    this.mapId = (this.opts.trackId && F3_MAPS[this.opts.trackId]) ? this.opts.trackId : 'plaza';
-    this.mapDef = F3_MAPS[this.mapId]; this.theme = F3_THEMES[this.mapDef.theme];
-    const built = this.mapDef.build(); this.map = built.rows; this.spawns = built.spawns;
-    this.peers = {}; this.models = {};
+    // 맵: 'plaza' · 'plaza:24'(인원에 맞춘 크기) · 'v2'(매칭전 2:2)
+    this.track = String(this.opts.trackId || 'plaza'); this.vs = f3MatchVs(this.track);
+    if (this.opts.matchMode && !this.vs) { this.vs = 2; this.track = 'v2'; }   // 매칭전인데 인원을 고르지 않았으면 2:2
+    this.matchMode = this.vs > 0;
+    // 매칭전: 경기 번호 · 팀은 교사 화면이 시작할 때 나눠 준 표(session.teams)에서. 표에 없으면(늦게 들어옴) 빈자리가 있는 경기로
+    this.mRound = 1; this.mWins = { red: 0, blue: 0 }; this.mEnd = null; this.mStart = null;
+    if (this.matchMode) { this.teamMode = true; this.assignMatch(); }
+    else this.team = this.teamMode ? Fps3DGame.teamOf(this.myId) : null;
+    this.useMap(this.match);
+    this.peers = {}; this.models = {}; this._hitQ = {};
     this.hp = 100; this.kills = 0; this.deaths = 0; this.score = 0; this.streak = 0;
     this.weapon = 'rifle'; this.zoomed = false; this.zoomK = 0;
     this.z = 0; this.vz = 0; this.onGround = true;           // 점프 높이
@@ -227,9 +393,61 @@ class Fps3DGame {
   }
 
   static teamOf(id) { let h = 0; for (const c of String(id)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return (h & 1) ? 'red' : 'blue'; }
+  // 신호: x,y,방향,체력,킬,데스,팀,발사,다운,이동,상하,높이,구르기,판,레드승,블루승, 보낸시각(36진수),속도x,속도y,높이속도,경기번호
   static parse(raw) {
     const a = String(raw).split(',');
-    return { x: +a[0], y: +a[1], angle: +a[2], hp: +a[3], kills: +a[4], deaths: +a[5], team: a[6] || null, fire: a[7] === '1', dead: a[8] === '1', moving: a[9] === '1', pitch: +a[10] || 0, z: +a[11] || 0, rollT: (a[12] === undefined ? -1 : +a[12]), roll: (a[12] !== undefined && +a[12] >= 0), round: +a[13] || 1, wr: +a[14] || 0, wb: +a[15] || 0 };
+    const rt = (a[12] === undefined || a[12] === '') ? -1 : +a[12];
+    return { x: +a[0], y: +a[1], angle: +a[2], hp: +a[3], kills: +a[4], deaths: +a[5], team: a[6] || null, fire: a[7] === '1', dead: a[8] === '1', moving: a[9] === '1', pitch: +a[10] || 0, z: +a[11] || 0, rollT: rt, roll: rt >= 0, round: +a[13] || 1, wr: +a[14] || 0, wb: +a[15] || 0,
+             st: a[16] ? parseInt(a[16], 36) : null, vx: +a[17] || 0, vy: +a[18] || 0, vz: +a[19] || 0, match: (a[20] === undefined || a[20] === '') ? null : +a[20] };
+  }
+  // 교사 화면·학생 화면이 같은 맵을 만들 때 씀
+  static mapFor(track, match) { return f3MapFor(track, match); }
+  // 교사 화면이 [게임 시작] 때 부름: 지금 인원(n)을 맵 이름에 붙여 모두가 같은 크기 맵을 쓰게 함
+  static sizedTrack(gid, track, n) {
+    const t = String(track || '');
+    if (gid === 'fpsclassic') return 'classic:' + (n | 0);
+    if (f3MatchVs(t)) return t;
+    if (gid === 'fpsmatch') return 'v2';
+    const id = F3_MAPS[t.split(':')[0]] ? t.split(':')[0] : 'plaza';
+    return id + ':' + (n | 0);
+  }
+  // 매칭: 학생 id 를 정렬해 N:N 경기들로 나눔 → { id: '경기번호' + 'r'|'b' }. 모든 기기에서 같은 결과
+  // 남는 인원: N명 이상(최소 2명)이면 작은 경기 하나 더, 아니면 뒤 경기부터 한 명씩 끼움 (예: 2:3)
+  static makeMatches(ids, vs) {
+    const list = (ids || []).slice().sort(), size = Math.max(2, vs * 2), out = {}, groups = [];
+    const M = Math.floor(list.length / size);
+    for (let k = 0; k < M; k++) groups.push(list.slice(k * size, (k + 1) * size));
+    const rest = list.slice(M * size);
+    if (rest.length) { if (!groups.length || rest.length >= Math.max(2, vs)) groups.push(rest); else rest.forEach((id, i) => groups[groups.length - 1 - (i % groups.length)].push(id)); }
+    groups.forEach((g, k) => g.forEach((id, i) => { out[id] = k + (i % 2 ? 'b' : 'r'); }));
+    return out;
+  }
+  assignMatch() {
+    const src = this.opts.teams || (Array.isArray(this.opts.roster) && this.opts.roster.length ? Fps3DGame.makeMatches(this.opts.roster, this.vs) : {});
+    const T = {}; Object.keys(src).forEach(id => { if (/^\d+[rb]$/.test(String(src[id]))) T[id] = String(src[id]); });   // 다른 게임의 팀 표가 섞여 있으면 무시
+    let code = T[this.myId];
+    if (!code) {
+      const cnt = {}; Object.keys(T).forEach(id => { const k = parseInt(T[id]), c = cnt[k] || (cnt[k] = { r: 0, b: 0 }); c[T[id].slice(-1)]++; });
+      let best = 0, bestN = 1e9; Object.keys(cnt).map(Number).forEach(k => { const n = cnt[k].r + cnt[k].b; if (n < bestN || (n === bestN && k < best)) { bestN = n; best = k; } });
+      const c = cnt[best] || { r: 0, b: 0 }; code = best + (c.b < c.r ? 'b' : 'r'); this.lateJoin = true;
+    }
+    this.match = parseInt(code) || 0; this.team = code.slice(-1) === 'b' ? 'blue' : 'red';
+    const mates = Object.keys(T).filter(id => T[id] === code).sort(); this.teamSlot = mates.indexOf(this.myId) >= 0 ? mates.indexOf(this.myId) : mates.length;
+  }
+  // 맵 만들기 (매칭전은 경기 번호마다 다른 맵)
+  useMap(match) {
+    const built = f3MapFor(this.track, match);
+    this.map = built.rows; this.spawns = built.spawns; this.mapScale = built.scale || 1;
+    this.mapId = built.mapId; this.mapDef = F3_MAPS[this.mapId]; this.theme = F3_THEMES[this.mapDef.theme];
+    this._mm = null;
+  }
+  // 교사 관전: 따라가는 학생의 경기가 다르면 그 경기 맵으로 다시 만듦
+  setMatch(k, team) {
+    if (k == null || k === this.match) return;
+    this.match = k; if (team) this.team = team;
+    this.useMap(k);
+    Object.keys(this.peers).forEach(id => { if (this.peers[id].match !== k) this.removePeer(id); });
+    if (this.scene) { this.disposeScene(); this.initScene(); if (this.q != null) this.setQuality(this.q); }
   }
   get isDead() { return this.now < this.deadUntil; }
   get reloading() { return this.now < this.reloadUntil || this.now < (this.readyUntil || 0); }   // 재장전 중이거나 무기 전환 준비 중
@@ -242,9 +460,14 @@ class Fps3DGame {
   cell(x, y) { const r = this.map[Math.floor(y)]; return (r && r[Math.floor(x)]) || '#'; }
   wall(x, y) { return this.cell(x, y) !== '.'; }
 
-  spawnAt(slot) {
+  spawnAt(slot, side) {
     let best = null, bestD = -1;
-    this.spawns.forEach((sp, i) => {
+    // 매칭전 판 시작: 레드는 한쪽 끝, 블루는 반대쪽 끝에서 (팀 안 순번대로)
+    if (this.matchMode && (side || !Object.keys(this.peers).length)) {
+      const s = this.spawns.slice().sort((a, b) => (a[0] + a[1]) - (b[0] + b[1]) || a[0] - b[0]), k = (this.teamSlot || 0) % Math.max(1, Math.floor(s.length / 2));
+      best = this.team === 'blue' ? s[s.length - 1 - k] : s[k];
+    }
+    if (!best) this.spawns.forEach((sp, i) => {
       let d = 1e9;
       Object.keys(this.peers).forEach(id => { const p = this.peers[id]; if (p.dead || (this.teamMode && p.team === this.team)) return; d = Math.min(d, Math.hypot(p.x - sp[0], p.y - sp[1])); });
       if (d === 1e9) d = 100 + ((i + slot) % this.spawns.length);
@@ -332,12 +555,13 @@ class Fps3DGame {
     this.scene.add(trim);
     // 바닥 얼룩 (타이어 자국·먼지) — 화질을 낮추면 숨김
     this.decor = new T.Group(); this.scene.add(this.decor);
-    const decMat = new T.MeshBasicMaterial({ color: 0x5A4A36, transparent: true, opacity: 0.18, depthWrite: false });
-    for (let i = 0; i < 28; i++) {
-      let x, y; do { x = 2 + Math.random() * (N - 4); y = 2 + Math.random() * (N - 4); } while (this.wall(x, y));
-      const dec = new T.Mesh(new T.PlaneGeometry(1.2 + Math.random() * 2, 0.5 + Math.random() * 1.5), decMat);
-      dec.rotation.x = -Math.PI / 2; dec.rotation.z = Math.random() * Math.PI; dec.position.set(x, 0.008, y); this.decor.add(dec);
-    }
+    // 얼룩은 한 번에 그림 (InstancedMesh · 예전엔 얼룩 28개 = 그리기 28번). 맵이 넓으면 그만큼 더 깔기
+    { const decMat = new T.MeshBasicMaterial({ color: 0x5A4A36, transparent: true, opacity: 0.18, depthWrite: false });
+      const cnt = Math.round(28 * Math.min(4, Math.pow(N / 44, 2) || 1)), geo = new T.PlaneGeometry(1, 1); geo.rotateX(-Math.PI / 2);
+      const dec = new T.InstancedMesh(geo, decMat, cnt), m = new T.Matrix4(), q = new T.Quaternion(), e = new T.Euler(), v = new T.Vector3(), sc = new T.Vector3();
+      for (let i = 0; i < cnt; i++) { let x, y, k = 0; do { x = 2 + Math.random() * (N - 4); y = 2 + Math.random() * (N - 4); } while (this.wall(x, y) && k++ < 30);
+        q.setFromEuler(e.set(0, Math.random() * Math.PI, 0)); m.compose(v.set(x, 0.008, y), q, sc.set(1.2 + Math.random() * 2, 1, 0.5 + Math.random() * 1.5)); dec.setMatrixAt(i, m); }
+      this.decor.add(dec); }
     this.decor.add(shadow);
 
     // 원경 · 소품 — 테마별
@@ -361,14 +585,46 @@ class Fps3DGame {
     this.hud.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none';
     if (this.canvas.parentElement) { this.canvas.parentElement.style.position = 'relative'; this.canvas.parentElement.appendChild(this.hud); }
     this.hctx = this.hud.getContext('2d');
-    // 궤적용
+    // 궤적: 선 6개를 미리 만들어 돌려 씀 (예전엔 쏠 때마다 새 선을 만들고 버림 → 연사 중 GPU 버퍼를 계속 새로 만듦)
     this.tracerMat = new T.LineBasicMaterial({ color: 0x8FE3FF, transparent: true, opacity: 0.9 });
-    // 렌더러 (WebGL 이 없으면 장면 갱신만 하고 그리지 않음)
-    try {
+    this.tracerPool = [];
+    for (let i = 0; i < 6; i++) { const geo = new T.BufferGeometry(); geo.setAttribute('position', new T.BufferAttribute(new Float32Array(6), 3)); const ln = new T.Line(geo, this.tracerMat); ln.frustumCulled = false; ln.visible = false; this.scene.add(ln); this.tracerPool.push(ln); }
+    // 상대 병사들 (부위별 InstancedMesh 4개)
+    this.initSoldiers();
+    // 렌더러 (WebGL 이 없으면 장면 갱신만 하고 그리지 않음). 교사 관전에서 맵을 바꿔 다시 만들 때는 그대로 씀
+    if (!this.renderer) try {
       this.renderer = new T.WebGLRenderer({ canvas: this.canvas, antialias: false, powerPreference: 'high-performance' });
       this.renderer.setPixelRatio(Math.min(1.25, (typeof window !== 'undefined' && window.devicePixelRatio) || 1));
       this.renderer.outputEncoding = T.sRGBEncoding;
     } catch (e) { this.noGL = true; }
+    // 셰이더를 미리 준비 — 처음 쏘거나 처음 상대가 보이는 순간 화면이 멈칫하지 않게
+    if (this.renderer) { try { this.renderer.compile(this.scene, this.camera); } catch (e) {} }
+  }
+  // 교사 관전에서 경기 맵을 바꿀 때: 장면을 비우고 GPU 자원을 돌려줌
+  disposeScene() {
+    if (this.hud && this.hud.parentElement) this.hud.parentElement.removeChild(this.hud);
+    if (this.scene) this.scene.traverse(o => { if (o.geometry) o.geometry.dispose(); const ms = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : []; ms.forEach(mt => { if (mt.map) mt.map.dispose(); mt.dispose(); }); });
+    this.scene = null; this.models = {}; this._w = 0;
+  }
+
+  // ── 상대 병사: 모두를 부위별 InstancedMesh 4개로 (몸통 · 팀색 장식 · 다리 · 오른팔) ──
+  // 예전: 상대 1명 = 메시 13개 · 재질 4개 → 30명이면 그리기 호출 약 380번 (태블릿에서 가장 큰 렉 원인). 이제는 인원과 상관없이 4번
+  initSoldiers() {
+    const T = THREE, MAX = 48;
+    const part = (w, h, d, x, y, z, hex) => { const g = new T.BoxGeometry(w, h, d); g.translate(x, y, z); const c = new T.Color(hex), n = g.attributes.position.count, col = new Float32Array(n * 3);
+      for (let i = 0; i < n; i++) { col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b; } g.setAttribute('color', new T.BufferAttribute(col, 3)); return g; };
+    const ARMOR = 0x5C6678, SKIN = 0x3A4256, GUN = 0x1A1D24, W = 0xFFFFFF;
+    const body = f3MergeGeos([part(0.46, 0.6, 0.28, 0, 1.0, 0, ARMOR), part(0.13, 0.5, 0.14, -0.32, 1.0, 0, SKIN), part(0.06, 0.08, 0.5, 0.3, 1.05, -0.45, GUN), part(0.3, 0.32, 0.3, 0, 1.55, 0, ARMOR)]);
+    const trim = f3MergeGeos([part(0.2, 0.32, 0.29, 0, 1.02, 0, W), part(0.48, 0.05, 0.3, 0, 1.3, 0, W), part(0.26, 0.08, 0.05, 0, 1.55, -0.15, W)]);   // 가슴판 · 어깨 띠 · 바이저 (팀 색)
+    const mk = (geo, mat, n) => { const im = new T.InstancedMesh(geo, mat, n); im.instanceMatrix.setUsage(T.DynamicDrawUsage); im.frustumCulled = false;
+      for (let i = 0; i < n; i++) im.setColorAt(i, new T.Color(1, 1, 1)); im.count = 0; this.scene.add(im); return im; };
+    this.sBody = mk(body, new T.MeshLambertMaterial({ vertexColors: true }), MAX);
+    this.sTrim = mk(trim, new T.MeshBasicMaterial({ vertexColors: true }), MAX);
+    const skin = new T.MeshLambertMaterial({ color: SKIN });
+    this.sLegs = mk(new T.BoxGeometry(0.16, 0.7, 0.18), skin, MAX * 2);
+    this.sArm = mk(new T.BoxGeometry(0.13, 0.4, 0.14), skin, MAX);
+    this.sMax = MAX;
+    this._sm = { R: new T.Matrix4(), L: new T.Matrix4(), M: new T.Matrix4(), q: new T.Quaternion(), e: new T.Euler(0, 0, 0, 'YXZ'), v: new T.Vector3(), one: new T.Vector3(1, 1, 1), c: new T.Color() };
   }
 
   static texCanvas(kind, theme) {
@@ -391,71 +647,79 @@ class Fps3DGame {
   }
 
   // 원경: 언덕 / 사막 메사 / 도시 스카이라인 / 설산 / 없음
+  // 재질이 같은 것끼리 한 도형으로 합쳐 그립니다 (예전: 원경 18~34개 = 그리기 18~34번). 맵이 넓으면 원경도 그만큼 멀리
   buildFarScenery(th, N) {
-    const T = THREE, G = this.farScenery, cx = N / 2, cz = N / 2;
+    const T = THREE, G = this.farScenery, cx = N / 2, cz = N / 2, K = Math.max(1, N / 44), groups = new Map();
+    const add = (geo, mat, x, y, z, sy) => { if (sy) geo.scale(1, sy, 1); geo.translate(x, y, z); if (!groups.has(mat)) groups.set(mat, []); groups.get(mat).push(geo); };
     if (th.far === 'hills') {
       const hillMat = new T.MeshLambertMaterial({ color: th.night ? 0x2A3B2A : 0x9CBF7A });
-      for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2, r = 80 + (i % 3) * 10;
-        const hill = new T.Mesh(new T.SphereGeometry(14 + (i % 4) * 5, 10, 6), hillMat); hill.position.set(cx + Math.cos(a) * r, -8, cz + Math.sin(a) * r); hill.scale.y = 0.5; G.add(hill); }
+      for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2, r = (80 + (i % 3) * 10) * K;
+        add(new T.SphereGeometry(14 + (i % 4) * 5, 10, 6), hillMat, cx + Math.cos(a) * r, -8, cz + Math.sin(a) * r, 0.5); }
       const bMat = new T.MeshLambertMaterial({ color: 0xD8DEE8 });
-      for (let i = 0; i < 8; i++) { const a = (i + 0.5) / 8 * Math.PI * 2, r = 62;
-        const b = new T.Mesh(new T.BoxGeometry(6 + (i % 3) * 3, 6 + (i % 4) * 4, 6), bMat); b.position.set(cx + Math.cos(a) * r, b.geometry.parameters.height / 2, cz + Math.sin(a) * r); G.add(b); }
+      for (let i = 0; i < 8; i++) { const a = (i + 0.5) / 8 * Math.PI * 2, r = 62 * K, h = 6 + (i % 4) * 4;
+        add(new T.BoxGeometry(6 + (i % 3) * 3, h, 6), bMat, cx + Math.cos(a) * r, h / 2, cz + Math.sin(a) * r); }
     } else if (th.far === 'mesas') {
       const mat = new T.MeshLambertMaterial({ color: 0xB5643B }), top = new T.MeshLambertMaterial({ color: 0xD08A5A });
-      for (let i = 0; i < 9; i++) { const a = i / 9 * Math.PI * 2 + 0.2, r = 75 + (i % 3) * 12, w = 14 + (i % 4) * 6, h = 8 + (i % 3) * 5;
-        const m = new T.Mesh(new T.CylinderGeometry(w * 0.6, w, h, 7), mat); m.position.set(cx + Math.cos(a) * r, h / 2 - 1, cz + Math.sin(a) * r); G.add(m);
-        const t = new T.Mesh(new T.CylinderGeometry(w * 0.6, w * 0.62, 0.6, 7), top); t.position.set(m.position.x, h - 0.7, m.position.z); G.add(t); }
+      for (let i = 0; i < 9; i++) { const a = i / 9 * Math.PI * 2 + 0.2, r = (75 + (i % 3) * 12) * K, w = 14 + (i % 4) * 6, h = 8 + (i % 3) * 5, x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r;
+        add(new T.CylinderGeometry(w * 0.6, w, h, 7), mat, x, h / 2 - 1, z);
+        add(new T.CylinderGeometry(w * 0.6, w * 0.62, 0.6, 7), top, x, h - 0.7, z); }
       const dune = new T.MeshLambertMaterial({ color: 0xE0B57A });
-      for (let i = 0; i < 12; i++) { const a = (i + 0.5) / 12 * Math.PI * 2, r = 58; const d = new T.Mesh(new T.SphereGeometry(10 + (i % 3) * 4, 8, 5), dune); d.position.set(cx + Math.cos(a) * r, -7, cz + Math.sin(a) * r); d.scale.y = 0.35; G.add(d); }
+      for (let i = 0; i < 12; i++) { const a = (i + 0.5) / 12 * Math.PI * 2, r = 58 * K; add(new T.SphereGeometry(10 + (i % 3) * 4, 8, 5), dune, cx + Math.cos(a) * r, -7, cz + Math.sin(a) * r, 0.35); }
     } else if (th.far === 'city') {
-      // 밤 도시: 불 켜진 창문 텍스처 빌딩
+      // 밤 도시: 불 켜진 창문 텍스처 빌딩 (높이만큼 창문 줄이 반복되도록 도형의 uv 를 늘림 — 텍스처 한 장)
       const cv = document.createElement('canvas'); cv.width = 64; cv.height = 128; const g = cv.getContext('2d');
       g.fillStyle = '#141A2E'; g.fillRect(0, 0, 64, 128); for (let y = 6; y < 128; y += 10) for (let x = 6; x < 64; x += 10) { g.fillStyle = Math.random() < 0.55 ? (Math.random() < 0.3 ? '#FFD166' : '#CFE6FF') : '#1C2340'; g.fillRect(x, y, 5, 6); }
       const tex = new T.CanvasTexture(cv); tex.encoding = T.sRGBEncoding; tex.wrapS = tex.wrapT = T.RepeatWrapping;
-      for (let i = 0; i < 26; i++) { const a = i / 26 * Math.PI * 2, r = 62 + (i % 4) * 9, w = 5 + (i % 3) * 3, h = 12 + ((i * 7) % 5) * 7;
-        const t2 = tex.clone(); t2.needsUpdate = true; t2.repeat.set(1, h / 12);
-        const b = new T.Mesh(new T.BoxGeometry(w, h, w), new T.MeshLambertMaterial({ map: t2 })); b.position.set(cx + Math.cos(a) * r, h / 2 - 0.5, cz + Math.sin(a) * r); G.add(b);
-        if (i % 5 === 0) { const ant = new T.Mesh(new T.CylinderGeometry(0.15, 0.15, 5, 4), new T.MeshBasicMaterial({ color: 0xFF5C7A })); ant.position.set(b.position.x, h + 2.5, b.position.z); G.add(ant); } }
+      const bMat = new T.MeshLambertMaterial({ map: tex }), antMat = new T.MeshBasicMaterial({ color: 0xFF5C7A });
+      for (let i = 0; i < 26; i++) { const a = i / 26 * Math.PI * 2, r = (62 + (i % 4) * 9) * K, w = 5 + (i % 3) * 3, h = 12 + ((i * 7) % 5) * 7, x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r;
+        const box = new T.BoxGeometry(w, h, w), uv = box.attributes.uv; for (let k = 0; k < uv.count; k++) uv.setY(k, uv.getY(k) * h / 12);
+        add(box, bMat, x, h / 2 - 0.5, z);
+        if (i % 5 === 0) add(new T.CylinderGeometry(0.15, 0.15, 5, 4), antMat, x, h + 2.5, z); }
     } else if (th.far === 'peaks') {
       const rock = new T.MeshLambertMaterial({ color: 0x8FA3BF }), snow = new T.MeshLambertMaterial({ color: 0xFFFFFF });
-      for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2, r = 85 + (i % 3) * 14, h = 26 + (i % 4) * 9, w = 16 + (i % 3) * 6;
-        const m = new T.Mesh(new T.ConeGeometry(w, h, 6), rock); m.position.set(cx + Math.cos(a) * r, h / 2 - 3, cz + Math.sin(a) * r); G.add(m);
-        const c = new T.Mesh(new T.ConeGeometry(w * 0.42, h * 0.42, 6), snow); c.position.set(m.position.x, h - h * 0.21 - 3, m.position.z); G.add(c); }
+      for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2, r = (85 + (i % 3) * 14) * K, h = 26 + (i % 4) * 9, w = 16 + (i % 3) * 6, x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r;
+        add(new T.ConeGeometry(w, h, 6), rock, x, h / 2 - 3, z);
+        add(new T.ConeGeometry(w * 0.42, h * 0.42, 6), snow, x, h - h * 0.21 - 3, z); }
       const bank = new T.MeshLambertMaterial({ color: 0xEAF0F6 });
-      for (let i = 0; i < 10; i++) { const a = (i + 0.5) / 10 * Math.PI * 2, r = 60; const d = new T.Mesh(new T.SphereGeometry(9 + (i % 3) * 3, 8, 5), bank); d.position.set(cx + Math.cos(a) * r, -6, cz + Math.sin(a) * r); d.scale.y = 0.35; G.add(d); }
+      for (let i = 0; i < 10; i++) { const a = (i + 0.5) / 10 * Math.PI * 2, r = 60 * K; add(new T.SphereGeometry(9 + (i % 3) * 3, 8, 5), bank, cx + Math.cos(a) * r, -6, cz + Math.sin(a) * r, 0.35); }
     }
     // 'none' 은 원경 없음 (실내)
+    groups.forEach((geos, mat) => G.add(new T.Mesh(f3MergeGeos(geos), mat)));
   }
 
   // 소품: 드럼통 / 선인장 / 램프 / 눈사람·얼음 / 네온 간판 / 덤불 — 벽이 아닌 칸에 무작위로, 충돌 없음
+  // 종류별 InstancedMesh 로 한 번에 그림 (예전: 소품 하나 = 메시 1~2개 → 그리기 14~32번). 점광원 수는 그대로(태블릿에서 무거움)
   buildDecor(th, N) {
     const T = THREE; this.props = new T.Group(); this.scene.add(this.props);
     const spot = () => { let x, y, tries = 0; do { x = 2 + Math.random() * (N - 4); y = 2 + Math.random() * (N - 4); tries++; } while (this.wall(x, y) && tries < 40); return [x, y]; };
     const nearWall = () => { let x, y, tries = 0; do { [x, y] = spot(); tries++; } while (!(this.wall(x + 1, y) || this.wall(x - 1, y) || this.wall(x, y + 1) || this.wall(x, y - 1)) && tries < 60); return [x, y]; };
-    const add = (mesh, x, y, yy) => { mesh.position.set(x, yy || 0, y); this.props.add(mesh); };
-    const n = 14;
+    const inst = (geo, mat, list) => { if (!list.length) return null; const im = new T.InstancedMesh(geo, mat, list.length), m = new T.Matrix4(), q = new T.Quaternion(), e = new T.Euler(), v = new T.Vector3(), s = new T.Vector3(), c = new T.Color();
+      list.forEach((o, i) => { q.setFromEuler(e.set(0, o.ry || 0, 0)); m.compose(v.set(o.x, o.y, o.z), q, s.set(o.s || 1, o.sy || o.s || 1, o.s || 1)); im.setMatrixAt(i, m); if (o.c != null) im.setColorAt(i, c.setHex(o.c)); });
+      this.props.add(im); return im; };
+    const A = Math.min(4, Math.max(1, Math.pow(N / 44, 2))), n = Math.round(14 * A);   // 넓은 맵엔 소품도 더
     if (th.decor === 'barrels' || th.decor === 'lamps') {
-      const mat = new T.MeshLambertMaterial({ color: 0x4E6BC2 }), band = new T.MeshLambertMaterial({ color: 0xD9DEE8 });
-      for (let i = 0; i < n; i++) { const [x, y] = nearWall(); const b = new T.Mesh(new T.CylinderGeometry(0.22, 0.22, 0.6, 10), mat); add(b, x, y, 0.3);
-        const r = new T.Mesh(new T.CylinderGeometry(0.23, 0.23, 0.06, 10), band); add(r, x, y, 0.45); }
-      if (th.decor === 'lamps') { // 천장 램프: 노란 원판 + 빛 스프라이트
-        const lm = new T.MeshBasicMaterial({ color: 0xFFE9A8 });
-        for (let i = 0; i < 10; i++) { const [x, y] = spot(); const l = new T.Mesh(new T.CylinderGeometry(0.35, 0.35, 0.08, 10), lm); add(l, x, y, 3.6);
-          if (i % 3 === 0) { const pt = new T.PointLight(0xFFE0A0, 0.55, 12); pt.position.set(x, 3.4, y); this.props.add(pt); } } }   // 빛은 3개 중 1개만 (점광원은 태블릿에서 무겁습니다)
+      const pts = []; for (let i = 0; i < n; i++) { const [x, y] = nearWall(); pts.push({ x, y: 0.3, z: y }); }
+      inst(new T.CylinderGeometry(0.22, 0.22, 0.6, 10), new T.MeshLambertMaterial({ color: 0x4E6BC2 }), pts);
+      inst(new T.CylinderGeometry(0.23, 0.23, 0.06, 10), new T.MeshLambertMaterial({ color: 0xD9DEE8 }), pts.map(p => ({ x: p.x, y: 0.45, z: p.z })));
+      if (th.decor === 'lamps') { // 천장 램프: 노란 원판 + 빛 (빛은 4개만 — 점광원은 태블릿에서 무겁습니다)
+        const lamps = []; for (let i = 0; i < Math.round(10 * A); i++) { const [x, y] = spot(); lamps.push({ x, y: 3.6, z: y });
+          if (i < 10 && i % 3 === 0) { const pt = new T.PointLight(0xFFE0A0, 0.55, 12); pt.position.set(x, 3.4, y); this.props.add(pt); } }
+        inst(new T.CylinderGeometry(0.35, 0.35, 0.08, 10), new T.MeshBasicMaterial({ color: 0xFFE9A8 }), lamps); }
     } else if (th.decor === 'cactus') {
-      const mat = new T.MeshLambertMaterial({ color: 0x4F8A3A });
-      for (let i = 0; i < n; i++) { const [x, y] = spot(); const c = new T.Mesh(new T.CylinderGeometry(0.16, 0.2, 1.4, 7), mat); add(c, x, y, 0.7);
-        const arm = new T.Mesh(new T.CylinderGeometry(0.1, 0.12, 0.6, 7), mat); arm.position.set(x + 0.28, 0.9, y); this.props.add(arm); }
+      const mat = new T.MeshLambertMaterial({ color: 0x4F8A3A }), pts = []; for (let i = 0; i < n; i++) { const [x, y] = spot(); pts.push({ x, y: 0.7, z: y }); }
+      inst(new T.CylinderGeometry(0.16, 0.2, 1.4, 7), mat, pts);
+      inst(new T.CylinderGeometry(0.1, 0.12, 0.6, 7), mat, pts.map(p => ({ x: p.x + 0.28, y: 0.9, z: p.z })));
     } else if (th.decor === 'snow') {
-      const ice = new T.MeshLambertMaterial({ color: 0xBFE3FF, transparent: true, opacity: 0.85 });
-      for (let i = 0; i < n; i++) { const [x, y] = spot(); const c = new T.Mesh(new T.ConeGeometry(0.35, 0.9 + Math.random() * 0.6, 5), ice); add(c, x, y, 0.45); }
+      const pts = []; for (let i = 0; i < n; i++) { const [x, y] = spot(); pts.push({ x, y: 0.45, z: y, s: 1, sy: 0.9 + Math.random() * 0.6 }); }
+      inst(new T.ConeGeometry(0.35, 1, 5), new T.MeshLambertMaterial({ color: 0xBFE3FF, transparent: true, opacity: 0.85 }), pts);
     } else if (th.decor === 'neon') {
-      const cols = [0xFF5C7A, 0x4CC9F0, 0xB15DFF, 0xFFD166];
-      for (let i = 0; i < 16; i++) { const [x, y] = nearWall(); const sign = new T.Mesh(new T.BoxGeometry(0.9, 0.3, 0.06), new T.MeshBasicMaterial({ color: cols[i % 4] })); add(sign, x, y, 1.9);
-        if (i % 4 === 0) { const pl = new T.PointLight(cols[i % 4], 0.8, 9); pl.position.set(x, 1.9, y); this.props.add(pl); } }   // 간판 16개 · 빛은 4개만
+      const cols = [0xFF5C7A, 0x4CC9F0, 0xB15DFF, 0xFFD166], pts = [];
+      for (let i = 0; i < Math.round(16 * A); i++) { const [x, y] = nearWall(); pts.push({ x, y: 1.9, z: y, c: cols[i % 4] });
+        if (i < 16 && i % 4 === 0) { const pl = new T.PointLight(cols[i % 4], 0.8, 9); pl.position.set(x, 1.9, y); this.props.add(pl); } }   // 간판 · 빛은 4개만
+      inst(new T.BoxGeometry(0.9, 0.3, 0.06), new T.MeshBasicMaterial({ color: 0xFFFFFF }), pts);
     } else if (th.decor === 'trees') {
-      const mat = new T.MeshLambertMaterial({ color: 0x3F8F4F });
-      for (let i = 0; i < n; i++) { const [x, y] = spot(); const b = new T.Mesh(new T.SphereGeometry(0.4 + Math.random() * 0.25, 7, 5), mat); b.scale.y = 0.7; add(b, x, y, 0.3); }
+      const pts = []; for (let i = 0; i < n; i++) { const [x, y] = spot(), r = 0.4 + Math.random() * 0.25; pts.push({ x, y: 0.3, z: y, s: r, sy: r * 0.7 }); }
+      inst(new T.SphereGeometry(1, 7, 5), new T.MeshLambertMaterial({ color: 0x3F8F4F }), pts);
     }
   }
 
@@ -592,7 +856,7 @@ class Fps3DGame {
   shoot() {
     const now = this.clock();
     if (this.isDead || this.spectator || this.reloading) return;
-    if (this.rolling) return;                              // 구르는 중엔 쏠 수 없습니다
+    if (this.rolling || this.mEnd) return;                 // 구르는 중 · 매칭전 판이 끝난 뒤엔 쏠 수 없습니다
     if (this.ammo <= 0) { this.reload(); return; }
     if (now - this.lastFire < this.wpn.rate) return;
     this.lastFire = now; this.muzzle = 1; this.ammo--;
@@ -645,16 +909,32 @@ class Fps3DGame {
     while (!this.wall(ex, ey) && ez > 0 && ez < 2.2 && n++ < 400) { ex += dx * 0.08; ey += dy * 0.08; ez += dz * 0.08; }
     if (best) { const p = this.peers[best]; ex = p.x; ey = p.y; ez = hitZ; }
     this.tracers.push({ from: [this.x, this.y, this.eyeZ - 0.1], to: [ex, ey, ez], until: now + 80 });
+    if (this.tracers.length > 6) this.tracers.shift();
     if (best) {
       const head = hitZ > 1.66;                                 // 눈높이(1.6) 직사는 몸통, 살짝 올려야 머리
       const dmg = head ? this.wpn.dmgHead : (bestD < 8 ? this.wpn.dmgBody : this.wpn.dmgFar);
       this.pops = this.pops || []; this.pops.push({ x: ex, y: ey, z: ez + 0.2, val: dmg, head: head, until: now + 800 });
-      if (this.opts.onAttack) this.opts.onAttack('hit', best, { dmg: dmg, head: head ? 1 : 0 });
+      this.queueHit(best, dmg, head);
       this.hitMarker = head ? 1.4 : 1; this.score += head ? 5 : 3;
-      if (this.models[best]) this.models[best].userData.flash = now + 150;
+      this.peers[best].flash = now + 150;
       if (window.Sound) (head ? Sound.headshot() : Sound.hitmark());   // 명중 확인음
     }
   }
+  // 명중 신호 묶기: 같은 상대에게 0.2초 안에 여러 발 맞히면 피해를 합쳐 한 번에 보냄 (연사 30명이면 신호가 폭주하던 것)
+  // 첫 발은 바로 보내고, 쓰러뜨릴 만큼 쌓이면 기다리지 않고 바로 보냄
+  queueHit(target, dmg, head) {
+    const now = this.clock(), h = this._hitQ[target] || (this._hitQ[target] = { dmg: 0, head: 0, n: 0, last: -1e9 }), p = this.peers[target];
+    h.dmg += dmg; h.head = h.head || (head ? 1 : 0); h.n++;
+    if (now - h.last >= F3_HIT_GAP || (p && h.dmg >= (p.hp || 0) - (p.hitSent || 0))) this.flushHit(target, now);
+  }
+  flushHit(target, now) {
+    const h = this._hitQ[target]; if (!h || !h.n) return;
+    const pay = { dmg: h.dmg, head: h.head }; if (h.n > 1) pay.n = h.n; if (this.matchMode) pay.m = this.match;
+    if (this.opts.onAttack) this.opts.onAttack('hit', target, pay);
+    const p = this.peers[target]; if (p) p.hitSent = (p.hitSent || 0) + h.dmg;   // 상대 체력 신호가 오기 전까지 이미 보낸 피해
+    h.dmg = 0; h.head = 0; h.n = 0; h.last = now;
+  }
+  flushHits(now) { for (const id in this._hitQ) { const h = this._hitQ[id]; if (h.n && now - h.last >= F3_HIT_GAP) this.flushHit(id, now); } }
   // 서 있는 자리의 바닥 높이 — 낮은 구조물(상자 1m · 방벽 0.6m) 위에는 올라설 수 있습니다
   floorAt(x, y) {
     const c = this.cell(x, y), h = F3_HEIGHT[c];
@@ -690,8 +970,9 @@ class Fps3DGame {
 
   onEvent(e) {
     if (!e) return;
+    if (this.matchMode && e.m != null && +e.m !== this.match) return;            // 다른 경기의 사건은 무시
     if (e.type === 'hit' && e.target === this.myId) {
-      if (this.isDead) return;
+      if (this.isDead || this.mEnd) return;
       this.hp = Math.max(0, this.hp - (e.dmg || 26)); this.hurt = 1;
       if (window.Haptic) Haptic.hit();
       const p = this.peers[e.by];
@@ -701,10 +982,11 @@ class Fps3DGame {
       if (this.hp <= 0) {
         this.deaths++; this.streak = 0; this.deadUntil = this.clock() + (this.roundMode ? 1e12 : 3000); this.score = Math.max(0, this.score - 20); this.killer = who; this.killHead = !!e.head;
         this.pushFeed(who, this.myName, '#FF5C7A', !!e.head);
-        if (this.opts.onAttack) this.opts.onAttack('kill', e.by, { victim: this.myId, head: e.head ? 1 : 0 });
+        if (this.opts.onAttack) this.opts.onAttack('kill', e.by, Object.assign({ victim: this.myId, head: e.head ? 1 : 0 }, this.matchMode ? { m: this.match } : {}));
         if (window.Sound) Sound.death();
       }
     } else if (e.type === 'kill' && e.target === this.myId) {
+      if (this.mEnd) return;
       this.kills++; this.streak++; this.score += 100 + (e.head ? 50 : 0) + (this.streak >= 3 ? 50 : 0);
       if (window.Haptic) Haptic.good();
       this.pushFeed(this.myName, this.nameOf(e.victim), '#06D6A0', !!e.head);
@@ -716,32 +998,82 @@ class Fps3DGame {
   pushFeed(a, b, color, head) { this.feed.unshift({ a, b, color, head, until: this.clock() + 5000 }); this.feed = this.feed.slice(0, 5); }
   showToast(text, color) { this.toast = { text, color, until: this.clock() + 1600 }; }
 
+  // ── 위치 신호 ──
+  // 보낸 시각(서버 시계 · 36진수)과 내 실제 속도를 함께 보냅니다. 받는 쪽은 '이 신호가 얼마나 오래된 것인지' 알고, 그만큼 속도로 앞당겨 지금 위치를 그립니다.
+  // 아무것도 바뀌지 않았으면 지난번과 똑같은 글자를 돌려줘 서버가 다시 보내지 않게 합니다 (가만히 있는 학생은 신호 0)
   serialize() {
-    return [this.x.toFixed(2), this.y.toFixed(2), this.yaw.toFixed(2), this.hp, this.kills, this.deaths, this.team || '',
-            this.muzzle > 0.5 ? 1 : 0, this.isDead ? 1 : 0, this.moving ? 1 : 0, this.pitch.toFixed(2),
-            this.z.toFixed(2), this.rollT.toFixed(2), this.round, this.wins.red, this.wins.blue].join(',');
+    const r = (v, k) => { const m = Math.pow(10, k), x = Math.round(v * m) / m; return x === 0 ? '0' : String(x); };
+    let yaw = this.yaw % (Math.PI * 2); if (yaw > Math.PI) yaw -= Math.PI * 2; if (yaw < -Math.PI) yaw += Math.PI * 2;
+    const dead = this.isDead, rt = this.rollT, still = dead || this.mEnd;
+    const tm = this.teamMode || this.matchMode;
+    const round = this.matchMode ? this.mRound : this.round, wins = this.matchMode ? this.mWins : this.wins;
+    const head = [r(this.x, 2), r(this.y, 2), r(yaw, 2), this.hp, this.kills, this.deaths, this.team || '',
+            this.muzzle > 0.5 ? 1 : 0, dead ? 1 : 0, this.moving && !still ? 1 : 0, r(this.pitch, 2),
+            r(this.z, 2), rt >= 0 ? r(rt, 2) : '', tm ? round : '', tm ? wins.red : '', tm ? wins.blue : ''].join(',');
+    const tail = [still ? '0' : r(this.svx || 0, 1), still ? '0' : r(this.svy || 0, 1), (this.onGround || still) ? '' : r(this.svz || 0, 1), this.matchMode ? this.match : ''].join(',');
+    if (head === this._serHead && tail === this._serTail && this._ser) return this._ser;
+    this._serHead = head; this._serTail = tail;
+    const t = this.opts.serverNow ? this.opts.serverNow() : this.clock();
+    this._ser = head + ',' + (Math.round(t) % F3_STAMP_WRAP).toString(36) + ',' + tail;
+    return this._ser;
   }
   applyPeerRaw(id, raw, name) {
+    let p = this.peers[id];
+    if (p && p.raw === raw) { if (name) p.name = name; return; }          // 같은 신호 (교사 관전은 매 프레임 같은 값을 다시 넣음)
     const d = Fps3DGame.parse(raw);
-    if (!this.peers[id]) this.peers[id] = { x: d.x, y: d.y, angle: d.angle, walk: 0, vx: 0, vy: 0, at: 0 };
-    const p = this.peers[id];
+    if (!isFinite(d.x) || !isFinite(d.y)) return;
+    if (this.matchMode) {
+      if (this.spectator && id === this.followId && d.match != null && d.match !== this.match) this.setMatch(d.match, d.team);
+      if (d.match !== this.match) { if (p) this.removePeer(id); return; }   // 다른 경기 학생은 보이지도 맞지도 않음
+    }
     const now = this.clock();
-    // 같은 값이 다시 오면(변화 없음) 무시 — 속도 추정이 0 으로 흐트러지지 않게
-    if (p.tx != null && Math.abs(p.tx - d.x) < 1e-4 && Math.abs(p.ty - d.y) < 1e-4 && Math.abs((p.tangle || 0) - d.angle) < 1e-4 && p.hp === d.hp && p.dead === d.dead && !!p.roll === !!d.roll) { p.fire = d.fire; return; }
-    // 마지막 두 신호로 속도 추정 (다음 신호까지 예측 이동에 씀)
-    if (p.at && p.tx != null) { const dt = Math.min(600, Math.max(50, now - p.at)) / 1000;
-      const nvx = (d.x - p.tx) / dt, nvy = (d.y - p.ty) / dt;
-      if (Math.hypot(nvx, nvy) < 12) { p.vx = nvx; p.vy = nvy; } else { p.vx = 0; p.vy = 0; } }   // 순간이동(리스폰)은 예측 안 함
+    if (!p) p = this.peers[id] = { x: d.x, y: d.y, z: d.z, angle: d.angle, walk: 0, cx: 0, cy: 0 };
+    // 순서: 같은 기기가 보낸 더 오래된 신호면 버림
+    if (d.st != null && p.st != null) { const ds = (d.st - p.st + F3_STAMP_WRAP) % F3_STAMP_WRAP; if (ds === 0 || ds > F3_STAMP_WRAP / 2) return; }
+    p.raw = raw;
+    // 이 신호의 나이 = 기본 지연 + 흔들림. 흔들림은 '도착 시각 - 보낸 시각' 이 가장 작았던 신호보다 얼마나 늦게 왔나로 잽니다
+    let age = F3_BASE_LAT * F3_LEAD;
+    if (d.st != null) {
+      const off = now - d.st, keep = p.off != null && Math.abs(off - p.off) < 5000;
+      p.off = keep ? Math.min(off, p.off + Math.max(0, now - (p.at || now)) * 0.002) : off;   // 시계가 천천히 어긋나도 따라가게
+      const jit = Math.max(0, off - p.off);
+      if (this.opts.serverNow) {   // 서버 시계를 알면 기본 지연도 직접 잼 (평균을 천천히)
+        const sa = ((Math.round(this.opts.serverNow()) % F3_STAMP_WRAP) - d.st + F3_STAMP_WRAP) % F3_STAMP_WRAP;
+        if (sa < 3000) { const b = Math.max(15, Math.min(300, sa - jit)); p.base = p.base == null ? b : p.base + (b - p.base) * 0.1; }
+      }
+      age = Math.min(600, ((p.base != null ? p.base : F3_BASE_LAT) + jit) * F3_LEAD);   // 다 앞당기지 않고 60% 만 (방향을 바꾸면 덜 튐 — 30명 모의 실험에서 가장 정확)
+      p.st = d.st;
+    }
     p.at = now;
-    Object.assign(p, { tx: d.x, ty: d.y, tangle: d.angle, hp: d.hp, kills: d.kills, deaths: d.deaths, team: d.team, fire: d.fire, dead: d.dead, moving: d.moving, pitch: d.pitch, z: d.z, roll: d.roll, rollT: d.rollT, round: d.round, wr: d.wr, wb: d.wb });
-    // 라운드가 더 앞선 기기가 있으면 따라갑니다 (같은 판·같은 점수를 보도록)
-    if (this.teamMode && d.round > this.round) { this.round = d.round; this.wins.red = Math.max(this.wins.red, d.wr); this.wins.blue = Math.max(this.wins.blue, d.wb); this.beginRound(); }
+    const shownX = p.x, shownY = p.y, had = p.tx != null;
+    Object.assign(p, { tx: d.x, ty: d.y, tz: d.z, vx: d.vx, vy: d.vy, vz: d.vz, sAt: now - age, tangle: d.angle, hp: d.hp, kills: d.kills, deaths: d.deaths, team: d.team, fire: d.fire, dead: d.dead, moving: d.moving, pitch: d.pitch, roll: d.roll, rollT: d.rollT, round: d.round, wr: d.wr, wb: d.wb, match: d.match, hitSent: 0 });
+    // 보정: 새 신호로 계산한 '지금 위치' 와 화면에 있던 위치의 차이를 0.1초에 걸쳐 줄임 (순간이동처럼 튀지 않게). 3칸 넘게 차이 나면(부활 등) 바로 옮김
+    const g = this.predict(p, now);
+    if (had && !d.dead && Math.hypot(shownX - g.x, shownY - g.y) < 3) { p.cx = shownX - g.x; p.cy = shownY - g.y; }
+    else { p.cx = 0; p.cy = 0; p.x = g.x; p.y = g.y; p.z = g.z; }
+    // 판이 더 앞선 기기가 있으면 따라갑니다 (같은 판·같은 점수를 보도록)
+    if (this.matchMode) { if (d.round > this.mRound) { this.mRound = d.round; this.mWins.red = Math.max(this.mWins.red, d.wr); this.mWins.blue = Math.max(this.mWins.blue, d.wb); this.beginMatchRound(now); } }
+    else if (this.teamMode && d.round > this.round) { this.round = d.round; this.wins.red = Math.max(this.wins.red, d.wr); this.wins.blue = Math.max(this.wins.blue, d.wb); this.beginRound(); }
     // 구르기는 신호가 드물어도 끊기지 않도록, 받은 시점을 기록해 두고 화면에서 이어서 재생합니다
-    if (d.roll && !p.rollPlaying) { p.rollPlaying = true; p.rollAt = now - d.rollT * 700; }
+    if (d.roll && !p.rollPlaying) { p.rollPlaying = true; p.rollAt = now - d.rollT * 700 - Math.min(age, 300); }
     if (p.rollPlaying && now - (p.rollAt || 0) >= 700) p.rollPlaying = false;
     if (name) p.name = name;
   }
-  removePeer(id) { delete this.peers[id]; if (this.models[id] && this.scene) { this.scene.remove(this.models[id]); delete this.models[id]; } }
+  // 상대의 '지금' 위치 예측: 마지막 신호 위치 + 속도 × 신호 나이 (최대 0.45초 · 구르는 중 0.12초). 벽은 뚫지 않고 미끄러짐
+  predict(p, now) {
+    const out = this._pr || (this._pr = { x: 0, y: 0, z: 0 });
+    const a = Math.max(0, Math.min((p.roll || p.rollPlaying) ? 120 : 450, now - p.sAt)) / 1000;
+    let x = p.tx, y = p.ty;
+    if (!p.dead && (p.vx || p.vy) && a > 0) {
+      const ex = p.vx * a, ey = p.vy * a, n = Math.min(12, Math.ceil(Math.hypot(ex, ey) / 0.25)), z0 = p.tz || 0;
+      const solid = (qx, qy) => { const c = this.cell(qx, qy); return c !== '.' && (F3_HEIGHT[c] || 2.4) > z0 + 0.5; };
+      for (let i = 0; i < n; i++) { const nx = x + ex / n, ny = y + ey / n; if (!solid(nx + Math.sign(ex) * 0.25, y)) x = nx; if (!solid(x, ny + Math.sign(ey) * 0.25)) y = ny; }
+    }
+    let z = p.tz || 0;
+    if (!p.dead && p.vz) z = Math.max(this.floorAt(x, y), z + p.vz * a - 0.5 * F3_GRAV * a * a);
+    out.x = x; out.y = y; out.z = z; return out;
+  }
+  removePeer(id) { delete this.peers[id]; delete this._hitQ[id]; const m = this.models[id]; if (m) { if (m.tag && this.scene) { this.scene.remove(m.tag); if (m.tag.userData.material && m.tag.userData.material.map) m.tag.userData.material.map.dispose(); } delete this.models[id]; } }
   setPeers(map) { Object.keys(map).forEach(id => { const d = map[id]; if (d.raw) this.applyPeerRaw(id, d.raw, d.name); }); Object.keys(this.peers).forEach(id => { if (!map[id]) this.removePeer(id); }); }
   spectate(id) { this.spectator = true; this.followId = id; }
 
@@ -758,15 +1090,14 @@ class Fps3DGame {
   tick(now) {
     this.now = now;
     const { dt, f } = FX.frame(this, now); this.lastF = f;
-    Object.keys(this.peers).forEach(id => { const p = this.peers[id]; if (p.tx == null) return;
-      // 예측 이동: 마지막 신호 이후 최대 0.25초까지는 추정 속도로 목표점을 앞당김
-      const since = Math.min(250, now - (p.at || now)) / 1000;
-      const gx = p.tx + (p.vx || 0) * since, gy = p.ty + (p.vy || 0) * since;
-      const sk = this.smooth(0.45, f), sa = this.smooth(0.4, f);
-      if (!p.dead && !this.wall(gx, gy)) { p.x += (gx - p.x) * sk; p.y += (gy - p.y) * sk; }
-      else { p.x += (p.tx - p.x) * sk; p.y += (p.ty - p.y) * sk; }
+    // 상대 위치 = 예측 위치(마지막 신호 + 속도 × 신호 나이) + 남은 보정(0.1초에 걸쳐 0 으로)
+    const kc = 1 - Math.exp(-dt / 100), kz = 1 - Math.exp(-dt / 60), sa = this.smooth(0.4, f);
+    for (const id in this.peers) { const p = this.peers[id]; if (p.tx == null) continue;
+      p.cx -= p.cx * kc; p.cy -= p.cy * kc;
+      const g = this.predict(p, now); p.x = g.x + p.cx; p.y = g.y + p.cy; p.z = p.z == null ? g.z : p.z + (g.z - p.z) * kz;
       let da = p.tangle - p.angle; while (da > Math.PI) da -= Math.PI * 2; while (da < -Math.PI) da += Math.PI * 2; p.angle += da * sa;
-      p.walk = (p.walk || 0) + (p.moving ? 0.22 * f : 0); });
+      p.walk = (p.walk || 0) + (p.moving ? 0.22 * f : 0); }
+    this.flushHits(now);
     this.tracers = this.tracers.filter(t => t.until > now);
     this.muzzle = Math.max(0, this.muzzle - (this.flashBig ? 0.12 : 0.2) * f); this.recoil = Math.max(0, this.recoil - (this.weapon === 'sniper' ? 0.035 : 0.06) * f);
     // 킥: 총구가 튀어 오른 만큼 시선이 올라갔다가 되돌아옵니다 (스나이퍼는 크고 느리게)
@@ -785,9 +1116,11 @@ class Fps3DGame {
     if (this.spectator) {
       const p = this.peers[this.followId];
       if (p) { this.x = p.x; this.y = p.y; this.z = p.z || 0; if (p.roll) { this.rollStart = now - p.rollT * 700; this.rollUntil = this.rollStart + 700; } else this.rollUntil = 0; this.yaw = p.angle; this.pitch = p.pitch || 0; this.hp = p.hp; this.kills = p.kills; this.deaths = p.deaths; this.team = p.team; this.myName = p.name || ''; this.deadUntil = p.dead ? now + 100 : 0; this.moving = p.moving; if (p.fire) this.muzzle = 1; }
+      if (this.matchMode) this.stepMatch(now);
       this.draw(); return;
     }
-    this.stepRounds(now);
+    if (this.matchMode) this.stepMatch(now); else this.stepRounds(now);
+    if (this.mEnd) { this.moving = 0; this.firing = false; this.draw(); return; }      // 매칭전 판 끝: 결과 화면 (움직이지 않음)
     if (this.isDead) {
       if (!this._respawned && this.deadUntil - now < 50) { this._respawned = true; this.hp = 100; this.spawnAt(Math.floor(Math.random() * 12)); this.dmgDir = null; }
       this.draw(); return;
@@ -796,6 +1129,7 @@ class Fps3DGame {
     if (this.reloadUntil && now >= this.reloadUntil && this.ammo < this.magSize) { this.ammo = this.magSize; this.reloadUntil = 0; }
 
     this.yaw += this.turn * 0.05 * f;
+    const px = this.x, py = this.y;
     // 이동: 조이스틱(mx: 옆, my: 앞) + 키보드
     let sx = this.mx, sy = this.my;
     if (this.upHeld) sy = 1; if (this.fwd) sy = this.fwd; this.fwd = 0;
@@ -825,6 +1159,11 @@ class Fps3DGame {
     const floor = this.floorAt(this.x, this.y);
     if (this.z <= floor) { if (!this.onGround && this.vz < -0.03) { this.landDip = Math.min(0.35, -this.vz * 2.2); if (window.Sound) Sound.land(-this.vz * 3); } this.z = floor; this.vz = 0; this.onGround = true; }
     else this.onGround = false;
+    // 내 실제 속도(칸/초) — 위치 신호에 실어 보내 다른 기기가 지금 위치를 예측하게 함 (벽에 막히면 0)
+    if (dt > 0) { const ds = dt / 1000; let vx = (this.x - px) / ds, vy = (this.y - py) / ds; if (Math.hypot(vx, vy) > 25) { vx = 0; vy = 0; }
+      this.svx = (this.svx || 0) + (vx - (this.svx || 0)) * 0.6; this.svy = (this.svy || 0) + (vy - (this.svy || 0)) * 0.6;
+      if (Math.abs(this.svx) < 0.05) this.svx = 0; if (Math.abs(this.svy) < 0.05) this.svy = 0; }
+    this.svz = this.onGround ? 0 : this.vz * 59.9;
     this.updateFov();
     if (this.firing) this.shoot();
     this.draw();
@@ -839,7 +1178,7 @@ class Fps3DGame {
   }
 
   // 라운드 모드: 팀전이면서 양 팀에 최소 한 명씩 있을 때만 (혼자 연습하면 그냥 부활)
-  get roundMode() { if (!this.teamMode) return false; const c = this.teamCounts(); return c.red.total > 0 && c.blue.total > 0; }
+  get roundMode() { if (!this.teamMode || this.matchMode) return false; const c = this.teamCounts(); return c.red.total > 0 && c.blue.total > 0; }
   teamCounts() {
     const c = { red: { total: 0, alive: 0 }, blue: { total: 0, alive: 0 } };
     const add = (team, dead) => { if (!c[team]) return; c[team].total++; if (!dead) c[team].alive++; };
@@ -869,6 +1208,40 @@ class Fps3DGame {
       }
     }
     if (this.roundEndAt && now >= this.roundEndAt && !this.matchWinner) { this.round++; this.beginRound(); }
+  }
+
+  // ── 매칭전: 먼저 목표 킬에 닿거나 3분이 지나면 판 끝 → 9초 결과 → 같은 경기에서 다음 판 ──
+  matchKills() {
+    const k = { red: 0, blue: 0 }; if (!this.spectator && k[this.team] != null) k[this.team] += this.kills;
+    for (const id in this.peers) { const p = this.peers[id]; if ((p.round || 1) === this.mRound && k[p.team] != null) k[p.team] += p.kills || 0; }
+    return k;
+  }
+  matchRows() {
+    const rows = []; if (!this.spectator) rows.push({ name: this.myName || '나', team: this.team, k: this.kills, d: this.deaths, me: true });
+    for (const id in this.peers) { const p = this.peers[id]; rows.push({ name: p.name || '학생', team: p.team, k: (p.round || 1) === this.mRound ? (p.kills || 0) : 0, d: (p.round || 1) === this.mRound ? (p.deaths || 0) : 0, me: this.spectator && id === this.followId }); }
+    return rows.sort((a, b) => (b.k - a.k) || (a.d - b.d));
+  }
+  stepMatch(now) {
+    if (this.mStart == null) {   // 첫 판 시작: 공통 출발 시각(서버 시계) 기준 → 늦게 들어와도 남은 시간이 모두 같음
+      const sn = this.opts.serverNow, st = +this.opts.seed || 0;
+      this.mStart = (sn && st) ? now + Math.min(10000, st - sn()) : now + (this.opts.countdown || 0) * 1000;
+    }
+    if (this.mEnd) { if (now - this.mEnd.at > F3_MATCH_REST) { this.mRound++; this.beginMatchRound(now); } return; }
+    if (now < this.mStart) return;
+    const k = this.matchKills(), goal = F3_MATCH_GOAL[this.vs] || 7;
+    if (k.red >= goal || k.blue >= goal || now - this.mStart >= F3_MATCH_TIME) {
+      const w = k.red > k.blue ? 'red' : (k.blue > k.red ? 'blue' : null);
+      if (w) this.mWins[w]++;
+      this.mEnd = { winner: w, red: k.red, blue: k.blue, at: now, rows: this.matchRows() };
+      if (!this.spectator && w && w === this.team) this.score += 200;
+      if (window.Sound && !this.spectator) (w === this.team ? Sound.levelUp() : Sound.gameOver && Sound.gameOver());
+    }
+  }
+  beginMatchRound(now) {
+    this.mEnd = null; this.mStart = now; this.kills = 0; this.deaths = 0; this.streak = 0;
+    this.hp = 100; this.deadUntil = 0; this.dmgDir = null; this.ammo = this.magSize; this.reloadUntil = 0; this.zoomed = false;
+    if (!this.spectator) this.spawnAt(this.opts.slot || 0, true);
+    this.showToast('경기 ' + (this.match + 1) + ' · ' + this.mRound + '판 시작!  레드 ' + this.mWins.red + ' : ' + this.mWins.blue + ' 블루', '#FFD166');
   }
 
   // 학생 화면이 조작 버튼 위치(캔버스 좌표)를 알려 줍니다: 조이스틱 위쪽 · 오른쪽, 오른쪽 아래 버튼들의 왼쪽 끝
@@ -930,55 +1303,54 @@ class Fps3DGame {
     if (this.shellMeshes) this.shellMeshes.forEach((m, i) => { const sh = this.shells[i]; if (!sh) { m.visible = false; return; } m.visible = true;
       const tt = sh.t; m.position.set(0.32 + sh.vx * tt * 0.5, -0.2 + sh.vy * tt - 2.2 * tt * tt, -0.5 + sh.vz * tt); m.rotation.x = tt * 12; m.rotation.z = tt * 9; });
 
-    // 궤적
-    this.tracers.forEach(t => {
-      if (!t.line) { const geo = new T.BufferGeometry().setFromPoints([new T.Vector3(t.from[0], t.from[2], t.from[1]), new T.Vector3(t.to[0], t.to[2], t.to[1])]); t.line = new T.Line(geo, this.tracerMat); this.scene.add(t.line); }
-    });
-    if (this._oldTracers) this._oldTracers.forEach(t => { if (t.line && this.tracers.indexOf(t) < 0) { this.scene.remove(t.line); t.line.geometry.dispose(); } });
-    this._oldTracers = this.tracers.slice();
+    // 궤적 (미리 만든 선을 돌려 씀)
+    if (this.tracerPool) this.tracerPool.forEach((ln, i) => { const t = this.tracers[i]; if (!t) { ln.visible = false; return; }
+      const a = ln.geometry.attributes.position; a.setXYZ(0, t.from[0], t.from[2], t.from[1]); a.setXYZ(1, t.to[0], t.to[2], t.to[1]); a.needsUpdate = true; ln.visible = true; });
 
     this.renderer.render(this.scene, this.camera);
     this.drawHud(this.hctx, W, H, now);
   }
 
-  // 상대 모델 갱신 (위치 · 걷기 · 다운 · 이름표 · 피격 번쩍임)
+  // 상대 모델 갱신 (위치 · 걷기 · 다운 · 이름표 · 피격 번쩍임) — 부위별 InstancedMesh 의 칸을 채움 (새 메시를 만들지 않음)
   updateModels() {
-    const now = this.clock();
-    Object.keys(this.peers).forEach(id => {
-      if (this.spectator && id === this.followId) { if (this.models[id]) this.models[id].visible = false; return; }
-      const p = this.peers[id];
-      let m = this.models[id];
-      if (!m || m.userData.team !== p.team) { if (m) this.scene.remove(m); m = this.buildSoldier(p.team, p.name); m.userData.team = p.team; this.models[id] = m; this.scene.add(m); }
-      const far = Math.hypot(p.x - this.x, p.y - this.y) > 45;
-      m.visible = !far; if (far) return;
-      m.rotation.order = 'YXZ';                 // 방향(y) 을 먼저 적용해야 앞으로 구르는 회전이 자연스럽습니다
-      m.rotation.y = -p.angle - Math.PI / 2;
+    if (!this.sBody) return;
+    const now = this.clock(), S = this._sm, far = Math.min(70, (this.theme && this.theme.fog) ? this.theme.fog[2] : 60);   // 안개 끝까지 보임 (예전: 45칸에서 사라짐)
+    let i = 0;
+    for (const id in this.peers) {
+      const p = this.peers[id], u = this.models[id] || (this.models[id] = {});
+      const hide = (this.spectator && id === this.followId) || p.tx == null || i >= this.sMax || Math.hypot(p.x - this.x, p.y - this.y) > far;
+      // 이름표 (같은 팀만 · 다른 기기에서 체력이 바뀔 때만 막대 갱신)
+      const wantTag = !hide && !p.dead && this.teamMode && p.team === this.team;
+      if (wantTag && (!u.tag || u.tag.userData.name !== p.name)) { if (u.tag) { this.scene.remove(u.tag); if (u.tag.userData.material && u.tag.userData.material.map) u.tag.userData.material.map.dispose(); } u.tag = this.makeTag(p.name || '', p.team, p.hp); this.scene.add(u.tag); }
+      if (u.tag) { u.tag.visible = wantTag; if (wantTag) { if (u.tag.userData.hp !== p.hp) this.setTagHp(u.tag, p.hp || 0); u.tag.position.set(p.x, (p.z || 0) + 2.0, p.y); } }
+      if (hide) continue;
       if (p.rollPlaying && now - (p.rollAt || 0) >= 700) { p.rollPlaying = false; p.roll = false; p.rollT = -1; }   // 재생이 끝나면 정리
-      const playing = p.rollPlaying;
-      if (playing || p.roll) {
+      const rolling = p.rollPlaying || p.roll;
+      let rx = 0, rz = 0, y = p.z || 0;
+      if (rolling) {
         // 재생 중이면 시계 기준으로만 진행 — 늦게 도착한 신호 때문에 동작이 뒤로 가지 않습니다
-        const k = Math.max(0, Math.min(1, playing ? (now - p.rollAt) / 640 : Math.max(0, p.rollT)));   // 640ms 에 한 바퀴를 마치고 마지막은 착지 자세
-        m.rotation.x = k * Math.PI * 2;                                     // 앞으로 한 바퀴
-        m.position.set(p.x, (p.z || 0) + Math.sin(k * Math.PI) * 0.55, p.y); // 몸이 뜨면서 구름
-        m.scale.y = 1;
-      } else { m.rotation.x = 0; m.position.set(p.x, p.z || 0, p.y); m.scale.y = 1; }
-      const u = m.userData;
-      const sw = p.moving ? Math.sin(p.walk) * 0.5 : 0;
-      u.legL.rotation.x = sw; u.legR.rotation.x = -sw; u.armR.rotation.x = -(p.pitch || 0) - (p.fire ? 0.35 : 0);
-      if (!(playing || p.roll)) { const hop = p.moving ? Math.abs(Math.sin(p.walk)) * 0.05 : 0; m.position.y = (p.z || 0) + hop; m.rotation.z = p.moving ? Math.sin(p.walk) * 0.03 : 0; }
-      // 다운: 쓰러짐
-      // 다운: 쓰러짐 (구르는 중에는 건드리지 않습니다 — 회전이 깎이면 한 바퀴가 안 돕니다)
-      if (!(playing || p.roll)) { const fall = p.dead ? 1 : 0; m.rotation.x += (fall * -Math.PI / 2 - m.rotation.x) * 0.2; }
-      // 이름표 체력 갱신 (바뀔 때만)
-      if (this.teamMode && p.team === this.team) {
-        if (u.tag.userData.name !== p.name) { const nt = this.makeTag(p.name || '', p.team, p.hp); nt.position.copy(u.tag.position); m.remove(u.tag); if (u.tag.userData.material && u.tag.userData.material.map) u.tag.userData.material.map.dispose(); u.tag = nt; m.add(nt); }
-        else if (u.tag.userData.hp !== p.hp) this.setTagHp(u.tag, p.hp || 0);
+        const k = Math.max(0, Math.min(1, p.rollPlaying ? (now - p.rollAt) / 640 : Math.max(0, p.rollT)));   // 640ms 에 한 바퀴를 마치고 마지막은 착지 자세
+        rx = k * Math.PI * 2; y += Math.sin(k * Math.PI) * 0.55; p.fallRx = 0;
+      } else {
+        // 다운: 서서히 뒤로 쓰러짐
+        p.fallRx = (p.fallRx || 0) + ((p.dead ? -Math.PI / 2 : 0) - (p.fallRx || 0)) * 0.2; rx = p.fallRx;
+        if (p.moving && !p.dead) { y += Math.abs(Math.sin(p.walk)) * 0.05; rz = Math.sin(p.walk) * 0.03; }
       }
-      u.tag.visible = !p.dead && this.teamMode && p.team === this.team;      // 이름표·체력은 같은 팀만 (적은 보이지 않음)
-      // 피격 번쩍임
-      const fl = !!(u.flash && now < u.flash);
-      if (fl !== !!u.flashOn) { u.flashOn = fl; m.traverse(o => { if (o.isMesh && o.material && o.material.emissive) o.material.emissive.setHex(fl ? 0xFFFFFF : 0x000000); }); }
-    });
+      // 몸 전체 변환 (방향(y) 을 먼저 적용해야 앞으로 구르는 회전이 자연스럽습니다)
+      S.e.set(rx, -p.angle - Math.PI / 2, rz, 'YXZ'); S.q.setFromEuler(S.e); S.R.compose(S.v.set(p.x, y, p.y), S.q, S.one);
+      this.sBody.setMatrixAt(i, S.R); this.sTrim.setMatrixAt(i, S.R);
+      const sw = p.moving && !p.dead ? Math.sin(p.walk) * 0.5 : 0;
+      S.L.makeRotationX(sw).setPosition(-0.11, 0.35, 0); this.sLegs.setMatrixAt(i * 2, S.M.multiplyMatrices(S.R, S.L));
+      S.L.makeRotationX(-sw).setPosition(0.11, 0.35, 0); this.sLegs.setMatrixAt(i * 2 + 1, S.M.multiplyMatrices(S.R, S.L));
+      S.L.makeRotationX(-(p.pitch || 0) - (p.fire ? 0.35 : 0)).setPosition(0.3, 1.05, -0.15); this.sArm.setMatrixAt(i, S.M.multiplyMatrices(S.R, S.L));
+      // 색: 팀 색 장식 · 피격 순간 하얗게 번쩍
+      const fl = p.flash && now < p.flash ? 2.6 : 1;
+      S.c.setScalar(fl); this.sBody.setColorAt(i, S.c); this.sArm.setColorAt(i, S.c); this.sLegs.setColorAt(i * 2, S.c); this.sLegs.setColorAt(i * 2 + 1, S.c);
+      S.c.setHex(p.team ? F3_TEAM[p.team] : 0xFFD166); if (fl > 1) S.c.lerp(S.c.clone().setScalar(1), 0.7); this.sTrim.setColorAt(i, S.c);
+      i++;
+    }
+    [this.sBody, this.sTrim, this.sArm].forEach(m => { m.count = i; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; });
+    this.sLegs.count = i * 2; this.sLegs.instanceMatrix.needsUpdate = true; if (this.sLegs.instanceColor) this.sLegs.instanceColor.needsUpdate = true;
   }
 
   drawHud(ctx, W, H, now) {
@@ -1007,7 +1379,7 @@ class Fps3DGame {
 
     // 나침반 띠 (위쪽)
     {
-      const cw = Math.min(260, W * 0.6), cx0 = W / 2 - cw / 2, cy0 = this.teamMode ? 56 : 52;
+      const cw = Math.min(260, W * 0.6), cx0 = W / 2 - cw / 2, cy0 = this.matchMode ? 70 : (this.teamMode ? 56 : 52);
       rr(cx0, cy0, cw, 18, 9, 'rgba(8,10,16,0.45)');
       ctx.save(); ctx.beginPath(); ctx.rect(cx0, cy0, cw, 18); ctx.clip();
       const labels = ['E', 'S', 'W', 'N'];
@@ -1079,7 +1451,8 @@ class Fps3DGame {
     }
     ctx.textAlign = 'left';
     // 점수판
-    if (this.teamMode) {
+    if (this.matchMode) this.drawMatchBoard(ctx, W, H, now);
+    else if (this.teamMode) {
       let red = 0, blue = 0; const add = (t, k) => { if (t === 'red') red += k; else if (t === 'blue') blue += k; };
       add(this.team, this.kills); Object.keys(this.peers).forEach(id => { const p = this.peers[id]; if (this.spectator && id === this.followId) return; add(p.team, p.kills || 0); });
       rr(W / 2 - 84, 10, 168, 40, 14, 'rgba(8,10,16,0.72)'); ctx.textAlign = 'center'; ctx.font = '800 22px Pretendard, sans-serif';
@@ -1089,11 +1462,11 @@ class Fps3DGame {
     } else { rr(W / 2 - 64, 10, 128, 36, 14, 'rgba(8,10,16,0.72)'); ctx.textAlign = 'center'; ctx.font = '800 16px Pretendard, sans-serif'; ctx.fillStyle = '#FFD166'; ctx.fillText('K ' + this.kills + '   D ' + this.deaths, W / 2, 34); ctx.textAlign = 'left'; }
     // 킬 피드
     this.feed = this.feed.filter(x => x.until > now); ctx.font = '700 12px Pretendard, sans-serif'; ctx.textAlign = 'right';
-    this.feed.forEach((x, i) => { const y = 66 + i * 20, t = x.a + (x.head ? '  🎯  ' : '  ⚡  ') + x.b; const tw = ctx.measureText(t).width + 16; rr(W - 14 - tw, y - 14, tw, 19, 8, 'rgba(8,10,16,0.6)'); ctx.fillStyle = x.color; ctx.fillText(t, W - 22, y); });
+    this.feed.forEach((x, i) => { const y = (this.matchMode ? 100 : 66) + i * 20, t = x.a + (x.head ? '  🎯  ' : '  ⚡  ') + x.b; const tw = ctx.measureText(t).width + 16; rr(W - 14 - tw, y - 14, tw, 19, 8, 'rgba(8,10,16,0.6)'); ctx.fillStyle = x.color; ctx.fillText(t, W - 22, y); });
     ctx.textAlign = 'left';
 
     // 팀전 라운드 점수판: 위 가운데 '레드 2 : 1 블루 · ROUND 4'
-    if (this.teamMode) {
+    if (this.teamMode && !this.matchMode) {
       const c = this.teamCounts(), w = 220, x0 = W / 2 - w / 2, y0 = 10;
       FX.glass(ctx, x0, y0, w, 44, 14, this.roundWinner ? F3_TEAM_CSS[this.roundWinner] : undefined);
       FX.text(ctx, String(this.wins.red), W / 2 - 46, y0 + 30, { size: 24, weight: 800, color: F3_TEAM_CSS.red, align: 'center' });
@@ -1110,6 +1483,7 @@ class Fps3DGame {
       FX.text(ctx, (this.matchWinner === 'red' ? '레드' : '블루') + ' 팀  ' + this.wins.red + ' : ' + this.wins.blue, W / 2, H * 0.42 + 48, { size: 22, weight: 800, color: F3_TEAM_CSS[this.matchWinner], align: 'center', baseline: 'middle' });
     }
     this.drawMinimap(ctx, W, H);
+    if (this.mEnd) this.drawMatchResult(ctx, W, H, now);
     if (this.toast && now < this.toast.until) { ctx.textAlign = 'center'; ctx.font = '800 18px Pretendard, sans-serif'; ctx.fillStyle = this.toast.color; ctx.shadowColor = 'rgba(0,0,0,0.7)'; ctx.shadowBlur = 4; ctx.fillText(this.toast.text, W / 2, hy + 80); ctx.shadowBlur = 0; ctx.textAlign = 'left'; }
     if (this.isDead) {
       ctx.fillStyle = 'rgba(8,10,16,0.55)'; ctx.fillRect(0, 0, W, H); const left = this.roundMode ? 0 : (this.deadUntil - now) / 3000;
@@ -1127,6 +1501,44 @@ class Fps3DGame {
     }
     if (this.spectator) { ctx.textAlign = 'center'; ctx.font = '700 13px Pretendard, sans-serif'; ctx.fillStyle = '#FFD166'; ctx.fillText('👁 ' + this.myName + ' 의 화면', W / 2, this.teamMode ? 66 : 64); ctx.textAlign = 'left'; }
     if (this.showBoard) this.drawScoreboard(ctx, W, H);
+  }
+
+  // 매칭전 점수판: 위 가운데 '레드 4 : 2 블루' · '경기 3 · 2:2 · 1판 · 목표 7킬 · 2:31' · '🔴 레드 · 상대 이름'
+  drawMatchBoard(ctx, W, H, now) {
+    const k = this.matchKills(), goal = F3_MATCH_GOAL[this.vs] || 7, w = Math.min(280, W - 120), x0 = W / 2 - w / 2, y0 = 6;
+    const n = { red: 0, blue: 0 }, foes = [];
+    if (!this.spectator && n[this.team] != null) n[this.team]++;
+    for (const id in this.peers) { const p = this.peers[id]; if (n[p.team] != null) n[p.team]++; if (p.team !== this.team) foes.push(p.name || '학생'); }
+    FX.glass(ctx, x0, y0, w, 60, 14, this.team ? F3_TEAM_CSS[this.team] : undefined);
+    FX.text(ctx, '레드', W / 2 - 74, y0 + 22, { size: 11, weight: 800, color: F3_TEAM_CSS.red, align: 'center' });
+    FX.text(ctx, String(k.red), W / 2 - 34, y0 + 24, { size: 22, weight: 800, color: F3_TEAM_CSS.red, align: 'center' });
+    FX.text(ctx, ':', W / 2, y0 + 23, { size: 18, weight: 800, color: 'rgba(255,255,255,0.6)', align: 'center' });
+    FX.text(ctx, String(k.blue), W / 2 + 34, y0 + 24, { size: 22, weight: 800, color: F3_TEAM_CSS.blue, align: 'center' });
+    FX.text(ctx, '블루', W / 2 + 74, y0 + 22, { size: 11, weight: 800, color: F3_TEAM_CSS.blue, align: 'center' });
+    const left = this.mStart == null ? F3_MATCH_TIME : Math.max(0, F3_MATCH_TIME - Math.max(0, now - this.mStart)), ss = Math.ceil(left / 1000);
+    const wins = (this.mWins.red || this.mWins.blue) ? ' (' + this.mWins.red + ':' + this.mWins.blue + ')' : '';
+    FX.text(ctx, '경기 ' + (this.match + 1) + ' · ' + n.red + ':' + n.blue + ' · ' + this.mRound + '판' + wins + ' · ' + goal + '킬 승 · ' + Math.floor(ss / 60) + ':' + String(ss % 60).padStart(2, '0'), W / 2, y0 + 39, { size: 10, weight: 700, color: 'rgba(255,255,255,0.7)', align: 'center' });
+    let foeTxt = (this.team === 'red' ? '🔴 레드' : '🔵 블루') + ' · 상대 ' + (foes.length ? foes.join(', ') : '기다리는 중…');
+    ctx.font = '700 10px Pretendard, sans-serif'; while (foeTxt.length > 8 && ctx.measureText(foeTxt).width > w - 20) foeTxt = foeTxt.slice(0, -2) + '…';
+    FX.text(ctx, foeTxt, W / 2, y0 + 53, { size: 10, weight: 700, color: this.team ? F3_TEAM_CSS[this.team] : '#fff', align: 'center' });
+  }
+  // 매칭전 판 결과 화면
+  drawMatchResult(ctx, W, H, now) {
+    const e = this.mEnd, win = !!e.winner && e.winner === this.team, wn = e.winner === 'red' ? '레드' : '블루';
+    ctx.fillStyle = 'rgba(8,10,16,0.8)'; ctx.fillRect(0, 0, W, H);
+    const title = !e.winner ? '무승부' : (this.spectator ? wn + ' 팀 승리' : (win ? '승리!' : '패배'));
+    FX.text(ctx, title, W / 2, H * 0.2, { size: 46, weight: 800, color: !e.winner ? '#fff' : (this.spectator ? F3_TEAM_CSS[e.winner] : (win ? '#FFD166' : '#9AA3B2')), align: 'center', baseline: 'middle', shadow: 14 });
+    FX.text(ctx, '경기 ' + (this.match + 1) + ' · ' + this.mRound + '판   레드 ' + e.red + ' : ' + e.blue + ' 블루', W / 2, H * 0.2 + 40, { size: 17, weight: 800, color: '#fff', align: 'center', baseline: 'middle' });
+    FX.text(ctx, '경기 전적  레드 ' + this.mWins.red + ' : ' + this.mWins.blue + ' 블루', W / 2, H * 0.2 + 64, { size: 13, weight: 700, color: 'rgba(255,255,255,0.65)', align: 'center', baseline: 'middle' });
+    const bw = Math.min(W - 32, 320), x0 = W / 2 - bw / 2; let y = H * 0.2 + 88;
+    (e.rows || []).slice(0, 10).forEach((r, i) => {
+      if (r.me) { ctx.fillStyle = 'rgba(255,255,255,0.1)'; FX.rr(ctx, x0, y, bw, 22, 7); ctx.fill(); }
+      FX.text(ctx, (i + 1) + '.  ' + r.name, x0 + 12, y + 15, { size: 13, weight: r.me ? 800 : 600, color: F3_TEAM_CSS[r.team] || '#fff' });
+      FX.text(ctx, r.k + '킬  ' + r.d + '데스', x0 + bw - 12, y + 15, { size: 12, weight: 700, color: '#fff', align: 'right' });
+      y += 24;
+    });
+    const left = Math.max(0, Math.ceil((F3_MATCH_REST - (now - e.at)) / 1000));
+    FX.text(ctx, '다음 판이 ' + left + '초 뒤 시작해요 (같은 경기 · 같은 팀)', W / 2, Math.min(H - 30, y + 22), { size: 13, weight: 700, color: '#FFD166', align: 'center', baseline: 'middle' });
   }
 
   // 점수판 — 전원 킬/데스 (팀전은 팀별로 나눔)
@@ -1163,7 +1575,7 @@ class Fps3DGame {
   }
 
   drawMinimap(ctx, W, H) {
-    const n = this.map.length, R = Math.min(58, W * 0.16), cx = 14 + R, cy = 62 + R, cs = 4.6;   // 1칸 = 4.6px (반지름 58 → 약 12칸 시야)
+    const n = this.map.length, R = Math.min(58, W * 0.16), cx = 14 + R, cy = (this.matchMode ? 76 : 62) + R, cs = 4.6;   // 1칸 = 4.6px (반지름 58 → 약 12칸 시야)
     // 벽 이미지는 한 번만 (맵 전체)
     if (!this._mm) {
       const px = 6; this._mm = document.createElement('canvas'); this._mm.width = n * px; this._mm.height = n * px;
