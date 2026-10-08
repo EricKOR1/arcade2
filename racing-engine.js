@@ -563,6 +563,8 @@ function kartLook(name) {
 }
 
 const MAX_ITEMS = 2;   // 최대 보관 개수
+const SPEED_MUL = 1.2;     // 기본 속도 배율 (선생님 요청: 예전보다 1.2배 빠르게) — 최고 속도와 회전 속도를 같이 올려 코너 반경은 그대로
+const PHYS_STEP = 1000 / 120;   // 물리 한 걸음(ms) — 화면 주사율과 상관없이 같은 간격으로 계산하고 그리기는 사이를 보간
 const DRIFT_MAX = 1.1;     // 드리프트 한 번의 최대 길이(초) — 그 뒤엔 타이어가 노면을 잡아 저절로 끝남
 const DRIFT_SLIP = 0.62;   // 미끄러짐 각도 상한(라디안, 약 35°)
 
@@ -620,10 +622,10 @@ class KartGame {
     this.segIdx = st.index; this.lap = -1; this.progress = -(this.track.n - st.index);
     this.speed = 0; this.steer = 0;
 
-    this.maxSpeed = (this.track.def.speed || 5.6) * 1.4;            // 2배에서 30% 낮춤 (2 × 0.7)
+    this.maxSpeed = (this.track.def.speed || 5.6) * 1.4 * SPEED_MUL;   // 2배에서 30% 낮춤 (2 × 0.7) · 그 뒤 1.2배
     // 큰 트랙에서도 코너링 감각이 같도록 회전 속도를 배율에 맞춤
     // 각속도를 속도에 비례시켜 코너 반경이 속도와 무관하게 같도록 (2배 속도에서도 같은 코스를 돌 수 있게)
-    this.turnRate = 0.054 * (5.6 / this.maxSpeed) * 1.55 * (this.maxSpeed / (this.track.def.speed || 5.6));
+    this.turnRate = 0.054 * (5.6 / this.maxSpeed) * 1.55 * (this.maxSpeed / (this.track.def.speed || 5.6)) * SPEED_MUL;   // 빨라진 만큼 회전도 빠르게 (같은 코너를 같은 궤적으로)
     this.items = [];          // 최대 2개까지 보관, 앞에서부터 사용
     this.itemRollUntil = 0;
     this.pendingItem = null;
@@ -675,7 +677,7 @@ class KartGame {
     for (let i = this.parts.length - 1; i >= 0; i--) {
       const p = this.parts[i];
       p.x += p.vx * f; p.y += p.vy * f; p.h += p.vh * f;
-      p.vh -= p.g * dt * 10; p.vx *= 0.96; p.vy *= 0.96;
+      const dmp = Math.pow(0.96, f); p.vh -= p.g * dt * 10; p.vx *= dmp; p.vy *= dmp;
       if (p.h < 0) { p.h = 0; p.vh = -p.vh * 0.3; }
       p.life -= p.decay * dt;
       if (p.life <= 0) this.parts.splice(i, 1);
@@ -973,12 +975,8 @@ class KartGame {
       if (!last || Math.abs(last.x - d.x) > 1e-6 || Math.abs(last.y - d.y) > 1e-6 || Math.abs(last.a - d.angle) > 1e-6) {
         // 순간이동(리스폰·위치 교환)은 버퍼를 비워 그 사이를 보간하지 않음
         if (last && Math.hypot(last.x - d.x, last.y - d.y) > this.track.carLen * 12) p.buf.length = 0;
-        // 도착 시각은 네트워크 사정에 따라 들쭉날쭉(±수십 ms)하므로 그대로 쓰면 상대 카트가 빨라졌다 느려졌다 함
-        // → 평균 간격으로 '예상 시각'을 잡고 실제 도착 시각 쪽으로 조금씩만 맞춤 (크게 어긋나면 다시 맞춤)
-        let ts = nowMs; const lb = p.buf[p.buf.length - 1];
-        if (lb) { const gap = nowMs - lb.ra; p.iv = (p.iv || 165) + (Math.max(60, Math.min(400, gap)) - (p.iv || 165)) * 0.1;   // 보내는 간격(약 165ms)에서 시작
-          const pred = lb.t + p.iv; ts = pred + (nowMs - pred) * 0.2; if (Math.abs(nowMs - ts) > 220) ts = nowMs; ts = Math.max(ts, lb.t + 30); }
-        p.buf.push({ t: ts, ra: nowMs, x: d.x, y: d.y, a: d.angle });
+        // 시각은 다음 프레임(stepPeers)에서 그 프레임 시각으로 매김 — 여기서 재면 '지난 프레임' 시각이라 프레임 간격만큼 들쭉날쭉했음
+        p.buf.push({ t: (p.buf.length ? p.buf[p.buf.length - 1].t + 30 : nowMs), ra: nowMs, x: d.x, y: d.y, a: d.angle, pend: true });
         if (p.buf.length > 5) p.buf.shift();
       }
       p.at = nowMs;
@@ -995,30 +993,45 @@ class KartGame {
   // out 을 주면 그 객체에 써서 돌려줌 (매 프레임 30명 × 새 객체를 만들지 않게)
   interpPeer(pr, now, out) {
     const o = out || {}, buf = pr.buf;
-    const put = (x, y, a) => { o.x = x; o.y = y; o.a = a; return o; };
+    const put = (x, y, a, vx, vy, va) => { o.x = x; o.y = y; o.a = a; o.vx = vx || 0; o.vy = vy || 0; o.va = va || 0; return o; };   // v*: 이 순간 움직이는 빠르기(단위/ms)
     if (!buf || !buf.length) return put(pr.tx != null ? pr.tx : pr.x, pr.ty != null ? pr.ty : pr.y, pr.tangle != null ? pr.tangle : pr.angle);
     const rt = now - (this.interpDelay || 150);
     let a = null, b = null;
     for (let i = buf.length - 1; i >= 0; i--) { if (buf[i].t <= rt) { a = buf[i]; b = buf[i + 1] || null; break; } }
     if (!a) return put(buf[0].x, buf[0].y, buf[0].a);
-    if (b) { const k = (rt - a.t) / Math.max(1, b.t - a.t); let da = b.a - a.a; while (da > Math.PI) da -= Math.PI * 2; while (da < -Math.PI) da += Math.PI * 2;
-      return put(a.x + (b.x - a.x) * k, a.y + (b.y - a.y) * k, a.a + da * k); }
+    if (b) { const sp = Math.max(1, b.t - a.t), k = (rt - a.t) / sp; let da = b.a - a.a; while (da > Math.PI) da -= Math.PI * 2; while (da < -Math.PI) da += Math.PI * 2;
+      return put(a.x + (b.x - a.x) * k, a.y + (b.y - a.y) * k, a.a + da * k, (b.x - a.x) / sp, (b.y - a.y) / sp, da / sp); }
     // 최신 샘플 이후: 직전 두 샘플의 속도로 짧게 예측
     const prev = buf[buf.length - 2];
     if (!prev) return put(a.x, a.y, a.a);
-    const dt = Math.max(1, a.t - prev.t), ext = Math.min(200, rt - a.t) / dt;
-    return put(a.x + (a.x - prev.x) * ext, a.y + (a.y - prev.y) * ext, a.a);
+    const dt = Math.max(1, a.t - prev.t), ext = Math.min(200, rt - a.t) / dt, mv = rt - a.t < 200 ? 1 / dt : 0;
+    return put(a.x + (a.x - prev.x) * ext, a.y + (a.y - prev.y) * ext, a.a, (a.x - prev.x) * mv, (a.y - prev.y) * mv, 0);
   }
 
   // 상대 카트를 매 프레임 한 번 '보이는 위치'로 옮김 — 2D·3D 그리기 · 미니맵 · 카트 충돌 · 자석이 모두 이 값(pr.x·y·angle·e)을 씀
   // (예전엔 2D 그리기 안에서만 옮겨 3D 판에서는 상대 위치가 첫 신호에 멈춰 있었음: 미니맵 점이 출발선에 고정 · 보이지 않는 카트와 충돌)
   stepPeers(now, f) {
-    const t = this.track, pk = this.smooth(0.6, f), ak = this.smooth(0.5, f), ip = this._ip || (this._ip = { x: 0, y: 0, a: 0 }), far2 = Math.pow(t.carLen * 12, 2);
+    const t = this.track, ip = this._ip || (this._ip = { x: 0, y: 0, a: 0 }), far = t.carLen * 12;
     for (const id in this.peers) {
-      const pr = this.peers[id]; this.interpPeer(pr, now, ip);
-      const dx = ip.x - pr.x, dy = ip.y - pr.y;
-      if (!(dx * dx + dy * dy < far2)) { pr.x = ip.x; pr.y = ip.y; pr.angle = ip.a; }        // 처음 · 순간이동은 바로
-      else { pr.x += dx * pk; pr.y += dy * pk; let da = ip.a - pr.angle; while (da > Math.PI) da -= Math.PI * 2; while (da < -Math.PI) da += Math.PI * 2; pr.angle += da * ak; }
+      const pr = this.peers[id], buf = pr.buf;
+      // 새 신호에 시각 매기기: 이번 프레임 시각을 도착 시각으로 하고, 네트워크 흔들림(±수십 ms)은 평균 간격으로 걸러냄 (크게 어긋나면 다시 맞춤)
+      if (buf) for (let i = 0; i < buf.length; i++) { const sm = buf[i]; if (!sm.pend) continue; sm.pend = false; sm.ra = now; let ts = now; const lb = i > 0 ? buf[i - 1] : null;
+        if (lb) { const gap = now - lb.ra; pr.iv = (pr.iv || 165) + (Math.max(60, Math.min(400, gap)) - (pr.iv || 165)) * 0.1;   // 보내는 간격(약 165ms)에서 시작
+          const pred = lb.t + pr.iv; ts = pred + (now - pred) * 0.2; if (Math.abs(now - ts) > 220) ts = now; ts = Math.max(ts, lb.t + 30); }
+        sm.t = ts; }
+      this.interpPeer(pr, now, ip);
+      // 보이는 위치 = 시간 기준 보간 위치 + 어긋남. 보간 경로가 꺾이거나(예측이 틀려) 튀면 그 차이를 어긋남에 담아 0.07초마다 절반씩 녹임
+      // (예전엔 지난 위치에서 매 프레임 60%씩 따라가게 해 프레임 간격이 들쭉날쭉하면 상대 카트가 빨라졌다 느려졌다 했음)
+      const dtm = pr._lt != null ? Math.max(0, Math.min(100, now - pr._lt)) : 0; pr._lt = now;
+      if (pr._ex == null || Math.abs(ip.x - pr._ex) + Math.abs(ip.y - pr._ey) > far) { pr._ox = 0; pr._oy = 0; pr._oa = 0; }   // 처음 · 순간이동은 바로
+      else {
+        let da = pr._ea + pr._eva * dtm - ip.a; while (da > Math.PI) da -= Math.PI * 2; while (da < -Math.PI) da += Math.PI * 2;
+        const k = Math.pow(0.5, dtm / 70);
+        pr._ox = (pr._ox + pr._ex + pr._evx * dtm - ip.x) * k; pr._oy = (pr._oy + pr._ey + pr._evy * dtm - ip.y) * k; pr._oa = (pr._oa + da) * k;
+        if (Math.abs(pr._ox) + Math.abs(pr._oy) > t.carLen * 3) { pr._ox = 0; pr._oy = 0; }
+      }
+      pr._ex = ip.x; pr._ey = ip.y; pr._ea = ip.a; pr._evx = ip.vx; pr._evy = ip.vy; pr._eva = ip.va;
+      pr.x = ip.x + pr._ox; pr.y = ip.y + pr._oy; pr.angle = ip.a + pr._oa;
       // 높이도 실제 위치로 보간 (반올림하면 언덕에서 계단처럼 튐)
       const pi = ((Math.floor(pr.progress || 0) % t.n) + t.n) % t.n;
       pr.e = t.elevAtF(pi + t.fracAt(pi, pr.x, pr.y)) + (pr.z || 0);
@@ -1086,13 +1099,8 @@ class KartGame {
     if (this.spectator) {
       const tgt = this.peers[this.followId];
       if (tgt) {
-        // 부드럽게 따라감 (원격 위치는 0.16초마다 오므로 보간)
-        const k = Math.min(1, f * 0.5);
-        const ipp = this.interpPeer(tgt, now);
-        const gx = ipp.x, gy = ipp.y, ga = ipp.a;
-        this.x += (gx - this.x) * k; this.y += (gy - this.y) * k;
-        let da = ga - this.angle; while (da > Math.PI) da -= Math.PI * 2; while (da < -Math.PI) da += Math.PI * 2;
-        this.angle += da * k;
+        // 그 학생의 위치는 stepPeers 가 시간 기준으로 이미 부드럽게 옮겨 둠 (예전엔 여기서 한 번 더 늦게 따라가 프레임 간격에 따라 흔들렸음)
+        if (tgt.x != null) { this.x = tgt.x; this.y = tgt.y; this.angle = tgt.angle; this.moveA = tgt.angle; }
         this.speed = tgt.speed != null ? tgt.speed : this.maxSpeed * 0.8;
         this.segIdx = this.track.nearestIndex(this.x, this.y, this.segIdx).index;
         this.lap = Math.floor((tgt.progress || 0) / this.track.n);
@@ -1120,7 +1128,7 @@ class KartGame {
     //   (예전엔 핸들만 꺾어도 끼익 소리가 계속 나 드리프트가 길게 이어지는 것처럼 들렸음)
     if (!this.spectator && window.Sound && Sound.skidSet) { const sa = Math.abs(this.slip || 0), sk = sa > 0.08 && this.speed > this.maxSpeed * 0.3 ? Math.min(0.9, 0.3 + sa * 1.1) : 0;
       const v = this.finished || this.airborne ? 0 : Math.max(sk, now < (this.slideUntil || 0) ? 0.8 : 0); if (v > 0.05 || this._skidV > 0.05) Sound.skidSet(v); this._skidV = v; }
-    if (!this.finished) this.updateCar(now, f); else { this.slip = 0; this.drifting = false; }
+    if (!this.finished) this.stepPhysics(now); else { this.slip = 0; this.drifting = false; this._prev = null; }
     this.updateRank();
     if (this.rank < this.lastRank && !this.finished && this.countdown <= 0) {
       this.showToast('▲ ' + this.rank + '위로 추월!', '#FFD166');
@@ -1128,7 +1136,33 @@ class KartGame {
     }
     this.lastRank = this.rank;
     this.fx = this.fx.filter(x => now < x.until);
-    this.draw();
+    this.drawLerp();
+  }
+
+  // 물리는 1/120초 고정 걸음으로 (60·90·120Hz 화면, 들쭉날쭉한 프레임, 순간 멈칫에서도 똑같이 움직임)
+  // 예전: 프레임 간격만큼 한 번에 움직이고 50ms 이상은 잘라 버려, 멈칫한 프레임 뒤에 카트가 순간 느려지고 빠른 속도에서 판정 간격이 벌어졌음
+  stepPhysics(now) {
+    const raw = this._physT == null ? PHYS_STEP : Math.max(0, Math.min(150, now - this._physT));   // 0.15초보다 긴 멈춤은 그만큼만 따라잡음
+    this._physT = now;
+    this._acc = Math.min((this._acc || 0) + raw, 150);
+    const p = this._prev || (this._prev = {}); let steps = 0;
+    while (this._acc >= PHYS_STEP && steps < 18) {
+      this._acc -= PHYS_STEP; steps++;
+      p.x = this.x; p.y = this.y; p.a = this.angle; p.m = this.moveA == null ? this.angle : this.moveA; p.z = this.airZ || 0; p.ok = true;
+      this.updateCar(now - this._acc, PHYS_STEP / 16.7);
+      if (this.finished) { this._acc = 0; break; }
+    }
+    this._ia = this._acc / PHYS_STEP;                                   // 직전 걸음과 현재 걸음 사이 어디를 그릴지 (0~1)
+  }
+  // 그리기: 직전·현재 물리 상태 사이를 보간한 자리에 잠깐 옮겨 그린 뒤 되돌림 (순간이동이면 보간하지 않음)
+  drawLerp() {
+    const p = this._prev, a = this._ia, t = this.track;
+    if (!p || !p.ok || a == null || this.spectator || Math.abs(this.x - p.x) + Math.abs(this.y - p.y) > t.carLen * 3) { this._rx = this.x; this._ry = this.y; this.draw(); return; }
+    const cx = this.x, cy = this.y, ca = this.angle, cm = this.moveA, cz = this.airZ, cs = this.segIdx;
+    const lerpA = (u, v) => { let d = v - u; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return u + d * a; };
+    this.x = p.x + (cx - p.x) * a; this.y = p.y + (cy - p.y) * a; this.angle = lerpA(p.a, ca); this.moveA = lerpA(p.m, cm == null ? ca : cm); this.airZ = p.z + ((cz || 0) - p.z) * a;
+    this.segIdx = t.nearestIndex(this.x, this.y, cs).index; this._rx = this.x; this._ry = this.y;
+    try { this.draw(); } finally { this.x = cx; this.y = cy; this.angle = ca; this.moveA = cm; this.airZ = cz; this.segIdx = cs; }
   }
 
   updateCar(now, f) {
@@ -1233,7 +1267,7 @@ class KartGame {
       for (let j = 0; j < this.track.jumps.length; j++) {
         const jp = this.track.jumps[j];
         const dseg = ((this.segIdx - jp.i) % this.track.n + this.track.n) % this.track.n;
-        if (dseg <= 1 && this.speed > 2 && this.lastJumpAt !== jp.i) {
+        if (dseg <= 1 + Math.ceil(this.speed * f / this.track.stepLen) && this.speed > 2 && this.lastJumpAt !== jp.i) {   // 빠를 때 한 걸음에 2구간 넘게 지나도 놓치지 않게
           this.airborne = true; this.airZ = 0.01; this.airVz = 5.5 + Math.min(1, this.speed / this.maxSpeed) * 6.5;
           this.lastJumpAt = jp.i; this.jumpFrom = jp; this.airStart = now; this.airBest = 0;
           this.jumpBanner = now + 1200;                 // 큰 'JUMP!' 배너
@@ -1274,25 +1308,25 @@ class KartGame {
     { let dm = this.angle - this.moveA; while (dm > Math.PI) dm -= Math.PI * 2; while (dm < -Math.PI) dm += Math.PI * 2;
       if (this.drifting) {
         // 처음엔 미끄럽고, 0.6초가 지나면 타이어가 점점 노면을 잡음 · 미끄러짐 각도는 35° 까지
-        const grip = 0.08 + 0.2 * Math.max(0, Math.min(1, (this.driftT - 0.6) / 0.5));
+        const grip = (0.08 + 0.2 * Math.max(0, Math.min(1, (this.driftT - 0.6) / 0.5))) * SPEED_MUL;   // (빨라진 회전만큼 그립도 — 미끄러지는 각도는 예전과 같게)
         this.moveA += dm * this.smooth(grip, f);
         let d2 = this.angle - this.moveA; while (d2 > Math.PI) d2 -= Math.PI * 2; while (d2 < -Math.PI) d2 += Math.PI * 2;
         if (Math.abs(d2) > DRIFT_SLIP) this.moveA = this.angle - Math.sign(d2) * DRIFT_SLIP;
       } else if (now < (this.recoverUntil || 0)) {
         // 그립 회복: 진행 방향이 차 방향으로 빠르게 붙고, 차체도 조금 되돌아옴 (약 0.1~0.15초)
-        this.moveA += dm * this.smooth(0.22, f); this.angle -= dm * this.smooth(0.06, f);
+        this.moveA += dm * this.smooth(0.22 * SPEED_MUL, f); this.angle -= dm * this.smooth(0.06 * SPEED_MUL, f);
       }
-      else if (this.track.driftZone && this.track.driftZone[this.segIdx] && this.steer) this.moveA += dm * this.smooth(0.22, f);   // 미끄러운 구간: 드리프트 없이 꺾으면 바깥으로 밀림
+      else if (this.track.driftZone && this.track.driftZone[this.segIdx] && this.steer) this.moveA += dm * this.smooth(0.22 * SPEED_MUL, f);   // 미끄러운 구간: 드리프트 없이 꺾으면 바깥으로 밀림
       else this.moveA = this.angle; }
     // 타이어 연기 · 스키드: '실제로 옆으로 미끄러지는 동안'만 (그립을 되찾으면 바로 멈춤)
     { let sd = this.angle - this.moveA; while (sd > Math.PI) sd -= Math.PI * 2; while (sd < -Math.PI) sd += Math.PI * 2;
       this.slip = sd;
       const sa = Math.abs(sd), cl = this.track.carLen;
-      if (sa > 0.1 && Math.random() < Math.min(0.9, sa * 1.8)) {
+      if (sa > 0.1 && Math.random() < Math.min(0.9, sa * 1.8) * Math.min(1, f)) {
         const sd2 = Math.random() < 0.5 ? 1 : -1, bx = this.x - Math.cos(this.angle) * cl * 0.45 - Math.sin(this.angle) * sd2 * cl * 0.3, by = this.y - Math.sin(this.angle) * cl * 0.45 + Math.cos(this.angle) * sd2 * cl * 0.3;
         this.spawn(1, bx, by, 0, { colors: ['#E6E6E6', '#C9C9C9'], speed: 1.2, up: 0.8, decay: 2.2, size: 10, spread: cl * 0.2 }); }
       // 부스터 충전 불꽃 (파랑 → 주황) — 지금 놓으면 부스터가 나간다는 신호
-      if (this.drifting && this.driftCharge >= 0.25 && Math.random() < 0.5) {
+      if (this.drifting && this.driftCharge >= 0.25 && Math.random() < 0.5 * Math.min(1, f)) {
         const sd3 = Math.random() < 0.5 ? 1 : -1, bx = this.x - Math.cos(this.angle) * cl * 0.5 - Math.sin(this.angle) * sd3 * cl * 0.32, by = this.y - Math.sin(this.angle) * cl * 0.5 + Math.cos(this.angle) * sd3 * cl * 0.32;
         this.spawn(1, bx, by, cl * 0.05, { colors: this.driftCharge >= 0.7 ? ['#FFB347', '#FFD166', '#FF7A1A'] : ['#5BC8FF', '#9BE7FF', '#FFFFFF'], speed: 1.6, up: 1.6, decay: 3.2, size: 4, gravity: 4 }); } }
     this.x += Math.cos(this.moveA) * this.speed * f;
@@ -1307,7 +1341,7 @@ class KartGame {
       const d = Math.hypot(dx, dy) || 1;
       this.x = c[0] + dx/d * limit;
       this.y = c[1] + dy/d * limit;
-      this.speed *= 0.62;
+      this.speed *= Math.pow(0.62, Math.min(1, f));                // (걸음이 잘아져도 벽에 닿은 시간만큼만 감속)
       if (now - this.wallUntil > 400) {
         this.wallUntil = now;
         this.shakeT = 0.28;

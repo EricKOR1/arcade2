@@ -167,7 +167,7 @@ class KartGame3D extends KartGame {
     ground.rotation.x = -Math.PI / 2; ground.position.set(cx * this.S, this.groundY, cy * this.S); this.scene.add(ground); this.ground = ground;
     this.buildRoad(); this.buildRails(); this.buildDeco(); this.buildArches(); this.buildTrackItems();
     { const before = this.scene.children.length; this.buildFar(cx, cy, span); this.scene.children.slice(before).forEach(o => { o.userData.far = true; }); }
-    this.karts = {}; this.hazMeshes = {}; this.camPos = null;
+    this.karts = {}; this.hazMeshes = {}; this._camYaw = null;
     this.partMesh = new T.InstancedMesh(new T.BoxGeometry(0.25, 0.25, 0.25), new T.MeshBasicMaterial({ color: 0xffffff }), 160); this.partMesh.count = 0; this.scene.add(this.partMesh);
   }
 
@@ -435,8 +435,10 @@ class KartGame3D extends KartGame {
     if (!k) k = this.karts[id] = { g: this.makeKart(look, isMe), hint: isMe ? this.segIdx : undefined, lk };
     k.g.visible = true;
     const loc = this.elevAtXY(x, y, k.hint); k.hint = loc.i;
+    // 높이는 구간 사이를 보간 (예전엔 가장 가까운 점 하나의 높이라 언덕에서 구간마다 계단처럼 툭툭 오르내렸고, 카메라도 같이 흔들렸음)
+    const ev = this.track.elevAtF(loc.i + this.track.fracAt(loc.i, x, y));
     // 점프 구간에서 떨어질 때도 땅 밑으로는 내려가지 않게 (카메라가 땅 밑으로 들어가 하늘만 보이던 문제)
-    const S = this.S, px = x * S, pz = y * S, py = loc.e * S, lift = Math.max((air || 0) * S, this.groundY + 0.2 - py); k.g.position.set(px, py + lift, pz);
+    const S = this.S, px = x * S, pz = y * S, py = ev * S, lift = Math.max((air || 0) * S, this.groundY + 0.2 - py); k.g.position.set(px, py + lift, pz);
     k.g.userData.shadow.position.y = 0.05 - lift; k.g.userData.shadow.visible = !this.track.gapSeg[loc.i];
     const spin = opts && opts.spin ? (this.clock() / 70) : 0;
     k.g.rotation.set(0, Math.PI / 2 - a + spin, 0); k.g.userData.shield.visible = !!(opts && opts.shield); k.seen = true;
@@ -505,11 +507,12 @@ class KartGame3D extends KartGame {
     this.placeKart('__me', this.x, this.y, this.angle, this.airZ, this.look, true, { spin: now < this.spinUntil || now < this.stunUntil, shield: now < this.shieldUntil, boost: now < this.boostUntil || now < this.starUntil, star: now < this.starUntil });
     // 드리프트: 미끄러지는 동안 차체가 바깥으로 살짝 기울고, 그립을 되찾으면 바로 돌아옴
     { const meK = this.karts.__me, rt = this.spectator ? 0 : -Math.max(-0.09, Math.min(0.09, (this.slip || 0) * 0.25));
-      this._roll = (this._roll || 0) + (rt - (this._roll || 0)) * Math.min(1, 0.3 * (this.lastF || 1)); if (meK) meK.g.rotation.z = this._roll; }
+      this._roll = (this._roll || 0) + (rt - (this._roll || 0)) * this.smooth(0.3, this.lastF); if (meK) meK.g.rotation.z = this._roll; }
     this.drawPeers3D(now);
     Object.keys(this.karts).forEach(id => { if (!this.karts[id].seen) { this.scene.remove(this.karts[id].g); delete this.karts[id]; } });
     // 아이템 상자 (먹으면 잠시 사라짐 · 회전)
-    if (this.boxMesh) { const m4 = new T.Matrix4(), q = new T.Quaternion().setFromEuler(new T.Euler(now / 1400, now / 900, 0)), sc = new T.Vector3();
+    const tmp = this._tmp || (this._tmp = { m4: new T.Matrix4(), q: new T.Quaternion(), e: new T.Euler(), sc: new T.Vector3(), v: new T.Vector3(), v2: new T.Vector3() });   // 매 프레임 새 객체를 만들지 않음 (쓰레기 수거로 순간 멈칫하던 것)
+    if (this.boxMesh) { const m4 = tmp.m4, q = tmp.q.setFromEuler(tmp.e.set(now / 1400, now / 900, 0)), sc = tmp.sc;
       tr.itemSpots.forEach((sp, k) => { const on = !(sp.takenUntil > now); sc.setScalar(on ? 1 : 0.001); m4.compose(this.boxBase[k], q, sc); this.boxMesh.setMatrixAt(k, m4); }); this.boxMesh.instanceMatrix.needsUpdate = true; }
     this.obsMeshes.forEach(({ o, m }) => { m.visible = !(o.hitUntil > now); });
     this.pads.forEach(p => { p.material.opacity = 0.75 + Math.sin(now / 150) * 0.2; });
@@ -517,11 +520,11 @@ class KartGame3D extends KartGame {
     const seenH = {};
     Object.keys(this.hazards || {}).forEach(hid => { const h = this.hazards[hid]; if (!h) return; seenH[hid] = 1; let m = this.hazMeshes[hid];
       if (!m) { m = this.makeHazard(h.kind); this.lin(m); this.scene.add(m); this.hazMeshes[hid] = m; }
-      const loc = this.elevAtXY(h.x, h.y, m.userData.hint); m.userData.hint = loc.i; m.position.copy(this.P(h.x, h.y, loc.e)); m.position.y += 0.06;
+      const loc = this.elevAtXY(h.x, h.y, m.userData.hint); m.userData.hint = loc.i; m.position.set(h.x * this.S, loc.e * this.S + 0.06, h.y * this.S);
       if (m.userData.blink) m.userData.blink.visible = Math.floor(now / 250) % 2 === 0; if (h.kind === 'banana') m.rotation.y = (h.x + h.y) % 6; });
     Object.keys(this.hazMeshes).forEach(hid => { if (!seenH[hid]) { this.scene.remove(this.hazMeshes[hid]); delete this.hazMeshes[hid]; } });
     // 입자 (2D 판의 입자 목록: 세계 좌표 + 높이)
-    let np = 0; const m4 = new T.Matrix4(), q0 = new T.Quaternion(), sc0 = new T.Vector3();
+    let np = 0; const m4 = tmp.m4, q0 = tmp.q.identity(), sc0 = tmp.sc;
     const pv = this._pv || (this._pv = new T.Vector3());
     (this.parts || []).forEach(pt => { if (np >= 160 || pt.x == null) return; if (pt.e3 == null) pt.e3 = this.elevAtXY(pt.x, pt.y, this.segIdx).e;   // 입자 높이는 처음 한 번만 (예전엔 매 프레임 입자 160개 × 트랙 91점 탐색)
       const p = pv.set(pt.x * this.S, pt.e3 * this.S, pt.y * this.S); p.y += ((pt.h || 0) * this.S) + 0.3;
@@ -533,19 +536,31 @@ class KartGame3D extends KartGame {
     const dtf = Math.min(0.05, (now - (this._fxT || now)) / 1000); this._fxT = now; this.stepFx(dtf);
     if (this.nightGlow) this.nightGlow.material.opacity = 0.85 + Math.sin(now / 300) * 0.1;
     // 카메라: 뒤에서 따라감 · 빠를수록 시야 넓게 (2D 판처럼 코너에서 살짝 늦게 돔)
+    //   카트 바로 뒤 일정한 자리에 붙이고, 방향·높이·거리만 '시간 기준'으로 부드럽게 따라감
+    //   (예전엔 카메라 위치를 매 프레임 15%씩 따라가게 해, 프레임 간격이 들쭉날쭉하거나 빠를수록 카트가 화면에서 앞뒤로 흔들렸음 — 고무줄처럼)
     const base = this.moveA != null && !this.spectator ? this.moveA : this.angle; let dca = this.angle - base; while (dca > Math.PI) dca -= Math.PI * 2; while (dca < -Math.PI) dca += Math.PI * 2;
-    const me = this.karts.__me.g.position, ca = base + dca * 0.35, fwd = new T.Vector3(Math.cos(ca), 0, Math.sin(ca));   // 드리프트 중엔 미끄러져 가는 방향을 따라가 옆모습이 보임
-    // 시점: 조금 더 높고 멀리서, 더 앞을 보게 (예전엔 도로에 붙어 앞이 잘 안 보임)
-    // 내려다보는 각도 약 13° → 23° (카메라를 높이고 조금 더 앞을 봄) — 먼 도로까지 보이게
-    const want = me.clone().addScaledVector(fwd, -8.4); want.y = Math.max(want.y + 8.6, this.groundY + 2.5); const look = me.clone().addScaledVector(fwd, 11); look.y += 0.6;
-    if (!this.camPos) { this.camPos = want.clone(); this.camLook = look.clone(); }
-    this.camPos.lerp(want, 0.15); this.camLook.lerp(look, 0.25); this.camera.position.copy(this.camPos);
+    const me = this.karts.__me.g.position, ca = base + dca * 0.35;   // 드리프트 중엔 미끄러져 가는 방향을 따라가 옆모습이 보임
+    const cdt = Math.max(0, Math.min(100, now - (this._camT != null ? this._camT : now))) / 16.7; this._camT = now;   // 지난 그리기 뒤 흐른 시간 (60fps 한 프레임 = 1)
+    if (this._camYaw == null) { this._camYaw = ca; this._camY = me.y; this._camBack = 8.4; }
+    { let d = ca - this._camYaw; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; this._camYaw += d * this.smooth(0.2, cdt); }
+    this._camY += (me.y - this._camY) * this.smooth(0.25, cdt);                              // 높이: 언덕·착지의 출렁임만 부드럽게
+    const spdR = Math.min(1, Math.max(0, this.speed) / (this.maxSpeed * 1.4));
+    this._camBack += (8.4 + 4.2 * Math.min(1.6, Math.max(0, this.speed) / this.maxSpeed) - this._camBack) * this.smooth(0.06, cdt);   // 빠를수록(부스터면 더) 뒤로 물러남 — 예전 카메라가 늦게 따라오며 생기던 거리와 비슷하게, 하지만 프레임과 무관하게
+    const fx = Math.cos(this._camYaw), fz = Math.sin(this._camYaw), lk = tmp.v2;
+    // 시점: 조금 더 높고 멀리서, 더 앞을 보게 — 내려다보는 각도 약 23° (먼 도로까지 보이게)
+    this.camera.position.set(me.x - fx * this._camBack, Math.max(this._camY + 8.6, this.groundY + 2.5), me.z - fz * this._camBack);
+    lk.set(me.x + fx * 11, this._camY + 0.6, me.z + fz * 11);
     if (this.shake3d > 0) { this.camera.position.x += (Math.random() - 0.5) * this.shake3d; this.camera.position.y += (Math.random() - 0.5) * this.shake3d; this.shake3d = Math.max(0, this.shake3d - dtf * 1.5); }
-    this.camera.lookAt(this.camLook);
-    const fov = 66 + Math.min(1, Math.max(0, this.speed) / (this.maxSpeed * 1.4)) * 14 + (now < this.boostUntil ? 6 : 0);
-    if (Math.abs(this.camera.fov - fov) > 0.2) { this.camera.fov += (fov - this.camera.fov) * 0.1; this.camera.updateProjectionMatrix(); }
+    this.camera.lookAt(lk);
+    const fov = 66 + spdR * 14 + (now < this.boostUntil ? 6 : 0);
+    if (Math.abs(this.camera.fov - fov) > 0.05) { this.camera.fov += (fov - this.camera.fov) * this.smooth(0.1, cdt); this.camera.updateProjectionMatrix(); }
     if (this.updateStyle) this.updateStyle(now);
-    if (this.sun && this.renderer.shadowMap.enabled) { const mp = this.karts.__me.g.position; this.sun.position.set(mp.x + 45, mp.y + 95, mp.z + 30); this.sun.target.position.copy(mp); this.sun.target.updateMatrixWorld(); }
+    if (this.sun && this.renderer.shadowMap.enabled) { const mp = this.karts.__me.g.position, sh = this.sun.shadow;
+      // 그림자 범위가 카트를 따라 움직일 때 그림자 화소 크기 단위로만 옮김 — 매 프레임 조금씩 옮기면 그림자 테두리가 지글지글 떨려 보였음
+      if (!this._lsR) { const fw = new T.Vector3(-45, -95, -30).normalize(); this._lsR = new T.Vector3().crossVectors(fw, new T.Vector3(0, 1, 0)).normalize(); this._lsU = new T.Vector3().crossVectors(this._lsR, fw).normalize(); }
+      const tsz = (sh.camera.right - sh.camera.left) / (sh.mapSize.x || 1024), r0 = mp.dot(this._lsR), u0 = mp.dot(this._lsU);
+      const sb = tmp.v.copy(mp).addScaledVector(this._lsR, Math.round(r0 / tsz) * tsz - r0).addScaledVector(this._lsU, Math.round(u0 / tsz) * tsz - u0);
+      this.sun.position.set(sb.x + 45, sb.y + 95, sb.z + 30); this.sun.target.position.copy(sb); this.sun.target.updateMatrixWorld(); }
     if (this.composer) this.composer.render(); else this.renderer.render(this.scene, this.camera);
     // 느리면 화질을 한 단계씩 자동으로 낮춤 (3초 평균 초당 26프레임 미만: high → mid, 22 미만: mid → 그림자 끔)
     if (this.hq !== 'low' && !this.spectator && !this.hqLocked) { this._fpsN = (this._fpsN || 0) + 1; if (!this._fpsT) this._fpsT = now;
