@@ -687,7 +687,7 @@ class KartGame {
   // ── 조작 ──
   move(dir) { this.steer = dir; }
   // 드리프트 버튼: 누를 때마다 한 번 (꾹 누르고 있어도 한 번만 · 짧게 끊어 쓰는 게 유리)
-  drift(on) { on = !!on; if (on && !this.driftHeld) this.driftArmAt = this.clock(); if (!on) this.driftArmAt = 0; this.driftHeld = on; }
+  drift(on) { on = !!on; if (on && !this.driftHeld) this.driftArm = 0.45; if (!on) this.driftArm = 0; this.driftHeld = on; }   // driftArm: 누른 뒤 조향을 기다리는 시간(게임 시간 초)
   // 순위 목록 (왼쪽 위 랩 표시 아래): 상위 몇 명 + 내 위치. 화면 높이에 맞춰 줄 수 조절 — 아래 속도계와 겹치지 않게
   drawStandings(ctx, W, H, now) {
     if (this.spectator || this.countdown > 0 || typeof document === 'undefined') return;
@@ -1159,10 +1159,11 @@ class KartGame {
     //    버튼을 누른 순간부터 0.45초 안에 조향이 있어야 시작 · 꾹 누르고 있어도 다시 시작하지 않음(다시 누르면 다음 드리프트)
     //    미끄러진 시간만큼 부스터 충전: 0.25초↑ 파랑(짧은 부스터) · 0.7초↑ 주황(긴 부스터) · 오래 끌수록 감속이 커져 짧게 끊는 게 유리
     const driftOk = !stunned && !spinning && !sliding && !this.airborne && !this.finished;
-    if (!this.drifting && driftOk && this.driftHeld && this.steer && this.driftArmAt && now - this.driftArmAt < 450 && this.speed > this.maxSpeed * 0.45) {
-      this.drifting = true; this.driftDir = Math.sign(this.steer); this.driftCharge = 0; this.driftT = 0; this.driftArmAt = 0;
+    if (!this.drifting && driftOk && this.driftHeld && this.steer && this.driftArm > 0 && this.speed > this.maxSpeed * 0.45) {
+      this.drifting = true; this.driftDir = Math.sign(this.steer); this.driftCharge = 0; this.driftT = 0; this.driftArm = 0;
       if (window.Haptic && Haptic.tap) Haptic.tap();
     }
+    if (this.driftArm > 0) this.driftArm -= f / 60;                                // (프레임이 크게 밀려도 누른 것을 놓치지 않게 게임 시간으로 셈)
     if (this.drifting) {
       this.driftT += f / 60;
       const over = this.driftT >= DRIFT_MAX;
