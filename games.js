@@ -113,6 +113,24 @@ const GAMES = {
     sync: function (g) { return { score: g.score, kills: g.kills, deaths: g.deaths, hp: g.hp, team: g.team }; }
   },
 
+  fpsmatch: {
+    type: 'canvas',
+    name: '레이저 태그 3D (매칭전)',
+    desc: '선생님이 고른 1:1 ~ 5:5 로 반 전체를 자동으로 짝지어, 경기마다 작은 맵에서 겨룹니다. 같은 경기 친구만 보이고 맞힐 수 있어요',
+    howto: '왼쪽 짚고 끌면 이동 · 오른쪽 끌면 조준 · ● 꾹 누르면 연사 · 먼저 목표 킬에 닿는 팀이 승리 (3분) · 끝나면 같은 경기에서 다음 판',
+    meta: '실시간 대전 · N:N 자동 매칭 · 3D',
+    primary: '72% 0.17 290', primaryContent: '100% 0 0', hex: '#9B7CFF',
+    fullBleed: true, grid: { cols: 24, rows: 24 },
+    adminView: 'arena', realtime: true, engine3d: true,
+    needsPeers: true, hasTracks: true, trackKind: 'map', mapRegistry: 'fpsmatch', hasNext: false,   // 맵 고르기 자리에서 1:1 ~ 5:5 를 고름 (track = 'v2' 등)
+    stats: [{ key: 'kills', label: 'KILLS' }, { key: 'hp', label: 'HP' }],
+    detail: function (g) { return '경기 ' + ((g.match || 0) + 1) + ' · ' + (g.team === 'red' ? '레드 팀' : '블루 팀') + ' · 판 전적 ' + g.mWins.red + ':' + g.mWins.blue + ' · ' + g.kills + '킬'; },
+    controls: ['fire'], padLayout: 'joystick',
+    labels: { fire: '발사' },
+    create: function (canvas, opts) { return new Fps3DGame(canvas, Object.assign({ teamMode: true, matchMode: true }, opts)); },
+    sync: function (g) { return { score: g.score, kills: g.kills, deaths: g.deaths, hp: g.hp, team: g.team, match: g.match }; }
+  },
+
   arena: {
     type: 'canvas',
     name: '젬 아레나',
@@ -152,8 +170,8 @@ const GAMES = {
   slither: {
     type: 'canvas',
     name: '뱀 아레나',
-    desc: '큰 뱀이 작은 뱀을 삼키며 자라는 실시간 대전. 먹이를 먹어 길이를 키우고, 1.5배 이상 크면 상대를 삼킬 수 있어요. 작으면 피하세요',
-    howto: '조이스틱으로 방향 · 부스트 버튼(꾹)으로 가속(길이 소모) · 내 머리가 상대 몸에 닿으면 큰 쪽이 이김 · 경기장 벽에 닿으면 죽음',
+    desc: '큰 뱀이 작은 뱀을 삼키며 자라는 실시간 대전. 먹이를 먹어 길이를 키우고, 머리끼리 부딪히면 1.2배 이상 큰 쪽이 삼켜요. 가끔 태어나는 슈퍼 지렁이는 1등의 머리를 먹으면 1등 자리를 이어받아요',
+    howto: '조이스틱으로 방향 · 부스트 버튼(꾹)으로 가속(길이 소모) · 내 머리가 다른 뱀 몸에 닿으면 내가 탈락 · 머리끼리는 1.2배 이상 큰 쪽이 삼킴 · 경기장 벽에 닿으면 탈락 · 슈퍼 지렁이는 1등과 부딪혀도 안 죽음',
     meta: '실시간 대전 · 최대 30명 · 개인전 · 맵 5종(인원별 크기)',
     primary: '75% 0.19 160', primaryContent: '100% 0 0', hex: '#06D6A0',
     grid: { cols: 30, rows: 30 },

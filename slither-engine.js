@@ -48,9 +48,10 @@ function slJosa(w, a, b) { const s = String(w || ''), c = s.charCodeAt(s.length 
 function slEnc(a) { let q = Math.round((a + Math.PI) / (Math.PI * 2) * 1296) % 1296; if (q < 0) q += 1296; return (q < 36 ? '0' : '') + q.toString(36); }
 function slDec(s, i) { return parseInt(s.substr(i, 2), 36) / 1296 * Math.PI * 2 - Math.PI; }
 
-// 겉모습 48가지 = 색 12(색상환 30°씩) × 무늬 4(점 · 줄무늬 · 두 색 띠 · 흰 테두리)
+// 겉모습 48가지 = 색 12(색상환을 고르게 + 흰색) × 무늬 4(점 · 줄무늬 · 두 색 띠 · 흰 테두리)
 //   참가 순서(slot) k → 색 (k×5)%12 (이웃 번호끼리 색이 멀리 떨어짐), 무늬 ⌊k/12⌋ — 30명이면 색 12 × 무늬 3 안에서 모두 다름
-const SL_HUES = ['#FF4D5E', '#FF9A2E', '#FFE03D', '#A8E63A', '#2EDB6F', '#1EE8C0', '#3FD0FF', '#4F86FF', '#8F6CFF', '#C65CFF', '#FF5CD6', '#FFA3C7'];
+//   (보라 두 가지는 헷갈려 하나를 흰색으로 바꿈)
+const SL_HUES = ['#FF4D5E', '#FF9A2E', '#FFE03D', '#A8E63A', '#2EDB6F', '#1EE8C0', '#3FD0FF', '#4F86FF', '#9B6CFF', '#F45CE0', '#FFA3C7', '#E9EDF6'];
 const SL_SKINS = [];
 for (let k = 0; k < 48; k++) {
   const h = (k * 5) % 12, pat = Math.floor(k / 12), c = SL_HUES[h];
@@ -88,8 +89,8 @@ class SlitherGame {
     this.score = 0; this.kills = 0; this.best = 0; this.gameOver = false; this.toasts = []; this.banner = null;
     this.mx = 0; this.my = 0; this.boost = false; this.quality = 2;
     this.life = 0; this.seq = 0; this.tAt = new Float64Array(64);   // 내 마디가 찍힌 시각 (최근 64개)
-    this.superUntil = 0; this.superCool = 0; this.leader = null; this.frameN = 0;
-    this.credit = {}; this.resolved = {}; this.koSent = {}; this.noted = {}; this.fullUntil = 0; this.needAt = 0;
+    this.superUntil = 0; this.superCool = 0; this.leader = null; this.leadSince = 0; this.frameN = 0;
+    this.credit = {}; this.resolved = {}; this.koSent = {}; this.noted = {}; this.fullUntil = 0; this.needAt = -1e9;
     this.labels = new Map(); this.pelletSpr = new Map(); this.bgCache = null;
     this.reset(6, this.opts.slot);
     this.pellets = []; this.seed = 12345; for (let i = 0; i < this.pelletN; i++) this.spawnPellet();
@@ -163,7 +164,7 @@ class SlitherGame {
     p.name = name || p.name || ''; p.seen = now;
     if (p.sup && !wasSup) { this.superCool = Math.max(this.superCool, now + SL_SUPER_GAP); this.toast(slJosa(p.name || '친구', '이', '가') + ' 슈퍼 지렁이로 태어났다!', '#FFD447'); }
     // 몸이 모자라면 (처음 받음 · 신호가 크게 빠짐) 전체 몸을 한 번 요청 — 3초에 한 번까지
-    if (d.seq >= 0 && !d.dead && p.pts.length + 4 < Math.min(d.nb, Math.ceil(p.len / SL_SEG) + 1) && now - this.needAt > 3000) { this.needAt = now; this.send('need', '*', {}); }
+    if (d.seq >= 0 && !d.dead && p.pts.length + 8 < Math.min(d.nb, Math.ceil(p.len / SL_SEG) + 1) && now - this.needAt > 3000) { this.needAt = now; this.send('need', '*', {}); }
   }
   // 받은 마디를 번호대로 이어 붙임
   mergePts(p, d) {
@@ -250,9 +251,10 @@ class SlitherGame {
   burst(x, y, n, c) { for (let i = 0; i < n; i++) { const a = Math.random() * Math.PI * 2, v = 0.04 + Math.random() * 0.1; this.parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, l: 1, c }); } }
   respawn() {
     const now = this.now; this.reset(6); this.toast('부활!', '#06D6A0');
-    // 슈퍼 지렁이: 판에 슈퍼가 없고, 지난 슈퍼가 끝난 지 15초가 지났으면 9%
+    // 슈퍼 지렁이: 판에 슈퍼가 없고, 지난 슈퍼가 끝난 지 15초가 지났으면 9% (5명 이하면 12~25%)
     let other = false; for (const id in this.peers) if (this.peers[id].sup && this.live(this.peers[id])) other = true;
-    if (!other && now >= this.superCool && Math.random() < SL_SUPER_P) this.becomeSuper();
+    let n = 1; for (const id in this.peers) if (this.live(this.peers[id])) n++;
+    if (!other && now >= this.superCool && Math.random() < Math.max(SL_SUPER_P, Math.min(0.25, 0.6 / n))) this.becomeSuper();   // 인원이 적으면 조금 더 자주
   }
   becomeSuper() {
     const now = this.clock(); this.superUntil = now + SL_SUPER_MS; this.superCool = now + SL_SUPER_MS + SL_SUPER_GAP;
@@ -281,7 +283,7 @@ class SlitherGame {
     if (!this.superCool) this.superCool = now + SL_SUPER_GAP;                       // 시작하고 15초 동안은 슈퍼 없음
     if (this.deadUntil > 0 && now >= this.deadUntil) this.respawn();
     this.stepPeers(f, now);                                                          // 상대를 먼저 옮김 — 판정이 이번 프레임 화면과 같도록
-    this.leader = this.leaderId();
+    { const l = this.leaderId(); if (l !== this.leader || l !== this.myId) this.leadSince = now; this.leader = l; }   // leadSince: 내가 1등이 된 시각
     if (!this.isDead) {
       // 조향: 조이스틱 방향으로 서서히 회전
       const inLen = Math.hypot(this.mx, this.my);
@@ -300,6 +302,7 @@ class SlitherGame {
       let h = this.trail[0], dx = this.x - h[0], dy = this.y - h[1], dd = Math.sqrt(dx * dx + dy * dy);
       while (dd >= SL_SEG) { const k = SL_SEG / dd; h = [h[0] + dx * k, h[1] + dy * k]; this.trail.unshift(h); this.seq++; this.tAt[this.seq & 63] = now; dx = this.x - h[0]; dy = this.y - h[1]; dd = Math.sqrt(dx * dx + dy * dy); }
       const maxPts = Math.ceil(this.len / SL_SEG) + 3; if (this.trail.length > maxPts) this.trail.length = maxPts;
+      if (this.len > 999) this.len = 999;                                             // 길이 상한 (전체 몸 신호 크기 제한)
       if (this.invul > 0) this.invul -= dt;
       // 먹이 (가까운 것만 거리 계산)
       const pull = R + 0.6, eat = R + 0.15, pl = this.pellets;
@@ -309,7 +312,7 @@ class SlitherGame {
         if (d < eat) { this.len += q.v; this.score = Math.max(this.score, Math.round(this.len)); pl[i] = pl[pl.length - 1]; pl.pop(); this.spawnPellet(); if (window.Sound) Sound.nom(); } }
       // 슈퍼 시간
       if (this.superUntil) {
-        if (this.isSuper && this.leader === this.myId) { this.superUntil = 0; this.toast('1등이 되어 슈퍼 상태가 끝났어요', '#FFD447'); }
+        if (this.isSuper && this.leader === this.myId && now - this.leadSince > 1500) { this.superUntil = 0; this.toast('1등이 되어 슈퍼 상태가 끝났어요', '#FFD447'); }
         else if (now >= this.superUntil) { this.superUntil = 0; this.toast('슈퍼 지렁이 시간이 끝났어요', '#FFD447'); }
         else if (this.frameN % 6 === 0) { const t = this.trail[Math.floor(Math.random() * Math.min(this.trail.length, Math.ceil(this.len / SL_SEG)))]; this.parts.push({ x: t[0], y: t[1], vx: (Math.random() - .5) * .03, vy: -0.03, l: 1, c: Math.random() < .5 ? '#FFF6C8' : '#FFD447' }); }
       }
@@ -449,7 +452,14 @@ class SlitherGame {
     if (!this.isDead) { const t = this.trail;
       list.push({ x: this.x, y: this.y, pts: t, vs: 0, vn: Math.min(t.length, Math.ceil(this.len / SL_SEG) + 1), d0: Math.hypot(t[0][0] - this.x, t[0][1] - this.y), len: this.len, skin: this.isSuper ? SL_SUPER_SKIN : SL_SKINS[this.skin], ang: this.angle, name: this.myName, boost: this.boost && this.len > 8, me: true, inv: this.invul > 0, sup: this.isSuper, lead: lead === this.myId, alpha: 1 }); }
     list.sort((a, b) => a.len - b.len);
-    for (let i = 0; i < list.length; i++) this.drawSnake(ctx, list[i], sc, ox, oy, W, H, now, dpr, q);
+    const tags = [];
+    for (let i = 0; i < list.length; i++) this.drawSnake(ctx, list[i], sc, ox, oy, W, H, now, dpr, q, tags);
+    // 머리 위: 1등 왕관 · 슈퍼 별 · 이름표 (다른 뱀 몸에 가려지지 않게 마지막에)
+    for (let i = 0; i < tags.length; i += 3) { const sn = tags[i], hx = tags[i + 1]; let top = tags[i + 2];
+      if (sn.sup) { slStar(ctx, hx, top - 9, 9 + Math.sin(now / 160), '#FFD447', '#FFFFFF'); top -= 20; }
+      else if (sn.lead) { slCrown(ctx, hx, top - 7, 11, '#FFD447'); top -= 17; }
+      if (sn.name) { const lb = this.labelSprite((sn.sup ? '슈퍼 ' : '') + sn.name + ' · ' + Math.round(sn.len), sn.me ? '#FFD166' : sn.sup ? '#FFE58A' : '#FFFFFF', Math.round(Math.max(11, sc * 0.5)), dpr);
+        ctx.drawImage(lb.cv, hx - lb.w / 2, top - lb.h + 2, lb.w, lb.h); } }
     if (this.parts.length) FX.drawParts(ctx, this.parts.map(p => ({ x: (p.x - camX) * zoom + W / 2 / cs, y: (p.y - camY) * zoom + H / 2 / cs, l: p.l, c: p.c })), cs, 3);
     this.drawHud(ctx, W, H, now, sc, zoom, ox, oy);
   }
@@ -470,7 +480,7 @@ class SlitherGame {
     g.lineWidth = 3; g.strokeStyle = 'rgba(0,0,0,0.6)'; g.strokeText(text, w / 2, h / 2); g.fillStyle = color; g.fillText(text, w / 2, h / 2);
     s = { cv, w, h }; this.labels.set(key, s); return s;
   }
-  drawSnake(ctx, sn, sc, ox, oy, W, H, now, dpr, q) {
+  drawSnake(ctx, sn, sc, ox, oy, W, H, now, dpr, q, tags) {
     const sk = sn.skin, r = SlitherGame.radiusOf(sn.len) * sc, pts = sn.pts, vs = sn.vs, ve = vs + sn.vn, m = r * 1.6 + 6;
     const hx = sn.x * sc + ox, hy = sn.y * sc + oy;
     // 화면에 드는 구간만 길로 만듦 (머리 = vs-1)
@@ -496,7 +506,7 @@ class SlitherGame {
     ctx.lineJoin = 'round'; ctx.lineCap = 'round';
     if (sn.alpha < 1) ctx.globalAlpha = sn.alpha;
     if (sn.sup) { ctx.strokeStyle = sk.glow; ctx.lineWidth = r * (3 + 0.5 * Math.sin(now / 140)); ctx.stroke(path); }        // 슈퍼: 금빛 광채
-    else if (sn.boost) { ctx.strokeStyle = sk.glow; ctx.lineWidth = r * 2.9; ctx.stroke(path); }                          // 부스트 광채
+    else if (sn.boost && (q > 0 || sn.me)) { ctx.strokeStyle = sk.glow; ctx.lineWidth = r * 2.9; ctx.stroke(path); }                          // 부스트 광채
     ctx.strokeStyle = sk.edge; ctx.lineWidth = r * 2; ctx.stroke(path);                                                    // 테두리 (바깥 = 판정 반지름)
     ctx.strokeStyle = sk.c; ctx.lineWidth = inner; ctx.stroke(path);                                                       // 본색
     // 무늬
@@ -515,12 +525,7 @@ class SlitherGame {
       for (let sd = -1; sd <= 1; sd += 2) { const exx = hx + ex * r * 0.32 + nx * sd * r * 0.46, eyy = hy + ey * r * 0.32 + ny * sd * r * 0.46;
         ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(exx, eyy, r * 0.34, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = '#12161F'; ctx.beginPath(); ctx.arc(exx + ex * r * 0.12, eyy + ey * r * 0.12, r * 0.17, 0, Math.PI * 2); ctx.fill(); }
-      // 머리 위: 1등 왕관 · 슈퍼 별 · 이름표
-      let top = hy - r - 4;
-      if (sn.sup) { slStar(ctx, hx, top - 9, 9 + Math.sin(now / 160), '#FFD447', '#FFFFFF'); top -= 20; }
-      else if (sn.lead) { slCrown(ctx, hx, top - 7, 11, '#FFD447'); top -= 17; }
-      if (sn.name) { const lb = this.labelSprite((sn.sup ? '슈퍼 ' : '') + sn.name + ' · ' + Math.round(sn.len), sn.me ? '#FFD166' : sn.sup ? '#FFE58A' : '#FFFFFF', Math.round(Math.max(11, sc * 0.5)), dpr);
-        ctx.drawImage(lb.cv, hx - lb.w / 2, top - lb.h + 2, lb.w, lb.h); }
+      tags.push(sn, hx, hy - r - 4);                                                       // 이름표는 모든 몸을 그린 뒤 맨 위에
     }
     if (sn.alpha < 1) ctx.globalAlpha = 1;
   }
@@ -570,19 +575,20 @@ class SlitherGame {
       if (L) this.drawPointer(ctx, W, H, L.rx * sc + ox, L.ry * sc + oy, '#FFD447', '1등 · ' + Math.round(Math.hypot(L.rx - this.x, L.ry - this.y)) + '칸', now);
     } else if (lead === this.myId && !this.isDead) {
       let S = null, sd = 1e9; for (const id in this.peers) { const p = this.peers[id]; if (!p.sup || !this.live(p)) continue; const d = Math.hypot(p.rx - this.x, p.ry - this.y); if (d < sd) { sd = d; S = p; } }
-      if (S && sd < 45) { const blink = 0.6 + 0.4 * Math.sin(now / 120);
-        ctx.globalAlpha = blink; FX.glass(ctx, W / 2 - 104, 172, 208, 30, 14, '#FF5C7A'); ctx.globalAlpha = 1;
-        FX.text(ctx, '슈퍼 지렁이가 다가와요! ' + Math.round(sd) + '칸', W / 2, 192, { size: 13, weight: 800, color: '#FFD1DA', align: 'center' });
+      if (S && sd < 45) { const blink = 0.55 + 0.45 * Math.sin(now / 120);
+        ctx.fillStyle = 'rgba(70,6,20,0.92)'; FX.rr(ctx, W / 2 - 108, 170, 216, 32, 16); ctx.fill();
+        ctx.strokeStyle = 'rgba(255,92,122,' + blink.toFixed(2) + ')'; ctx.lineWidth = 2.5; ctx.stroke();
+        FX.text(ctx, '슈퍼 지렁이가 다가와요! ' + Math.round(sd) + '칸', W / 2, 191, { size: 13, weight: 800, color: '#FFE3E8', align: 'center' });
         this.drawPointer(ctx, W, H, S.rx * sc + ox, S.ry * sc + oy, '#FF5C7A', '슈퍼', now); }
     }
-    this.toasts.slice(-2).forEach((t, i) => FX.text(ctx, t.text, W / 2, H * 0.28 + 24 + i * 26, { size: 17, weight: 800, color: t.color, align: 'center', stroke: 'rgba(0,0,0,0.55)', strokeW: 4 }));
-    if (this.banner) { const b = this.banner, k = Math.min(1, (now - b.at) / 180), w = Math.min(W - 24, 340), y = H * 0.4;
-      ctx.save(); ctx.globalAlpha = k; ctx.translate(W / 2, y); ctx.scale(0.85 + 0.15 * k, 0.85 + 0.15 * k);
-      FX.glass(ctx, -w / 2, -34, w, b.s ? 68 : 52, 16, b.c);
-      FX.text(ctx, b.t, 0, b.s ? -4 : 9, { size: 24, weight: 800, color: b.c, align: 'center' });
-      if (b.s) FX.text(ctx, b.s, 0, 20, { size: 12, weight: 700, color: 'rgba(255,255,255,0.85)', align: 'center' });
-      ctx.restore(); }
     if (this.isDead) { ctx.fillStyle = 'rgba(8,10,16,0.5)'; ctx.fillRect(0, 0, W, H); FX.text(ctx, '부활까지 ' + Math.ceil((this.deadUntil - now) / 1000), W / 2, H / 2, { size: 30, weight: 800, color: '#fff', align: 'center', baseline: 'middle', shadow: 10 }); FX.text(ctx, '최고 길이 ' + Math.round(this.best), W / 2, H / 2 + 34, { size: 15, weight: 700, color: '#FFD166', align: 'center', baseline: 'middle' }); }
+    this.toasts.slice(-2).forEach((t, i) => FX.text(ctx, t.text, W / 2, Math.max(H * 0.3, 262) + (this.banner ? 92 : 0) + i * 26, { size: 17, weight: 800, color: t.color, align: 'center', stroke: 'rgba(0,0,0,0.55)', strokeW: 4 }));
+    if (this.banner) { const b = this.banner, k = Math.min(1, (now - b.at) / 180), w = Math.min(W - 24, 340), y = Math.max(H * 0.3, 262), lines = b.s ? b.s.split(' · ') : [], bh = 50 + lines.length * 17;
+      ctx.save(); ctx.globalAlpha = k; ctx.translate(W / 2, y); ctx.scale(0.85 + 0.15 * k, 0.85 + 0.15 * k);
+      ctx.fillStyle = 'rgba(8,12,24,0.88)'; FX.rr(ctx, -w / 2, -30, w, bh, 16); ctx.fill(); FX.glass(ctx, -w / 2, -30, w, bh, 16, b.c);
+      FX.text(ctx, b.t, 0, 4, { size: 24, weight: 800, color: b.c, align: 'center' });
+      lines.forEach((ln, i) => FX.text(ctx, ln, 0, 28 + i * 17, { size: 12, weight: 700, color: 'rgba(255,255,255,0.88)', align: 'center' }));
+      ctx.restore(); }
     if (this.boost && this.len > 8 && !this.isDead) { ctx.strokeStyle = 'rgba(255,209,102,0.35)'; ctx.lineWidth = 8; ctx.strokeRect(4, 4, W - 8, H - 8); }
   }
   // 화면 밖 목표를 가리키는 화살표 (화면 안이면 고리)
@@ -609,7 +615,7 @@ function slStar(ctx, x, y, r, col, line) {
 const _slCode = {};
 function slCellCode(k) {
   if (_slCode[k] != null) return _slCode[k];
-  const cand = [1, 2, 3, 4, 5, 6, 7, 31, 44, 52, 54, 61, 64, 65, 69], hex = SL_SKINS[k % SL_SKINS.length].c, rgb = h => [1, 3, 5].map(i => parseInt(String(h).slice(i, i + 2), 16));
+  const cand = [1, 2, 3, 4, 5, 6, 7, 31, 44, 45, 52, 54, 61, 64, 65, 69], hex = SL_SKINS[k % SL_SKINS.length].c, rgb = h => [1, 3, 5].map(i => parseInt(String(h).slice(i, i + 2), 16));
   let best = 68, bd = 1e9; if (typeof CELL_COLORS !== 'undefined') { const a = rgb(hex); cand.forEach(c => { const b = rgb(CELL_COLORS[c]); if (b.some(isNaN)) return; const d = (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2; if (d < bd) { bd = d; best = c; } }); }
   return (_slCode[k] = best);
 }

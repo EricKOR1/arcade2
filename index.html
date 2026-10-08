@@ -765,7 +765,7 @@
       '<div class="fjoy" id="fjoy"><div class="fjoy-base"><div class="fjoy-knob"></div></div></div>' +
       (slither ? '<button class="asuper aboost" id="aboost">' + (rpg ? '🔍<small>조사</small>' : '⚡<small>부스트</small>') + '</button>' + (rpg ? '<button class="asuper ajump" id="ajump">⤴<small>점프</small></button>' : '')
                : '<button class="ffire" id="afire"><span>●</span>발사<div class="pips"><i class="pip on"></i><i class="pip on"></i><i class="pip on"></i></div></button><button class="asuper" id="asuper">★<small>0%</small></button>') +
-      '<div class="fhint" id="fhint">' + (rpg ? '조이스틱: 이동 · ⤴ 점프(낮은 담장·상자 넘기) · 🔍 조사·대화 · 위 버튼: 수첩·지도·보고서' : slither ? '조이스틱: 방향 · ⚡ 꾹: 부스트(길이 소모) · 큰 뱀에 닿지 마세요' : '조이스틱: 이동(총구도 그 방향) · ● 발사(가까운 적 자동 조준, 꾹 누르면 연사) · ★ 궁극기') + '</div>';
+      '<div class="fhint" id="fhint">' + (rpg ? '조이스틱: 이동 · ⤴ 점프(낮은 담장·상자 넘기) · 🔍 조사·대화 · 위 버튼: 수첩·지도·보고서' : slither ? '조이스틱: 방향 · ⚡ 꾹: 부스트(길이 소모) · 머리가 다른 뱀 몸에 닿으면 탈락' : '조이스틱: 이동(총구도 그 방향) · ● 발사(가까운 적 자동 조준, 꾹 누르면 연사) · ★ 궁극기') + '</div>';
     wrap.appendChild(ctl);
     // 안내 문구는 처음 4초만 보이고 서서히 사라집니다 (레이저 태그와 같은 방식)
     setTimeout(() => { const h = byId('fhint'); if (h) h.classList.add('fade'); }, 4000);
@@ -1118,6 +1118,7 @@
         game = def.create(canvas, {
           countdown: cd, charId: (def.chars ? (sessionStorage.getItem('charId') || 'bolt') : undefined), teamInfo: (def.chars ? myTeamInfo() : undefined),
           cellSize: cellSize, trackId: trackId, slot: slot, seed: sessionStartAt || 0,   // seed: 같은 판 = 같은 사건(울산 환경 수사대)
+          teams: sessionTeams, roster: order, serverNow: serverNow,   // 레이저 태그: 매칭전 경기 배정표 · 위치 신호의 보낸 시각(서버 시계)
           myId: playerId, myName: myNickname,
           onDropHazard: dropHazard, onHitHazard: hitHazard, nameOf: id => names[id] || '',
           onAttack: sendAttack, onFinish: reportFinish,

@@ -1,4 +1,5 @@
-// 레이저 태그 3D (Three.js) — 1인칭 시점. 개인전 · 팀전.
+// 레이저 태그 3D (Three.js) — 1인칭 시점. 개인전 · 팀전 · 매칭전(N:N 자동 매칭).
+// 30명 기준: 상대는 부위별 InstancedMesh 로 한 번에 그리고, 위치는 '보낸 시각 + 속도' 로 지금 위치를 예측해 그립니다. 맵은 인원에 맞춰 넓어집니다.
 // 왼쪽 조이스틱으로 이동, 화면을 끌어 조준(상하 포함), 오른쪽 발사(꾹) · 재장전.
 // 낮의 야외 훈련장. 30발 탄창, 3발이면 다운(머리는 2발), 3초 뒤 재등장.
 
@@ -173,21 +174,18 @@ const F3_LINE = '#=BHWLX';   // 이어진 줄로 늘리는 구조물 (P 기둥 �
 // 맵을 s 배로 넓힘: 각 칸을 새 자리로 옮기고, 이어져 있던 벽은 그 사이를 다시 이어 붙입니다 (벽 두께는 1칸 그대로 · 방·골목이 넓어짐)
 function f3Scale(rows, spawns, s) {
   const N0 = rows.length, N1 = Math.round(N0 * s), half = (N0 - 1) / 2;
-  const f = p => p <= half ? Math.floor((p + 0.5) * s) : N1 - 1 - Math.floor((N0 - 1 - p + 0.5) * s);   // 점대칭이 그대로 유지되는 자리 옮김
+  // 점대칭이 그대로 유지되는 자리 옮김 (바깥 벽은 새 맵의 바깥 벽으로)
+  const f = p => p <= 0 ? 0 : (p >= N0 - 1 ? N1 - 1 : (p <= half ? Math.floor((p + 0.5) * s) : N1 - 1 - Math.floor((N0 - 1 - p + 0.5) * s)));
   const m = f3Grid(N1), { set } = m; m.rect(0, 0, N1, N1, '#');
-  const at = (x, y) => (rows[y] && rows[y][x]) || '#', inner = (x, y) => x > 0 && y > 0 && x < N0 - 1 && y < N0 - 1;
-  for (let y = 1; y < N0 - 1; y++) for (let x = 1; x < N0 - 1; x++) {
+  const at = (x, y) => (rows[y] && rows[y][x]) || '.';
+  for (let y = 0; y < N0; y++) for (let x = 0; x < N0; x++) {
     const c = at(x, y); if (c === '.') continue;
     const X = f(x), Y = f(y); set(X, Y, c);
     if (F3_LINE.indexOf(c) < 0) continue;
-    if (inner(x + 1, y) && at(x + 1, y) === c) for (let k = X + 1; k < f(x + 1); k++) set(k, Y, c);
-    if (inner(x, y + 1) && at(x, y + 1) === c) for (let k = Y + 1; k < f(y + 1); k++) set(X, k, c);
-    if (inner(x + 1, y + 1) && at(x + 1, y) === c && at(x, y + 1) === c && at(x + 1, y + 1) === c) for (let yy = Y + 1; yy < f(y + 1); yy++) for (let xx = X + 1; xx < f(x + 1); xx++) set(xx, yy, c);
-    // 바깥 벽에 붙어 있던 벽은 계속 붙어 있게 (새 틈이 생기지 않게)
-    if (x === 1) for (let k = 1; k < X; k++) set(k, Y, c);
-    if (x === N0 - 2) for (let k = X + 1; k < N1 - 1; k++) set(k, Y, c);
-    if (y === 1) for (let k = 1; k < Y; k++) set(X, k, c);
-    if (y === N0 - 2) for (let k = Y + 1; k < N1 - 1; k++) set(X, k, c);
+    // 바로 옆(오른쪽·아래)이 같은 구조물이면 그 사이를 이어 붙임 (바깥 벽에 붙은 벽도 그대로 붙어 있음)
+    if (at(x + 1, y) === c) for (let k = X + 1; k < f(x + 1); k++) set(k, Y, c);
+    if (at(x, y + 1) === c) for (let k = Y + 1; k < f(y + 1); k++) set(X, k, c);
+    if (at(x + 1, y) === c && at(x, y + 1) === c && at(x + 1, y + 1) === c) for (let yy = Y + 1; yy < f(y + 1); yy++) for (let xx = X + 1; xx < f(x + 1); xx++) set(xx, yy, c);
   }
   const sp = spawns.map(([sx, sy]) => { const cx = Math.min(N0 - 1, Math.floor(sx)), cy = Math.min(N0 - 1, Math.floor(sy)); return [f(cx) + (sx - cx), f(cy) + (sy - cy)]; });
   return { m, spawns: sp };
@@ -200,20 +198,20 @@ function f3Crop(rows, spawns, S) {
   const sp = spawns.map(([x, y]) => [x - o, y - o]).filter(([x, y]) => x > 1.4 && y > 1.4 && x < m.N - 1.4 && y < m.N - 1.4 && m.g[Math.floor(y)][Math.floor(x)] === '.');
   return { m, spawns: sp };
 }
-// 넓어진 빈터에 까는 엄폐물 — 테마별 [낮은 엄폐물], [시야를 가리는 큰 구조물]
+// 넓어진 빈터에 까는 엄폐물 — 테마별 [낮은 엄폐물], [시야를 가리는 큰 구조물], 큰 구조물 벽 재질(*)
 const F3_PIECES = {
-  crate: [[0, 0, 'X']], crate2: [[0, 0, 'X'], [1, 0, 'X']], low3: [[-1, 0, 'L'], [0, 0, 'L'], [1, 0, 'L']], bunker: [[-1, 0, 'L'], [0, 0, 'X'], [1, 0, 'L']],
-  rock: [[0, 0, 'R']], rock2: [[0, 0, 'R'], [1, 1, 'R']], pillar: [[0, 0, 'P']], trees: [[0, 0, 'T'], [1, 1, 'T'], [-1, 1, 'T']],
-  wallB: [[-1, 0, 'B'], [0, 0, 'B'], [1, 0, 'B']], wallM: [[-1, 0, '='], [0, 0, '='], [1, 0, '=']], window: [[-1, 0, 'W'], [0, 0, 'W'], [1, 0, 'W']],
-  shelf: [[-1, 0, 'H'], [0, 0, 'H'], [1, 0, 'H'], [2, 0, 'H']], block: [[0, 0, 'H'], [1, 0, 'H'], [0, 1, 'H'], [1, 1, 'H']]
+  crate: [[0, 0, 'X']], crate2: [[0, 0, 'X'], [1, 0, 'X']], crates3: [[0, 0, 'X'], [1, 0, 'X'], [0, 1, 'X']], low3: [[-1, 0, 'L'], [0, 0, 'L'], [1, 0, 'L']], bunker: [[-1, 0, 'L'], [0, 0, 'X'], [1, 0, 'L']],
+  rock: [[0, 0, 'R']], rock2: [[0, 0, 'R'], [1, 1, 'R']], pillar: [[0, 0, 'P']], pillars: [[-1, 0, 'P'], [1, 0, 'P']], trees: [[0, 0, 'T'], [1, 1, 'T'], [-1, 1, 'T']],
+  seg3: [[-1, 0, '*'], [0, 0, '*'], [1, 0, '*']], seg4: [[-1, 0, '*'], [0, 0, '*'], [1, 0, '*'], [2, 0, '*']], corner: [[-1, -1, '*'], [0, -1, '*'], [1, -1, '*'], [-1, 0, '*'], [-1, 1, '*']],
+  window: [[-1, 0, 'W'], [0, 0, 'W'], [1, 0, 'W']], block: [[0, 0, '*'], [1, 0, '*'], [0, 1, '*'], [1, 1, '*']], cover: [[-1, 0, '*'], [0, 0, '*'], [1, 0, '*'], [0, 1, 'X']]
 };
 const F3_COVER = {
-  plaza: [['crate', 'crate2', 'low3', 'bunker'], ['wallB', 'wallM']],
-  desert: [['crate', 'rock2', 'low3', 'crate2'], ['wallB', 'pillar']],
-  warehouse: [['crate', 'crate2', 'low3', 'bunker'], ['shelf', 'wallM']],
-  arctic: [['low3', 'rock2', 'crate'], ['trees', 'window']],
-  city: [['crate2', 'rock', 'low3'], ['block', 'pillar']],
-  jungle: [['rock2', 'crate', 'rock'], ['trees', 'wallB']]
+  plaza: [['crate', 'crate2', 'low3', 'bunker', 'crates3'], ['seg3', 'corner', 'cover', 'seg4'], 'B'],
+  desert: [['crate', 'rock2', 'low3', 'crate2'], ['seg3', 'corner', 'pillars', 'cover'], 'B'],
+  warehouse: [['crate', 'crate2', 'low3', 'bunker', 'crates3'], ['seg4', 'corner', 'block'], 'H'],
+  arctic: [['low3', 'rock2', 'crate'], ['trees', 'window', 'corner', 'seg3'], '='],
+  city: [['crate2', 'rock', 'low3'], ['block', 'corner', 'pillars', 'seg3'], 'H'],
+  jungle: [['rock2', 'crate', 'rock'], ['trees', 'corner', 'seg3', 'trees'], 'B']
 };
 // 빈칸마다 가장 가까운 구조물까지의 거리 (8방향 칸 수)
 function f3Clear(m) {
@@ -235,8 +233,8 @@ function f3Finish(m, spawns, o) {
       if (y * N + x >= (N * N) / 2 || Math.abs(x - (N - 1) / 2) < 3 && Math.abs(y - (N - 1) / 2) < 3) continue;   // 앞 절반만 놓고 거울로 복사 · 한가운데는 비움
       const d = D[y * N + x], r = f3Hash(x, y, seed + 3);
       if (d < 3 || r > (o.density || 0.8)) continue;
-      const tall = d >= 4 && f3Hash(x, y, seed + 5) < 0.4, list = cover[tall ? 1 : 0], piece = F3_PIECES[list[Math.floor(f3Hash(x, y, seed + 9) * list.length)]];
-      const rot = f3Hash(x, y, seed + 11) < 0.5, cells = piece.map(([dx, dy, c]) => rot ? [x + dy, y + dx, c] : [x + dx, y + dy, c]);
+      const tall = d >= 4 && f3Hash(x, y, seed + 5) < (o.tall || 0.5), list = cover[tall ? 1 : 0], piece = F3_PIECES[list[Math.floor(f3Hash(x, y, seed + 9) * list.length)]];
+      const rot = Math.floor(f3Hash(x, y, seed + 11) * 4), cells = piece.map(([dx, dy, c]) => { const ax = rot & 1 ? dy : dx, ay = rot & 1 ? dx : dy, sx = rot & 2 ? -1 : 1; return [x + ax * sx, y + ay * sx, c === '*' ? cover[2] : c]; });   // 네 방향으로 돌려 놓기
       const mine = (ax, ay) => cells.some(([cx, cy]) => cx === ax && cy === ay);
       const freeAround = (cx, cy) => { for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (g[cy + dy][cx + dx] !== '.' && !mine(cx + dx, cy + dy)) return false; return true; };   // 먼저 놓은 엄폐물과 붙지 않게 (통로가 막히지 않게)
       const ok = cells.every(([cx, cy]) => { const [mx, my] = mir(cx, cy); return cx > 1 && cy > 1 && cx < N - 2 && cy < N - 2 && g[cy][cx] === '.' && D[cy * N + cx] >= 2 && freeAround(cx, cy) && g[my][mx] === '.' && !nearSpawn(cx, cy, 1.6) && !nearSpawn(mx, my, 1.6) && !(Math.abs(cx - mx) < 2 && Math.abs(cy - my) < 2); });
@@ -271,7 +269,8 @@ function f3Finish(m, spawns, o) {
   const want = o.want || spawns.length;
   if (spawns.length < want) {
     const D = f3Clear(m), cand = [];
-    for (let y = 2; y < N - 2; y += 2) for (let x = 2; x < N - 2; x += 2) if (y * N + x < (N * N) / 2 && D[y * N + x] >= 2 && R[y * N + x]) cand.push([x, y, f3Hash(x, y, seed + 21)]);
+    const sc = o.spawnClear || 2;
+    for (let y = 1; y < N - 1; y++) for (let x = 1; x < N - 1; x++) if ((x + y) % 2 === 0 && y * N + x < (N * N) / 2 && D[y * N + x] >= sc && R[y * N + x] && g[y][x] === '.') cand.push([x, y, f3Hash(x, y, seed + 21)]);
     cand.sort((a, b) => a[2] - b[2]);
     for (let gap = Math.max(5, N / 6); gap >= 3 && spawns.length < want; gap -= 1.5)
       for (const [x, y] of cand) { if (spawns.length >= want) break; const [mx, my] = mir(x, y);
@@ -304,12 +303,12 @@ function f3MapFor(track, match) {
   let res;
   if (vs) {
     const k = Math.max(0, match | 0), mapId = F3_MATCH_ORDER[k % F3_MATCH_ORDER.length], base = F3_MAPS[mapId].build(), c = f3Crop(base.rows, base.spawns, F3_MATCH_SIZE[vs]);
-    res = f3Finish(c.m, c.spawns, { theme: F3_MAPS[mapId].theme, seed: 101 + vs * 13 + k, fill: true, density: 0.6, step: 5, want: Math.max(8, vs * 4 + 4) });
+    res = f3Finish(c.m, c.spawns, { theme: F3_MAPS[mapId].theme, seed: 101 + vs * 13 + k, fill: true, density: 0.85, step: 5, want: Math.max(8, vs * 4 + 4) });
     Object.assign(res, { mapId, vs, match: k, scale: 1 });
   } else {
     const parts = t.split(':'), mapId = F3_MAPS[parts[0]] ? parts[0] : 'plaza', base = F3_MAPS[mapId].build(), s = f3ScaleFor(parts[1]);
     if (s <= 1) res = { rows: base.rows, spawns: base.spawns };
-    else { const sc = f3Scale(base.rows, base.spawns, s); res = f3Finish(sc.m, sc.spawns, { theme: F3_MAPS[mapId].theme, seed: Math.round(s * 100) + mapId.length, fill: true, want: Math.round(12 * s * s) }); }
+    else { const sc = f3Scale(base.rows, base.spawns, s); res = f3Finish(sc.m, sc.spawns, { theme: F3_MAPS[mapId].theme, seed: Math.round(s * 100) + mapId.length, fill: true, step: 5, density: 0.92, want: Math.round(12 * s * s) }); }
     Object.assign(res, { mapId, vs: 0, scale: s });
   }
   F3_MAP_CACHE[key] = res; return res;
@@ -337,6 +336,7 @@ const F3_MAPS = {
   city:      { name: '네온 시티',   tag: '★4 · 교차로', desc: '밤거리. 건물 안으로 들어가 매복하거나 교차로를 장악하세요',            theme: 'city',      build: f3MapCity },
   jungle:    { name: '정글 유적',   tag: '★4 · 매복', desc: '나무가 시야를 가르고 중앙엔 돌 신전. 매복과 우회의 맵',                theme: 'jungle',    build: f3MapJungle }
 };
+Object.keys(F3_MAPS).forEach(k => { F3_MAPS[k].desc += ' · 인원이 많으면 맵이 넓어져요 (16명 1.5배 · 30명 2배)'; });   // 교사 화면 맵 카드 안내
 // 매칭전 인원 (교사 화면의 맵 고르기 자리에 카드로 나옴) — 맵은 경기마다 돌아가며 정해지고, 인원에 맞게 작게 잘림
 const F3_MATCH_MODES = {};
 [1, 2, 3, 4, 5].forEach(n => { F3_MATCH_MODES['v' + n] = { name: n + ' : ' + n + ' 매칭', tag: (n * 2) + '명씩 · ' + F3_MATCH_GOAL[n] + '킬 승리',
@@ -402,6 +402,7 @@ class Fps3DGame {
   }
   // 교사 화면·학생 화면이 같은 맵을 만들 때 씀
   static mapFor(track, match) { return f3MapFor(track, match); }
+  static matchVs(track) { return f3MatchVs(track) || 2; }
   // 교사 화면이 [게임 시작] 때 부름: 지금 인원(n)을 맵 이름에 붙여 모두가 같은 크기 맵을 쓰게 함
   static sizedTrack(gid, track, n) {
     const t = String(track || '');
@@ -761,25 +762,6 @@ class Fps3DGame {
     return g;
   }
 
-  buildSoldier(team, name) {
-    const T = THREE, g = new T.Group();
-    const armor = new T.MeshLambertMaterial({ color: 0x5C6678 }), skin = new T.MeshLambertMaterial({ color: 0x3A4256 });   // 모델마다 새로 만듦 (피격 번쩍임이 개별로 보이도록)
-    const tc = new T.MeshBasicMaterial({ color: team ? F3_TEAM[team] : 0xFFD166 });
-    const add = (geo, mat, x, y, z) => { const m = new T.Mesh(geo, mat); m.position.set(x, y, z); g.add(m); return m; };
-    const legL = add(new T.BoxGeometry(0.16, 0.7, 0.18), skin, -0.11, 0.35, 0), legR = add(new T.BoxGeometry(0.16, 0.7, 0.18), skin, 0.11, 0.35, 0);
-    add(new T.BoxGeometry(0.46, 0.6, 0.28), armor, 0, 1.0, 0);
-    add(new T.BoxGeometry(0.2, 0.32, 0.29), tc, 0, 1.02, 0);                  // 팀 색 가슴판
-    add(new T.BoxGeometry(0.48, 0.05, 0.3), tc, 0, 1.3, 0);                   // 어깨 띠
-    add(new T.BoxGeometry(0.13, 0.5, 0.14), skin, -0.32, 1.0, 0);             // 왼팔
-    const armR = add(new T.BoxGeometry(0.13, 0.4, 0.14), skin, 0.3, 1.05, -0.15);
-    add(new T.BoxGeometry(0.06, 0.08, 0.5), new T.MeshLambertMaterial({ color: 0x1A1D24 }), 0.3, 1.05, -0.45); // 총
-    add(new T.BoxGeometry(0.3, 0.32, 0.3), armor, 0, 1.55, 0);                // 헬멧
-    add(new T.BoxGeometry(0.26, 0.08, 0.05), tc, 0, 1.55, -0.15);             // 바이저
-    // 이름표 스프라이트
-    const tag = this.makeTag(name || '', team); tag.position.set(0, 2.0, 0); g.add(tag);
-    g.userData = { legL, legR, armR, tag };
-    return g;
-  }
   // 이름표: 이름은 한 번만 그리고(텍스처), 체력은 색 스프라이트 두 장을 늘였다 줄이는 막대로 표시합니다.
   // 예전엔 체력이 바뀔 때마다 이름표 그림을 통째로 다시 만들어 30명 교전 시 초당 40장 넘는 텍스처를 GPU 에 올렸습니다 (렉의 원인).
   makeTag(name, team, hp) {
@@ -790,14 +772,15 @@ class Fps3DGame {
     const tex = new T.CanvasTexture(cv); tex.encoding = T.sRGBEncoding;
     const nameSp = new T.Sprite(new T.SpriteMaterial({ map: tex, transparent: true, depthTest: false })); nameSp.scale.set(1.6, 0.3, 1); nameSp.position.y = 0.12; g0.add(nameSp);
     const back = new T.Sprite(new T.SpriteMaterial({ color: 0x1A1D24, transparent: true, opacity: 0.7, depthTest: false })); back.scale.set(1.0, 0.07, 1); back.position.y = -0.12; g0.add(back);
-    const fill = new T.Sprite(new T.SpriteMaterial({ color: 0x06D6A0, depthTest: false })); fill.scale.set(1.0, 0.05, 1); fill.position.y = -0.12; fill.center.set(0, 0.5); fill.position.x = -0.5; g0.add(fill);
+    const fill = new T.Sprite(new T.SpriteMaterial({ color: 0x06D6A0, depthTest: false })); fill.scale.set(1.0, 0.05, 1); fill.position.y = -0.12; g0.add(fill);
     g0.userData = { name, team, hp: hp == null ? 100 : hp, fill, material: nameSp.material };
     this.setTagHp(g0, hp == null ? 100 : hp);
     return g0;
   }
   setTagHp(tag, hp) {
     const u = tag.userData; if (!u || !u.fill) return; const k = Math.max(0, Math.min(1, hp / 100));
-    u.fill.scale.x = Math.max(0.001, 1.0 * k); u.fill.material.color.setHex(hp > 40 ? 0x06D6A0 : 0xFF5C7A); u.hp = hp;
+    u.fill.scale.x = Math.max(0.001, 1.0 * k); u.fill.center.set(0.5 / Math.max(0.001, k), 0.5);   // 막대 왼쪽 끝을 화면 기준으로 맞춤 (보는 방향과 상관없이)
+    u.fill.material.color.setHex(hp > 40 ? 0x06D6A0 : 0xFF5C7A); u.hp = hp;
   }
 
   // ── 조작 (플랫폼 계약 + 조이스틱) ──
@@ -1031,7 +1014,7 @@ class Fps3DGame {
     const now = this.clock();
     if (!p) p = this.peers[id] = { x: d.x, y: d.y, z: d.z, angle: d.angle, walk: 0, cx: 0, cy: 0 };
     // 순서: 같은 기기가 보낸 더 오래된 신호면 버림
-    if (d.st != null && p.st != null) { const ds = (d.st - p.st + F3_STAMP_WRAP) % F3_STAMP_WRAP; if (ds === 0 || ds > F3_STAMP_WRAP / 2) return; }
+    if (d.st != null && p.st != null) { const ds = (d.st - p.st + F3_STAMP_WRAP) % F3_STAMP_WRAP; if (ds === 0 || ds > F3_STAMP_WRAP - 5000) return; }   // 5초 넘게 거꾸로면 시계가 새로 시작된 것(새로고침) → 받음
     p.raw = raw;
     // 이 신호의 나이 = 기본 지연 + 흔들림. 흔들림은 '도착 시각 - 보낸 시각' 이 가장 작았던 신호보다 얼마나 늦게 왔나로 잽니다
     let age = F3_BASE_LAT * F3_LEAD;
@@ -1127,6 +1110,8 @@ class Fps3DGame {
       if (!this._respawned && this.deadUntil - now < 50) { this._respawned = true; this.hp = 100; this.spawnAt(Math.floor(Math.random() * 12)); this.dmgDir = null; }
       this.draw(); return;
     }
+    // 프레임이 느려(태블릿 렉) 부활 직전 50ms 를 건너뛰면 체력 0 으로 되살아나던 것 — 다운이 끝났는데 체력이 0 이면 여기서 부활
+    if (this.hp <= 0 && this.deadUntil && !this.matchWinner) { this.hp = 100; this.spawnAt(Math.floor(Math.random() * 12)); this.dmgDir = null; }
     this._respawned = false;
     if (this.reloadUntil && now >= this.reloadUntil && this.ammo < this.magSize) { this.ammo = this.magSize; this.reloadUntil = 0; }
 
@@ -1271,7 +1256,9 @@ class Fps3DGame {
     const T = THREE, now = this.clock();
     const W = this.canvas.clientWidth || 300, H = this.canvas.clientHeight || 300;
     if (this._w !== W || this._h !== H) { this._w = W; this._h = H; this.renderer.setSize(W, H, false); this.camera.aspect = W / H; this.camera.updateProjectionMatrix();
-      const dpr = Math.min(1.5, window.devicePixelRatio || 1); this.hud.width = Math.round(W * dpr); this.hud.height = Math.round(H * dpr); this.hctx.setTransform(dpr, 0, 0, dpr, 0, 0); }
+      const dpr = Math.min(1.5, window.devicePixelRatio || 1); this.hud.width = Math.round(W * dpr); this.hud.height = Math.round(H * dpr); this.hctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      // 글자판을 3D 화면과 같은 자리·크기로 (교사 관전처럼 화면이 틀보다 좁으면 예전엔 틀 전체로 늘어나 찌그러짐)
+      const hs = this.hud.style; hs.left = this.canvas.offsetLeft + 'px'; hs.top = this.canvas.offsetTop + 'px'; hs.width = W + 'px'; hs.height = H + 'px'; hs.right = 'auto'; hs.bottom = 'auto'; }
     // 카메라
     this.landDip = Math.max(0, (this.landDip || 0) - 0.03 * (this.lastF || 1));
     const bobY = (this.moving ? Math.sin(this.bob) * 0.03 : 0) - Math.sin(Math.min(1, this.landDip) * Math.PI) * 0.12;
@@ -1501,7 +1488,7 @@ class Fps3DGame {
       }
       ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.font = '600 13px Pretendard, sans-serif'; ctx.fillText('잠시 후 다시 등장합니다', W / 2, hy + 78); ctx.textAlign = 'left';
     }
-    if (this.spectator) { ctx.textAlign = 'center'; ctx.font = '700 13px Pretendard, sans-serif'; ctx.fillStyle = '#FFD166'; ctx.fillText('👁 ' + this.myName + ' 의 화면', W / 2, this.teamMode ? 66 : 64); ctx.textAlign = 'left'; }
+    if (this.spectator) { ctx.textAlign = 'center'; ctx.font = '700 13px Pretendard, sans-serif'; ctx.fillStyle = '#FFD166'; ctx.fillText('👁 ' + this.myName + ' 의 화면', W / 2, this.matchMode ? 104 : (this.teamMode ? 66 : 64)); ctx.textAlign = 'left'; }
     if (this.showBoard) this.drawScoreboard(ctx, W, H);
   }
 
@@ -1528,19 +1515,22 @@ class Fps3DGame {
   drawMatchResult(ctx, W, H, now) {
     const e = this.mEnd, win = !!e.winner && e.winner === this.team, wn = e.winner === 'red' ? '레드' : '블루';
     ctx.fillStyle = 'rgba(8,10,16,0.8)'; ctx.fillRect(0, 0, W, H);
+    // 오른쪽 조작 버튼에 가리지 않게, 버튼 왼쪽 빈 곳의 가운데에
+    const right = W > H && this.hudSafe && this.hudSafe.rightLeft > W * 0.45 ? this.hudSafe.rightLeft - 10 : W - 16, cx = (16 + right) / 2, bw = Math.min(right - 16, 300), x0 = cx - bw / 2;
     const title = !e.winner ? '무승부' : (this.spectator ? wn + ' 팀 승리' : (win ? '승리!' : '패배'));
-    FX.text(ctx, title, W / 2, H * 0.2, { size: 46, weight: 800, color: !e.winner ? '#fff' : (this.spectator ? F3_TEAM_CSS[e.winner] : (win ? '#FFD166' : '#9AA3B2')), align: 'center', baseline: 'middle', shadow: 14 });
-    FX.text(ctx, '경기 ' + (this.match + 1) + ' · ' + this.mRound + '판   레드 ' + e.red + ' : ' + e.blue + ' 블루', W / 2, H * 0.2 + 40, { size: 17, weight: 800, color: '#fff', align: 'center', baseline: 'middle' });
-    FX.text(ctx, '경기 전적  레드 ' + this.mWins.red + ' : ' + this.mWins.blue + ' 블루', W / 2, H * 0.2 + 64, { size: 13, weight: 700, color: 'rgba(255,255,255,0.65)', align: 'center', baseline: 'middle' });
-    const bw = Math.min(W - 32, 320), x0 = W / 2 - bw / 2; let y = H * 0.2 + 88;
-    (e.rows || []).slice(0, 10).forEach((r, i) => {
-      if (r.me) { ctx.fillStyle = 'rgba(255,255,255,0.1)'; FX.rr(ctx, x0, y, bw, 22, 7); ctx.fill(); }
-      FX.text(ctx, (i + 1) + '.  ' + r.name, x0 + 12, y + 15, { size: 13, weight: r.me ? 800 : 600, color: F3_TEAM_CSS[r.team] || '#fff' });
-      FX.text(ctx, r.k + '킬  ' + r.d + '데스', x0 + bw - 12, y + 15, { size: 12, weight: 700, color: '#fff', align: 'right' });
-      y += 24;
+    const top = Math.max(40, H * 0.16);
+    FX.text(ctx, title, cx, top, { size: 44, weight: 800, color: !e.winner ? '#fff' : (this.spectator ? F3_TEAM_CSS[e.winner] : (win ? '#FFD166' : '#9AA3B2')), align: 'center', baseline: 'middle', shadow: 14 });
+    FX.text(ctx, '경기 ' + (this.match + 1) + ' · ' + this.mRound + '판   레드 ' + e.red + ' : ' + e.blue + ' 블루', cx, top + 38, { size: 16, weight: 800, color: '#fff', align: 'center', baseline: 'middle' });
+    FX.text(ctx, '경기 전적  레드 ' + this.mWins.red + ' : ' + this.mWins.blue + ' 블루', cx, top + 60, { size: 12, weight: 700, color: 'rgba(255,255,255,0.65)', align: 'center', baseline: 'middle' });
+    let y = top + 76; const rows = (e.rows || []).slice(0, Math.max(2, Math.floor((H - y - 40) / 22)));
+    rows.forEach((r, i) => {
+      if (r.me) { ctx.fillStyle = 'rgba(255,255,255,0.1)'; FX.rr(ctx, x0, y, bw, 20, 7); ctx.fill(); }
+      FX.text(ctx, (i + 1) + '.  ' + r.name, x0 + 12, y + 14, { size: 13, weight: r.me ? 800 : 600, color: F3_TEAM_CSS[r.team] || '#fff' });
+      FX.text(ctx, r.k + '킬  ' + r.d + '데스', x0 + bw - 12, y + 14, { size: 12, weight: 700, color: '#fff', align: 'right' });
+      y += 22;
     });
     const left = Math.max(0, Math.ceil((F3_MATCH_REST - (now - e.at)) / 1000));
-    FX.text(ctx, '다음 판이 ' + left + '초 뒤 시작해요 (같은 경기 · 같은 팀)', W / 2, Math.min(H - 30, y + 22), { size: 13, weight: 700, color: '#FFD166', align: 'center', baseline: 'middle' });
+    FX.text(ctx, '다음 판이 ' + left + '초 뒤 시작해요 (같은 경기 · 같은 팀)', cx, Math.min(H - 20, y + 18), { size: 13, weight: 700, color: '#FFD166', align: 'center', baseline: 'middle' });
   }
 
   // 점수판 — 전원 킬/데스 (팀전은 팀별로 나눔)

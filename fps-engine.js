@@ -68,7 +68,7 @@ class FpsGame {
     if (C[key]) return C[key];
     const s = typeof f3ScaleFor === 'function' ? f3ScaleFor(n) : 1;
     let res = { rows: FPS_MAP, spawns: FPS_SPAWNS };
-    if (s > 1 && typeof f3Scale === 'function') { const sc = f3Scale(FPS_MAP, FPS_SPAWNS, s); res = f3Finish(sc.m, sc.spawns, { passable: '.', seed: 7, fill: false, want: Math.round(12 * s * s) }); }
+    if (s > 1 && typeof f3Scale === 'function') { const sc = f3Scale(FPS_MAP, FPS_SPAWNS, s); res = f3Finish(sc.m, sc.spawns, { passable: '.', seed: 7, fill: false, spawnClear: 1, want: Math.round(12 * s * s) }); }
     C[key] = res; return res;
   }
   get isDead() { return this.now < this.deadUntil; }
@@ -209,7 +209,7 @@ class FpsGame {
     const d = FpsGame.parse(raw); if (!isFinite(d.x) || !isFinite(d.y)) return;
     const now = this.clock();
     if (!p) p = this.peers[id] = { x: d.x, y: d.y, angle: d.angle, walk: 0, cx: 0, cy: 0 };
-    if (d.st != null && p.st != null) { const ds = (d.st - p.st + 60466176) % 60466176; if (ds === 0 || ds > 30233088) return; }   // 더 오래된 신호는 버림
+    if (d.st != null && p.st != null) { const ds = (d.st - p.st + 60466176) % 60466176; if (ds === 0 || ds > 60466176 - 5000) return; }   // 더 오래된 신호는 버림 (5초 넘게 거꾸로면 새로고침 → 받음)
     p.raw = raw;
     // 신호 나이 = 기본 지연 + (가장 빨리 온 신호보다 늦게 온 만큼) — 그 60% 만큼 속도로 앞당겨 그림
     let age = 80;
@@ -262,6 +262,8 @@ class FpsGame {
       if (!this._respawned && this.deadUntil - now < 50) { this._respawned = true; this.hp = 100; this.spawnAt(Math.floor(Math.random() * 12)); this.dmgDir = null; }
       this.draw(); return;
     }
+    // 프레임이 느려(태블릿 렉) 부활 직전 50ms 를 건너뛰면 체력 0 으로 되살아나던 것 — 다운이 끝났는데 체력이 0 이면 여기서 부활
+    if (this.hp <= 0 && this.deadUntil && !this.matchWinner) { this.hp = 100; this.spawnAt(Math.floor(Math.random() * 12)); this.dmgDir = null; }
     this._respawned = false;
     if (this.reloadUntil && now >= this.reloadUntil && this.ammo < FPS_MAG) { this.ammo = FPS_MAG; this.reloadUntil = 0; if (window.Sound) Sound.rotate(); }
 
