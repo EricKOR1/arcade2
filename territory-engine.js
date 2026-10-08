@@ -8,6 +8,19 @@ const TR_GRID_C = 12, TR_GRID_R = 18;                     // games.js 의 grid �
 const TR_COLORS = ['#4CC9F0', '#FF5C7A', '#FFD166', '#06D6A0', '#B15DFF', '#FF9F43', '#4361EE', '#F78FB3', '#7DF58F', '#E0B860'];
 const TR_CELLC = [1, 7, 4, 5, 6, 3, 2, 19, 13, 23];      // 교사 미니보드 색 번호
 const TR_DIRS = [[1, 0], [0, 1], [-1, 0], [0, -1]];      // 0 오른쪽 · 1 아래 · 2 왼쪽 · 3 위
+// 아이템 상자: 경기장 곳곳에 생기고(모든 기기에서 같은 자리·같은 때 — 판 시작 시각으로 정함), 먼저 밟은 사람이 가져가요
+const TR_ITEM_SLOTS = 10, TR_ITEM_PERIOD = 18000;          // 동시에 최대 10개 · 자리마다 18초마다 새 상자
+const TR_ITEMS = {
+  speed:   { name: '번개',          color: '#FFD166', good: true,  desc: '5초 동안 빨라져요',             ms: 5000 },
+  shield:  { name: '방패',          color: '#4CC9F0', good: true,  desc: '6초 동안 꼬리를 밟혀도 안 잘려요', ms: 6000 },
+  grow:    { name: '땅 넓히기',     color: '#06D6A0', good: true,  desc: '내 둘레 7×7칸이 바로 내 땅!' },
+  mystery: { name: '수수께끼 상자', color: '#B15DFF', good: null,  desc: '좋을 수도, 나쁠 수도!' },
+  slow:    { name: '거북이',        color: '#A0A8BA', good: false, desc: '5초 동안 느려져요',             ms: 5000 },
+  reverse: { name: '뒤죽박죽',      color: '#FF9F43', good: false, desc: '5초 동안 방향이 반대로!',       ms: 5000 },
+  fog:     { name: '안개',          color: '#7C86A2', good: false, desc: '5초 동안 앞이 잘 안 보여요',    ms: 5000 }
+};
+const TR_DROP = ['speed', 'speed', 'speed', 'shield', 'shield', 'grow', 'grow', 'mystery', 'mystery', 'mystery'];   // 나오는 비율
+const trHash = (a, b, c) => { let h = (a | 0) ^ Math.imul(b + 0x9E37, 0x85EBCA6B) ^ Math.imul(c + 0x27D4, 0xC2B2AE35); h = Math.imul(h ^ (h >>> 15), 0x2C1B3C6D); h = Math.imul(h ^ (h >>> 12), 0x297A2D39); return ((h ^ (h >>> 15)) >>> 0) / 4294967296; };
 
 class TerritoryGame {
   constructor(canvas, opts) {
@@ -18,6 +31,9 @@ class TerritoryGame {
     this.peers = {}; this.parts = []; this.toasts = []; this.now = 0; this.lastTime = 0;
     this.score = 0; this.kills = 0; this.best = 0; this.cells = 0; this.gameOver = false;
     this.trail = []; this.trailSet = new Set(); this.capAt = new Map(); this.mini = null; this.miniDirty = true; this._full = 0; this.run = 0;
+    this.clock = () => (this.opts.serverNow ? this.opts.serverNow() : Date.now());   // 서버 시계 (기기 시계가 달라도 상자가 같은 때 나옴)
+    this.itemT0 = this.opts.seed || this.clock(); this.itemSeed = Math.floor(this.itemT0 / 7) | 0; this.joinAt = this.clock();
+    this.taken = new Set(); this.items = []; this.fx = {};
     this.spawn(this.opts.slot);
   }
   get pct() { return Math.round(this.cells / (TR_N * TR_N) * 1000) / 10; }
@@ -39,7 +55,7 @@ class TerritoryGame {
     this.recount(); this.emitCap(got); this.miniDirty = true;
   }
   // ── 조작: 네 방향 (바로 뒤로는 못 돌아감) ──
-  turn(d) { if (this.isDead || this.gameOver) return; if ((d + 2) % 4 === this.dir && this.trail.length) return; this.want = d; }
+  turn(d) { if (this.isDead || this.gameOver) return; if (this.has('reverse')) d = (d + 2) % 4; if ((d + 2) % 4 === this.dir && this.trail.length) return; this.want = d; }
   move(d) { this.turn(d > 0 ? 0 : 2); } up() { this.turn(3); } down() { this.turn(1); } softDrop() { this.turn(1); }
   rotate() {} hardDrop() {} setHazards() {}
   // 화면 아무 데나 밀기: 손가락이 18px 넘게 움직이면 그 방향으로 꺾고, 다시 그 자리부터 잼 (계속 밀며 여러 번 꺾기)
@@ -56,7 +72,8 @@ class TerritoryGame {
   // ── 신호: 위치 · 꼬리(꺾인 점) · 가끔 내 땅 전체 ──
   serialize() {
     const hx = this.cx + TR_DIRS[this.dir][0] * this.p, hy = this.cy + TR_DIRS[this.dir][1] * this.p, now = this.now || 0;
-    let s = [hx.toFixed(2), hy.toFixed(2), this.dir, this.isDead ? 1 : 0, this.ci, this.kills, this.cells].join(',') + '|' + this.corners();
+    const fl = (this.has('shield') ? 1 : 0) | (this.has('speed') ? 2 : 0) | (this.has('slow') ? 4 : 0);   // 효과 (친구 화면에 방패 고리 · 번개 꼬리)
+    let s = [hx.toFixed(2), hy.toFixed(2), this.dir, this.isDead ? 1 : 0, this.ci, this.kills, this.cells, fl].join(',') + '|' + this.corners();
     if (now - this._full > 2000) { this._full = now; s += '|' + this.terrRle(); }   // 2초마다 내 땅 전체 (늦게 들어온 친구도 땅을 보게)
     return s;
   }
@@ -71,7 +88,7 @@ class TerritoryGame {
     const p = this.peers[id] || (this.peers[id] = { x, y, trailKey: null, trail: new Set(), trailPts: [] }), dead = a[3] === '1';
     if (!p.dead && dead) { this.clearOwner(id); p.trail = new Set(); p.trailPts = []; }   // 친구가 탈락: 그 땅이 비어요
     if (Math.hypot(p.x - x, p.y - y) > 3) { p.x = x; p.y = y; }
-    Object.assign(p, { tx: x, ty: y, dir: +a[2] || 0, dead, ci: (+a[4] || 0) % TR_COLORS.length, kills: +a[5] || 0, cells: +a[6] || 0, name: name || p.name || '' });
+    Object.assign(p, { tx: x, ty: y, dir: +a[2] || 0, dead, ci: (+a[4] || 0) % TR_COLORS.length, kills: +a[5] || 0, cells: +a[6] || 0, fl: +a[7] || 0, name: name || p.name || '' });
     if (tr !== p.trailKey) { p.trailKey = tr; p.trail = new Set(); p.trailPts = []; const pts = (tr || '').split(';').filter(Boolean).map(q => q.split('.').map(Number)).filter(q => q.length === 2 && q.every(isFinite));
       for (let k = 0; k < pts.length; k++) { const [x0, y0] = pts[k], nx = pts[k + 1] || pts[k]; const dx = Math.sign(nx[0] - x0), dy = Math.sign(nx[1] - y0); let X = x0, Y = y0, g = 0; p.trail.add(this.idx(X, Y)); while ((X !== nx[0] || Y !== nx[1]) && g++ < 200) { X += dx; Y += dy; p.trail.add(this.idx(X, Y)); } }
       p.trailPts = pts; }
@@ -88,12 +105,13 @@ class TerritoryGame {
     if (!e || e.by === this.myId) return;
     if (e.type === 'cap') { const cells = TerritoryGame.rleCells(e.rle); let lost = 0; cells.forEach(i => { if (this.own[i] === this.myId) lost++; this.own[i] = e.by; }); this.recount(); this.miniDirty = true;
       if (lost >= 8 && !this.isDead) this.toast('😮 ' + ((this.peers[e.by] || {}).name || '친구') + '가 내 땅 ' + lost + '칸을 가져갔어요', '#FFB3BF'); }
-    if (e.type === 'cut' && e.target === this.myId && !this.isDead && this.trail.length) this.die(((this.peers[e.by] || {}).name || '친구') + '가 내 꼬리를 밟았어요', e.by);
+    if (e.type === 'item' && e.k) { this.taken.add(e.k); this.items = this.items.filter(q => q.key !== e.k); }
+    if (e.type === 'cut' && e.target === this.myId && !this.isDead && this.trail.length) { if (this.has('shield')) { this.toast('🛡 방패가 꼬리를 지켰어요!', '#9BE7FF'); return; } this.die(((this.peers[e.by] || {}).name || '친구') + '가 내 꼬리를 밟았어요', e.by); }
   }
   recount() { let n = 0; for (let i = 0; i < this.own.length; i++) if (this.own[i] === this.myId) n++; this.cells = n; this.best = Math.max(this.best, n); this.score = this.best; }
   die(why, by) {
     if (this.isDead) return; this.deadUntil = (this.now || 0) + 3000; this.burst(this.cx + 0.5, this.cy + 0.5, 28, TR_COLORS[this.ci]);
-    this.clearOwner(this.myId); this.trail = []; this.trailSet = new Set(); this.recount(); this.toast((why || '탈락') + ' · 3초 뒤 다시 시작', '#FF8A8A');
+    this.clearOwner(this.myId); this.trail = []; this.trailSet = new Set(); this.fx = {}; this.recount(); this.toast((why || '탈락') + ' · 3초 뒤 다시 시작', '#FF8A8A');
     if (window.Sound) (Sound.death || Sound.crash).call(Sound); if (window.Haptic && Haptic.big) Haptic.big();
   }
   burst(x, y, n, c) { for (let i = 0; i < n; i++) { const a = Math.random() * 6.28, v = 0.04 + Math.random() * 0.12; this.parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, l: 1, c }); } }
@@ -115,7 +133,8 @@ class TerritoryGame {
     if (x < 0 || y < 0 || x >= N || y >= N) { this.cx = Math.max(0, Math.min(N - 1, x)); this.cy = Math.max(0, Math.min(N - 1, y)); this.die('경기장 벽에 부딪혔어요'); return; }
     const i = this.idx(x, y);
     if (this.trailSet.has(i)) { this.die('내 꼬리를 밟았어요'); return; }
-    Object.keys(this.peers).forEach(id => { const p = this.peers[id]; if (!p.dead && p.trail.has(i)) { p.trail = new Set(); this.kills++; this.toast('✂️ ' + (p.name || '친구') + '의 꼬리를 잘랐어요!', '#FFE38A'); if (this.opts.onAttack) this.opts.onAttack('cut', id, {}); if (window.Sound) (Sound.kill || Sound.levelUp).call(Sound); } });
+    const it = this.items.find(q => q.x === x && q.y === y); if (it) this.pickup(it);
+    Object.keys(this.peers).forEach(id => { const p = this.peers[id]; if (!p.dead && !(p.fl & 1) && p.trail.has(i)) { p.trail = new Set(); this.kills++; this.toast('✂️ ' + (p.name || '친구') + '의 꼬리를 잘랐어요!', '#FFE38A'); if (this.opts.onAttack) this.opts.onAttack('cut', id, {}); if (window.Sound) (Sound.kill || Sound.levelUp).call(Sound); } });
     if (this.own[i] === this.myId) { if (this.trail.length) this.capture(); }
     else { this.trail.push(i); this.trailSet.add(i); }
   }
@@ -123,16 +142,64 @@ class TerritoryGame {
     const { dt, f } = FX.frame(this, now), k = dt / 1000; this.run += k;
     if (this.deadUntil && now >= this.deadUntil) { this.spawn(); this.toast('다시 시작!', '#7DF58F'); }
     if (this.softDropping) this.turn(1);   // 키보드 ↓ (누르는 동안 표시만 옴)
+    this.items = this.currentItems();
+    if (this.has('speed') && Math.random() < 0.5) this.parts.push({ x: this.cx + TR_DIRS[this.dir][0] * this.p + 0.5 + (Math.random() - 0.5) * 0.4, y: this.cy + TR_DIRS[this.dir][1] * this.p + 0.5 + (Math.random() - 0.5) * 0.4, vx: 0, vy: 0, l: 0.7, c: '#FFE38A' });
     if (!this.isDead && !this.gameOver) {
-      this.p += TR_SPEED * k;
+      this.p += TR_SPEED * (this.has('speed') ? 1.5 : 1) * (this.has('slow') ? 0.6 : 1) * k;
       while (this.p >= 1 && !this.isDead) { this.p -= 1; this.cx += TR_DIRS[this.dir][0]; this.cy += TR_DIRS[this.dir][1];
         if (this.want !== this.dir && !((this.want + 2) % 4 === this.dir && this.trail.length)) this.dir = this.want; this.enter(); }
       // 친구 머리가 내 꼬리 위에 있으면 (신호가 늦어도 꼬리 잘림이 빠지지 않게)
-      if (this.trail.length && !this.isDead) Object.keys(this.peers).forEach(id => { const p = this.peers[id]; if (p.dead || this.isDead) return; const i = this.idx(Math.round(p.tx), Math.round(p.ty)); if (this.trailSet.has(i) && i !== this.trail[this.trail.length - 1]) this.die((p.name || '친구') + '가 내 꼬리를 밟았어요', id); });
+      if (this.trail.length && !this.isDead && !this.has('shield')) Object.keys(this.peers).forEach(id => { const p = this.peers[id]; if (p.dead || this.isDead) return; const i = this.idx(Math.round(p.tx), Math.round(p.ty)); if (this.trailSet.has(i) && i !== this.trail[this.trail.length - 1]) this.die((p.name || '친구') + '가 내 꼬리를 밟았어요', id); });
     }
     Object.values(this.peers).forEach(p => { p.x += ((p.tx == null ? p.x : p.tx) - p.x) * Math.min(1, k * 10); p.y += ((p.ty == null ? p.y : p.ty) - p.y) * Math.min(1, k * 10); });
     this.parts = FX.stepParts(this.parts, f, 0.03); this.pops = (this.pops || []).filter(q => (q.t -= 0.02 * f) > 0); this.toasts = this.toasts.filter(t => t.until > now);
     this.draw();
+  }
+  // ── 아이템 ──
+  has(k) { return !this.isDead && (this.fx[k] || 0) > (this.now || 0); }
+  // 지금 경기장에 있는 상자: 자리(s)마다 18초 창(g) 하나에 상자 하나 — 자리·종류는 (판 시작 시각, s, g) 로 정해 모든 기기가 같음
+  currentItems() {
+    const t = this.clock() - this.itemT0, out = [];
+    for (let s = 0; s < TR_ITEM_SLOTS; s++) {
+      const off = 3000 + s * TR_ITEM_PERIOD / TR_ITEM_SLOTS, ph = t - off; if (ph < 0) continue;
+      const g = Math.floor(ph / TR_ITEM_PERIOD), key = s + ':' + g; if (this.taken.has(key)) continue;
+      if (this.itemT0 + off + g * TR_ITEM_PERIOD < this.joinAt - 4000) continue;   // 내가 들어오기 전에 생긴 상자 — 누가 이미 가져갔을 수 있어 안 보임
+      const x = 3 + Math.floor(trHash(this.itemSeed, s, g) * (TR_N - 6)), y = 3 + Math.floor(trHash(this.itemSeed, s + 50, g) * (TR_N - 6));
+      out.push({ s, g, key, x, y, type: TR_DROP[Math.floor(trHash(this.itemSeed, s + 100, g) * TR_DROP.length)], age: ph - g * TR_ITEM_PERIOD });
+    }
+    return out;
+  }
+  pickup(it) {
+    this.taken.add(it.key); this.items = this.items.filter(q => q !== it);
+    if (this.opts.onAttack) this.opts.onAttack('item', null, { k: it.key });
+    let type = it.type, pre = '';
+    if (type === 'mystery') { const r = Math.random(), pick = a => a[Math.floor(Math.random() * a.length)]; type = r < 0.5 ? pick(['speed', 'shield', 'grow']) : pick(['slow', 'reverse', 'fog']); pre = '수수께끼 상자 → '; }
+    const d = TR_ITEMS[type], now = this.now || 0;
+    if (d.ms) this.fx[type] = now + d.ms;
+    if (type === 'speed') this.fx.slow = 0; if (type === 'slow') this.fx.speed = 0;
+    if (type === 'grow') {   // 내 둘레 7×7 → 내 땅
+      const got = []; for (let b = -3; b <= 3; b++) for (let a = -3; a <= 3; a++) { const X = this.cx + a, Y = this.cy + b; if (X < 0 || Y < 0 || X >= TR_N || Y >= TR_N) continue; const i = this.idx(X, Y); if (this.own[i] !== this.myId) { this.own[i] = this.myId; got.push(i); this.capAt.set(i, now); } }
+      const before = this.cells; this.recount(); this.emitCap(got); this.miniDirty = true; this.burst(this.cx + 0.5, this.cy + 0.5, 24, d.color);
+      if (this.cells > before) { this.pops = this.pops || []; this.pops.push({ t: 1, txt: '+' + (this.cells - before) + '칸', x: this.cx + 0.5, y: this.cy - 0.5 }); }
+    }
+    this.pops = this.pops || []; this.pops.push({ t: 1, txt: d.name + (d.good ? '!' : ' ㅠ'), x: this.cx + 0.5, y: this.cy + 0.5, c: d.good ? '#7DF58F' : '#FF9AA8' });
+    this.toast(pre + d.name + ' — ' + d.desc, d.good ? '#9BF6B5' : '#FFB3BF');
+    if (window.Sound) (d.good ? (Sound.item || Sound.gem) : (Sound.bump || Sound.crash)).call(Sound);
+    this.burst(it.x + 0.5, it.y + 0.5, 14, TR_ITEMS[it.type].color);
+  }
+  // 상자 그림 (도형만 — 이모지는 기기마다 안 보일 수 있음)
+  drawItem(ctx, it, X, Y, u, t) {
+    const d = TR_ITEMS[it.type], r = u * 0.42, cx = X + u / 2, cy = Y + u / 2 + Math.sin(t / 260 + it.s) * u * 0.06;
+    if (it.age > TR_ITEM_PERIOD - 2500 && Math.floor(t / 150) % 2) return;   // 곧 사라짐: 깜빡
+    ctx.fillStyle = 'rgba(0,0,0,.22)'; ctx.beginPath(); ctx.ellipse(cx, Y + u * 0.9, r * 0.8, r * 0.25, 0, 0, 7); ctx.fill();
+    ctx.globalAlpha = 0.35 + 0.2 * Math.sin(t / 200 + it.s); ctx.fillStyle = d.color; ctx.beginPath(); ctx.arc(cx, cy, r * 1.35, 0, 7); ctx.fill(); ctx.globalAlpha = 1;
+    ctx.fillStyle = d.color; FX.rr(ctx, cx - r, cy - r, r * 2, r * 2, r * 0.45); ctx.fill(); ctx.strokeStyle = '#1B2135'; ctx.lineWidth = Math.max(1.5, u * 0.07); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,.35)'; FX.rr(ctx, cx - r * 0.75, cy - r * 0.85, r * 1.5, r * 0.6, r * 0.3); ctx.fill();
+    ctx.fillStyle = '#1B2135'; ctx.beginPath();
+    if (it.type === 'speed') { ctx.moveTo(cx + r * 0.15, cy - r * 0.75); ctx.lineTo(cx - r * 0.45, cy + r * 0.1); ctx.lineTo(cx - r * 0.02, cy + r * 0.1); ctx.lineTo(cx - r * 0.2, cy + r * 0.75); ctx.lineTo(cx + r * 0.45, cy - r * 0.15); ctx.lineTo(cx + r * 0.02, cy - r * 0.15); ctx.closePath(); ctx.fill(); }
+    else if (it.type === 'shield') { ctx.moveTo(cx, cy - r * 0.7); ctx.lineTo(cx + r * 0.55, cy - r * 0.45); ctx.quadraticCurveTo(cx + r * 0.5, cy + r * 0.4, cx, cy + r * 0.75); ctx.quadraticCurveTo(cx - r * 0.5, cy + r * 0.4, cx - r * 0.55, cy - r * 0.45); ctx.closePath(); ctx.fill(); }
+    else if (it.type === 'grow') { const a = r * 0.6, w = r * 0.2; ctx.rect(cx - a, cy - w, a * 2, w * 2); ctx.rect(cx - w, cy - a, w * 2, a * 2); ctx.fill(); }
+    else FX.text(ctx, '?', cx, cy + r * 0.05, { size: r * 1.5, weight: 900, color: '#fff', align: 'center', baseline: 'middle', stroke: '#1B2135' });
   }
   getSnapshot() {   // 교사 미니보드: 내 둘레 12×18칸
     const W = 12, H = 18, x0 = Math.round(this.cx - W / 2), y0 = Math.round(this.cy - H / 2), cidx = id => { const p = id === this.myId ? { ci: this.ci } : this.peers[id]; return p ? TR_CELLC[p.ci % TR_CELLC.length] : 21; };
@@ -158,30 +225,40 @@ class TerritoryGame {
     const drawTrail = (cells, col) => { ctx.fillStyle = col; cells.forEach(i => { const x = i % TR_N, y = i / TR_N | 0; if (x < x0 - 1 || x > x1 + 1 || y < y0 - 1 || y > y1 + 1) return; FX.rr(ctx, sx(x) + u * 0.18, sy(y) + u * 0.18, u * 0.64, u * 0.64, u * 0.2); ctx.fill(); }); };
     Object.values(this.peers).forEach(p => { if (!p.dead) { ctx.globalAlpha = 0.75; drawTrail(p.trail, TR_COLORS[p.ci]); ctx.globalAlpha = 1; } });
     ctx.globalAlpha = 0.85; drawTrail(this.trail, TR_COLORS[this.ci]); ctx.globalAlpha = 1;
+    const tn = this.now || 0; this.items.forEach(it => { if (it.x >= x0 - 1 && it.x <= x1 + 1 && it.y >= y0 - 1 && it.y <= y1 + 1) this.drawItem(ctx, it, sx(it.x), sy(it.y), u, tn); });
     // 머리 (친구 · 나) + 이름
-    const head = (x, y, col, name, me) => { const X = sx(x), Y = sy(y), s = u * (me ? 1.08 : 1);
+    const head = (x, y, col, name, me, fl) => { const X = sx(x), Y = sy(y), s = u * (me ? 1.08 : 1);
+      if (fl & 1) { ctx.strokeStyle = 'rgba(120,220,255,' + (0.6 + 0.3 * Math.sin(tn / 120)) + ')'; ctx.lineWidth = Math.max(2, u * 0.1); ctx.beginPath(); ctx.arc(X + u / 2, Y + u / 2, u * 0.85, 0, 7); ctx.stroke(); }
+      if (fl & 4) { ctx.fillStyle = 'rgba(160,168,186,.45)'; ctx.beginPath(); ctx.arc(X + u / 2, Y + u / 2, u * 0.8, 0, 7); ctx.fill(); }
       ctx.fillStyle = 'rgba(0,0,0,.25)'; FX.rr(ctx, X - s * 0.04, Y + s * 0.1, s, s, s * 0.25); ctx.fill();
       ctx.fillStyle = col; FX.rr(ctx, X - (s - u) / 2, Y - (s - u) / 2, s, s, s * 0.25); ctx.fill(); ctx.strokeStyle = '#1B2135'; ctx.lineWidth = Math.max(1.5, u * 0.08); ctx.stroke();
       ctx.fillStyle = '#fff'; [-0.18, 0.18].forEach(e => { ctx.beginPath(); ctx.arc(X + u / 2 + e * u, Y + u * 0.42, u * 0.12, 0, 7); ctx.fill(); }); ctx.fillStyle = '#1B2135'; [-0.18, 0.18].forEach(e => { ctx.beginPath(); ctx.arc(X + u / 2 + e * u, Y + u * 0.44, u * 0.06, 0, 7); ctx.fill(); });
       if (name) FX.text(ctx, name, X + u / 2, Y - u * 0.25, { size: Math.max(10, u * 0.42), weight: 800, color: '#fff', align: 'center', stroke: 'rgba(20,24,40,.85)' }); };
-    Object.values(this.peers).forEach(p => { if (!p.dead) head(p.x, p.y, TR_COLORS[p.ci], p.name, false); });
-    if (!this.isDead) head(hx, hy, TR_COLORS[this.ci], this.myName || '나', true);
+    Object.values(this.peers).forEach(p => { if (!p.dead) head(p.x, p.y, TR_COLORS[p.ci], p.name, false, p.fl || 0); });
+    if (!this.isDead) head(hx, hy, TR_COLORS[this.ci], this.myName || '나', true, (this.has('shield') ? 1 : 0) | (this.has('slow') ? 4 : 0));
     FX.drawParts(ctx, this.parts.map(q => ({ x: (q.x - camX), y: (q.y - camY), l: q.l, c: q.c })), u, Math.max(3, u * 0.22));
-    (this.pops || []).forEach(q => { ctx.globalAlpha = Math.min(1, q.t * 1.5); FX.text(ctx, q.txt, sx(q.x), sy(q.y) - (1 - q.t) * u * 1.5, { size: u * 0.7, weight: 900, color: '#FFE38A', align: 'center', stroke: 'rgba(20,24,40,.9)' }); ctx.globalAlpha = 1; });
+    (this.pops || []).forEach(q => { ctx.globalAlpha = Math.min(1, q.t * 1.5); FX.text(ctx, q.txt, sx(q.x), sy(q.y) - (1 - q.t) * u * 1.5, { size: u * 0.7, weight: 900, color: q.c || '#FFE38A', align: 'center', stroke: 'rgba(20,24,40,.9)' }); ctx.globalAlpha = 1; });
+    if (this.has('fog')) {   // 안개: 내 둘레만 보임
+      const g = ctx.createRadialGradient(sx(hx + 0.5), sy(hy + 0.5), u * 1.6, sx(hx + 0.5), sy(hy + 0.5), u * 3.6); g.addColorStop(0, 'rgba(70,80,105,0)'); g.addColorStop(1, 'rgba(70,80,105,.96)'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); }
     // 미니맵 (오른쪽 위) · 내 땅 % · 순위
     const M = Math.min(W * 0.3, 110), mx = W - M - 8, my = 8, mk = M / TR_N;
     if (!this.mini) { this.mini = document.createElement('canvas'); this.mini.width = this.mini.height = TR_N; }
     if (this.miniDirty) { this.miniDirty = false; const g = this.mini.getContext('2d'), img = g.createImageData(TR_N, TR_N), rgb = h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
       for (let i = 0; i < TR_N * TR_N; i++) { const o = this.own[i], c = o ? rgb(this.colorOf(o)) : [40, 48, 70]; img.data[i * 4] = c[0]; img.data[i * 4 + 1] = c[1]; img.data[i * 4 + 2] = c[2]; img.data[i * 4 + 3] = 255; } g.putImageData(img, 0, 0); }
     ctx.fillStyle = 'rgba(10,14,28,.6)'; FX.rr(ctx, mx - 4, my - 4, M + 8, M + 8, 8); ctx.fill(); ctx.imageSmoothingEnabled = false; ctx.drawImage(this.mini, mx, my, M, M); ctx.imageSmoothingEnabled = true;
+    if (!this.has('fog')) this.items.forEach(it => { ctx.fillStyle = TR_ITEMS[it.type].color; ctx.fillRect(mx + (it.x + 0.5) * mk - 1.5, my + (it.y + 0.5) * mk - 1.5, 3, 3); });
     ctx.fillStyle = '#fff'; ctx.fillRect(mx + hx * mk - 2, my + hy * mk - 2, 4, 4);
     FX.text(ctx, this.pct.toFixed(1) + '%', 10, 30, { size: 24, weight: 900, color: TR_COLORS[this.ci], stroke: 'rgba(20,24,40,.85)' });
     FX.text(ctx, '✂ ' + this.kills + ' · 최고 ' + (Math.round(this.best / (TR_N * TR_N) * 1000) / 10) + '%', 10, 50, { size: 13, weight: 800, color: '#fff', stroke: 'rgba(20,24,40,.85)' });
+    let fy = 62; ['speed', 'shield', 'slow', 'reverse', 'fog'].forEach(k => { if (!this.has(k)) return; const d = TR_ITEMS[k], left = (this.fx[k] - tn) / 1000, w = 112;
+      ctx.fillStyle = 'rgba(10,14,28,.65)'; FX.rr(ctx, 8, fy, w, 22, 8); ctx.fill(); ctx.fillStyle = d.color; FX.rr(ctx, 8, fy + 18, w * Math.min(1, left * 1000 / d.ms), 4, 2); ctx.fill();
+      FX.text(ctx, (d.good ? '▲ ' : '▼ ') + d.name + ' ' + left.toFixed(1) + '초', 16, fy + 15, { size: 12, weight: 900, color: d.good ? '#9BF6B5' : '#FFB3BF' }); fy += 27; });
     const rank = Object.values(this.peers).filter(p => !p.dead).map(p => [p.name || '친구', p.cells, p.ci]).concat([[this.myName || '나', this.cells, this.ci, 1]]).sort((a, b) => b[1] - a[1]).slice(0, 3);
     rank.forEach((r, i) => FX.text(ctx, (i + 1) + '. ' + r[0] + ' ' + (Math.round(r[1] / (TR_N * TR_N) * 1000) / 10) + '%', W - 10, my + M + 22 + i * 17, { size: 12.5, weight: r[3] ? 900 : 700, color: r[3] ? '#FFE38A' : '#fff', align: 'right', stroke: 'rgba(20,24,40,.85)' }));
     this.toasts.forEach((t, i) => FX.text(ctx, t.t, W / 2, H * 0.2 + i * 24, { size: 15, weight: 900, color: t.c, align: 'center', stroke: 'rgba(20,24,40,.9)' }));
     if (this.run < 4) FX.text(ctx, '화면 아무 데나 밀어서 방향 바꾸기 (방향키도 됨)', W / 2, H * 0.62, { size: 15, weight: 900, color: '#FFE38A', align: 'center', stroke: 'rgba(20,24,40,.9)' });
     if (this.run < 4) FX.text(ctx, '내 땅 밖에 선을 긋고 돌아오면 그 안이 내 땅!', W / 2, H * 0.62 + 22, { size: 13, weight: 800, color: '#fff', align: 'center', stroke: 'rgba(20,24,40,.9)' });
+    if (this.run < 4) FX.text(ctx, '상자를 밟으면 아이템! (좋은 것도, 나쁜 것도)', W / 2, H * 0.62 + 42, { size: 13, weight: 800, color: '#D9C2FF', align: 'center', stroke: 'rgba(20,24,40,.9)' });
     if (this.isDead) { ctx.fillStyle = 'rgba(10,14,28,.45)'; ctx.fillRect(0, 0, W, H); FX.text(ctx, Math.max(1, Math.ceil((this.deadUntil - (this.now || 0)) / 1000)) + '', W / 2, H * 0.48, { size: 56, weight: 900, color: '#fff', align: 'center', stroke: 'rgba(20,24,40,.9)' }); }
   }
 }
