@@ -416,12 +416,14 @@ class SlitherGame {
     const zoom = Math.max(0.6, 1 - Math.min(0.4, this.len / 400));         // 커질수록 살짝 멀어짐
     const sc = cs * zoom, ox = W / 2 - camX * sc, oy = H / 2 - camY * sc;
     // 배경 (그라데이션은 크기가 바뀔 때만 새로 만듦)
-    if (!this.bgCache || this.bgCache.w !== W || this.bgCache.h !== H || this.bgCache.th !== this.theme) {
-      const c = document.createElement('canvas'); c.width = Math.max(1, Math.ceil(W / 2)); c.height = Math.max(1, Math.ceil(H / 2)); const g = c.getContext('2d');
+    //   실제 화소 크기로 한 번 구워 두고 1:1 로 찍음 (늘려 찍기·매번 그라데이션보다 10배 이상 가벼움)
+    const PW = this.canvas.width, PH = this.canvas.height;
+    if (!this.bgCache || this.bgCache.w !== PW || this.bgCache.h !== PH || this.bgCache.th !== this.theme) {
+      const c = document.createElement('canvas'); c.width = Math.max(1, PW); c.height = Math.max(1, PH); const g = c.getContext('2d');
       const bg = g.createRadialGradient(c.width / 2, c.height / 2, 0, c.width / 2, c.height / 2, Math.max(c.width, c.height) * 0.7); bg.addColorStop(0, this.theme.bg[0]); bg.addColorStop(1, this.theme.bg[1]); g.fillStyle = bg; g.fillRect(0, 0, c.width, c.height);
-      this.bgCache = { cv: c, w: W, h: H, th: this.theme };
+      this.bgCache = { cv: c, w: PW, h: PH, th: this.theme };
     }
-    ctx.drawImage(this.bgCache.cv, 0, 0, W, H);
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(this.bgCache.cv, 0, 0); ctx.restore();
     // 격자: 선 전체를 한 번에
     ctx.strokeStyle = this.theme.grid; ctx.lineWidth = 1; ctx.beginPath();
     const gs = sc * 2, g0x = (ox % gs + gs) % gs, g0y = (oy % gs + gs) % gs;
@@ -475,11 +477,20 @@ class SlitherGame {
     let i0 = -2, i1 = -2; if (hx > -m && hy > -m && hx < W + m && hy < H + m) { i0 = vs - 1; i1 = vs - 1; }
     for (let i = vs; i < ve; i++) { const X = pts[i][0] * sc + ox, Y = pts[i][1] * sc + oy; if (X > -m && Y > -m && X < W + m && Y < H + m) { if (i0 === -2) i0 = i; i1 = i; } }
     if (i0 === -2) return;
-    const first = Math.max(vs - 1, i0 - 1), last = Math.min(ve - 1, i1 + 1), step = r > SL_SEG * sc * 1.3 ? 2 : 1;
+    // 길 만들기: 거의 곧은 구간의 점은 건너뜀 (꺾임이 0.7px 넘을 때만 점을 남김) — 선 그리기 비용은 점 수에 비례
+    const first = Math.max(vs - 1, i0 - 1), last = Math.min(ve - 1, i1 + 1), tol = 0.7 / sc, tol2 = tol * tol;
     const path = new Path2D();
-    if (first < vs) path.moveTo(hx, hy); else path.moveTo(pts[first][0] * sc + ox, pts[first][1] * sc + oy);
-    for (let i = Math.max(vs, first + 1); i < last; i += step) path.lineTo(pts[i][0] * sc + ox, pts[i][1] * sc + oy);
-    if (last >= vs && last > first) path.lineTo(pts[last][0] * sc + ox, pts[last][1] * sc + oy);
+    let kx, ky; if (first < vs) { kx = sn.x; ky = sn.y; } else { kx = pts[first][0]; ky = pts[first][1]; }
+    path.moveTo(kx * sc + ox, ky * sc + oy);
+    let dxk = 0, dyk = 0, px = kx, py = ky;                   // 마지막으로 남긴 점에서 나가는 방향
+    for (let i = Math.max(vs, first + 1); i <= last; i++) {
+      const x = pts[i][0], y = pts[i][1];
+      if (dxk === 0 && dyk === 0) { dxk = x - kx; dyk = y - ky; const l = Math.hypot(dxk, dyk) || 1; dxk /= l; dyk /= l; px = x; py = y; continue; }
+      const ex = x - kx, ey = y - ky, dev = ex * dyk - ey * dxk;   // 방향선에서 벗어난 거리
+      if (dev * dev > tol2) { path.lineTo(px * sc + ox, py * sc + oy); kx = px; ky = py; dxk = x - kx; dyk = y - ky; const l = Math.hypot(dxk, dyk) || 1; dxk /= l; dyk /= l; }
+      px = x; py = y;
+    }
+    if (last >= vs && last > first) path.lineTo(px * sc + ox, py * sc + oy);
     const dOff = first < vs ? 0 : (sn.d0 + (first - vs) * SL_SEG) * sc;     // 무늬가 머리에서 시작하도록
     const bw = Math.max(1.2, r * 0.17), inner = r * 2 - bw * 2;
     ctx.lineJoin = 'round'; ctx.lineCap = 'round';
@@ -494,7 +505,7 @@ class SlitherGame {
     else if (sk.pat === 3) { ctx.strokeStyle = sk.c2; ctx.lineWidth = r * 0.5; ctx.stroke(path); }
     else { ctx.lineCap = 'butt'; ctx.setLineDash([r * 0.7, r * 2.2]); ctx.lineDashOffset = dOff - now * 0.06; ctx.strokeStyle = sk.c2; ctx.lineWidth = inner * 0.8; ctx.stroke(path); }   // 슈퍼: 반짝이 띠가 흐름
     ctx.setLineDash([]); ctx.lineDashOffset = 0; ctx.lineCap = 'round';
-    if (q >= 1) { ctx.save(); ctx.translate(0, -r * 0.32); ctx.globalAlpha = 0.42 * sn.alpha; ctx.strokeStyle = sk.hi; ctx.lineWidth = r * 0.42; ctx.stroke(path); ctx.restore(); }   // 윗면 광택
+    if (q >= 2 || (q >= 1 && sn.me)) { ctx.save(); ctx.translate(0, -r * 0.32); ctx.globalAlpha = 0.42 * sn.alpha; ctx.strokeStyle = sk.hi; ctx.lineWidth = r * 0.42; ctx.stroke(path); ctx.restore(); }   // 윗면 광택
     // 머리: 눈 두 개
     if (i0 === vs - 1) {
       if (sn.inv) { ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 2; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.arc(hx, hy, r * 1.6, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }

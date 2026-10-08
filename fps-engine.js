@@ -42,8 +42,9 @@ class FpsGame {
     this.myName = this.opts.myName || '';
     this.teamMode = !!this.opts.teamMode;
     this.team = this.teamMode ? FpsGame.teamOf(this.myId) : null;
-    this.map = FPS_MAP;
-    this.peers = {};
+    // 맵: 교사 화면이 시작할 때 인원을 붙여 줌 ('classic:24') → 인원이 많으면 미로를 넓힘 (모두 같은 값 → 같은 미로)
+    const built = FpsGame.mapFor(this.opts.trackId); this.map = built.rows; this.spawns = built.spawns;
+    this.peers = {}; this._hitQ = {};
     this.hp = 100; this.kills = 0; this.deaths = 0; this.score = 0; this.streak = 0;
     this.ammo = FPS_MAG; this.reloadUntil = 0;
     this.turn = 0; this.fwd = 0; this.firing = false; this.upHeld = false;
@@ -55,9 +56,20 @@ class FpsGame {
   }
 
   static teamOf(id) { let h = 0; for (const c of String(id)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return (h & 1) ? 'red' : 'blue'; }
+  // 신호: x,y,방향,체력,킬,데스,팀,발사,다운,이동, 보낸시각(36진수),속도x,속도y
   static parse(raw) {
     const a = String(raw).split(',');
-    return { x: +a[0], y: +a[1], angle: +a[2], hp: +a[3], kills: +a[4], deaths: +a[5], team: a[6] || null, fire: a[7] === '1', dead: a[8] === '1', moving: a[9] === '1' };
+    return { x: +a[0], y: +a[1], angle: +a[2], hp: +a[3], kills: +a[4], deaths: +a[5], team: a[6] || null, fire: a[7] === '1', dead: a[8] === '1', moving: a[9] === '1',
+             st: a[10] ? parseInt(a[10], 36) : null, vx: +a[11] || 0, vy: +a[12] || 0 };
+  }
+  // 인원에 맞춘 미로: 'classic:N' (N명). 넓히기는 3D 레이저 태그의 맵 도구(f3Scale)를 함께 씀
+  static mapFor(track) {
+    const n = +(String(track || '').split(':')[1] || 0), key = 'c' + n, C = FpsGame._maps || (FpsGame._maps = {});
+    if (C[key]) return C[key];
+    const s = typeof f3ScaleFor === 'function' ? f3ScaleFor(n) : 1;
+    let res = { rows: FPS_MAP, spawns: FPS_SPAWNS };
+    if (s > 1 && typeof f3Scale === 'function') { const sc = f3Scale(FPS_MAP, FPS_SPAWNS, s); res = f3Finish(sc.m, sc.spawns, { passable: '.', seed: 7, fill: false, want: Math.round(12 * s * s) }); }
+    C[key] = res; return res;
   }
   get isDead() { return this.now < this.deadUntil; }
   get reloading() { return this.now < this.reloadUntil; }
@@ -65,14 +77,14 @@ class FpsGame {
 
   spawnAt(slot) {
     let best = null, bestD = -1;
-    FPS_SPAWNS.forEach((sp, i) => {
+    this.spawns.forEach((sp, i) => {
       let d = 1e9;
       Object.keys(this.peers).forEach(id => { const p = this.peers[id]; if (p.dead || (this.teamMode && p.team === this.team)) return; d = Math.min(d, Math.hypot(p.x - sp[0], p.y - sp[1])); });
-      if (d === 1e9) d = 100 + ((i + slot) % FPS_SPAWNS.length);
+      if (d === 1e9) d = 100 + ((i + slot) % this.spawns.length);
       if (d > bestD) { bestD = d; best = sp; }
     });
     this.x = best[0]; this.y = best[1];
-    this.angle = Math.atan2(12 - this.y, 12 - this.x);
+    const C = this.map.length / 2; this.angle = Math.atan2(C - this.y, C - this.x);
     this.ammo = FPS_MAG; this.reloadUntil = 0;
   }
 
@@ -119,11 +131,25 @@ class FpsGame {
     this.tracers.push({ x0: this.x, y0: this.y, x1: tx, y1: ty, until: now + 90 });
     if (best) {
       const dmg = bestD < 6 ? 34 : 26;                          // 가까우면 3발, 멀면 4발
-      if (this.opts.onAttack) this.opts.onAttack('hit', best, { dmg: dmg });
+      this.queueHit(best, dmg);
       this.hits.push({ id: best, until: now + 160 });
       this.hitMarker = 1; this.score += 3;
       if (window.Sound) Sound.lock();
     }
+  }
+
+  // 명중 신호 묶기: 같은 상대에게 0.2초 안의 연속 명중은 피해를 합쳐 한 번에 (첫 발 · 쓰러뜨릴 만큼은 바로)
+  queueHit(target, dmg) {
+    const now = this.clock(), h = this._hitQ[target] || (this._hitQ[target] = { dmg: 0, n: 0, last: -1e9 }), p = this.peers[target];
+    h.dmg += dmg; h.n++;
+    const lethal = p && !p.hitKill && h.dmg >= (p.hp || 0) - (p.hitSent || 0); if (lethal) p.hitKill = true;
+    if (now - h.last >= 200 || lethal) this.flushHit(target, now);
+  }
+  flushHit(target, now) {
+    const h = this._hitQ[target]; if (!h || !h.n) return;
+    if (this.opts.onAttack) this.opts.onAttack('hit', target, h.n > 1 ? { dmg: h.dmg, n: h.n } : { dmg: h.dmg });
+    const p = this.peers[target]; if (p) p.hitSent = (p.hitSent || 0) + h.dmg;
+    h.dmg = 0; h.n = 0; h.last = now;
   }
 
   blocked(x0, y0, x1, y1) {
@@ -164,18 +190,50 @@ class FpsGame {
   showToast(text, color) { this.toast = { text, color, until: this.clock() + 1600 }; }
 
   // ── 동기화 ──
+  // 보낸 시각과 실제 속도를 함께 보내, 받는 쪽이 '지금 위치' 를 예측해 그립니다 (3D 와 같은 방식). 바뀐 게 없으면 같은 글자 → 서버가 다시 안 보냄
   serialize() {
-    return [this.x.toFixed(2), this.y.toFixed(2), this.angle.toFixed(2), this.hp, this.kills, this.deaths, this.team || '',
-            this.muzzle > 0.5 ? 1 : 0, this.isDead ? 1 : 0, this.moving ? 1 : 0].join(',');
+    const r = (v, k) => { const m = Math.pow(10, k), x = Math.round(v * m) / m; return x === 0 ? '0' : String(x); };
+    let a = this.angle % (Math.PI * 2); if (a > Math.PI) a -= Math.PI * 2; if (a < -Math.PI) a += Math.PI * 2;
+    const dead = this.isDead;
+    const head = [r(this.x, 2), r(this.y, 2), r(a, 2), this.hp, this.kills, this.deaths, this.team || '', this.muzzle > 0.5 ? 1 : 0, dead ? 1 : 0, this.moving && !dead ? 1 : 0].join(',');
+    const tail = dead ? '0,0' : r(this.svx || 0, 1) + ',' + r(this.svy || 0, 1);
+    if (head === this._serHead && tail === this._serTail && this._ser) return this._ser;
+    this._serHead = head; this._serTail = tail;
+    const t = this.opts.serverNow ? this.opts.serverNow() : this.clock();
+    this._ser = head + ',' + (Math.round(t) % 60466176).toString(36) + ',' + tail;
+    return this._ser;
   }
   applyPeerRaw(id, raw, name) {
-    const d = FpsGame.parse(raw);
-    if (!this.peers[id]) this.peers[id] = { x: d.x, y: d.y, angle: d.angle, walk: 0 };
-    const p = this.peers[id];
-    Object.assign(p, { tx: d.x, ty: d.y, tangle: d.angle, hp: d.hp, kills: d.kills, deaths: d.deaths, team: d.team, fire: d.fire, dead: d.dead, moving: d.moving });
+    let p = this.peers[id];
+    if (p && p.raw === raw) { if (name) p.name = name; return; }
+    const d = FpsGame.parse(raw); if (!isFinite(d.x) || !isFinite(d.y)) return;
+    const now = this.clock();
+    if (!p) p = this.peers[id] = { x: d.x, y: d.y, angle: d.angle, walk: 0, cx: 0, cy: 0 };
+    if (d.st != null && p.st != null) { const ds = (d.st - p.st + 60466176) % 60466176; if (ds === 0 || ds > 30233088) return; }   // 더 오래된 신호는 버림
+    p.raw = raw;
+    // 신호 나이 = 기본 지연 + (가장 빨리 온 신호보다 늦게 온 만큼) — 그 60% 만큼 속도로 앞당겨 그림
+    let age = 80;
+    if (d.st != null) { const off = now - d.st, keep = p.off != null && Math.abs(off - p.off) < 5000;
+      p.off = keep ? Math.min(off, p.off + Math.max(0, now - (p.at || now)) * 0.002) : off;
+      const jit = Math.max(0, off - p.off);
+      if (this.opts.serverNow) { const sa = ((Math.round(this.opts.serverNow()) % 60466176) - d.st + 60466176) % 60466176; if (sa < 3000) { const b = Math.max(15, Math.min(300, sa - jit)); p.base = p.base == null ? b : p.base + (b - p.base) * 0.1; } }
+      age = (p.base != null ? p.base : 80) + jit; p.st = d.st; }
+    age = Math.min(600, age) * 0.6; p.at = now;
+    const shownX = p.x, shownY = p.y, had = p.tx != null;
+    Object.assign(p, { tx: d.x, ty: d.y, vx: d.vx, vy: d.vy, sAt: now - age, tangle: d.angle, hp: d.hp, kills: d.kills, deaths: d.deaths, team: d.team, fire: d.fire, dead: d.dead, moving: d.moving, hitSent: 0, hitKill: false });
+    const g = this.predict(p, now);
+    if (had && !d.dead && Math.hypot(shownX - g.x, shownY - g.y) < 3) { p.cx = shownX - g.x; p.cy = shownY - g.y; } else { p.cx = 0; p.cy = 0; p.x = g.x; p.y = g.y; }
     if (name) p.name = name;
   }
-  removePeer(id) { delete this.peers[id]; }
+  // 마지막 신호 + 속도 × 나이 (최대 0.45초), 벽은 뚫지 않음
+  predict(p, now) {
+    const out = this._pr || (this._pr = { x: 0, y: 0 }), a = Math.max(0, Math.min(450, now - p.sAt)) / 1000;
+    let x = p.tx, y = p.ty;
+    if (!p.dead && (p.vx || p.vy) && a > 0) { const ex = p.vx * a, ey = p.vy * a, n = Math.min(12, Math.ceil(Math.hypot(ex, ey) / 0.2));
+      for (let i = 0; i < n; i++) { const nx = x + ex / n, ny = y + ey / n; if (!this.wall(nx + Math.sign(ex) * 0.2, y)) x = nx; if (!this.wall(x, ny + Math.sign(ey) * 0.2)) y = ny; } }
+    out.x = x; out.y = y; return out;
+  }
+  removePeer(id) { delete this.peers[id]; delete this._hitQ[id]; }
   setPeers(map) { Object.keys(map).forEach(id => { const d = map[id]; if (d.raw) this.applyPeerRaw(id, d.raw, d.name); }); Object.keys(this.peers).forEach(id => { if (!map[id]) delete this.peers[id]; }); }
   spectate(id) { this.spectator = true; this.followId = id; }
 
@@ -183,10 +241,13 @@ class FpsGame {
   tick(now) {
     this.now = now;
     const { dt, f } = FX.frame(this, now);
-    Object.keys(this.peers).forEach(id => { const p = this.peers[id]; if (p.tx == null) return;
-      p.x += (p.tx - p.x) * 0.3; p.y += (p.ty - p.y) * 0.3;
-      let da = p.tangle - p.angle; while (da > Math.PI) da -= Math.PI * 2; while (da < -Math.PI) da += Math.PI * 2; p.angle += da * 0.3;
-      p.walk = (p.walk || 0) + (p.moving ? 0.22 * f : 0); });
+    // 상대 = 예측 위치 + 남은 보정(0.1초에 걸쳐 0 으로) — 예전엔 마지막 신호 쪽으로 30%씩 끌려가 늘 한 박자 늦게 보였음
+    const kc = 1 - Math.exp(-dt / 100), sa = 1 - Math.pow(0.7, f);
+    for (const id in this.peers) { const p = this.peers[id]; if (p.tx == null) continue;
+      p.cx -= p.cx * kc; p.cy -= p.cy * kc; const g = this.predict(p, now); p.x = g.x + p.cx; p.y = g.y + p.cy;
+      let da = p.tangle - p.angle; while (da > Math.PI) da -= Math.PI * 2; while (da < -Math.PI) da += Math.PI * 2; p.angle += da * sa;
+      p.walk = (p.walk || 0) + (p.moving ? 0.22 * f : 0); }
+    for (const id in this._hitQ) { const h = this._hitQ[id]; if (h.n && now - h.last >= 200) this.flushHit(id, now); }
     this.tracers = this.tracers.filter(t => t.until > now);
     this.hits = this.hits.filter(h => h.until > now);
     this.muzzle = Math.max(0, this.muzzle - 0.18 * f); this.recoil = Math.max(0, this.recoil - 0.06 * f);
@@ -205,6 +266,7 @@ class FpsGame {
     if (this.reloadUntil && now >= this.reloadUntil && this.ammo < FPS_MAG) { this.ammo = FPS_MAG; this.reloadUntil = 0; if (window.Sound) Sound.rotate(); }
 
     this.angle += this.turn * 0.05 * f;
+    const px = this.x, py = this.y;
     let mv = this.fwd; if (this.upHeld) mv = 1;
     this.moving = mv ? 1 : 0;
     if (mv) {
@@ -215,6 +277,10 @@ class FpsGame {
       this.bob += 0.2 * f;
     }
     this.fwd = 0;
+    // 내 실제 속도(칸/초) — 위치 신호에 실어 보냄 (벽에 막히면 0)
+    if (dt > 0) { const ds = dt / 1000; let vx = (this.x - px) / ds, vy = (this.y - py) / ds; if (Math.hypot(vx, vy) > 20) { vx = 0; vy = 0; }
+      this.svx = (this.svx || 0) + (vx - (this.svx || 0)) * 0.6; this.svy = (this.svy || 0) + (vy - (this.svy || 0)) * 0.6;
+      if (Math.abs(this.svx) < 0.05) this.svx = 0; if (Math.abs(this.svy) < 0.05) this.svy = 0; }
     if (this.firing) this.shoot();
     this.draw();
   }
@@ -302,7 +368,7 @@ class FpsGame {
       if (dx < 0) { sx = -1; sdx = (this.x - mx) * ddx; } else { sx = 1; sdx = (mx + 1 - this.x) * ddx; }
       if (dy < 0) { sy = -1; sdy = (this.y - my) * ddy; } else { sy = 1; sdy = (my + 1 - this.y) * ddy; }
       let side = 0, kind = '#', n = 0;
-      while (n++ < 48) {
+      while (n++ < this.map.length * 2) {
         if (sdx < sdy) { sdx += ddx; mx += sx; side = 0; } else { sdy += ddy; my += sy; side = 1; }
         const k = this.cell(mx + 0.5, my + 0.5); if (k !== '.') { kind = k; break; }
       }

@@ -1278,8 +1278,8 @@ class KartGame {
         let d2 = this.angle - this.moveA; while (d2 > Math.PI) d2 -= Math.PI * 2; while (d2 < -Math.PI) d2 += Math.PI * 2;
         if (Math.abs(d2) > DRIFT_SLIP) this.moveA = this.angle - Math.sign(d2) * DRIFT_SLIP;
       } else if (now < (this.recoverUntil || 0)) {
-        // 그립 회복: 진행 방향이 차 방향으로 빠르게 붙고, 차체도 조금 되돌아옴 (약 0.2초)
-        this.moveA += dm * this.smooth(0.18, f); this.angle -= dm * this.smooth(0.05, f);
+        // 그립 회복: 진행 방향이 차 방향으로 빠르게 붙고, 차체도 조금 되돌아옴 (약 0.1~0.15초)
+        this.moveA += dm * this.smooth(0.22, f); this.angle -= dm * this.smooth(0.06, f);
       }
       else if (this.track.driftZone && this.track.driftZone[this.segIdx] && this.steer) this.moveA += dm * this.smooth(0.22, f);   // 미끄러운 구간: 드리프트 없이 꺾으면 바깥으로 밀림
       else this.moveA = this.angle; }

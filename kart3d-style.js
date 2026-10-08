@@ -132,11 +132,12 @@
 
     // 3) 출발선 양쪽 관람석 + 관중 (계단 · 지붕 · 사람: 인스턴스 몇 개)
     { const steps = [], roofs = [], bodies = [], heads = [], rows = 5, seg = tr.stepLen * S, per = Math.max(2, Math.round(seg / 1.15));
+      const skipP = this.hq === 'high' ? 0.12 : 0.5;   // 보통 화질(태블릿)은 관중을 절반 정도만 — 출발선에 30명이 몰릴 때 삼각형 수만 개를 덜 그림
       for (let k = -40; k <= 40; k++) { if (tr.gapSeg[((k % n) + n) % n]) continue;
         [1, -1].forEach(side => { const h = heading(k), fwd = new T.Vector3(Math.sin(h), 0, Math.cos(h));
           for (let r = 0; r < rows; r++) { const hgt = 0.8 + r * 1.6, p = at(k, side * (1.42 + r * 0.075), hgt / 2); steps.push({ p, h, s: [1.5, hgt, seg * 1.03] });   // 계단 한 칸: 가로 = 깊이 · 세로 = 트랙 방향
             const top = p.y + hgt / 2;
-            for (let q = 0; q < per; q++) { if (Math.random() < 0.12) continue; const pp = p.clone().addScaledVector(fwd, (q - (per - 1) / 2) * (seg / per)); pp.y = top;   // 트랙 방향으로 나란히
+            for (let q = 0; q < per; q++) { if (Math.random() < skipP) continue; const pp = p.clone().addScaledVector(fwd, (q - (per - 1) / 2) * (seg / per)); pp.y = top;   // 트랙 방향으로 나란히
               bodies.push({ p: pp.clone().setY(top + 0.4), h }); heads.push({ p: pp.clone().setY(top + 1.05), h }); } }
           roofs.push({ p: at(k, side * (1.42 + (rows - 1) * 0.0375), 0.8 + (rows - 1) * 1.6 + 3.4), h, s: [rows * 1.5 + 1.2, 0.25, seg * 1.03] }); }); }
       const inst = (geo, list, color, eachColor, noShadow) => { const mat = new T.MeshLambertMaterial({ color }); mat.userData.lin = false; const im = new T.InstancedMesh(geo, mat, list.length), m4 = new T.Matrix4(), q = new T.Quaternion(), sc = new T.Vector3(), cc = new T.Color();

@@ -475,7 +475,7 @@ class KartGame3D extends KartGame {
     const fx = Math.cos(this.angle), fy = Math.sin(this.angle);
     for (const id in this.peers) { if (this.spectator && id === this.followId) continue;   // 관전: 따라가는 학생은 '나' 자리에 그림
       const pr = this.peers[id]; if (pr.x == null) continue; const dx = pr.x - this.x, dy = pr.y - this.y; pr._d2 = dx * dx + dy * dy;
-      pr._back = dx * fx + dy * fy < -cl * 2.5;                                  // 카메라 뒤쪽 카트는 화면에 거의 안 나오므로 자세한 모델을 주지 않음
+      pr._back = dx * fx + dy * fy < -cl * 4;                                    // 카메라(내 카트 약 3대 길이 뒤)보다 뒤쪽 카트는 화면에 안 나오므로 자세한 모델을 주지 않음
       ids.push(id); }
     ids.sort((a, b) => (this.peers[a]._d2 + (this.peers[a]._back ? 1e12 : 0)) - (this.peers[b]._d2 + (this.peers[b]._back ? 1e12 : 0)));
     const po = this.peerObj || (this.peerObj = {}), fm = this.farKartMesh(), m4 = this._m4 || (this._m4 = new T.Matrix4()), q = this._q4 || (this._q4 = new T.Quaternion()), one = this._one || (this._one = new T.Vector3(1, 1, 1)), up = this._up || (this._up = new T.Vector3(0, 1, 0));

@@ -925,7 +925,9 @@ class Fps3DGame {
   queueHit(target, dmg, head) {
     const now = this.clock(), h = this._hitQ[target] || (this._hitQ[target] = { dmg: 0, head: 0, n: 0, last: -1e9 }), p = this.peers[target];
     h.dmg += dmg; h.head = h.head || (head ? 1 : 0); h.n++;
-    if (now - h.last >= F3_HIT_GAP || (p && h.dmg >= (p.hp || 0) - (p.hitSent || 0))) this.flushHit(target, now);
+    const lethal = p && !p.hitKill && h.dmg >= (p.hp || 0) - (p.hitSent || 0);   // 쓰러뜨릴 만큼이면 바로 (한 번만 — 상대 신호가 늦어도 계속 쏟아내지 않게)
+    if (lethal) p.hitKill = true;
+    if (now - h.last >= F3_HIT_GAP || lethal) this.flushHit(target, now);
   }
   flushHit(target, now) {
     const h = this._hitQ[target]; if (!h || !h.n) return;
@@ -1046,7 +1048,7 @@ class Fps3DGame {
     }
     p.at = now;
     const shownX = p.x, shownY = p.y, had = p.tx != null;
-    Object.assign(p, { tx: d.x, ty: d.y, tz: d.z, vx: d.vx, vy: d.vy, vz: d.vz, sAt: now - age, tangle: d.angle, hp: d.hp, kills: d.kills, deaths: d.deaths, team: d.team, fire: d.fire, dead: d.dead, moving: d.moving, pitch: d.pitch, roll: d.roll, rollT: d.rollT, round: d.round, wr: d.wr, wb: d.wb, match: d.match, hitSent: 0 });
+    Object.assign(p, { tx: d.x, ty: d.y, tz: d.z, vx: d.vx, vy: d.vy, vz: d.vz, sAt: now - age, tangle: d.angle, hp: d.hp, kills: d.kills, deaths: d.deaths, team: d.team, fire: d.fire, dead: d.dead, moving: d.moving, pitch: d.pitch, roll: d.roll, rollT: d.rollT, round: d.round, wr: d.wr, wb: d.wb, match: d.match, hitSent: 0, hitKill: false });
     // 보정: 새 신호로 계산한 '지금 위치' 와 화면에 있던 위치의 차이를 0.1초에 걸쳐 줄임 (순간이동처럼 튀지 않게). 3칸 넘게 차이 나면(부활 등) 바로 옮김
     const g = this.predict(p, now);
     if (had && !d.dead && Math.hypot(shownX - g.x, shownY - g.y) < 3) { p.cx = shownX - g.x; p.cy = shownY - g.y; }
