@@ -1,7 +1,8 @@
 <!doctype html>
-<html lang="ko">
+<html lang="ko" translate="no">
 <head>
 <meta charset="UTF-8">
+<meta name="google" content="notranslate">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -16,7 +17,7 @@
   <div class="admin-top">
     <h1>아케이드</h1>
     <span class="badge badge-lg" id="status-badge">게임 선택</span>
-    <span class="badge badge-lg badge-ghost" id="count-badge">0명 접속</span>
+    <span class="badge badge-lg count-badge" id="count-badge">0명 접속</span>
     <span class="badge badge-sm" style="opacity:.4">v2026-10-20j</span>
   </div>
   <p class="admin-sub" id="admin-sub">플레이할 게임을 고르면 학생용 QR이 만들어집니다.</p>
@@ -56,7 +57,7 @@
           <button class="btn btn-ghost move-open">⇄ 모두 다른 게임 대기실로 이동</button>
           <button id="reset-btn" class="btn btn-outline btn-error">명단 비우기</button>
         </div>
-        <h2 class="section-h">입장한 학생</h2>
+        <div class="wait-total"><span class="wt-label">입장한 학생</span><b class="num" id="wait-total">0</b><span class="wt-unit">명</span></div>
         <ul id="waiting-list"></ul>
         <p id="waiting-empty" class="empty-note">아직 입장한 학생이 없습니다</p>
       </div>
@@ -972,6 +973,7 @@
     const list = $('waiting-list');
     const ids = Object.keys(players);
     list.innerHTML = '';
+    const wt = $('wait-total'); if (wt && wt.textContent !== String(ids.length)) { wt.textContent = ids.length; wt.classList.remove('bump'); void wt.offsetWidth; wt.classList.add('bump'); }
     const empty = $('waiting-empty');
     empty.classList.toggle('hidden', ids.length > 0);
     if (!ids.length) empty.textContent = '아직 입장한 학생이 없습니다 — 학생은 QR을 찍고 닉네임을 넣은 뒤 입장하기까지 눌러야 여기 나타납니다';
@@ -1043,7 +1045,8 @@
       c.nameEl.textContent = p.nickname || '(이름 없음)';
       c.scoreEl.textContent = p.score || 0;
       c.wrapper.classList.toggle('over', p.status === 'gameover');
-      if (p.board) drawBoardGrid(c.ctx, rowsToBoard(p.board), cs);
+      if (p.board) { const bd = rowsToBoard(p.board), bc = bd[0] ? bd[0].length : 0;   // 판이 칸 수보다 크면(2048 5×5~8×8 등) 카드 안에 맞게 줄임
+        drawBoardGrid(c.ctx, bd, (bc && bd.length) ? cs * Math.min(1, g.grid.cols / bc, g.grid.rows / bd.length) : cs); }
     });
     // 순위: 점수(완주는 1000-순위) → 같으면 카트는 트랙 진행도(달리는 중 순위) → 같으면 먼저 들어온 학생이 위
     const prog = id => (peerPos[id] && typeof peerPos[id].progress === 'number') ? peerPos[id].progress : 0;

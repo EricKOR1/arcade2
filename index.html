@@ -1,7 +1,8 @@
 <!doctype html>
-<html lang="ko">
+<html lang="ko" translate="no">
 <head>
 <meta charset="UTF-8">
+<meta name="google" content="notranslate">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
@@ -41,7 +42,7 @@
 
   <!-- 대기 -->
   <section id="screen-wait" class="screen centered">
-    <div class="pulse-ring"><b id="wait-count">0</b></div>
+    <div class="pulse-ring"><b id="wait-count" class="num">0</b><span class="pr-unit">명 입장</span></div>
     <h1 class="title-lg">시작을 기다리는 중</h1>
     <p class="muted">선생님이 시작하면 자동으로 넘어갑니다</p>
     <div class="howto" id="howto">
@@ -562,7 +563,7 @@
     const r = snap.val() || {};
     const ids = Object.keys(r);
     ids.forEach(id => { names[id] = r[id] || ''; });
-    document.getElementById('wait-count').textContent = ids.length;
+    { const wc = document.getElementById('wait-count'); if (wc.textContent !== String(ids.length)) { wc.textContent = ids.length; wc.classList.remove('bump'); void wc.offsetWidth; wc.classList.add('bump'); } }
     if (started) return;                                  // 게임 화면에서는 명단을 다시 그리지 않습니다
     const roster = document.getElementById('roster');
     roster.innerHTML = '';
