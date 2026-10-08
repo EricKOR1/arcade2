@@ -5,6 +5,8 @@ const ST_COLS = 9, ST_ROWS = 16;
 const ST_H = 0.2;          // 한 층 높이 (블록 기본 폭 = 1)
 const ST_AMP = 1.2;        // 블록이 왔다 갔다 하는 폭 (아래 블록 중심에서 ±)
 const ST_TOL = 0.04;       // 퍼펙트로 쳐 주는 오차
+const ST_READY = 1400;     // 판 시작 뒤 블록이 멈춰 있는 시간 (페이지의 READY·GO 와 같은 길이) — 그동안 톡은 무시
+const ST_SPAWN_GRACE = 250; // 새 블록이 나온 직후 무시하는 시간 — 새 블록은 탑 밖(빗나감 자리)에서 출발해, 바로 톡하면 한 번에 끝나던 문제
 const ST_GROW = 0.06;      // 연속 퍼펙트 3번부터 한 번에 커지는 양
 const ST_BASE = ['#2E3558', '#454E7A', '#6A74A6'];   // 받침대 색 (오른쪽 · 왼쪽 · 윗면)
 const ST_C = 0.866, ST_S = 0.5;   // 아이소메트릭 cos30 · sin30
@@ -24,7 +26,7 @@ class StackGame {
     this.cols = ST_COLS; this.rows = ST_ROWS;
     this.score = 0; this.gameOver = false;
     this.height = 0; this.perfects = 0; this.streak = 0; this.bestStreak = 0;
-    this.lastTime = 0; this.now = 0; this.age = 0; this.lastTap = -1e9;
+    this.lastTime = 0; this.now = 0; this.age = 0; this.lastTap = -1e9; this.spawnAge = 0;
     this.hue0 = Math.floor(Math.random() * 360);
     this.layers = [{ x: 0, z: 0, w: 1, d: 1, hue: this.hue0 }];   // 0층 = 받침 위 첫 블록
     this.chops = []; this.flashes = []; this.parts = []; this.texts = [];
@@ -51,6 +53,7 @@ class StackGame {
   spawn() {
     const t = this.top, n = this.layers.length;
     this.cur = { x: t.x, z: t.z, w: t.w, d: t.d, hue: (this.hue0 + n * 7) % 360, axis: n % 2 ? 'x' : 'z', p: -ST_AMP, dir: 1 };
+    this.spawnAge = this.age;
     this.syncCur();
   }
   syncCur() { const c = this.cur, t = this.top; if (c.axis === 'x') { c.x = t.x + c.p; c.z = t.z; } else { c.z = t.z + c.p; c.x = t.x; } }
@@ -59,6 +62,7 @@ class StackGame {
   stop() {
     if (this.gameOver || this.dying || !this.cur) return null;
     if (this.now - this.lastTap < 70) return null;          // 한 번 톡이 두 번 들어오는 것 막기
+    if (this.age < ST_READY || this.age - this.spawnAge < ST_SPAWN_GRACE) return null;   // 시작 준비 중 · 새 블록이 막 나왔을 때
     this.lastTap = this.now;
     const c = this.cur, t = this.top, ax = c.axis;
     const prevC = ax === 'x' ? t.x : t.z, size = ax === 'x' ? t.w : t.d;
@@ -114,7 +118,7 @@ class StackGame {
     const { dt, f } = FX.frame(this, now);
     this.age += dt;
     if (!this.gameOver) {
-      if (this.cur) {   // 왔다 갔다
+      if (this.cur && this.age >= ST_READY) {   // 왔다 갔다 (시작 준비 시간에는 멈춰 있음)
         const c = this.cur; c.p += c.dir * this.speed * f;
         if (c.p > ST_AMP) { c.p = ST_AMP; c.dir = -1; } else if (c.p < -ST_AMP) { c.p = -ST_AMP; c.dir = 1; }
         this.syncCur();
@@ -236,8 +240,8 @@ class StackGame {
       ctx.globalAlpha = 1;
     }
     // 처음 안내
-    if (this.age < 3200 && this.height < 2 && !this.gameOver) {
-      const a = Math.min(1, (3200 - this.age) / 600);
+    if (this.age < 4400 && this.height < 2 && !this.gameOver) {
+      const a = Math.min(1, (4400 - this.age) / 600);
       ctx.globalAlpha = a; ctx.fillStyle = 'rgba(15,20,45,0.6)'; FX.rr(ctx, W * 0.08, H * 0.7, W * 0.84, cs * 1.5, cs * 0.5); ctx.fill();
       FX.text(ctx, '화면을 톡! 블록을 멈춰요', W / 2, H * 0.7 + cs * 0.55, { size: cs * 0.5, weight: 800, color: '#fff', align: 'center', baseline: 'middle' });
       FX.text(ctx, '딱 맞추면 퍼펙트 · 삐져나온 곳은 잘려요', W / 2, H * 0.7 + cs * 1.05, { size: cs * 0.36, weight: 600, color: 'rgba(255,255,255,0.85)', align: 'center', baseline: 'middle' });
