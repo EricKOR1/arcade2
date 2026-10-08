@@ -69,7 +69,7 @@ class KartGame3D extends KartGame {
             m4.compose(p, q, sc).multiply(src.matrixWorld); im.setMatrixAt(i, m4); });
           im.castShadow = this.hq === 'high'; im.receiveShadow = true; this.scene.add(im); }); });
     }
-    Object.keys(this.karts).forEach(id => { this.scene.remove(this.karts[id].g); delete this.karts[id]; });
+    if (!this.makeKartStyled) Object.keys(this.karts).forEach(id => { this.scene.remove(this.karts[id].g); delete this.karts[id]; });   // 운전자 카트(kart3d-style)는 이 모델을 쓰지 않음 — 30대를 다시 만들며 멈칫하지 않게
   }
   makeKartHQ(look, isMe) {
     const T = THREE, g = new T.Group(), col = new T.Color(look && look.color || '#3FA9F5'), hsl = {}; col.getHSL(hsl);
@@ -136,7 +136,7 @@ class KartGame3D extends KartGame {
   // 맞는 쪽 연출 (규칙은 부모 그대로)
   hitByMissile(byId, kind) { const blocked = this.finished || this.guarded(); const r = super.hitByMissile(byId, kind); if (!blocked) { this.fxExplode(this.karts.__me && this.karts.__me.g.position, kind === 'turtle' ? 0x06D6A0 : 0xFF7A1A); this.shake3d = 0.5; } return r; }   // 방어막으로 막으면 폭발 없음
   hitByBolt(byId) { const r = super.hitByBolt(byId); this.fxLightning(this.karts.__me && this.karts.__me.g.position); this.flash = 0.8; return r; }
-  hitByMagnet(byId) { const r = super.hitByMagnet(byId); const k = this.karts[byId]; if (k && this.karts.__me) this.fxBeam(k.g, this.karts.__me.g, 1200); return r; }
+  hitByMagnet(byId) { const r = super.hitByMagnet(byId); const kg = this.kartObj(byId); if (kg && this.karts.__me) this.fxBeam(kg, this.karts.__me.g, 1200); return r; }
   explode(x, y) { const r = super.explode(x, y); const loc = this.elevAtXY(x, y, this.segIdx), p = this.P(x, y, loc.e); p.y += 1; this.fxExplode(p, 0xFF5C2A, 1.6); this.shake3d = Math.max(this.shake3d, 0.3); return r; }
 
   // 2D 세계 → 3D
@@ -346,11 +346,12 @@ class KartGame3D extends KartGame {
   addFx3d(mesh, life, update) { this.lin(mesh); this.scene.add(mesh); this.fx3d.push({ mesh, life, t: 0, update }); }
   fxExplode(pos, color, size) {
     if (!pos) return; const T = THREE, sz = size || 1;
-    const ball = new T.Mesh(new T.SphereGeometry(1, 14, 10), new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.9 })); ball.position.copy(pos); ball.position.y += 1;
+    const G = this._fxG || (this._fxG = { ball: new T.SphereGeometry(1, 14, 10), ring: new T.RingGeometry(0.8, 1.2, 24), cube: new T.BoxGeometry(0.4, 0.4, 0.4) }); Object.values(G).forEach(g => { g.userData.shared = true; });
+    const ball = new T.Mesh(G.ball, new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.9 })); ball.position.copy(pos); ball.position.y += 1;
     this.addFx3d(ball, 0.55, (m, k) => { m.scale.setScalar(sz * (0.6 + k * 4)); m.material.opacity = 0.9 * (1 - k); });
-    const ring = new T.Mesh(new T.RingGeometry(0.8, 1.2, 24), new T.MeshBasicMaterial({ color: 0xFFE066, transparent: true, opacity: 0.8, side: T.DoubleSide, depthWrite: false })); ring.rotation.x = -Math.PI / 2; ring.position.copy(pos); ring.position.y += 0.2;
+    const ring = new T.Mesh(G.ring, new T.MeshBasicMaterial({ color: 0xFFE066, transparent: true, opacity: 0.8, side: T.DoubleSide, depthWrite: false })); ring.rotation.x = -Math.PI / 2; ring.position.copy(pos); ring.position.y += 0.2;
     this.addFx3d(ring, 0.5, (m, k) => { m.scale.setScalar(sz * (1 + k * 7)); m.material.opacity = 0.8 * (1 - k); });
-    for (let i = 0; i < 10; i++) { const c = new T.Mesh(new T.BoxGeometry(0.4, 0.4, 0.4), new T.MeshBasicMaterial({ color: i % 2 ? 0x555555 : color })); c.position.copy(pos); c.position.y += 1;
+    for (let i = 0; i < 10; i++) { const c = new T.Mesh(G.cube, new T.MeshBasicMaterial({ color: i % 2 ? 0x555555 : color })); c.position.copy(pos); c.position.y += 1;
       const v = new T.Vector3((Math.random() - 0.5) * 12, 5 + Math.random() * 7, (Math.random() - 0.5) * 12);
       this.addFx3d(c, 0.9, (m, k, dt) => { v.y -= 22 * dt; m.position.addScaledVector(v, dt); m.rotation.x += dt * 8; m.scale.setScalar(1 - k * 0.7); }); }
     if (window.Sound && Sound.explosion) Sound.explosion();
@@ -365,7 +366,7 @@ class KartGame3D extends KartGame {
     this.addFx3d(g, 0.6, (m, k) => { const b = toG.position.clone(); b.y += 1; const p = a.clone().lerp(b, k); p.y += Math.sin(k * Math.PI) * 3; m.position.copy(p); m.lookAt(b);
       if (Math.random() < 0.8) this.fxPuff(p, 0xBBBBBB); if (k >= 0.99) this.fxExplode(b, kind === 'turtle' ? 0x06D6A0 : 0xFF7A1A); });
   }
-  fxPuff(pos, color) { const T = THREE, m = new T.Mesh(this.puffGeo || (this.puffGeo = new T.SphereGeometry(0.35, 6, 5)), new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.6 })); m.position.copy(pos);
+  fxPuff(pos, color) { const T = THREE, m = new T.Mesh(this.puffGeo || (this.puffGeo = new T.SphereGeometry(0.35, 6, 5), this.puffGeo.userData.shared = true, this.puffGeo), new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.6 })); m.position.copy(pos);
     this.addFx3d(m, 0.5, (mm, k) => { mm.scale.setScalar(1 + k * 2); mm.material.opacity = 0.6 * (1 - k); }); }
   // 자석 빔: 두 카트 사이를 잇는 떨리는 파란 빛줄기
   fxBeam(aG, bG, ms) {
@@ -384,15 +385,15 @@ class KartGame3D extends KartGame {
   fxSwirl(g) { const T = THREE, m = new T.Mesh(new T.TorusGeometry(2, 0.18, 8, 24), new T.MeshBasicMaterial({ color: 0xB15DFF, transparent: true }));
     this.addFx3d(m, 0.8, (mm, k) => { mm.position.copy(g.position); mm.position.y += 0.4 + k * 3; mm.rotation.x = Math.PI / 2; mm.rotation.z = k * 12; mm.material.opacity = 1 - k; }); }
   fxAttack(type, target, data) {
-    const me = this.karts.__me; if (!me) return; const tk = target ? this.karts[target] : null;
-    if ((type === 'missile' || type === 'turtle') && tk) this.fxProjectile(me.g, tk.g, type);
-    else if (type === 'magnet' && tk) this.fxBeam(me.g, tk.g, 1500);
-    else if (type === 'bolt') { Object.keys(this.peers).forEach(id => { const pr = this.peers[id], k = this.karts[id]; if (k && (pr.progress || 0) > this.progress) this.fxLightning(k.g.position); }); this.flash = 0.6; }
-    else if (type === 'swap') { this.fxSwirl(me.g); if (tk) this.fxSwirl(tk.g); }
+    const me = this.karts.__me; if (!me) return; const tg = target ? this.kartObj(target) : null;
+    if ((type === 'missile' || type === 'turtle') && tg) this.fxProjectile(me.g, tg, type);
+    else if (type === 'magnet' && tg) this.fxBeam(me.g, tg, 1500);
+    else if (type === 'bolt') { let nb = 0; Object.keys(this.peers).forEach(id => { const pr = this.peers[id], k = this.karts[id]; if (k && k.g.visible && nb < 8 && (pr.progress || 0) > this.progress) { nb++; this.fxLightning(k.g.position); } }); this.flash = 0.6; }   // 번개 연출은 보이는 카트 8대까지 (30명이면 한꺼번에 수백 개를 만들어 멈칫했음)
+    else if (type === 'swap') { this.fxSwirl(me.g); if (tg) this.fxSwirl(tg); }
   }
   stepFx(dt) {
     for (let i = this.fx3d.length - 1; i >= 0; i--) { const f = this.fx3d[i]; f.t += dt; const k = Math.min(1, f.t / f.life);
-      if (f.update) f.update(f.mesh, k, dt); if (k >= 1) { this.scene.remove(f.mesh); f.mesh.traverse(o => { if (o.material) o.material.dispose(); }); this.fx3d.splice(i, 1); } }
+      if (f.update) f.update(f.mesh, k, dt); if (k >= 1) { this.scene.remove(f.mesh); f.mesh.traverse(o => { if (o.material) o.material.dispose(); if (o.geometry && !o.geometry.userData.shared) o.geometry.dispose(); }); this.fx3d.splice(i, 1); } }   // 도형도 정리 (예전엔 폭발마다 도형이 GPU 에 쌓였음)
   }
 
   // 카트 모델 (2D 판의 카트 색 · 체형)
@@ -429,20 +430,71 @@ class KartGame3D extends KartGame {
   }
   placeKart(id, x, y, a, air, look, isMe, opts) {
     let k = this.karts[id];
-    const lk = (look ? look.color + look.style : '') + '|' + (this.assetsVer || 0);
+    const lk = (look ? look.color + look.style : '') + '|' + (this.makeKartStyled && this.hq !== 'low' ? 0 : (this.assetsVer || 0));   // 운전자 카트는 Kenney 모델을 쓰지 않으므로 모델이 도착해도 다시 만들지 않음
     if (k && k.lk !== lk) { this.scene.remove(k.g); delete this.karts[id]; k = null; }          // 관전 학생이 바뀌면 카트 모양·색도 새로
     if (!k) k = this.karts[id] = { g: this.makeKart(look, isMe), hint: isMe ? this.segIdx : undefined, lk };
+    k.g.visible = true;
     const loc = this.elevAtXY(x, y, k.hint); k.hint = loc.i;
     // 점프 구간에서 떨어질 때도 땅 밑으로는 내려가지 않게 (카메라가 땅 밑으로 들어가 하늘만 보이던 문제)
-    const p = this.P(x, y, loc.e); const lift = Math.max((air || 0) * this.S, this.groundY + 0.2 - p.y); k.g.position.set(p.x, p.y + lift, p.z);
+    const S = this.S, px = x * S, pz = y * S, py = loc.e * S, lift = Math.max((air || 0) * S, this.groundY + 0.2 - py); k.g.position.set(px, py + lift, pz);
     k.g.userData.shadow.position.y = 0.05 - lift; k.g.userData.shadow.visible = !this.track.gapSeg[loc.i];
     const spin = opts && opts.spin ? (this.clock() / 70) : 0;
     k.g.rotation.set(0, Math.PI / 2 - a + spin, 0); k.g.userData.shield.visible = !!(opts && opts.shield); k.seen = true;
-    if (k.g.userData.wheels) { const d = k.lastP ? Math.hypot(p.x - k.lastP.x, p.z - k.lastP.z) : 0; k.lastP = { x: p.x, z: p.z }; k.g.userData.wheels.forEach(w => { w.rotation.x += Math.min(1.2, d * 1.4); }); }
+    if (k.g.userData.wheels) { const d = k.lastP ? Math.hypot(px - k.lastP.x, pz - k.lastP.z) : 0; if (!k.lastP) k.lastP = { x: 0, z: 0 }; k.lastP.x = px; k.lastP.z = pz; k.g.userData.wheels.forEach(w => { w.rotation.x += Math.min(1.2, d * 1.4); }); }
     if (this.hq !== 'low' && this.renderer.shadowMap.enabled) k.g.userData.shadow.visible = false;
     const fl = k.g.userData.flame; fl.visible = !!(opts && opts.boost); if (fl.visible) fl.children.forEach(c => { c.scale.set(1, 0.7 + Math.random() * 0.6, 1); });
     const bm = k.g.userData.body.color; if (opts && opts.star) bm.setHSL((this.clock() / 400) % 1, 0.9, 0.55); else if (k.baseColor) bm.copy(k.baseColor); if (!k.baseColor) k.baseColor = bm.clone();
     return k;
+  }
+  // 상대 카트의 연출용 위치 (자세한 모델이 보이면 그 모델, 멀어서 간단히 그리는 중이면 위치만 담은 점)
+  kartObj(id) { const k = this.karts[id]; if (k && k.g.visible) return k.g; return (this.peerObj && this.peerObj[id]) || null; }
+  // 멀리 있는 카트: 한 번에 그리는 간단한 카트(인스턴스 1개 · 그리기 호출 1번 · 삼각형 약 100개) — 색은 카트마다
+  farKartMesh() {
+    if (this._farK) return this._farK;
+    const T = THREE, pos = [], nor = [], col = [];
+    const add = (geo, x, y, z, c) => { const g = geo.index ? geo.toNonIndexed() : geo; g.translate(x, y, z); const pa = g.attributes.position.array, na = g.attributes.normal.array;
+      for (let i = 0; i < pa.length; i++) { pos.push(pa[i]); nor.push(na[i]); } for (let i = 0; i < pa.length / 3; i++) col.push(c, c, c); };
+    add(new T.BoxGeometry(1.5, 0.22, 2.9), 0, 0.3, 0, 1);                 // 바닥 판 (카트 색)
+    add(new T.BoxGeometry(1.2, 0.3, 0.8), 0, 0.48, 1.2, 1);               // 앞 코
+    add(new T.BoxGeometry(0.9, 0.5, 1.3), 0, 0.62, -0.7, 0.22);           // 좌석 · 엔진 (어둡게)
+    add(new T.BoxGeometry(0.55, 0.6, 0.45), 0, 1.0, -0.3, 0.7);           // 운전자 몸
+    add(new T.IcosahedronGeometry(0.36, 0), 0, 1.55, -0.25, 1);           // 헬멧
+    [[0.82, 1.05, 0.3], [-0.82, 1.05, 0.3], [0.86, -1.0, 0.38], [-0.86, -1.0, 0.38]].forEach(([x, z, r]) => add(new T.BoxGeometry(0.32, r * 2, r * 2), x, r, z, 0.12));   // 바퀴
+    const geo = new T.BufferGeometry(); geo.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); geo.setAttribute('normal', new T.Float32BufferAttribute(nor, 3)); geo.setAttribute('color', new T.Float32BufferAttribute(col, 3));
+    const mat = new T.MeshLambertMaterial({ vertexColors: true }); mat.userData.lin = true;
+    const im = new T.InstancedMesh(geo, mat, 64); im.castShadow = false; im.receiveShadow = false; im.frustumCulled = false;
+    im.instanceColor = new T.InstancedBufferAttribute(new Float32Array(64 * 3).fill(1), 3); im.count = 0;   // (setColorAt 은 그때의 count 만큼만 만들어 0 이면 색이 비어 검게 나옴)
+    this.scene.add(im); this._farK = im; return im;
+  }
+  // 친구들 (2D 판과 같은 0.15초 보간 위치 = stepPeers 가 옮겨 둔 pr.x·y·angle)
+  //   가까운 몇 대만 자세한 모델(그림자 포함) · 나머지는 간단한 카트 한 묶음 · 아주 멀면(안개 속) 생략
+  //   (예전엔 30대 모두 자세한 모델 — 카트마다 그리기 3번 + 그림자 3번, 삼각형 1,100개 → 화면이 무거웠음)
+  drawPeers3D(now) {
+    const T = THREE, cl = this.track.carLen, S = this.S, ids = this._pIds || (this._pIds = []); ids.length = 0;
+    const NEAR = cl * 18, FAR = cl * 140, nearN = this.hq === 'high' ? 10 : this.hq === 'low' ? 4 : 8;   // 가벼움(상자 카트는 부품이 많음)은 4대까지
+    const fx = Math.cos(this.angle), fy = Math.sin(this.angle);
+    for (const id in this.peers) { if (this.spectator && id === this.followId) continue;   // 관전: 따라가는 학생은 '나' 자리에 그림
+      const pr = this.peers[id]; if (pr.x == null) continue; const dx = pr.x - this.x, dy = pr.y - this.y; pr._d2 = dx * dx + dy * dy;
+      pr._back = dx * fx + dy * fy < -cl * 4;                                    // 카메라(내 카트 약 3대 길이 뒤)보다 뒤쪽 카트는 화면에 안 나오므로 자세한 모델을 주지 않음
+      ids.push(id); }
+    ids.sort((a, b) => (this.peers[a]._d2 + (this.peers[a]._back ? 1e12 : 0)) - (this.peers[b]._d2 + (this.peers[b]._back ? 1e12 : 0)));
+    const po = this.peerObj || (this.peerObj = {}), fm = this.farKartMesh(), m4 = this._m4 || (this._m4 = new T.Matrix4()), q = this._q4 || (this._q4 = new T.Quaternion()), one = this._one || (this._one = new T.Vector3(1, 1, 1)), up = this._up || (this._up = new T.Vector3(0, 1, 0));
+    let nNear = 0, nFar = 0;
+    for (let i = 0; i < ids.length; i++) {
+      const id = ids[i], pr = this.peers[id]; pr.look = pr.look || kartLook(pr.name || id);
+      const d = Math.sqrt(pr._d2), k = this.karts[id];
+      const o = po[id] || (po[id] = new T.Object3D()); o.position.set(pr.x * S, Math.max((pr.e || 0) * S, this.groundY + 0.2), pr.y * S);
+      const lim = (k && k.g.visible) ? NEAR * 1.15 : NEAR;                      // 경계에서 모델이 깜박이지 않게
+      if (d < lim && nNear < nearN && !pr._back) { nNear++; this.placeKart(id, pr.x, pr.y, pr.angle, pr.z, pr.look, false, { spin: pr.spin, shield: pr.shield, boost: pr.boost }); continue; }
+      if (k) { k.g.visible = false; k.seen = true; }                           // 자세한 모델은 숨겨 두었다가 다시 가까워지면 그대로 씀 (다시 만들지 않음)
+      if (d > FAR || nFar >= 64) continue;
+      q.setFromAxisAngle(up, Math.PI / 2 - pr.angle + (pr.spin ? now / 70 : 0)); m4.compose(o.position, q, one); fm.setMatrixAt(nFar, m4);
+      if (pr._lc !== pr.look.color) { pr._lc = pr.look.color; pr._c3 = new T.Color(pr.look.color); if (this.hq !== 'low') pr._c3.convertSRGBToLinear(); }
+      fm.setColorAt(nFar, pr._c3); nFar++;
+    }
+    fm.count = nFar; fm.instanceMatrix.needsUpdate = true; if (fm.instanceColor) fm.instanceColor.needsUpdate = true;
+    for (const id in po) if (!this.peers[id]) delete po[id];
+    this._nearN = nNear; this._farN = nFar;
   }
 
   draw() {
@@ -451,10 +503,10 @@ class KartGame3D extends KartGame {
     Object.keys(this.karts).forEach(id => { this.karts[id].seen = false; });
     // 나
     this.placeKart('__me', this.x, this.y, this.angle, this.airZ, this.look, true, { spin: now < this.spinUntil || now < this.stunUntil, shield: now < this.shieldUntil, boost: now < this.boostUntil || now < this.starUntil, star: now < this.starUntil });
-    // 친구들 (2D 판과 같은 0.15초 보간)
-    Object.keys(this.peers).forEach(id => { if (this.spectator && id === this.followId) return;   // 관전: 따라가는 학생은 '나' 자리에 그림
-      const pr = this.peers[id], s = this.interpPeer(pr, now); pr.look = pr.look || kartLook(pr.name || id);
-      this.placeKart(id, s.x, s.y, s.a, pr.z, pr.look, false, { spin: pr.spin, shield: pr.shield, boost: pr.boost }); });
+    // 드리프트: 미끄러지는 동안 차체가 바깥으로 살짝 기울고, 그립을 되찾으면 바로 돌아옴
+    { const meK = this.karts.__me, rt = this.spectator ? 0 : -Math.max(-0.09, Math.min(0.09, (this.slip || 0) * 0.25));
+      this._roll = (this._roll || 0) + (rt - (this._roll || 0)) * Math.min(1, 0.3 * (this.lastF || 1)); if (meK) meK.g.rotation.z = this._roll; }
+    this.drawPeers3D(now);
     Object.keys(this.karts).forEach(id => { if (!this.karts[id].seen) { this.scene.remove(this.karts[id].g); delete this.karts[id]; } });
     // 아이템 상자 (먹으면 잠시 사라짐 · 회전)
     if (this.boxMesh) { const m4 = new T.Matrix4(), q = new T.Quaternion().setFromEuler(new T.Euler(now / 1400, now / 900, 0)), sc = new T.Vector3();
@@ -470,11 +522,12 @@ class KartGame3D extends KartGame {
     Object.keys(this.hazMeshes).forEach(hid => { if (!seenH[hid]) { this.scene.remove(this.hazMeshes[hid]); delete this.hazMeshes[hid]; } });
     // 입자 (2D 판의 입자 목록: 세계 좌표 + 높이)
     let np = 0; const m4 = new T.Matrix4(), q0 = new T.Quaternion(), sc0 = new T.Vector3();
-    const pc = this._pc || (this._pc = new T.Color());
-    (this.parts || []).forEach(pt => { if (np >= 160 || pt.x == null) return; const loc = this.elevAtXY(pt.x, pt.y, this.segIdx), p = this.P(pt.x, pt.y, loc.e); p.y += ((pt.h || 0) * this.S) + 0.3;
+    const pv = this._pv || (this._pv = new T.Vector3());
+    (this.parts || []).forEach(pt => { if (np >= 160 || pt.x == null) return; if (pt.e3 == null) pt.e3 = this.elevAtXY(pt.x, pt.y, this.segIdx).e;   // 입자 높이는 처음 한 번만 (예전엔 매 프레임 입자 160개 × 트랙 91점 탐색)
+      const p = pv.set(pt.x * this.S, pt.e3 * this.S, pt.y * this.S); p.y += ((pt.h || 0) * this.S) + 0.3;
       // 2D 판의 입자 크기(size, 화면 픽셀 기준)·색을 그대로 — 작게, 수명에 따라 줄어듦
       const s = Math.max(0.15, (pt.life != null ? pt.life : 1)) * Math.min(1.2, (pt.size || 6) / 12); sc0.setScalar(s); m4.compose(p, q0, sc0); this.partMesh.setMatrixAt(np, m4);
-      pc.set(pt.color || pt.c || '#FFD166'); if (this.hq !== 'low') pc.convertSRGBToLinear(); this.partMesh.setColorAt(np, pc); np++; });
+      if (!pt.c3) { pt.c3 = new T.Color(pt.color || pt.c || '#FFD166'); if (this.hq !== 'low') pt.c3.convertSRGBToLinear(); } this.partMesh.setColorAt(np, pt.c3); np++; });
     if (this.partMesh.instanceColor) this.partMesh.instanceColor.needsUpdate = true;
     this.partMesh.count = np; this.partMesh.instanceMatrix.needsUpdate = true;
     const dtf = Math.min(0.05, (now - (this._fxT || now)) / 1000); this._fxT = now; this.stepFx(dtf);

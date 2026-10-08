@@ -1,14 +1,15 @@
 <!doctype html>
-<html lang="ko">
+<html lang="ko" translate="no">
 <head>
 <meta charset="UTF-8">
+<meta name="google" content="notranslate">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1B2027">
 <title>교사용 대시보드</title>
-<link rel="stylesheet" href="platform.css?v=2026-10-20j">
-<link rel="stylesheet" href="style.css?v=2026-10-20j">
+<link rel="stylesheet" href="platform.css?v=2026-10-20k">
+<link rel="stylesheet" href="style.css?v=2026-10-20k">
 </head>
 <body>
 <div class="admin" id="admin-root">
@@ -16,8 +17,8 @@
   <div class="admin-top">
     <h1>아케이드</h1>
     <span class="badge badge-lg" id="status-badge">게임 선택</span>
-    <span class="badge badge-lg badge-ghost" id="count-badge">0명 접속</span>
-    <span class="badge badge-sm" style="opacity:.4">v2026-10-20j</span>
+    <span class="badge badge-lg count-badge" id="count-badge">0명 접속</span>
+    <span class="badge badge-sm" style="opacity:.4">v2026-10-20k</span>
   </div>
   <p class="admin-sub" id="admin-sub">플레이할 게임을 고르면 학생용 QR이 만들어집니다.</p>
 
@@ -56,7 +57,7 @@
           <button class="btn btn-ghost move-open">⇄ 모두 다른 게임 대기실로 이동</button>
           <button id="reset-btn" class="btn btn-outline btn-error">명단 비우기</button>
         </div>
-        <h2 class="section-h">입장한 학생</h2>
+        <div class="wait-total"><span class="wt-label">입장한 학생</span><b class="num" id="wait-total">0</b><span class="wt-unit">명</span></div>
         <ul id="waiting-list"></ul>
         <p id="waiting-empty" class="empty-note">아직 입장한 학생이 없습니다</p>
       </div>
@@ -173,42 +174,42 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="firebase-config.js?v=2026-10-20j"></script>
-<script src="shared.js?v=2026-10-20j"></script>
-<script src="fx.js?v=2026-10-20j"></script>
-<script src="tetris-engine.js?v=2026-10-20j"></script>
-<script src="racing-engine.js?v=2026-10-20j"></script>
-<script src="snake-engine.js?v=2026-10-20j"></script>
-<script src="breakout-engine.js?v=2026-10-20j"></script>
-<script src="flappy-engine.js?v=2026-10-20j"></script>
-<script src="shooter-engine.js?v=2026-10-20j"></script>
+<script src="firebase-config.js?v=2026-10-20k"></script>
+<script src="shared.js?v=2026-10-20k"></script>
+<script src="fx.js?v=2026-10-20k"></script>
+<script src="tetris-engine.js?v=2026-10-20k"></script>
+<script src="racing-engine.js?v=2026-10-20k"></script>
+<script src="snake-engine.js?v=2026-10-20k"></script>
+<script src="breakout-engine.js?v=2026-10-20k"></script>
+<script src="flappy-engine.js?v=2026-10-20k"></script>
+<script src="shooter-engine.js?v=2026-10-20k"></script>
 <script src="three.min.js"></script>
-<script src="fps-engine.js?v=2026-10-20j"></script>
-<script src="fps3d-engine.js?v=2026-10-20j"></script>
-<script src="game2048-engine.js?v=2026-10-20j"></script>
-<script src="frogger-engine.js?v=2026-10-20j"></script>
-<script src="frogger3d-engine.js?v=2026-10-20j"></script>
-<script src="asteroids-engine.js?v=2026-10-20j"></script>
-<script src="maze-engine.js?v=2026-10-20j"></script>
-<script src="tower-engine.js?v=2026-10-20j"></script>
-<script src="missile-engine.js?v=2026-10-20j"></script>
-<script src="centipede-engine.js?v=2026-10-20j"></script>
-<script src="source-engine.js?v=2026-10-20j"></script>
-<script src="ulsan-geo.js?v=2026-10-20j"></script>
-<script src="ulsan-case.js?v=2026-10-20j"></script>
-<script src="ulsan-terrain.js?v=2026-10-20j"></script>
-<script src="ulsan-rpg-engine.js?v=2026-10-20j"></script>
-<script src="arena-engine.js?v=2026-10-20j"></script>
-<script src="three-quality.js?v=2026-10-20j"></script>
-<script src="arena3d-engine.js?v=2026-10-20j"></script>
-<script src="slither-engine.js?v=2026-10-20j"></script>
-<script src="kart3d-engine.js?v=2026-10-20j"></script>
-<script src="kart3d-hq.js?v=2026-10-20j"></script>
-<script src="kart3dx-engine.js?v=2026-10-20j"></script>
-<script src="kart3d-style.js?v=2026-10-20j"></script>
-<script src="kart3d-real.js?v=2026-10-20j"></script>
-<script src="games.js?v=2026-10-20j"></script>
-<script src="app.js?v=2026-10-20j"></script>
+<script src="fps-engine.js?v=2026-10-20k"></script>
+<script src="fps3d-engine.js?v=2026-10-20k"></script>
+<script src="game2048-engine.js?v=2026-10-20k"></script>
+<script src="frogger-engine.js?v=2026-10-20k"></script>
+<script src="frogger3d-engine.js?v=2026-10-20k"></script>
+<script src="asteroids-engine.js?v=2026-10-20k"></script>
+<script src="maze-engine.js?v=2026-10-20k"></script>
+<script src="tower-engine.js?v=2026-10-20k"></script>
+<script src="missile-engine.js?v=2026-10-20k"></script>
+<script src="centipede-engine.js?v=2026-10-20k"></script>
+<script src="source-engine.js?v=2026-10-20k"></script>
+<script src="ulsan-geo.js?v=2026-10-20k"></script>
+<script src="ulsan-case.js?v=2026-10-20k"></script>
+<script src="ulsan-terrain.js?v=2026-10-20k"></script>
+<script src="ulsan-rpg-engine.js?v=2026-10-20k"></script>
+<script src="arena-engine.js?v=2026-10-20k"></script>
+<script src="three-quality.js?v=2026-10-20k"></script>
+<script src="arena3d-engine.js?v=2026-10-20k"></script>
+<script src="slither-engine.js?v=2026-10-20k"></script>
+<script src="kart3d-engine.js?v=2026-10-20k"></script>
+<script src="kart3d-hq.js?v=2026-10-20k"></script>
+<script src="kart3dx-engine.js?v=2026-10-20k"></script>
+<script src="kart3d-style.js?v=2026-10-20k"></script>
+<script src="kart3d-real.js?v=2026-10-20k"></script>
+<script src="games.js?v=2026-10-20k"></script>
+<script src="app.js?v=2026-10-20k"></script>
 <script>
 (function () {
   const CELL = { tetris: 6, snake: 5, breakout: 8, flappy: 8, shooter: 8, g2048: 26, frogger: 8, asteroids: 6, maze: 5, tower: 7, missile: 6, centipede: 5, source: 8, arena: 6, slither: 5, kart3d: 6, arena3d: 6, frogger3d: 8, blockpuzzle: 9, match3: 9, runner: 6, territory: 6, stack: 8, watersort: 8, logic: 8, slingshot: 8, rhythm: 8, helix: 8 };
@@ -271,13 +272,22 @@
   db.ref('session/track').on('value', snap => {
     const tk = snap.val();
     if (tk && TRACKS[tk]) { currentTrack = tk; ensureSpecTrack(); }
-    else if (tk && ((typeof F3_MAPS !== 'undefined' && F3_MAPS[tk]) || (typeof AR_MAPS !== 'undefined' && AR_MAPS[tk]) || (typeof SL_MAPS !== 'undefined' && SL_MAPS[String(tk).split(':')[0]]) || (typeof UC_MODES !== 'undefined' && UC_MODES[String(tk).split(':')[0]]))) { currentTrack = tk; if (focusFps && focusFps.mapId && focusFps.mapId !== tk && focusId != null && (GAMES[currentGameId] || {}).adminView === 'arena') startFocusFps(focusId); }   // FPS·아레나 맵 — 열어 둔 학생 화면도 새 맵으로
+    else if (tk && ((typeof F3_MAPS !== 'undefined' && (F3_MAPS[String(tk).split(':')[0]] || (typeof F3_MATCH_MODES !== 'undefined' && F3_MATCH_MODES[tk]))) || (typeof AR_MAPS !== 'undefined' && AR_MAPS[tk]) || (typeof SL_MAPS !== 'undefined' && SL_MAPS[String(tk).split(':')[0]]) || (typeof UC_MODES !== 'undefined' && UC_MODES[String(tk).split(':')[0]]))) { currentTrack = tk; if (focusFps && focusFps.mapId && focusFps.mapId !== tk && focusId != null && (GAMES[currentGameId] || {}).adminView === 'arena') startFocusFps(focusId); }   // FPS·아레나 맵 — 열어 둔 학생 화면도 새 맵으로
   });
 
-  function mapRegOf(g) { return (g && g.mapRegistry === 'arena') ? AR_MAPS : (g && g.mapRegistry === 'slither' && typeof SL_MAPS !== 'undefined') ? SL_MAPS : (g && g.mapRegistry === 'ulsan' && typeof UC_MODES !== 'undefined') ? UC_MODES : F3_MAPS; }
+  function mapRegOf(g) { return (g && g.mapRegistry === 'arena') ? AR_MAPS : (g && g.mapRegistry === 'fpsmatch' && typeof F3_MATCH_MODES !== 'undefined') ? F3_MATCH_MODES : (g && g.mapRegistry === 'slither' && typeof SL_MAPS !== 'undefined') ? SL_MAPS : (g && g.mapRegistry === 'ulsan' && typeof UC_MODES !== 'undefined') ? UC_MODES : F3_MAPS; }
   // 뱀 아레나 '자동' 맵: 시작하는 순간 접속 인원으로 크기를 정해 'auto:N' 으로 기록 — 모든 학생이 같은 크기
+  // 레이저 태그 매칭전: 시작할 때 접속한 학생 id 를 정렬해 N:N 경기로 나눔 → session.teams ({id: '경기번호r|b'}) — 모든 학생이 같은 표를 씀
+  function matchTeams(gid) {
+    const g = GAMES[gid || currentGameId] || {};
+    if (g.mapRegistry !== 'fpsmatch' || typeof Fps3DGame === 'undefined' || !Fps3DGame.makeMatches) return {};
+    return { teams: Fps3DGame.makeMatches(Object.keys(focusPlayers || {}), Fps3DGame.matchVs(currentTrack)) };
+  }
   function resolveAutoTrack(gid) {
-    const g = GAMES[gid || currentGameId] || {}; if (g.mapRegistry !== 'slither' || !currentTrack || String(currentTrack).split(':')[0] !== 'auto') return currentTrack;
+    const g = GAMES[gid || currentGameId] || {};
+    // 레이저 태그(개인전·팀전·클래식): 시작하는 순간 접속 인원을 맵 이름에 붙임 ('plaza:24') — 늦게 온 학생도 같은 크기 맵
+    if (g.adminView === 'arena' && typeof Fps3DGame !== 'undefined' && Fps3DGame.sizedTrack) { currentTrack = Fps3DGame.sizedTrack(gid || currentGameId, currentTrack, Math.max(1, Object.keys(focusPlayers || {}).length)); return currentTrack; }
+    if (g.mapRegistry !== 'slither' || !currentTrack || String(currentTrack).split(':')[0] !== 'auto') return currentTrack;
     const n = Math.max(1, Object.keys(names || {}).length); currentTrack = 'auto:' + n; return currentTrack;
   }
   function ensureSpecTrack() {
@@ -450,9 +460,9 @@
         Object.keys(ps[id] || {}).forEach(k => { if (['nickname', 'name', 'joinedAt', 'lastSeen', 'status', 'score'].indexOf(k) < 0) up[id + '/' + k] = null; }); });
       db.ref('gems').remove(); db.ref('finishes').remove(); db.ref('screens').remove(); db.ref('picks').remove();
       if (Object.keys(up).length) playersRef.update(up);
-      sessionRef.set(Object.assign({ game: gameId, status: startNow ? 'playing' : 'waiting', track: startNow ? resolveAutoTrack(gameId) : currentTrack, soundOff: !!teacherSoundOff }, startNow ? { startAt: serverNow() + 4200 } : {}));   // 곧바로 시작해도 공통 출발 시각을 함께
+      sessionRef.set(Object.assign({ game: gameId, status: startNow ? 'playing' : 'waiting', track: startNow ? resolveAutoTrack(gameId) : currentTrack, soundOff: !!teacherSoundOff }, startNow ? { startAt: serverNow() + 4200 } : {}, startNow ? matchTeams(gameId) : {}));   // 곧바로 시작해도 공통 출발 시각을 함께
     })["catch"](() => {
-      sessionRef.set(Object.assign({ game: gameId, status: startNow ? 'playing' : 'waiting', track: startNow ? resolveAutoTrack(gameId) : currentTrack, soundOff: !!teacherSoundOff }, startNow ? { startAt: serverNow() + 4200 } : {}));   // 곧바로 시작해도 공통 출발 시각을 함께
+      sessionRef.set(Object.assign({ game: gameId, status: startNow ? 'playing' : 'waiting', track: startNow ? resolveAutoTrack(gameId) : currentTrack, soundOff: !!teacherSoundOff }, startNow ? { startAt: serverNow() + 4200 } : {}, startNow ? matchTeams(gameId) : {}));   // 곧바로 시작해도 공통 출발 시각을 함께
     });
     renderQR(gameId);
   }
@@ -486,6 +496,7 @@
       }
       // 모든 기기가 게임을 준비할 시간을 주고, 같은 순간에 출발하도록 출발 시각을 함께 알립니다
       { const t0 = currentTrack, t1 = resolveAutoTrack(); if (t1 !== t0) sessionRef.child('track').set(t1); }   // 뱀 아레나 자동 맵: 지금 인원으로 크기 확정
+      { const mt = matchTeams(); if (mt.teams) sessionRef.child('teams').set(mt.teams); }   // 레이저 태그 매칭전: 지금 접속한 학생을 N:N 경기로 나눈 표
       sessionRef.child('startAt').set(serverNow() + 4200);
       statusRef.set('playing');
     });
@@ -594,7 +605,7 @@
     if (focusFps && focusFps.destroy) { try { focusFps.destroy(); } catch (e) {} }
     focusFps = null; focusKart = null;
     const Eng = GAMES[currentGameId].engine3d ? Fps3DGame : FpsGame;
-    focusFps = new Eng(focusCv, { myId: id, myName: names[id] || '', trackId: currentTrack, teamMode: (GAMES[currentGameId].name.indexOf('팀') >= 0), nameOf: k => names[k] || '' });
+    focusFps = new Eng(focusCv, { myId: id, myName: names[id] || '', trackId: currentTrack, teamMode: (GAMES[currentGameId].name.indexOf('팀') >= 0), nameOf: k => names[k] || '', serverNow: serverNow, seed: currentStartAt });   // 매칭전은 따라가는 학생의 경기 맵으로 엔진이 스스로 바꿈
     focusFps.spectate(id);
   }
   let focusWrap3d = null, focusLite = false;      // focusLite: 교사 PC 가 3D 관전을 버거워해 2D 로 바꾼 상태
@@ -972,6 +983,7 @@
     const list = $('waiting-list');
     const ids = Object.keys(players);
     list.innerHTML = '';
+    const wt = $('wait-total'); if (wt && wt.textContent !== String(ids.length)) { wt.textContent = ids.length; wt.classList.remove('bump'); void wt.offsetWidth; wt.classList.add('bump'); }
     const empty = $('waiting-empty');
     empty.classList.toggle('hidden', ids.length > 0);
     if (!ids.length) empty.textContent = '아직 입장한 학생이 없습니다 — 학생은 QR을 찍고 닉네임을 넣은 뒤 입장하기까지 눌러야 여기 나타납니다';
@@ -1043,7 +1055,8 @@
       c.nameEl.textContent = p.nickname || '(이름 없음)';
       c.scoreEl.textContent = p.score || 0;
       c.wrapper.classList.toggle('over', p.status === 'gameover');
-      if (p.board) drawBoardGrid(c.ctx, rowsToBoard(p.board), cs);
+      if (p.board) { const bd = rowsToBoard(p.board), bc = bd[0] ? bd[0].length : 0;   // 판이 칸 수보다 크면(2048 5×5~8×8 등) 카드 안에 맞게 줄임
+        drawBoardGrid(c.ctx, bd, (bc && bd.length) ? cs * Math.min(1, g.grid.cols / bc, g.grid.rows / bd.length) : cs); }
     });
     // 순위: 점수(완주는 1000-순위) → 같으면 카트는 트랙 진행도(달리는 중 순위) → 같으면 먼저 들어온 학생이 위
     const prog = id => (peerPos[id] && typeof peerPos[id].progress === 'number') ? peerPos[id].progress : 0;
@@ -1641,7 +1654,7 @@
       li.dataset.id = id; li.className = p.finished ? 'done' : '';
       const [r, nm, lp] = li.children;
       r.textContent = (i + 1) + '.'; nm.textContent = names[id] || '?';
-      lp.textContent = arena ? (p.kills || 0) + '킬 ' + (p.deaths || 0) + '데스' + (p.team ? (p.team === 'red' ? ' · 🔴' : ' · 🔵') : '')
+      lp.textContent = arena ? (p.match != null ? '경기 ' + (p.match + 1) + ' · ' : '') + (p.kills || 0) + '킬 ' + (p.deaths || 0) + '데스' + (p.team ? (p.team === 'red' ? ' · 🔴' : ' · 🔵') : '')
         : p.finished ? '완주' : (Math.max(1, Math.min((p.lap || 0) + 1, totalLaps)) + '/' + totalLaps + '바퀴' + (p.shield ? ' 🛡' : '') + (p.boost ? ' ⚡' : ''));
     });
     while (ul.children.length > ids.length) ul.removeChild(ul.lastChild);
@@ -1654,48 +1667,70 @@
 
   // 레이저 태그 — 위에서 본 미로와 학생 위치
   function drawArena(canvas) {
-    // 3D 레이저 태그는 선택된 맵(F3_MAPS) 을 그립니다 — 맵이 바뀌면 다시 만듭니다
-    if ((GAMES[currentGameId] || {}).engine3d && (!arenaMapCache || arenaMapCache.id !== currentTrack)) { const mid = (typeof F3_MAPS !== 'undefined' && F3_MAPS[currentTrack]) ? currentTrack : 'plaza'; arenaMapCache = { id: currentTrack, rows: F3_MAPS[mid].build().rows }; }
-    const map = (GAMES[currentGameId] || {}).engine3d ? arenaMapCache.rows : FPS_MAP, n = map.length;
+    // 레이저 태그: 학생들과 같은 맵(인원에 맞춘 크기 'plaza:24' · 매칭전은 경기마다 다른 맵)을 엔진에서 받아 그립니다. 벽 그림은 한 번만 만들어 둠
+    const gv = GAMES[currentGameId] || {}, matchMode = gv.mapRegistry === 'fpsmatch';
+    const mapOf = k => (gv.engine3d ? Fps3DGame.mapFor(currentTrack, k) : FpsGame.mapFor(currentTrack)).rows;
     const wrap = canvas.parentElement;
-    const size = Math.max(200, Math.min(wrap.clientWidth, window.innerHeight * 0.72));
+    const ids = Object.keys(peerPos).filter(k => k !== '__hz');
+    // 매칭전: 경기마다 작은 판을 바둑판처럼 (경기 번호는 학생 위치 신호에 들어 있음)
+    const groups = {}; ids.forEach(id => { const k = matchMode ? (peerPos[id].match | 0) : 0; (groups[k] = groups[k] || []).push(id); });
+    const keys = Object.keys(groups).map(Number).sort((a, b) => a - b); if (!keys.length) keys.push(0);
+    const cols = matchMode ? Math.ceil(Math.sqrt(keys.length)) : 1, rowsN = Math.ceil(keys.length / cols);
+    const size = Math.max(200, Math.min(wrap.clientWidth, window.innerHeight * 0.72 * cols / rowsN)), cell = size / cols, H = cell * rowsN;
     const dpr = Math.max(2, window.devicePixelRatio || 1);
-    if (canvas.width !== Math.round(size * dpr) || canvas.height !== Math.round(size * dpr)) {
-      canvas.style.width = size + 'px'; canvas.style.height = size + 'px';
-      canvas.width = Math.round(size * dpr); canvas.height = Math.round(size * dpr);
+    if (canvas.width !== Math.round(size * dpr) || canvas.height !== Math.round(H * dpr)) {
+      canvas.style.width = size + 'px'; canvas.style.height = H + 'px';
+      canvas.width = Math.round(size * dpr); canvas.height = Math.round(H * dpr);
     }
     const ctx = canvas.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const cs = size / n;
-    ctx.fillStyle = '#12141b'; ctx.fillRect(0, 0, size, size);
+    ctx.fillStyle = '#0B0D12'; ctx.fillRect(0, 0, size, H);
     const WALLC = { '#': '#5B6C8C', '=': '#8C94A8', 'X': '#8A6238', 'B': '#8A4E46', 'H': '#3E4A66', 'L': '#6E7A8F' , P: '#DCE6F2', T: '#2E7D46', R: '#8A8F98', W: '#7FA8C8' };
-    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if (map[y][x] !== '.') {
-      ctx.fillStyle = WALLC[map[y][x]] || '#465470'; ctx.fillRect(x * cs, y * cs, cs + 0.5, cs + 0.5);
-      ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.fillRect(x * cs, y * cs, cs + 0.5, Math.max(1, cs * 0.14));
-    }
-    const ids = Object.keys(peerPos).filter(k => k !== '__hz');
-    const teamMode = !!(GAMES[currentGameId] && GAMES[currentGameId].name.indexOf('팀') >= 0);
-    ids.forEach(id => {
-      const p = peerPos[id]; if (p.x == null) return;
-      const col = p.team ? (p.team === 'red' ? '#FF5C7A' : '#4CC9F0') : '#FFD166';
-      const px = p.x * cs, py = p.y * cs;
-      if (p.fire) { ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + Math.cos(p.angle) * cs * 6, py + Math.sin(p.angle) * cs * 6); ctx.stroke(); }
-      ctx.save(); ctx.translate(px, py); ctx.rotate(p.angle); ctx.globalAlpha = p.dead ? 0.35 : 1;
-      ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(cs * 0.7, 0); ctx.lineTo(-cs * 0.45, cs * 0.45); ctx.lineTo(-cs * 0.45, -cs * 0.45); ctx.closePath(); ctx.fill();
+    const teamMode = !!(gv.name && gv.name.indexOf('팀') >= 0) || matchMode;
+    keys.forEach((k, gi) => {
+      const ox = (gi % cols) * cell, oy = Math.floor(gi / cols) * cell, pad = matchMode ? 3 : 0, sz = cell - pad * 2;
+      const map = mapOf(k), n = map.length, cs = sz / n, key = currentTrack + '|' + k + '|' + Math.round(sz * dpr);
+      if (!arenaMapCache || !arenaMapCache.imgs) arenaMapCache = { imgs: {} };
+      let img = arenaMapCache.imgs[key];
+      if (!img) { img = document.createElement('canvas'); img.width = img.height = Math.round(sz * dpr); const g = img.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+        g.fillStyle = '#12141b'; g.fillRect(0, 0, sz, sz);
+        for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if (map[y][x] !== '.') {
+          g.fillStyle = WALLC[map[y][x]] || '#465470'; g.fillRect(x * cs, y * cs, cs + 0.5, cs + 0.5);
+          g.fillStyle = 'rgba(255,255,255,0.12)'; g.fillRect(x * cs, y * cs, cs + 0.5, Math.max(1, cs * 0.14)); }
+        if (Object.keys(arenaMapCache.imgs).length > 40) arenaMapCache.imgs = {};
+        arenaMapCache.imgs[key] = img; }
+      ctx.drawImage(img, ox + pad, oy + pad, sz, sz);
+      ctx.save(); ctx.translate(ox + pad, oy + pad);
+      const list = groups[k] || [], ps = Math.max(cs, matchMode ? 6 : 0);   // 작은 판에서도 학생 표시는 보이게
+      list.forEach(id => {
+        const p = peerPos[id]; if (p.x == null) return;
+        const col = p.team ? (p.team === 'red' ? '#FF5C7A' : '#4CC9F0') : '#FFD166';
+        const px = p.x * cs, py = p.y * cs;
+        if (p.fire) { ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + Math.cos(p.angle) * ps * 6, py + Math.sin(p.angle) * ps * 6); ctx.stroke(); }
+        ctx.save(); ctx.translate(px, py); ctx.rotate(p.angle); ctx.globalAlpha = p.dead ? 0.35 : 1;
+        ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(ps * 0.7, 0); ctx.lineTo(-ps * 0.45, ps * 0.45); ctx.lineTo(-ps * 0.45, -ps * 0.45); ctx.closePath(); ctx.fill();
+        ctx.restore();
+        ctx.fillStyle = '#fff'; ctx.font = '700 ' + Math.max(9, ps * 0.5) + 'px Pretendard, sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText(names[id] || '', px, py - ps * 0.7);
+        ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(px - ps * 0.6, py + ps * 0.55, ps * 1.2, 3);
+        ctx.fillStyle = p.dead ? '#6B7280' : '#06D6A0'; ctx.fillRect(px - ps * 0.6, py + ps * 0.55, ps * 1.2 * Math.max(0, (p.hp || 0) / 100), 3);
+      });
+      ctx.textAlign = 'left';
+      if (teamMode) {
+        // 팀 킬 합계 (매칭전은 경기마다 · 같은 판(round) 학생만 · 판 전적)
+        const rd = Math.max(1, ...list.map(id => peerPos[id].round || 1));
+        let red = 0, blue = 0, wr = 0, wb = 0; list.forEach(id => { const p = peerPos[id]; wr = Math.max(wr, p.wr || 0); wb = Math.max(wb, p.wb || 0); if (matchMode && (p.round || 1) !== rd) return; if (p.team === 'red') red += p.kills || 0; else if (p.team === 'blue') blue += p.kills || 0; });
+        const bw = matchMode ? Math.min(sz - 8, 170) : 140, bx = sz / 2 - bw / 2;
+        ctx.fillStyle = 'rgba(8,10,16,0.75)'; ctx.fillRect(bx, 6, bw, matchMode ? 40 : 34);
+        ctx.font = '800 ' + (matchMode ? 16 : 20) + 'px Pretendard, sans-serif'; ctx.textAlign = 'center';
+        ctx.fillStyle = '#FF5C7A'; ctx.fillText(String(red), sz / 2 - 26, matchMode ? 25 : 31);
+        ctx.fillStyle = '#fff'; ctx.fillText(':', sz / 2, matchMode ? 25 : 31);
+        ctx.fillStyle = '#4CC9F0'; ctx.fillText(String(blue), sz / 2 + 26, matchMode ? 25 : 31);
+        if (matchMode) { const nr = list.filter(id => peerPos[id].team === 'red').length, nb = list.length - nr;
+          ctx.font = '700 10px Pretendard, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.fillText('경기 ' + (k + 1) + ' · ' + nr + ':' + nb + ' · ' + rd + '판 (' + wr + ':' + wb + ')', sz / 2, 40); }
+        ctx.textAlign = 'left';
+      }
       ctx.restore();
-      ctx.fillStyle = '#fff'; ctx.font = '700 ' + Math.max(9, cs * 0.5) + 'px Pretendard, sans-serif'; ctx.textAlign = 'center';
-      ctx.fillText(names[id] || '', px, py - cs * 0.7);
-      ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(px - cs * 0.6, py + cs * 0.55, cs * 1.2, 3);
-      ctx.fillStyle = p.dead ? '#6B7280' : '#06D6A0'; ctx.fillRect(px - cs * 0.6, py + cs * 0.55, cs * 1.2 * Math.max(0, (p.hp || 0) / 100), 3);
     });
-    ctx.textAlign = 'left';
-    if (teamMode) {
-      let red = 0, blue = 0; ids.forEach(id => { const p = peerPos[id]; if (p.team === 'red') red += p.kills || 0; else if (p.team === 'blue') blue += p.kills || 0; });
-      ctx.fillStyle = 'rgba(8,10,16,0.75)'; ctx.fillRect(size / 2 - 70, 10, 140, 34);
-      ctx.font = '800 20px Pretendard, sans-serif'; ctx.textAlign = 'center';
-      ctx.fillStyle = '#FF5C7A'; ctx.fillText(String(red), size / 2 - 30, 35);
-      ctx.fillStyle = '#fff'; ctx.fillText(':', size / 2, 35);
-      ctx.fillStyle = '#4CC9F0'; ctx.fillText(String(blue), size / 2 + 30, 35); ctx.textAlign = 'left';
-    }
   }
 
   function drawSpectateKart(canvas) {

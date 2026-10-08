@@ -563,6 +563,8 @@ function kartLook(name) {
 }
 
 const MAX_ITEMS = 2;   // 최대 보관 개수
+const DRIFT_MAX = 1.1;     // 드리프트 한 번의 최대 길이(초) — 그 뒤엔 타이어가 노면을 잡아 저절로 끝남
+const DRIFT_SLIP = 0.62;   // 미끄러짐 각도 상한(라디안, 약 35°)
 
 const ITEMS = {
   banana:  { icon: '🍌', name: '바나나',   hint: '뒤에 떨어뜨립니다 — 밟으면 빙글' },
@@ -684,7 +686,8 @@ class KartGame {
 
   // ── 조작 ──
   move(dir) { this.steer = dir; }
-  drift(on) { this.driftHeld = !!on; }
+  // 드리프트 버튼: 누를 때마다 한 번 (꾹 누르고 있어도 한 번만 · 짧게 끊어 쓰는 게 유리)
+  drift(on) { on = !!on; if (on && !this.driftHeld) this.driftArm = 0.45; if (!on) this.driftArm = 0; this.driftHeld = on; }   // driftArm: 누른 뒤 조향을 기다리는 시간(게임 시간 초)
   // 순위 목록 (왼쪽 위 랩 표시 아래): 상위 몇 명 + 내 위치. 화면 높이에 맞춰 줄 수 조절 — 아래 속도계와 겹치지 않게
   drawStandings(ctx, W, H, now) {
     if (this.spectator || this.countdown > 0 || typeof document === 'undefined') return;
@@ -693,30 +696,47 @@ class KartGame {
       this._stT = now; let top = 120;
       try { const lb = document.querySelector('#kart-hud:not(.hidden) .lap-box'), cv = this.canvas.getBoundingClientRect(); if (lb) { const r = lb.getBoundingClientRect(); if (r.height) top = r.bottom - cv.top + 10; } } catch (e) {}
       this._stTop = top; }
-    const all = [{ name: this.myName || '나', p: this.finished ? 1e9 - (this.finishRank || 0) : (this.progress || 0), me: true }]
-      .concat(ids.map(id => { const pr = this.peers[id]; return { name: pr.name || '?', p: pr.finished ? 1e9 - 50 : (pr.progress || 0), color: pr.look && pr.look.color }; }));
-    all.sort((a, b) => b.p - a.p);
     const rowH = H < 480 ? 18 : 22, top = this._stTop, bottom = H - (H < 480 ? 150 : 175);   // 아래쪽은 속도계 자리
     const maxRows = Math.max(0, Math.min(8, Math.floor((bottom - top) / rowH))); if (maxRows < 2) return;
-    const myIdx = all.findIndex(e => e.me); let rows = all.slice(0, maxRows).map((e, i) => ({ e, i }));
-    if (myIdx >= maxRows) { rows = all.slice(0, maxRows - 2).map((e, i) => ({ e, i })); rows.push({ gap: true }); rows.push({ e: all[myIdx], i: myIdx }); }
     const x = 12, w = H < 480 ? 118 : 138, fs = H < 480 ? 11 : 13;
-    ctx.save(); ctx.textBaseline = 'middle';
-    rows.forEach((r, k) => { const y = top + k * rowH;
-      if (r.gap) { ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.font = '700 ' + fs + 'px Pretendard, sans-serif'; ctx.textAlign = 'left'; ctx.fillText('⋯', x + 14, y + rowH / 2); return; }
-      ctx.fillStyle = r.e.me ? 'rgba(255,209,102,0.92)' : 'rgba(8,10,16,0.55)'; ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(x, y + 1, w, rowH - 3, 6); else ctx.rect(x, y + 1, w, rowH - 3); ctx.fill();
-      ctx.fillStyle = r.e.me ? '#1B1B2F' : '#FFFFFF'; ctx.font = '900 ' + fs + 'px Pretendard, sans-serif'; ctx.textAlign = 'right'; ctx.fillText(String(r.i + 1), x + 20, y + rowH / 2);
-      if (!r.e.me && r.e.color) { ctx.fillStyle = r.e.color; ctx.beginPath(); ctx.arc(x + 29, y + rowH / 2, 3.5, 0, Math.PI * 2); ctx.fill(); }
-      ctx.fillStyle = r.e.me ? '#1B1B2F' : 'rgba(255,255,255,0.92)'; ctx.font = (r.e.me ? '900 ' : '700 ') + fs + 'px Pretendard, sans-serif'; ctx.textAlign = 'left';
-      const nm = String(r.e.name); ctx.fillText(nm.length > 6 ? nm.slice(0, 6) + '…' : nm, x + 37, y + rowH / 2); });
-    ctx.restore();
+    // 30명이면 매 프레임 글자 8줄을 새로 그리는 게 꽤 무거움 → 0.25초마다 순서만 다시 재고, 바뀌었을 때만 작은 그림으로 다시 그려 붙임
+    if (!this._stCv || now - (this._stAt || 0) > 250 || this._stH !== H) {
+      this._stAt = now;
+      const sc = (ctx.getTransform ? ctx.getTransform().a : 1) || 1;
+      const all = [{ name: this.myName || '나', p: this.finished ? 1e9 - (this.finishRank || 0) : (this.progress || 0), me: true }]
+        .concat(ids.map(id => { const pr = this.peers[id]; return { name: pr.name || '?', p: pr.finished ? 1e9 - 50 : (pr.progress || 0), color: pr.look && pr.look.color }; }));
+      all.sort((a, b) => b.p - a.p);
+      const myIdx = all.findIndex(e => e.me); let rows = all.slice(0, maxRows).map((e, i) => ({ e, i }));
+      if (myIdx >= maxRows) { rows = all.slice(0, maxRows - 2).map((e, i) => ({ e, i })); rows.push({ gap: true }); rows.push({ e: all[myIdx], i: myIdx }); }
+      const sig = sc + '|' + H + '|' + rows.map(r => r.gap ? '~' : (r.i + (r.e.me ? '*' : '') + r.e.name + (r.e.color || ''))).join('/');
+      if (sig !== this._stSig) {
+        this._stSig = sig; this._stRows = rows.length;
+        const cv = this._stCv || (this._stCv = document.createElement('canvas'));
+        cv.width = Math.ceil((w + 4) * sc); cv.height = Math.ceil(rows.length * rowH * sc);
+        const g = cv.getContext('2d'); g.setTransform(sc, 0, 0, sc, 0, 0); g.clearRect(0, 0, w + 4, rows.length * rowH); g.textBaseline = 'middle';
+        rows.forEach((r, k) => { const y = k * rowH, x0 = 0;
+          if (r.gap) { g.fillStyle = 'rgba(255,255,255,0.6)'; g.font = '700 ' + fs + 'px Pretendard, sans-serif'; g.textAlign = 'left'; g.fillText('⋯', x0 + 14, y + rowH / 2); return; }
+          g.fillStyle = r.e.me ? 'rgba(255,209,102,0.92)' : 'rgba(8,10,16,0.55)'; g.beginPath(); if (g.roundRect) g.roundRect(x0, y + 1, w, rowH - 3, 6); else g.rect(x0, y + 1, w, rowH - 3); g.fill();
+          g.fillStyle = r.e.me ? '#1B1B2F' : '#FFFFFF'; g.font = '900 ' + fs + 'px Pretendard, sans-serif'; g.textAlign = 'right'; g.fillText(String(r.i + 1), x0 + 20, y + rowH / 2);
+          if (!r.e.me && r.e.color) { g.fillStyle = r.e.color; g.beginPath(); g.arc(x0 + 29, y + rowH / 2, 3.5, 0, Math.PI * 2); g.fill(); }
+          g.fillStyle = r.e.me ? '#1B1B2F' : 'rgba(255,255,255,0.92)'; g.font = (r.e.me ? '900 ' : '700 ') + fs + 'px Pretendard, sans-serif'; g.textAlign = 'left';
+          const nm = String(r.e.name); g.fillText(nm.length > 6 ? nm.slice(0, 6) + '…' : nm, x0 + 37, y + rowH / 2); });
+      }
+      this._stSc = sc; this._stH = H;
+    }
+    if (this._stCv && this._stRows) ctx.drawImage(this._stCv, x, top, this._stCv.width / this._stSc, this._stCv.height / this._stSc);
   }
   // 화면에 겹친 카트 버튼이 있으면 그 윗줄까지의 높이 (속도계·아이템 칸을 버튼 위로 그리기 위해)
   k3Lift(H) {
     if (this.spectator || typeof document === 'undefined' || !document.body.classList.contains('k3x-on')) return 0;
-    const el = document.querySelector('.k3-left'), cv = this.canvas; if (!el || !cv) return H < 480 ? 88 : 112;
-    const top = el.getBoundingClientRect().top, cb = cv.getBoundingClientRect().bottom; return Math.max(0, Math.round(cb - top + 10));
-  }               // 드리프트 버튼 (누르는 동안)
+    // 버튼 위치는 0.5초마다(또는 화면 높이가 바뀌면)만 잼 — 매 프레임 재면 HUD 글자를 바꾼 직후마다 화면 배치를 다시 계산하게 됨
+    const nowT = this.clock();
+    if (this._k3H === H && nowT - (this._k3At || 0) < 500) return this._k3V;
+    const el = document.querySelector('.k3-left'), cv = this.canvas; let v;
+    if (!el || !cv) v = H < 480 ? 88 : 112;
+    else { const top = el.getBoundingClientRect().top, cb = cv.getBoundingClientRect().bottom; v = Math.max(0, Math.round(cb - top + 10)); }
+    this._k3H = H; this._k3At = nowT; this._k3V = v; return v;
+  }             // 드리프트 버튼 (누르는 동안)
   releaseSteer(dir) { if (this.steer === dir) this.steer = 0; }
   softDrop() {}
   rotate() { this.useItem(); }
@@ -876,7 +896,7 @@ class KartGame {
   teleportTo(s, byId) {
     if (this.finished) return;
     this.showHit('🌀', byId, '이(가) 자리를 바꿔 버렸다', '#B15DFF');
-    this.x = s.x; this.y = s.y; this.angle = s.a; this.camAngle = undefined;
+    this.x = s.x; this.y = s.y; this.angle = s.a; this.camAngle = undefined; this.moveA = this.angle; this.drifting = false;
     this.segIdx = s.i; this.lap = s.l;
     this.camX = this.x; this.camY = this.y;
     this.speed *= 0.6;
@@ -953,7 +973,12 @@ class KartGame {
       if (!last || Math.abs(last.x - d.x) > 1e-6 || Math.abs(last.y - d.y) > 1e-6 || Math.abs(last.a - d.angle) > 1e-6) {
         // 순간이동(리스폰·위치 교환)은 버퍼를 비워 그 사이를 보간하지 않음
         if (last && Math.hypot(last.x - d.x, last.y - d.y) > this.track.carLen * 12) p.buf.length = 0;
-        p.buf.push({ t: nowMs, x: d.x, y: d.y, a: d.angle });
+        // 도착 시각은 네트워크 사정에 따라 들쭉날쭉(±수십 ms)하므로 그대로 쓰면 상대 카트가 빨라졌다 느려졌다 함
+        // → 평균 간격으로 '예상 시각'을 잡고 실제 도착 시각 쪽으로 조금씩만 맞춤 (크게 어긋나면 다시 맞춤)
+        let ts = nowMs; const lb = p.buf[p.buf.length - 1];
+        if (lb) { const gap = nowMs - lb.ra; p.iv = (p.iv || 165) + (Math.max(60, Math.min(400, gap)) - (p.iv || 165)) * 0.1;   // 보내는 간격(약 165ms)에서 시작
+          const pred = lb.t + p.iv; ts = pred + (nowMs - pred) * 0.2; if (Math.abs(nowMs - ts) > 220) ts = nowMs; ts = Math.max(ts, lb.t + 30); }
+        p.buf.push({ t: ts, ra: nowMs, x: d.x, y: d.y, a: d.angle });
         if (p.buf.length > 5) p.buf.shift();
       }
       p.at = nowMs;
@@ -967,20 +992,37 @@ class KartGame {
   setHazards(list) { this.hazards = list; }
 
   // 상대의 '0.15초 전' 위치를 샘플 사이에서 보간. 최신 샘플보다 뒤면 짧게(최대 0.2초) 직선 예측.
-  interpPeer(pr, now) {
-    const buf = pr.buf;
-    if (!buf || !buf.length) return { x: pr.tx != null ? pr.tx : pr.x, y: pr.ty != null ? pr.ty : pr.y, a: pr.tangle != null ? pr.tangle : pr.angle };
-    const rt = now - 150;
+  // out 을 주면 그 객체에 써서 돌려줌 (매 프레임 30명 × 새 객체를 만들지 않게)
+  interpPeer(pr, now, out) {
+    const o = out || {}, buf = pr.buf;
+    const put = (x, y, a) => { o.x = x; o.y = y; o.a = a; return o; };
+    if (!buf || !buf.length) return put(pr.tx != null ? pr.tx : pr.x, pr.ty != null ? pr.ty : pr.y, pr.tangle != null ? pr.tangle : pr.angle);
+    const rt = now - (this.interpDelay || 150);
     let a = null, b = null;
     for (let i = buf.length - 1; i >= 0; i--) { if (buf[i].t <= rt) { a = buf[i]; b = buf[i + 1] || null; break; } }
-    if (!a) return { x: buf[0].x, y: buf[0].y, a: buf[0].a };
+    if (!a) return put(buf[0].x, buf[0].y, buf[0].a);
     if (b) { const k = (rt - a.t) / Math.max(1, b.t - a.t); let da = b.a - a.a; while (da > Math.PI) da -= Math.PI * 2; while (da < -Math.PI) da += Math.PI * 2;
-      return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, a: a.a + da * k }; }
+      return put(a.x + (b.x - a.x) * k, a.y + (b.y - a.y) * k, a.a + da * k); }
     // 최신 샘플 이후: 직전 두 샘플의 속도로 짧게 예측
     const prev = buf[buf.length - 2];
-    if (!prev) return { x: a.x, y: a.y, a: a.a };
+    if (!prev) return put(a.x, a.y, a.a);
     const dt = Math.max(1, a.t - prev.t), ext = Math.min(200, rt - a.t) / dt;
-    return { x: a.x + (a.x - prev.x) * ext, y: a.y + (a.y - prev.y) * ext, a: a.a };
+    return put(a.x + (a.x - prev.x) * ext, a.y + (a.y - prev.y) * ext, a.a);
+  }
+
+  // 상대 카트를 매 프레임 한 번 '보이는 위치'로 옮김 — 2D·3D 그리기 · 미니맵 · 카트 충돌 · 자석이 모두 이 값(pr.x·y·angle·e)을 씀
+  // (예전엔 2D 그리기 안에서만 옮겨 3D 판에서는 상대 위치가 첫 신호에 멈춰 있었음: 미니맵 점이 출발선에 고정 · 보이지 않는 카트와 충돌)
+  stepPeers(now, f) {
+    const t = this.track, pk = this.smooth(0.6, f), ak = this.smooth(0.5, f), ip = this._ip || (this._ip = { x: 0, y: 0, a: 0 }), far2 = Math.pow(t.carLen * 12, 2);
+    for (const id in this.peers) {
+      const pr = this.peers[id]; this.interpPeer(pr, now, ip);
+      const dx = ip.x - pr.x, dy = ip.y - pr.y;
+      if (!(dx * dx + dy * dy < far2)) { pr.x = ip.x; pr.y = ip.y; pr.angle = ip.a; }        // 처음 · 순간이동은 바로
+      else { pr.x += dx * pk; pr.y += dy * pk; let da = ip.a - pr.angle; while (da > Math.PI) da -= Math.PI * 2; while (da < -Math.PI) da += Math.PI * 2; pr.angle += da * ak; }
+      // 높이도 실제 위치로 보간 (반올림하면 언덕에서 계단처럼 튐)
+      const pi = ((Math.floor(pr.progress || 0) % t.n) + t.n) % t.n;
+      pr.e = t.elevAtF(pi + t.fracAt(pi, pr.x, pr.y)) + (pr.z || 0);
+    }
   }
 
   serialize() {
@@ -1021,6 +1063,7 @@ class KartGame {
     const { dt, f } = FX.frame(this, now);
     this.lastF = f;                       // 카메라·보간이 프레임 간격을 알 수 있도록
     this.stepParts(f);
+    this.stepPeers(now, f);
     if (this.shakeT > 0) this.shakeT = Math.max(0, this.shakeT - dt / 1000);
 
     if (now < this.boostUntil && !this.finished && Math.random() < 0.55) {
@@ -1073,10 +1116,11 @@ class KartGame {
       this.draw(); return;
     }
     if (!this.spectator && window.Sound && Sound.engineSet) Sound.engineSet(Math.min(1, this.speed / (this.maxSpeed * 1.4)), now < this.boostUntil);
-    if (!this.spectator && window.Sound && Sound.skidSet) Sound.skidSet(this.drifting ? 0.45 + Math.min(0.4, (this.driftCharge || 0) / 3) : 0);
-    // 급하게 꺾으면 타이어 끼익 (속도가 빠르고 조향 중일 때 · 미끄러질 때는 더 크게)
-    if (!this.spectator && window.Sound && Sound.skidSet) { const sp = Math.min(1, this.speed / this.maxSpeed); Sound.skidSet(this.finished || this.airborne ? 0 : Math.max(this.steer ? Math.max(0, sp - 0.55) * 1.6 : 0, now < (this.slideUntil || 0) ? 0.8 : 0)); }
-    if (!this.finished) this.updateCar(now, f);
+    // 타이어 끼익: 실제로 옆으로 미끄러지는 만큼만 (드리프트가 끝나 그립을 되찾으면 바로 잦아듦) · 기름에 미끄러질 때
+    //   (예전엔 핸들만 꺾어도 끼익 소리가 계속 나 드리프트가 길게 이어지는 것처럼 들렸음)
+    if (!this.spectator && window.Sound && Sound.skidSet) { const sa = Math.abs(this.slip || 0), sk = sa > 0.08 && this.speed > this.maxSpeed * 0.3 ? Math.min(0.9, 0.3 + sa * 1.1) : 0;
+      const v = this.finished || this.airborne ? 0 : Math.max(sk, now < (this.slideUntil || 0) ? 0.8 : 0); if (v > 0.05 || this._skidV > 0.05) Sound.skidSet(v); this._skidV = v; }
+    if (!this.finished) this.updateCar(now, f); else { this.slip = 0; this.drifting = false; }
     this.updateRank();
     if (this.rank < this.lastRank && !this.finished && this.countdown <= 0) {
       this.showToast('▲ ' + this.rank + '위로 추월!', '#FFD166');
@@ -1111,25 +1155,48 @@ class KartGame {
     if (slowed && !starring) target *= 0.45;
     if (spinning) target = 0.8;
     if (stunned)  target = 0;
-    // ── 드리프트 (카트라이더식): 꺾으면서 누르면 미끄러지며 더 빨리 돎 · 속도는 조금 줄어듦 · 놓으면 짧은 부스터 ──
-    const canDrift = this.driftHeld && this.steer && !stunned && !spinning && !sliding && !this.airborne && !this.finished && this.speed > this.maxSpeed * 0.45;
-    if (canDrift && !this.drifting) { this.drifting = true; this.driftDir = Math.sign(this.steer); this.driftCharge = 0; }
-    if (this.drifting && !canDrift) {
-      if (this.driftCharge > 0.5 && !this.airborne && !stunned) {
-        this.boostUntil = Math.max(this.boostUntil, now + 350 + Math.min(1.2, this.driftCharge) * 350);
-        this.addFx('boost'); this.showToast(this.driftCharge > 1.2 ? '드리프트 부스터!!' : '드리프트 부스터!', '#5BC8FF'); if (window.Sound && Sound.boost) Sound.boost();
-      }
-      this.drifting = false; this.recoverUntil = now + 260;
+    // ── 드리프트: 한 번 누르면 짧게 한 번 — 뒤가 확 미끄러지며 차체가 꺾이고, 떼면(또는 1.1초가 지나면) 0.2초 안에 그립 회복 ──
+    //    버튼을 누른 순간부터 0.45초 안에 조향이 있어야 시작 · 꾹 누르고 있어도 다시 시작하지 않음(다시 누르면 다음 드리프트)
+    //    미끄러진 시간만큼 부스터 충전: 0.25초↑ 파랑(짧은 부스터) · 0.7초↑ 주황(긴 부스터) · 오래 끌수록 감속이 커져 짧게 끊는 게 유리
+    const driftOk = !stunned && !spinning && !sliding && !this.airborne && !this.finished;
+    if (!this.drifting && driftOk && this.driftHeld && this.steer && this.driftArm > 0 && this.speed > this.maxSpeed * 0.45) {
+      this.drifting = true; this.driftDir = Math.sign(this.steer); this.driftCharge = 0; this.driftT = 0; this.driftArm = 0;
+      if (window.Haptic && Haptic.tap) Haptic.tap();
     }
-    if (this.drifting) { target *= 0.92; this.driftCharge += f * 0.0167; }
+    if (this.driftArm > 0) this.driftArm -= f / 60;                                // (프레임이 크게 밀려도 누른 것을 놓치지 않게 게임 시간으로 셈)
+    if (this.drifting) {
+      this.driftT += f / 60;
+      const over = this.driftT >= DRIFT_MAX;
+      if (!this.driftHeld || over || !driftOk || this.speed < this.maxSpeed * 0.35) {
+        const ch = this.driftCharge;
+        if (ch >= 0.25 && driftOk) {
+          if (now >= this.boostUntil) this.boostPower = 0.8;                       // 미니 부스터는 발판·아이템보다 조금 약하게 (이미 부스터 중이면 그 세기 유지)
+          this.boostUntil = Math.max(this.boostUntil, now + 300 + Math.min(1, (ch - 0.25) / 0.45) * 400);
+          this.addFx('boost'); this.showToast(ch >= 0.7 ? '드리프트 부스터!!' : '드리프트 부스터!', ch >= 0.7 ? '#FFB347' : '#5BC8FF'); if (window.Sound && Sound.boost) Sound.boost();
+        }
+        this.drifting = false; this.recoverUntil = now + 300; this.driftEndAt = now;
+      }
+    }
+    if (this.drifting) {
+      const dt0 = this.driftT;
+      target *= dt0 < 0.5 ? 0.93 : 0.93 - 0.1 * Math.min(1, (dt0 - 0.5) / 0.6);     // 길게 끌수록 손해
+      const sl = this.moveA == null ? 0 : Math.abs(((this.angle - this.moveA + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+      if (sl > 0.12) this.driftCharge += f / 60;                                    // 실제로 옆으로 미끄러진 시간만 충전
+    }
     // 드리프트 구간(미끄러운 급커브)에서 드리프트 없이 꺾으면 타이어가 미끄러져 크게 감속 → 이 구간은 드리프트해야 빠름
-    else if (this.track.driftZone && this.track.driftZone[this.segIdx] && Math.abs(this.steer) > 0.3 && !this.airborne) { target *= 0.72; this.zoneSkid = now; }
+    //   (드리프트가 끝난 뒤 0.6초는 봐 줌 — 짧은 드리프트 한 번으로 구간 대부분을 지날 수 있게)
+    else if (this.track.driftZone && this.track.driftZone[this.segIdx] && Math.abs(this.steer) > 0.3 && !this.airborne && now - (this.driftEndAt || -1e9) > 600) { target *= 0.72; this.zoneSkid = now; }
 
     this.speed += (target - this.speed) * (stunned ? 0.3 : 0.055) * f;
 
     if (spinning)      this.angle += 0.34 * f;
     else if (sliding)  this.angle += (this.slideDrift || 0.02) * f;                 // 핸들이 안 듣고 슬슬 밀림
-    else if (this.drifting) this.angle += (this.steer * 0.9 + this.driftDir * 0.45) * this.turnRate * 1.12 * Math.min(1, this.speed/3) * f;   // 드리프트: 약 1.5배 빠른 회전 (1.35 × 1.12)
+    else if (this.drifting) {
+      // 드리프트 회전: 같은 쪽으로 꺾으면 약 1.5배 빠르게 · 놓으면 완만하게 · 반대로 꺾으면(카운터) 거의 곧게 미끄러짐
+      // 들어가는 순간 0.16초 동안 뒤가 확 돌아 나가는 힘을 더함
+      const kick = this.driftT < 0.16 ? (1 - this.driftT / 0.16) * 2.2 : 0;
+      this.angle += (this.driftDir * (0.55 + kick) + this.steer * 0.8) * this.turnRate * 1.12 * Math.min(1, this.speed/3) * f;
+    }
     else if (!stunned && !this.airborne) {
       // 속도 감응 조향(카트라이더식): 최고 속도의 60% 까지는 그대로, 그 이상은 점점 무뎌져 최고 속도에서 hiSpeedSteer 배
       // → 완만한 코너는 보통 조향으로 충분하지만 급한 코너는 드리프트를 써야 바깥으로 밀려나지 않음 (드리프트 회전은 그대로)
@@ -1188,7 +1255,7 @@ class KartGame {
           // 추락: 점프대 조금 앞으로 되돌림
           const back = ((this.jumpFrom.i - 10) % this.track.n + this.track.n) % this.track.n;
           const c = this.track.center[back], [tx, ty] = this.track.tangent[back];
-          this.x = c[0]; this.y = c[1]; this.angle = Math.atan2(ty, tx); this.segIdx = back; this.speed = 0; this.camAngle = undefined;
+          this.x = c[0]; this.y = c[1]; this.angle = Math.atan2(ty, tx); this.moveA = this.angle; this.segIdx = back; this.speed = 0; this.camAngle = undefined;
           this.showToast('추락! 더 빠르게 진입하세요', '#FF5C7A'); if (window.Sound) Sound.crash(); if (window.Haptic) Haptic.hit();
           this.shakeT = 0.28;
         } else {
@@ -1205,13 +1272,29 @@ class KartGame {
     // 달리는 방향(moveA): 평소엔 보는 방향과 같고, 드리프트 중엔 늦게 따라와 차가 옆으로 미끄러짐
     if (this.moveA == null) this.moveA = this.angle;
     { let dm = this.angle - this.moveA; while (dm > Math.PI) dm -= Math.PI * 2; while (dm < -Math.PI) dm += Math.PI * 2;
-      if (this.drifting) this.moveA += dm * this.smooth(0.075, f);
-      else if (now < (this.recoverUntil || 0)) this.moveA += dm * this.smooth(0.3, f);
+      if (this.drifting) {
+        // 처음엔 미끄럽고, 0.6초가 지나면 타이어가 점점 노면을 잡음 · 미끄러짐 각도는 35° 까지
+        const grip = 0.08 + 0.2 * Math.max(0, Math.min(1, (this.driftT - 0.6) / 0.5));
+        this.moveA += dm * this.smooth(grip, f);
+        let d2 = this.angle - this.moveA; while (d2 > Math.PI) d2 -= Math.PI * 2; while (d2 < -Math.PI) d2 += Math.PI * 2;
+        if (Math.abs(d2) > DRIFT_SLIP) this.moveA = this.angle - Math.sign(d2) * DRIFT_SLIP;
+      } else if (now < (this.recoverUntil || 0)) {
+        // 그립 회복: 진행 방향이 차 방향으로 빠르게 붙고, 차체도 조금 되돌아옴 (약 0.1~0.15초)
+        this.moveA += dm * this.smooth(0.22, f); this.angle -= dm * this.smooth(0.06, f);
+      }
       else if (this.track.driftZone && this.track.driftZone[this.segIdx] && this.steer) this.moveA += dm * this.smooth(0.22, f);   // 미끄러운 구간: 드리프트 없이 꺾으면 바깥으로 밀림
       else this.moveA = this.angle; }
-    if ((this.drifting || now - (this.zoneSkid || -1e9) < 60) && Math.random() < 0.6) {           // 타이어 연기 (드리프트 · 구간에서 미끄러질 때)
-      const bx = this.x - Math.cos(this.angle) * this.track.carLen * 0.45, by = this.y - Math.sin(this.angle) * this.track.carLen * 0.45;
-      this.spawn(1, bx, by, 0, { colors: ['#E6E6E6', '#C9C9C9'], speed: 1.2, up: 0.8, decay: 1.6, size: 10, spread: this.track.carLen * 0.4 }); }
+    // 타이어 연기 · 스키드: '실제로 옆으로 미끄러지는 동안'만 (그립을 되찾으면 바로 멈춤)
+    { let sd = this.angle - this.moveA; while (sd > Math.PI) sd -= Math.PI * 2; while (sd < -Math.PI) sd += Math.PI * 2;
+      this.slip = sd;
+      const sa = Math.abs(sd), cl = this.track.carLen;
+      if (sa > 0.1 && Math.random() < Math.min(0.9, sa * 1.8)) {
+        const sd2 = Math.random() < 0.5 ? 1 : -1, bx = this.x - Math.cos(this.angle) * cl * 0.45 - Math.sin(this.angle) * sd2 * cl * 0.3, by = this.y - Math.sin(this.angle) * cl * 0.45 + Math.cos(this.angle) * sd2 * cl * 0.3;
+        this.spawn(1, bx, by, 0, { colors: ['#E6E6E6', '#C9C9C9'], speed: 1.2, up: 0.8, decay: 2.2, size: 10, spread: cl * 0.2 }); }
+      // 부스터 충전 불꽃 (파랑 → 주황) — 지금 놓으면 부스터가 나간다는 신호
+      if (this.drifting && this.driftCharge >= 0.25 && Math.random() < 0.5) {
+        const sd3 = Math.random() < 0.5 ? 1 : -1, bx = this.x - Math.cos(this.angle) * cl * 0.5 - Math.sin(this.angle) * sd3 * cl * 0.32, by = this.y - Math.sin(this.angle) * cl * 0.5 + Math.cos(this.angle) * sd3 * cl * 0.32;
+        this.spawn(1, bx, by, cl * 0.05, { colors: this.driftCharge >= 0.7 ? ['#FFB347', '#FFD166', '#FF7A1A'] : ['#5BC8FF', '#9BE7FF', '#FFFFFF'], speed: 1.6, up: 1.6, decay: 3.2, size: 4, gravity: 4 }); } }
     this.x += Math.cos(this.moveA) * this.speed * f;
     this.y += Math.sin(this.moveA) * this.speed * f;
 
@@ -1250,19 +1333,7 @@ class KartGame {
       if (this.segIdx + delta < 0)  this.lap--;
       this.segIdx = cur.index;
     }
-    // 드리프트 연기 — 속도가 붙은 채 핸들을 꺾으면 뒷바퀴에서 흰 연기
-    if (this.steer !== 0 && this.speed > this.maxSpeed * 0.55 && !spinning && !stunned && !this.finished) {
-      this.driftT = (this.driftT || 0) + f;
-      if (this.driftT > 6) {
-        this.driftT = 0;
-        const cl = this.track.carLen;
-        [1, -1].forEach(sd => {
-          const bx = this.x - Math.cos(this.angle) * cl * 0.45 - Math.sin(this.angle) * sd * cl * 0.3;
-          const by = this.y - Math.sin(this.angle) * cl * 0.45 + Math.cos(this.angle) * sd * cl * 0.3;
-          this.spawn(1, bx, by, cl * 0.08, { speed: 0.7, up: 0.9, size: 7, colors: ['rgba(255,255,255,0.55)', 'rgba(220,225,235,0.4)'], decay: 1.1, gravity: -0.4 });
-        });
-      }
-    } else this.driftT = 0;
+    // (예전엔 핸들만 꺾어도 뒷바퀴 연기가 나서 드리프트가 끝나지 않은 것처럼 보였음 — 이제 연기는 실제로 미끄러질 때만, 위에서)
 
     if (this.finished) {
       // 완주하면 진행도를 고정합니다. 더 굴러가도 순위가 바뀌지 않도록
@@ -1411,13 +1482,13 @@ class KartGame {
   }
 
   updateRank() {
-    const all = [{ p: this.progress, me: true }];
-    Object.keys(this.peers).forEach(id => { if (this.spectator && id === this.followId) return; all.push({ p: this.peers[id].progress || 0 }); });
-    all.sort((a, b) => b.p - a.p);
-    this.total = all.length;
+    // 나보다 진행도가 큰 사람 수 + 1 (같으면 내가 앞 — 예전의 '정렬 후 내 자리'와 같은 결과 · 매 프레임 배열을 만들지 않음)
+    let ahead = 0, total = 1;
+    for (const id in this.peers) { if (this.spectator && id === this.followId) continue; total++; if ((this.peers[id].progress || 0) > this.progress) ahead++; }
+    this.total = total;
     const prev = this.rank;
     if (this.finished && this.finishRank) { this.rank = this.finishRank; return; }   // 완주 순위가 최종
-    this.rank = all.findIndex(x => x.me) + 1;
+    this.rank = ahead + 1;
     // 순위가 바뀌면 잠깐 알려 줌 (출발 직후의 요동은 무시)
     const now = this.clock();
     if (prev && prev !== this.rank && this.total > 1 && this.countdown <= 0 && !this.finished &&
@@ -1651,12 +1722,15 @@ class KartGame {
   drawFar(ctx, W, H, hy, d, sk) {
     const far = this.track.theme.far;
     if (far === 'ocean') return this.drawFarLive(ctx, W, H, hy, d, sk);
-    const key = far + ':' + W + 'x' + Math.round(hy);
-    if (!this.farCache || this.farCache.key !== key) this.farCache = { key: key, layers: this.buildFarLayers(far, W, hy, d) };
+    // 지평선 높이(hy)는 경사에 따라 계속 바뀌므로 띠는 기준 높이로 한 번만 그리고 세로로 늘려 붙임
+    // (예전엔 hy 가 1px 바뀔 때마다 캔버스 3장을 새로 만들어 그렸음)
+    const hb = Math.max(40, Math.round(H * 0.4)), key = far + ':' + W + 'x' + hb;
+    if (!this.farCache || this.farCache.key !== key) this.farCache = { key: key, hb: hb, layers: this.buildFarLayers(far, W, hb, d) };
+    const k = hy / this.farCache.hb;
     this.farCache.layers.forEach(L => {
-      const period = L.canvas.width;
+      const period = L.canvas.width, ch = L.canvas.height;
       const shift = ((-this.angle * W * L.k) % period + period) % period;
-      for (let i = -1; i <= Math.ceil(W / period); i++) ctx.drawImage(L.canvas, shift + i * period - period, hy - L.canvas.height + 1);
+      for (let i = -1; i <= Math.ceil(W / period); i++) ctx.drawImage(L.canvas, shift + i * period - period, hy - (ch - 1) * k, period, ch * k);
     });
   }
 
@@ -2200,24 +2274,15 @@ class KartGame {
       o.e = t.elevAt(o.i); list.push(push(p.z, 'obst', o));
     });
 
-    Object.keys(this.peers).forEach(id => {
+    // 상대 위치(pr.x·y·angle·e)는 stepPeers 가 매 프레임 이미 옮겨 둠
+    for (const id in this.peers) {
+      if (this.spectator && id === this.followId) continue;
       const pr = this.peers[id];
-      const ip = this.interpPeer(pr, this.clock());
-      const pk = this.smooth(0.6, this.lastF);
-      pr.x += (ip.x - pr.x) * pk;
-      pr.y += (ip.y - pr.y) * pk;
-      let da = (pr.tangle !== undefined ? pr.tangle : pr.angle) - pr.angle;
-      while (da >  Math.PI) da -= Math.PI*2;
-      while (da < -Math.PI) da += Math.PI*2;
-      pr.angle += da * this.smooth(0.25, this.lastF);
-      // 상대 카트 높이도 실제 위치로 보간 (반올림하면 언덕에서 계단처럼 튐)
-      const pi = ((Math.floor(pr.progress || 0) % t.n) + t.n) % t.n;
-      pr.e = t.elevAtF(pi + t.fracAt(pi, pr.x, pr.y)) + (pr.z || 0);
+      if (pr.e == null) continue;
       const p = this.project(cam, pr.x, pr.y, pr.e);
-      if (!p) return;
-      if (this.spectator && id === this.followId) return;
+      if (!p || p.x < -300 || p.x > W + 300) continue;                // 화면 옆 밖은 건너뜀
       list.push(push(p.z, 'kart', pr));
-    });
+    }
 
     const myE = t.elevAtF(this.segF != null ? this.segF : this.segIdx) + (this.airZ || 0);
     const me = this.project(cam, this.x, this.y, myE);

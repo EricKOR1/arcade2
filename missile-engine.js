@@ -1,5 +1,5 @@
 // 미사일 방어 — 화면을 톡 누르면 그 자리에 요격탄이 터집니다. 떨어지는 미사일에서 도시 여섯을 지키세요.
-// 파도마다 미사일이 늘고 빨라집니다. 도시가 다 무너지면 끝.
+// 웨이브마다 미사일이 늘고 빨라집니다. 도시가 다 무너지면 끝.
 
 const MS_COLS = 16, MS_ROWS = 20;
 
@@ -58,7 +58,7 @@ class MissileGame {
         const c = this.cities.find(c => c.alive && Math.abs(c.x - m.x) < 0.9); if (c) { c.alive = false; if (window.Sound) Sound.crash(); }
         if (Math.abs(this.bases[0].x - m.x) < 0.9) { this.bases[0].ammo = Math.max(0, this.bases[0].ammo - 4); if (window.Sound) Sound.crash(); }
         if (this.citiesLeft === 0) { this.gameOver = true; if (window.Sound) Sound.gameOver(); } } }
-    // 파도 끝: 남은 도시·탄약 보너스
+    // 웨이브 끝: 남은 도시·탄약 보너스
     if (this.spawnLeft === 0 && !this.missiles.length && !this.waveClear) { this.waveClear = now + 2200; this.score += this.citiesLeft * 100 + this.bases[0].ammo * 5; this.saved += this.citiesLeft; if (window.Sound) Sound.levelUp(); }
     if (this.waveClear && now > this.waveClear) { this.wave++; if (this.wave % 3 === 0) { const d = this.cities.find(c => !c.alive); if (d) d.alive = true; } this.startWave(); }
     this.parts = FX.stepParts(this.parts, f, 0.04);
@@ -111,7 +111,7 @@ class MissileGame {
       ctx.fillStyle = g; ctx.beginPath(); ctx.arc(bl.x * cs, bl.y * cs, bl.r * cs, 0, Math.PI * 2); ctx.fill(); });
     FX.drawParts(ctx, this.parts, cs, 3);
     if (this.waveClear) { ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.font = '800 ' + Math.round(cs * .9) + 'px Pretendard, sans-serif'; ctx.textAlign = 'center';
-      ctx.fillText('WAVE ' + this.wave + ' 방어 성공', W / 2, H * 0.4); ctx.font = '600 ' + Math.round(cs * .5) + 'px Pretendard, sans-serif'; ctx.fillText('도시 ' + this.citiesLeft + '개 · 남은 탄 ' + b.ammo + ' 보너스', W / 2, H * 0.4 + cs); ctx.textAlign = 'left'; }
+      ctx.fillText('웨이브 ' + this.wave + ' 방어 성공', W / 2, H * 0.4); ctx.font = '600 ' + Math.round(cs * .5) + 'px Pretendard, sans-serif'; ctx.fillText('도시 ' + this.citiesLeft + '개 · 남은 탄 ' + b.ammo + ' 보너스', W / 2, H * 0.4 + cs); ctx.textAlign = 'left'; }
     if (this.wave === 1 && this.spawnLeft > 5 + 3 - 2 && !this.missiles.length) { ctx.fillStyle = 'rgba(255,255,255,0.75)'; ctx.font = '700 ' + Math.round(cs * .6) + 'px Pretendard, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('미사일이 지나갈 자리를 톡 누르세요', W / 2, H * 0.55); ctx.textAlign = 'left'; }
     if (this.gameOver) { ctx.fillStyle = 'rgba(11,13,18,0.55)'; ctx.fillRect(0, 0, W, H); }
   }

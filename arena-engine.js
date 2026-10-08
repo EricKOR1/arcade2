@@ -96,7 +96,7 @@ const AR_MAPS = {
 //   종합 전투력(√(dps×체력)×속도): 86~113, 최대/최소 1.3배
 const AR_CHARS = {
   bolt:   { name: '볼트',   role: '올라운더', hp: 100, speed: 1.0,  icon: '⚡', shape: 'round',  shot: { n: 3, spread: 0.09, speed: 0.32, life: 22, dmg: 20, cd: 480 }, sup: { kind: 'blast',  label: '대형탄', desc: '큰 폭발탄 (60)' } },
-  rock:   { name: '바위',   role: '탱커',     hp: 160, speed: 0.85, icon: '🪨', shape: 'square', shot: { n: 5, spread: 0.22, speed: 0.30, life: 13, dmg: 16, cd: 900 }, sup: { kind: 'dash',   label: '돌진',   desc: '앞으로 돌진 · 0.7초 무적 · 부딪힌 적 30' } },
+  rock:   { name: '바위',   role: '탱커 · 샷건',     hp: 160, speed: 0.85, icon: '🪨', shape: 'square', shot: { n: 5, spread: 0.22, speed: 0.30, life: 13, dmg: 16, cd: 900, fall: { near: 1.2, min: 0.25 } }, sup: { kind: 'dash',   label: '돌진',   desc: '앞으로 돌진 · 0.7초 무적 · 부딪힌 적 30' } },
   hawk:   { name: '매',     role: '저격수',   hp: 90,  speed: 1.0,  icon: '🎯', shape: 'diamond', shot: { n: 1, spread: 0,    speed: 0.48, life: 40, dmg: 70, cd: 850 }, sup: { kind: 'pierce', label: '관통탄', desc: '벽과 적을 뚫는 관통탄 (70)' } },
   sprout: { name: '새싹',   role: '힐러',     hp: 100, speed: 1.05, icon: '🌱', shape: 'round',  shot: { n: 3, spread: 0.12, speed: 0.30, life: 20, dmg: 16, cd: 480 }, sup: { kind: 'heal',   label: '치유',   desc: '주변 4칸 팀원 체력 +40 (나 +25)' } },
   owl:    { name: '부엉',   role: '폭탄병',   hp: 120, speed: 0.95, icon: '💣', shape: 'round',  shot: { n: 1, spread: 0,    speed: 0.26, life: 26, dmg: 48, cd: 700, lob: true, radius: 1.1 }, sup: { kind: 'volley', label: '폭탄 세례', desc: '사방으로 폭탄 8발 (각 30)' } },
@@ -184,8 +184,14 @@ class ArenaGame {
     for (let i = 0; i < sh.n; i++) { const a = this.angle + (i - (sh.n - 1) / 2) * sh.spread;
       // 폭탄(로브)은 자동 조준한 적의 거리만큼만 날아가 그 자리에 떨어집니다 (최대 사거리 안에서)
       const life = sh.lob && this.aimDist ? Math.max(6, Math.min(sh.life, Math.round(this.aimDist / sh.speed))) : sh.life;
-      this.bullets.push({ x: this.x, y: this.y, vx: Math.cos(a) * sh.speed, vy: Math.sin(a) * sh.speed, life: life, dmg: sh.dmg, big: false, lob: !!sh.lob, radius: sh.radius || 0, t0: life }); }
+      this.bullets.push({ x: this.x, y: this.y, vx: Math.cos(a) * sh.speed, vy: Math.sin(a) * sh.speed, life: life, dmg: sh.dmg, big: false, lob: !!sh.lob, radius: sh.radius || 0, t0: life, sp: sh.speed, fall: sh.fall }); }
     if (window.Sound) { const k = { rock: 'shotgun', hawk: 'sniper', owl: 'throwBomb', spark: 'smg' }[this.charId] || 'pistol'; Sound[k](); } if (window.Haptic) Haptic.tap();   // 캐릭터별 총소리
+  }
+  // 샷건(바위): 가까우면 그대로, 멀어질수록 약해짐 — near 칸까지 100%, 사거리 끝에서 min 배
+  bulletDmg(b) {
+    if (!b.fall) return b.dmg;
+    const d = (b.t0 - b.life) * b.sp, R = b.t0 * b.sp, k = d <= b.fall.near ? 1 : Math.max(b.fall.min, 1 - (1 - b.fall.min) * (d - b.fall.near) / Math.max(0.1, R - b.fall.near));
+    return Math.max(1, Math.round(b.dmg * k));
   }
   useSuper() {
     const now = this.clock(), k = this.ch.sup.kind;
@@ -262,7 +268,8 @@ class ArenaGame {
           this.burst(b.x, b.y, 18, '#FF9F43'); if (window.Sound) Sound.explosion(); done = true; } }
       else if (!done) Object.keys(this.peers).forEach(id => { const p = this.peers[id]; if ((done && !b.pierce) || p.dead || p.team === this.team || (b.pierce && b.hit[id])) return;
         if (Math.hypot(p.x - b.x, p.y - b.y) < (b.big ? (b.radius || 0.9) : 0.55)) { if (!b.pierce) done = true; else b.hit[id] = 1;
-          if (this.opts.onAttack) this.opts.onAttack('hit', id, { dmg: b.dmg }); gain(); pop(p.x, p.y, b.dmg, '#FFD166'); this.burst(b.x, b.y, 5, '#FFD166'); } });
+          const dmg = this.bulletDmg(b);
+          if (this.opts.onAttack) this.opts.onAttack('hit', id, { dmg: dmg }); gain(); pop(p.x, p.y, dmg, '#FFD166'); this.burst(b.x, b.y, 5, '#FFD166'); } });
       if (done) { if (b.big) this.burst(b.x, b.y, 24, '#FFD166'); this.bullets.splice(i, 1); }
     }
     this.followPeers();

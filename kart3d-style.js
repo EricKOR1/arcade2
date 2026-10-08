@@ -20,6 +20,16 @@
     out.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); out.setAttribute('normal', new T.Float32BufferAttribute(nor, 3)); out.setAttribute('color', new T.Float32BufferAttribute(col, 3));
     return out;
   }
+  // 정점 색이 있는 도형 여러 개를 이동시켜 하나로 이어 붙임 (상대 카트: 몸체 + 바퀴 = 그리기 1번)
+  function concat(list) {
+    const T = THREE, pos = [], nor = [], col = [];
+    list.forEach(({ geo, m }) => { const g = geo.clone(); if (m) g.applyMatrix4(m);
+      const pa = g.attributes.position.array, na = g.attributes.normal.array, ca = g.attributes.color.array;
+      for (let i = 0; i < pa.length; i++) { pos.push(pa[i]); nor.push(na[i]); col.push(ca[i]); } });
+    const out = new T.BufferGeometry();
+    out.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); out.setAttribute('normal', new T.Float32BufferAttribute(nor, 3)); out.setAttribute('color', new T.Float32BufferAttribute(col, 3));
+    return out;
+  }
   const M = (x, y, z, rx, ry, rz, sx, sy, sz) => { const T = THREE; return new T.Matrix4().compose(new T.Vector3(x, y, z), new T.Quaternion().setFromEuler(new T.Euler(rx || 0, ry || 0, rz || 0)), new T.Vector3(sx || 1, sy || 1, sz || 1)); };
   const shade = (hex, k) => { const c = new THREE.Color(hex); return k > 0 ? c.lerp(new THREE.Color(0xffffff), k).getHex() : c.multiplyScalar(1 + k).getHex(); };
   P.flatMat = function () { if (!this._flat) { this._flat = new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: true, shininess: 12, specular: 0x151515 }); this._flat.userData.lin = true; } return this._flat; };
@@ -28,7 +38,9 @@
   P.makeKartStyled = function (look, isMe) {
     const T = THREE, g = new T.Group(), C = new T.Color(look && look.color || '#3FA9F5').getHex(), dark = 0x2B2F3A, grey = 0x8A93A6, lin = this.hq !== 'low';
     const B = (w, h, d) => new T.BoxGeometry(w, h, d), Cy = (r1, r2, h, n) => new T.CylinderGeometry(r1, r2, h, n || 10), S = (r, a, b) => new T.SphereGeometry(r, a || 12, b || 9);
-    const body = merge([
+    // 같은 색·같은 머리 모양의 카트 몸체와 바퀴는 한 번 만든 도형을 같이 씀 (30명이 들어올 때 도형 합치기를 30번 하며 멈칫하던 것)
+    const gc = this._kGeo || (this._kGeo = {}), bodyKey = C + '|' + String((look && look.color) || '') + String((look && look.style) || '') + String((look && look.name) || '') + '|' + lin;
+    const body = gc[bodyKey] || (gc[bodyKey] = merge([
       { geo: B(1.5, 0.14, 2.9), color: dark, m: M(0, 0.26, 0) },                                  // 바닥 판
       { geo: B(0.34, 0.3, 1.5), color: C, m: M(0.72, 0.42, 0.1) }, { geo: B(0.34, 0.3, 1.5), color: C, m: M(-0.72, 0.42, 0.1) },   // 옆 포드
       { geo: B(1.2, 0.26, 0.75), color: C, m: M(0, 0.42, 1.2, -0.18) },                           // 앞 코
@@ -43,14 +55,22 @@
       // 운전자: 몸 · 팔 · 헬멧(카트 색 + 흰 줄) · 얼굴 가리개
       { geo: Cy(0.26, 0.33, 0.62, 10), color: shade(C, -0.25), m: M(0, 1.05, -0.3, -0.12) },
       { geo: Cy(0.08, 0.08, 0.62, 6), color: shade(C, -0.25), m: M(0.3, 1.02, 0.02, -1.15) }, { geo: Cy(0.08, 0.08, 0.62, 6), color: shade(C, -0.25), m: M(-0.3, 1.02, 0.02, -1.15) },
-    ].concat(this.driverHead(look, C, S, B, Cy)), lin);
-    const mat = this.flatMat(), bm = new T.Mesh(body, mat); bm.castShadow = true; g.add(bm);
-    // 바퀴: 앞(작게) · 뒤(크게) 두 묶음 — 축을 중심으로 굴림
-    const wheelPair = (r, w, z, x) => { const wg = merge([
+    ].concat(this.driverHead(look, C, S, B, Cy)), lin));
+    const mat = this.flatMat();
+    // 바퀴: 앞(작게) · 뒤(크게) 두 묶음 — 내 카트는 축을 중심으로 굴림
+    const wheelGeo = (r, w, x) => { const wk = 'w' + r + ',' + w + ',' + x + '|' + lin; return gc[wk] || (gc[wk] = merge([
         { geo: Cy(r, r, w, 14), color: 0x23262E, m: M(x, 0, 0, 0, 0, Math.PI / 2) }, { geo: Cy(r * 0.5, r * 0.5, w + 0.02, 10), color: 0xB8C0CE, m: M(x, 0, 0, 0, 0, Math.PI / 2) },
-        { geo: Cy(r, r, w, 14), color: 0x23262E, m: M(-x, 0, 0, 0, 0, Math.PI / 2) }, { geo: Cy(r * 0.5, r * 0.5, w + 0.02, 10), color: 0xB8C0CE, m: M(-x, 0, 0, 0, 0, Math.PI / 2) }], lin);
-      const wm = new T.Mesh(wg, mat); wm.position.set(0, r, z); wm.castShadow = true; g.add(wm); return wm; };
-    g.userData.wheels = [wheelPair(0.3, 0.26, 1.05, 0.82), wheelPair(0.38, 0.36, -1.0, 0.86)];
+        { geo: Cy(r, r, w, 14), color: 0x23262E, m: M(-x, 0, 0, 0, 0, Math.PI / 2) }, { geo: Cy(r * 0.5, r * 0.5, w + 0.02, 10), color: 0xB8C0CE, m: M(-x, 0, 0, 0, 0, Math.PI / 2) }], lin)); };
+    const wf = wheelGeo(0.3, 0.26, 0.82), wr = wheelGeo(0.38, 0.36, 0.86);
+    if (isMe) {
+      const bm = new T.Mesh(body, mat); bm.castShadow = true; g.add(bm);
+      const wheelPair = (wg, r, z) => { const wm = new T.Mesh(wg, mat); wm.position.set(0, r, z); wm.castShadow = true; g.add(wm); return wm; };
+      g.userData.wheels = [wheelPair(wf, 0.3, 1.05), wheelPair(wr, 0.38, -1.0)];
+    } else {
+      // 상대 카트: 바퀴를 몸체에 붙인 한 덩어리 (그리기 3번 → 1번 · 그림자도 1번) — 멀리서는 바퀴 회전이 거의 보이지 않음
+      const one = gc[bodyKey + '|1'] || (gc[bodyKey + '|1'] = concat([{ geo: body }, { geo: wf, m: M(0, 0.3, 1.05) }, { geo: wr, m: M(0, 0.38, -1.0) }]));
+      const bm = new T.Mesh(one, mat); bm.castShadow = true; g.add(bm); g.userData.wheels = null;
+    }
     g.userData.body = { color: new T.Color() };                                                       // (스타 무지개: 이 모델은 몸체 색이 정점 색이라 효과 대신 방어막·불꽃으로 표시)
     // 둥근 그림자 · 방어막 · 부스터 불꽃
     if (!this.shTex) { const c = document.createElement('canvas'); c.width = c.height = 64; const s2 = c.getContext('2d'), rg = s2.createRadialGradient(32, 32, 4, 32, 32, 32); rg.addColorStop(0, 'rgba(0,0,0,0.45)'); rg.addColorStop(1, 'rgba(0,0,0,0)'); s2.fillStyle = rg; s2.fillRect(0, 0, 64, 64); this.shTex = new T.CanvasTexture(c); }
@@ -112,21 +132,24 @@
 
     // 3) 출발선 양쪽 관람석 + 관중 (계단 · 지붕 · 사람: 인스턴스 몇 개)
     { const steps = [], roofs = [], bodies = [], heads = [], rows = 5, seg = tr.stepLen * S, per = Math.max(2, Math.round(seg / 1.15));
+      const skipP = this.hq === 'high' ? 0.12 : 0.5;   // 보통 화질(태블릿)은 관중을 절반 정도만 — 출발선에 30명이 몰릴 때 삼각형 수만 개를 덜 그림
       for (let k = -40; k <= 40; k++) { if (tr.gapSeg[((k % n) + n) % n]) continue;
         [1, -1].forEach(side => { const h = heading(k), fwd = new T.Vector3(Math.sin(h), 0, Math.cos(h));
           for (let r = 0; r < rows; r++) { const hgt = 0.8 + r * 1.6, p = at(k, side * (1.42 + r * 0.075), hgt / 2); steps.push({ p, h, s: [1.5, hgt, seg * 1.03] });   // 계단 한 칸: 가로 = 깊이 · 세로 = 트랙 방향
             const top = p.y + hgt / 2;
-            for (let q = 0; q < per; q++) { if (Math.random() < 0.12) continue; const pp = p.clone().addScaledVector(fwd, (q - (per - 1) / 2) * (seg / per)); pp.y = top;   // 트랙 방향으로 나란히
+            for (let q = 0; q < per; q++) { if (Math.random() < skipP) continue; const pp = p.clone().addScaledVector(fwd, (q - (per - 1) / 2) * (seg / per)); pp.y = top;   // 트랙 방향으로 나란히
               bodies.push({ p: pp.clone().setY(top + 0.4), h }); heads.push({ p: pp.clone().setY(top + 1.05), h }); } }
           roofs.push({ p: at(k, side * (1.42 + (rows - 1) * 0.0375), 0.8 + (rows - 1) * 1.6 + 3.4), h, s: [rows * 1.5 + 1.2, 0.25, seg * 1.03] }); }); }
-      const inst = (geo, list, color, eachColor) => { const mat = new T.MeshLambertMaterial({ color }); mat.userData.lin = false; const im = new T.InstancedMesh(geo, mat, list.length), m4 = new T.Matrix4(), q = new T.Quaternion(), sc = new T.Vector3(), cc = new T.Color();
+      const inst = (geo, list, color, eachColor, noShadow) => { const mat = new T.MeshLambertMaterial({ color }); mat.userData.lin = false; const im = new T.InstancedMesh(geo, mat, list.length), m4 = new T.Matrix4(), q = new T.Quaternion(), sc = new T.Vector3(), cc = new T.Color();
         list.forEach((o, i) => { q.setFromAxisAngle(new T.Vector3(0, 1, 0), o.h); sc.set(...(o.s || [1, 1, 1])); m4.compose(o.p, q, sc); im.setMatrixAt(i, m4); if (eachColor) { cc.set(eachColor(i)).convertSRGBToLinear(); im.setColorAt(i, cc); } });
-        im.castShadow = true; im.receiveShadow = true; this.scene.add(im); return im; };
+        // 관중석은 출발선 근처에만 있음: 전체를 감싸는 구로 화면(·그림자 범위) 밖이면 건너뜀 — r128 인스턴스 메시는 기본이 '항상 그림'이라 코스 어디서나 수만 개 삼각형을 그렸음
+        if (list.length) { const bx = new T.Box3(); list.forEach(o => bx.expandByPoint(o.p)); const bs = new T.Sphere(); bx.getBoundingSphere(bs); bs.radius += 6; geo.boundingSphere = bs; im.frustumCulled = true; }
+        im.castShadow = !noShadow; im.receiveShadow = true; this.scene.add(im); return im; };
       const crowdCols = ['#E63946', '#1D7FA6', '#FFD23F', '#2A9D5C', '#7B2FF7', '#FF7A1A', '#FFFFFF', '#F28FB5'];
       inst(new T.BoxGeometry(1, 1, 1), steps, 0xB8BFCC); inst(new T.BoxGeometry(1, 1, 1), roofs, 0xFFFFFF, i => ['#E63946', '#FFFFFF'][i % 2]);
       // 관중은 수천 명이라 단순한 모양(몸 6각 기둥 · 머리 20면체)으로 — 삼각형을 절반 이하로
-      inst(new T.CylinderGeometry(0.28, 0.34, 0.8, 6, 1, true), bodies, 0xFFFFFF, i => crowdCols[(i * 7 + (i >> 3)) % crowdCols.length]);
-      inst(new T.IcosahedronGeometry(0.27, 0), heads, 0xFFFFFF, i => ['#F2C9A0', '#D9A77A', '#A8765A', '#F5D7B8'][i % 4]); }
+      inst(new T.CylinderGeometry(0.28, 0.34, 0.8, 6, 1, true), bodies, 0xFFFFFF, i => crowdCols[(i * 7 + (i >> 3)) % crowdCols.length], true);
+      inst(new T.IcosahedronGeometry(0.27, 0), heads, 0xFFFFFF, i => ['#F2C9A0', '#D9A77A', '#A8765A', '#F5D7B8'][i % 4], true); }
 
     // 4) 출발 아치: 빨강·흰 줄무늬 기둥 · 이름판 · 체크 깃발 · 출발 신호등(카운트다운에 맞춰 켜짐)
     { this.scene.children.filter(o => o.userData.startArch).forEach(o => this.scene.remove(o));

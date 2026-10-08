@@ -1,20 +1,51 @@
 // 2048 — 밀어서 같은 숫자를 합치세요. 2048 을 만들면 승리, 더 못 움직이면 끝.
+// 판 크기: 시작 화면에서 4×4 ~ 8×8 중 고름. 캔버스는 늘 4칸 크기(정사각형) — 칸 크기만 N 에 맞춰 줄임.
 
-const G2048_N = 4;
+const G2048_SIZES = [4, 5, 6, 7, 8];
+const G2048_TIP = { 4: '기본 · 가장 어려움', 5: '조금 넉넉', 6: '넉넉 · 큰 숫자 도전', 7: '아주 넓음', 8: '끝없이 길게' };
 const G2048_COLORS = { 2: '#EEE4DA', 4: '#EDE0C8', 8: '#F2B179', 16: '#F59563', 32: '#F67C5F', 64: '#F65E3B',
   128: '#EDCF72', 256: '#EDCC61', 512: '#EDC850', 1024: '#EDC53F', 2048: '#EDC22E', 4096: '#3C3A32' };
 
 class Game2048 {
   constructor(canvas, cellSize) {
     this.canvas = canvas; this.ctx = canvas.getContext('2d'); this.cellSize = cellSize;
-    this.grid = Array.from({ length: G2048_N }, () => Array(G2048_N).fill(0));
+    this.N = 4; this.grid = [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]];
     this.score = 0; this.best = 0; this.moves = 0; this.gameOver = false; this.won = false;
     this.anim = []; this.lastMove = 0;
-    this.addTile(); this.addTile();
+    this.menu = true; this.sel = 0; this.sizeLabel = '-'; this._blockUntil = 0;
+    // 크기 고르기는 손가락 톡 위치가 필요 — 페이지의 스와이프 조작은 좌표를 넘기지 않아 캔버스에 직접 한 번만 붙임
+    if (!canvas.__g2048Bound) {
+      canvas.__g2048Bound = true;
+      canvas.addEventListener('pointerup', e => {
+        const g = canvas.__g2048; if (!g || !g.menu || (window.__game && window.__game !== g)) return;
+        const r = canvas.getBoundingClientRect(), k = (g.cellSize * 4) / r.width;
+        g.menuTap((e.clientX - r.left) * k, (e.clientY - r.top) * k);
+      });
+    }
+    canvas.__g2048 = this;
   }
+  // ── 판 크기 고르기 ──
+  menuRects() {
+    const W = this.cellSize * 4, bw = W * 0.84, bh = W * 0.118, gap = W * 0.024, y0 = W * 0.2;
+    return G2048_SIZES.map((n, i) => ({ n, x: (W - bw) / 2, y: y0 + i * (bh + gap), w: bw, h: bh }));
+  }
+  menuTap(x, y) {
+    const hit = this.menuRects().find(b => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h);
+    if (hit) this.startSize(hit.n);
+  }
+  startSize(n) {
+    this.N = n; this.sizeLabel = n + '×' + n; this.menu = false;
+    this.grid = Array.from({ length: n }, () => Array(n).fill(0));
+    this.anim = []; this.slide = null;
+    this.addTile(); this.addTile();
+    this._blockUntil = performance.now() + 300;          // 고른 톡이 첫 밀기로 이어지지 않게
+    if (window.Sound) Sound.start();
+  }
+  menuStep(d) { this.sel = (this.sel + d + G2048_SIZES.length) % G2048_SIZES.length; if (window.Sound) Sound.move(); }
+  blocked() { return performance.now() < this._blockUntil; }
   addTile() {
     const empty = [];
-    for (let y = 0; y < G2048_N; y++) for (let x = 0; x < G2048_N; x++) if (!this.grid[y][x]) empty.push([x, y]);
+    for (let y = 0; y < this.N; y++) for (let x = 0; x < this.N; x++) if (!this.grid[y][x]) empty.push([x, y]);
     if (!empty.length) return;
     const [x, y] = empty[Math.floor(Math.random() * empty.length)];
     this.grid[y][x] = Math.random() < 0.9 ? 2 : 4;
@@ -29,12 +60,12 @@ class Game2048 {
       if (a[i] === a[i + 1]) { out.push(a[i] * 2); src.push([idx[i], idx[i + 1]]); gained += a[i] * 2; i++; }
       else { out.push(a[i]); src.push([idx[i]]); }
     }
-    while (out.length < G2048_N) { out.push(0); src.push([]); }
+    while (out.length < this.N) { out.push(0); src.push([]); }
     return { row: out, gained, src };
   }
   push(dx, dy) {
-    if (this.gameOver) return;
-    const g = this.grid, N = G2048_N;
+    if (this.gameOver || this.menu || this.blocked()) return;
+    const g = this.grid, N = this.N;
     let moved = false, gained = 0;
     const lines = [];
     for (let i = 0; i < N; i++) {
@@ -68,7 +99,7 @@ class Game2048 {
     if (!this.canMove()) { this.gameOver = true; if (window.Sound) Sound.gameOver(); }
   }
   canMove() {
-    const g = this.grid, N = G2048_N;
+    const g = this.grid, N = this.N;
     for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
       if (!g[y][x]) return true;
       if (x + 1 < N && g[y][x] === g[y][x + 1]) return true;
@@ -76,12 +107,12 @@ class Game2048 {
     }
     return false;
   }
-  move(dir) { this.push(dir, 0); }
-  up() { this.push(0, -1); }
-  down() { this.push(0, 1); }
-  rotate() { this.up(); }
+  move(dir) { if (this.menu) { this.menuStep(dir); return; } this.push(dir, 0); }
+  up() { if (this.menu) { this.menuStep(-1); return; } this.push(0, -1); }
+  down() { if (this.menu) { this.menuStep(1); return; } this.push(0, 1); }
+  rotate() { if (this.menu) return; this.up(); }
   softDrop() { if (!this._downLatch) { this._downLatch = true; this.down(); } }
-  hardDrop() { this.down(); }
+  hardDrop() { if (this.menu) { this.startSize(G2048_SIZES[this.sel]); return; } this.down(); }
 
   tick(now) {
     if (!this.softDropping) this._downLatch = false;
@@ -110,8 +141,29 @@ class Game2048 {
     if (v > 4) { ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 3; }
     ctx.fillText(String(v), x0 + w / 2, y0 + w / 2 + 1); ctx.shadowBlur = 0;
   }
+  drawMenu() {
+    const ctx = this.ctx, W = this.cellSize * 4;
+    const bg = ctx.createLinearGradient(0, 0, W, W); bg.addColorStop(0, '#C9B9A8'); bg.addColorStop(1, '#AE9F90'); ctx.fillStyle = bg; ctx.fillRect(0, 0, W, W);
+    FX.text(ctx, '판 크기를 고르세요', W / 2, W * 0.1, { size: W * 0.07, weight: 800, color: '#5E544B', align: 'center' });
+    FX.text(ctx, '톡 · 또는 ↑↓ 고르고 스페이스', W / 2, W * 0.155, { size: W * 0.036, weight: 600, color: '#776E65', align: 'center' });
+    this.menuRects().forEach((b, i) => {
+      const on = i === this.sel;
+      ctx.fillStyle = 'rgba(0,0,0,0.16)'; FX.rr(ctx, b.x, b.y + b.h * 0.08, b.w, b.h, b.h * 0.28); ctx.fill();
+      ctx.fillStyle = on ? '#F65E3B' : '#EEE4DA'; FX.rr(ctx, b.x, b.y, b.w, b.h, b.h * 0.28); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.25)'; FX.rr(ctx, b.x + b.h * 0.15, b.y + b.h * 0.1, b.w - b.h * 0.3, b.h * 0.32, b.h * 0.2); ctx.fill();
+      // 작은 판 미리보기
+      const ps = b.h * 0.7, px = b.x + b.h * 0.25, py = b.y + b.h * 0.15, c = ps / b.n;
+      ctx.fillStyle = on ? 'rgba(255,255,255,0.35)' : 'rgba(119,110,101,0.25)'; FX.rr(ctx, px, py, ps, ps, c * 0.4); ctx.fill();
+      ctx.fillStyle = on ? '#FFFFFF' : '#C9B9A8';
+      for (let y = 0; y < b.n; y++) for (let x = 0; x < b.n; x++) ctx.fillRect(px + x * c + c * 0.15, py + y * c + c * 0.15, c * 0.7, c * 0.7);
+      FX.text(ctx, b.n + ' × ' + b.n, b.x + b.h * 1.25, b.y + b.h * 0.53, { size: b.h * 0.42, weight: 800, color: on ? '#FFFFFF' : '#5E544B', baseline: 'middle' });
+      FX.text(ctx, G2048_TIP[b.n], b.x + b.w - b.h * 0.3, b.y + b.h * 0.53, { size: b.h * 0.27, weight: 600, color: on ? '#FFF3E0' : '#8F857B', align: 'right', baseline: 'middle' });
+    });
+    ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+  }
   draw() {
-    const ctx = this.ctx, cs = this.cellSize, N = G2048_N, W = cs * N, H = cs * N;
+    if (this.menu) { this.drawMenu(); return; }
+    const N = this.N, W = this.cellSize * 4, H = W, cs = W / N, ctx = this.ctx;
     const pad = cs * 0.06;
     const bg = ctx.createLinearGradient(0, 0, W, H); bg.addColorStop(0, '#C9B9A8'); bg.addColorStop(1, '#AE9F90'); ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
     if (this.slide) {
@@ -139,11 +191,11 @@ class Game2048 {
     if (this.won && this.moves - (this.wonAt || 0) < 40) {
       if (!this.wonAt) this.wonAt = this.moves;
       ctx.fillStyle = 'rgba(237,194,46,0.35)'; ctx.fillRect(0, 0, W, H);
-      ctx.fillStyle = '#776E65'; ctx.font = '800 ' + Math.round(cs * 0.5) + 'px Pretendard, sans-serif';
+      ctx.fillStyle = '#776E65'; ctx.font = '800 ' + Math.round(W * 0.125) + 'px Pretendard, sans-serif';
       ctx.textAlign = 'center'; ctx.fillText('2048 달성!', W / 2, H / 2); ctx.textAlign = 'left';
     }
     if (this.gameOver) { ctx.fillStyle = 'rgba(238,228,218,0.6)'; ctx.fillRect(0, 0, W, H);
-      ctx.fillStyle = '#776E65'; ctx.font = '800 ' + Math.round(cs * 0.45) + 'px Pretendard, sans-serif';
+      ctx.fillStyle = '#776E65'; ctx.font = '800 ' + Math.round(W * 0.1) + 'px Pretendard, sans-serif';
       ctx.textAlign = 'center'; ctx.fillText('더 움직일 수 없어요', W / 2, H / 2); ctx.textAlign = 'left'; }
   }
 }
