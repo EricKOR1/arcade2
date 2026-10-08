@@ -3,7 +3,8 @@
 //   반 전체가 한 경기장에서 실시간으로 (뱀 아레나와 같은 위치 신호 · 땅을 차지하면 'cap' 소식으로 모두에게)
 //   (모바일 인기 'io 땅따먹기' 장르를 학교용으로 새로 만든 것 — 이름·그림은 모두 새로 그림)
 
-const TR_N = 56, TR_VIEW = 13, TR_SPEED = 6.2;          // 경기장 56×56칸 · 화면 가로 13칸 · 초당 6.2칸
+const TR_N = 56, TR_VIEW = 10, TR_SPEED = 6.2;          // 경기장 56×56칸 · 화면 짧은 변에 10칸(칸이 크게 보이게) · 초당 6.2칸
+const TR_GRID_C = 12, TR_GRID_R = 18;                     // games.js 의 grid — 페이지가 손가락 좌표를 이 칸 단위로 넘겨 줌
 const TR_COLORS = ['#4CC9F0', '#FF5C7A', '#FFD166', '#06D6A0', '#B15DFF', '#FF9F43', '#4361EE', '#F78FB3', '#7DF58F', '#E0B860'];
 const TR_CELLC = [1, 7, 4, 5, 6, 3, 2, 19, 13, 23];      // 교사 미니보드 색 번호
 const TR_DIRS = [[1, 0], [0, 1], [-1, 0], [0, -1]];      // 0 오른쪽 · 1 아래 · 2 왼쪽 · 3 위
@@ -41,6 +42,16 @@ class TerritoryGame {
   turn(d) { if (this.isDead || this.gameOver) return; if ((d + 2) % 4 === this.dir && this.trail.length) return; this.want = d; }
   move(d) { this.turn(d > 0 ? 0 : 2); } up() { this.turn(3); } down() { this.turn(1); } softDrop() { this.turn(1); }
   rotate() {} hardDrop() {} setHazards() {}
+  // 화면 아무 데나 밀기: 손가락이 18px 넘게 움직이면 그 방향으로 꺾고, 다시 그 자리부터 잼 (계속 밀며 여러 번 꺾기)
+  pointer(type, x, y) {
+    const W = this.canvas.clientWidth || 1, H = this.canvas.clientHeight || 1, px = x / TR_GRID_C * W, py = y / TR_GRID_R * H;
+    if (type === 'down') { this.sw = [px, py]; return; }
+    if (type === 'up') { this.sw = null; return; }
+    if (!this.sw) return;
+    const dx = px - this.sw[0], dy = py - this.sw[1];
+    if (Math.hypot(dx, dy) < 18) return;
+    this.turn(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 0 : 2) : (dy > 0 ? 1 : 3)); this.sw = [px, py];
+  }
   setMove(x, y) { if (Math.hypot(x, y) < 0.35) return; this.turn(Math.abs(x) > Math.abs(y) ? (x > 0 ? 0 : 2) : (y > 0 ? 3 : 1)); }   // 조이스틱 (위 = +y)
   // ── 신호: 위치 · 꼬리(꺾인 점) · 가끔 내 땅 전체 ──
   serialize() {
@@ -130,12 +141,12 @@ class TerritoryGame {
   }
   colorOf(id) { if (id === this.myId) return TR_COLORS[this.ci]; const p = this.peers[id]; return p ? TR_COLORS[p.ci] : '#8B93A7'; }
   draw() {
-    const ctx = this.ctx, W = this.canvas.clientWidth || this.canvas.width, H = this.canvas.clientHeight || this.canvas.height, u = W / TR_VIEW;
+    const ctx = this.ctx, W = this.canvas.clientWidth || this.canvas.width, H = this.canvas.clientHeight || this.canvas.height, u = Math.min(W, H) / (Math.min(W, H) > 600 ? TR_VIEW + 2 : TR_VIEW), VW = W / u, VH = H / u;
     const hx = this.cx + TR_DIRS[this.dir][0] * (this.isDead ? 0 : this.p), hy = this.cy + TR_DIRS[this.dir][1] * (this.isDead ? 0 : this.p);
-    const camX = hx + 0.5 - TR_VIEW / 2, camY = hy + 0.5 - H / u / 2, sx = x => (x - camX) * u, sy = y => (y - camY) * u;
+    const camX = hx + 0.5 - VW / 2, camY = hy + 0.5 - VH / 2, sx = x => (x - camX) * u, sy = y => (y - camY) * u;
     ctx.fillStyle = '#121828'; ctx.fillRect(0, 0, W, H);
     // 경기장 바닥 (체크 무늬)
-    const x0 = Math.max(0, Math.floor(camX)), x1 = Math.min(TR_N - 1, Math.ceil(camX + TR_VIEW)), y0 = Math.max(0, Math.floor(camY)), y1 = Math.min(TR_N - 1, Math.ceil(camY + H / u));
+    const x0 = Math.max(0, Math.floor(camX)), x1 = Math.min(TR_N - 1, Math.ceil(camX + VW)), y0 = Math.max(0, Math.floor(camY)), y1 = Math.min(TR_N - 1, Math.ceil(camY + VH));
     ctx.fillStyle = '#EEF1F6'; ctx.fillRect(sx(0), sy(0), TR_N * u, TR_N * u);
     ctx.fillStyle = '#E2E7EF'; for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if ((x + y) % 2) ctx.fillRect(sx(x), sy(y), u + 0.5, u + 0.5);
     // 땅 (주인 색 · 아래쪽 그림자로 입체감)
@@ -169,7 +180,8 @@ class TerritoryGame {
     const rank = Object.values(this.peers).filter(p => !p.dead).map(p => [p.name || '친구', p.cells, p.ci]).concat([[this.myName || '나', this.cells, this.ci, 1]]).sort((a, b) => b[1] - a[1]).slice(0, 3);
     rank.forEach((r, i) => FX.text(ctx, (i + 1) + '. ' + r[0] + ' ' + (Math.round(r[1] / (TR_N * TR_N) * 1000) / 10) + '%', W - 10, my + M + 22 + i * 17, { size: 12.5, weight: r[3] ? 900 : 700, color: r[3] ? '#FFE38A' : '#fff', align: 'right', stroke: 'rgba(20,24,40,.85)' }));
     this.toasts.forEach((t, i) => FX.text(ctx, t.t, W / 2, H * 0.2 + i * 24, { size: 15, weight: 900, color: t.c, align: 'center', stroke: 'rgba(20,24,40,.9)' }));
-    if (this.run < 4) FX.text(ctx, '밀기·방향키로 방향 · 내 땅 밖에 선을 긋고 돌아오면 그 안이 내 땅!', W / 2, H * 0.62, { size: 13, weight: 800, color: '#fff', align: 'center', stroke: 'rgba(20,24,40,.9)' });
+    if (this.run < 4) FX.text(ctx, '화면 아무 데나 밀어서 방향 바꾸기 (방향키도 됨)', W / 2, H * 0.62, { size: 15, weight: 900, color: '#FFE38A', align: 'center', stroke: 'rgba(20,24,40,.9)' });
+    if (this.run < 4) FX.text(ctx, '내 땅 밖에 선을 긋고 돌아오면 그 안이 내 땅!', W / 2, H * 0.62 + 22, { size: 13, weight: 800, color: '#fff', align: 'center', stroke: 'rgba(20,24,40,.9)' });
     if (this.isDead) { ctx.fillStyle = 'rgba(10,14,28,.45)'; ctx.fillRect(0, 0, W, H); FX.text(ctx, Math.max(1, Math.ceil((this.deadUntil - (this.now || 0)) / 1000)) + '', W / 2, H * 0.48, { size: 56, weight: 900, color: '#fff', align: 'center', stroke: 'rgba(20,24,40,.9)' }); }
   }
 }
