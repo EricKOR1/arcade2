@@ -57,7 +57,7 @@ class ShooterGame {
   tick(now) {
     if (this.gameOver) return;
     const dt = this.lastTime ? Math.min(40, now - this.lastTime) : 16.7;
-    this.lastTime = now;
+    this.lastTime = now; this.now = now;   // (예전엔 now 를 저장하지 않아 적들의 둥실거림이 멈춰 있었음)
     const f = dt / 16.7;
 
     // 내 우주선
@@ -194,20 +194,25 @@ class ShooterGame {
     this.stars.forEach(s2 => { ctx.fillStyle = 'rgba(255,255,255,' + (0.25 + s2.s * 0.5).toFixed(2) + ')'; ctx.fillRect(s2.x * cs, s2.y * cs, cs * 0.08 * s2.s + 1, cs * 0.08 * s2.s + 1); });
 
     ctx.imageSmoothingEnabled = false;
+    // 광채·탄 그라데이션은 (0,0) 기준으로 칸 크기마다 한 번만 만들고, 그릴 자리로 옮겨서 칠함 (예전: 탄·적마다 매 프레임 새로 만듦)
+    if (!this._sg || this._sgCs !== cs) { this._sgCs = cs;
+      const eg = ctx.createRadialGradient(0, 0, 0, 0, 0, cs * 0.7); eg.addColorStop(0, 'rgba(177,93,255,0.35)'); eg.addColorStop(1, 'rgba(177,93,255,0)');
+      const bg2 = ctx.createLinearGradient(0, -cs * 0.4, 0, cs * 0.3); bg2.addColorStop(0, 'rgba(76,201,240,0)'); bg2.addColorStop(0.6, '#9DE9FF'); bg2.addColorStop(1, '#FFFFFF');
+      const sg = ctx.createRadialGradient(0, 0, 0, 0, 0, cs * 0.3); sg.addColorStop(0, '#FFE1E8'); sg.addColorStop(0.4, '#FF5C7A'); sg.addColorStop(1, 'rgba(255,92,122,0)');
+      this._sg = { eg, bg: bg2, sg }; }
+    const SG = this._sg;
     // 적: 스프라이트 + 강한 적은 보라 광채
     this.enemies.forEach(e => { const x = e.x * cs, y = e.y * cs, k = Math.min(2, e.kind | 0);
-      if (e.hp > 1) { const g = ctx.createRadialGradient(x, y, 0, x, y, cs * 0.7); g.addColorStop(0, 'rgba(177,93,255,0.35)'); g.addColorStop(1, 'rgba(177,93,255,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, cs * 0.7, 0, Math.PI * 2); ctx.fill(); }
+      if (e.hp > 1) { ctx.translate(x, y); ctx.fillStyle = SG.eg; ctx.beginPath(); ctx.arc(0, 0, cs * 0.7, 0, Math.PI * 2); ctx.fill(); ctx.translate(-x, -y); }
       const bob = Math.sin(now / 300 + e.x * 2) * cs * 0.04;
       ctx.drawImage(SP.e[k], x - cs * 0.5, y - cs * 0.5 + bob, cs, cs); });
     // 내 탄: 빛나는 레이저
     this.bullets.forEach(b => { const bx = b.x * cs, by = b.y * cs;
-      const g = ctx.createLinearGradient(bx, by - cs * 0.4, bx, by + cs * 0.3); g.addColorStop(0, 'rgba(76,201,240,0)'); g.addColorStop(0.6, '#9DE9FF'); g.addColorStop(1, '#FFFFFF');
-      ctx.fillStyle = g; FX.rr(ctx, bx - cs * 0.07, by - cs * 0.4, cs * 0.14, cs * 0.7, cs * 0.07); ctx.fill();
-      ctx.fillStyle = 'rgba(76,201,240,0.25)'; ctx.beginPath(); ctx.arc(bx, by, cs * 0.22, 0, Math.PI * 2); ctx.fill(); });
+      ctx.translate(bx, by); ctx.fillStyle = SG.bg; FX.rr(ctx, -cs * 0.07, -cs * 0.4, cs * 0.14, cs * 0.7, cs * 0.07); ctx.fill();
+      ctx.fillStyle = 'rgba(76,201,240,0.25)'; ctx.beginPath(); ctx.arc(0, 0, cs * 0.22, 0, Math.PI * 2); ctx.fill(); ctx.translate(-bx, -by); });
     // 적 탄: 빨간 구체
     this.enemyShots.forEach(s2 => { const sx = s2.x * cs, sy = s2.y * cs;
-      const g = ctx.createRadialGradient(sx, sy, 0, sx, sy, cs * 0.3); g.addColorStop(0, '#FFE1E8'); g.addColorStop(0.4, '#FF5C7A'); g.addColorStop(1, 'rgba(255,92,122,0)');
-      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(sx, sy, cs * 0.3, 0, Math.PI * 2); ctx.fill(); });
+      ctx.translate(sx, sy); ctx.fillStyle = SG.sg; ctx.beginPath(); ctx.arc(0, 0, cs * 0.3, 0, Math.PI * 2); ctx.fill(); ctx.translate(-sx, -sy); });
     // 내 우주선: 스프라이트 + 엔진 불꽃 + 실드 링(무적)
     if (!(this.invul > 0 && Math.floor(this.invul / 100) % 2 === 0)) {
       const x = this.x * cs, y = this.y * cs, sw = cs * 1.2;

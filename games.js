@@ -63,7 +63,7 @@ const GAMES = {
   flappy: {
     type: 'canvas',
     name: '하늘 날기',
-    desc: '톡톡 눌러 날개짓하며 기둥 사이를 통과하세요. 어디에 닿아도 끝',
+    desc: '톡톡 눌러 날개짓하며 기둥 사이를 통과하세요. 기둥이나 땅에 닿으면 끝',
     howto: '점프 버튼(또는 화면 탭)으로 날개짓 · 기둥 틈을 통과',
     meta: '개인전 · 통과 수 경쟁',
     primary: '72% 0.13 240', primaryContent: '100% 0 0', hex: '#4CC9F0',
@@ -222,15 +222,15 @@ const GAMES = {
   g2048: {
     type: 'canvas',
     name: '2048',
-    desc: '밀어서 같은 숫자를 합치세요. 판 크기는 4×4 부터 8×8 까지 골라요. 2048 을 만들면 승리, 더 못 움직이면 끝',
-    howto: '시작 화면에서 판 크기(4×4 ~ 8×8) 톡 · ← → ↑ ↓ 로 밀기 · 같은 숫자가 만나면 합쳐짐',
+    desc: '밀어서 같은 숫자를 합치세요. 판 크기는 4×4 부터 8×8 까지 골라요 — 작은 판일수록 점수 배수가 커요(4×4 는 4배). 2048 을 만들면 승리, 더 못 움직이면 끝',
+    howto: '시작 화면에서 판 크기(4×4 ~ 8×8) 톡 · 화면을 밀거나 ← → ↑ ↓ 로 밀기 · 같은 숫자가 만나면 합쳐짐 · 점수 배수 4×4 4배 · 5×5 2.5배 · 6×6 1.8배 · 7×7 1.3배 · 8×8 1배',
     meta: '개인전 · 퍼즐 · 판 크기 5종',
     primary: '80% 0.12 70', primaryContent: '25% 0.04 70', hex: '#EDC22E',
     grid: { cols: 4, rows: 4 },
     adminView: 'grid',
     needsPeers: false, hasNext: false,
     stats: [{ key: 'best', label: '최고 타일' }, { key: 'sizeLabel', label: '판 크기' }],
-    detail: function (g) { return g.sizeLabel + ' 판 · 최고 타일 ' + g.best + ' · ' + g.moves + '번 이동'; },
+    detail: function (g) { return g.sizeLabel + ' 판' + (g.mul > 1 ? '(점수 ' + g.mul + '배)' : '') + ' · 최고 타일 ' + g.best + ' · ' + g.moves + '번 이동'; },
     controls: ['up', 'left', 'down', 'right'],
     create: function (canvas, opts) { return new Game2048(canvas, opts.cellSize); },
     sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, best: g.best, size: g.sizeLabel }; }

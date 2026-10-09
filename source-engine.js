@@ -28,7 +28,7 @@ class SourceHuntGame {
     const R = this.round;
     this.kind = R === 1 ? 'water' : (R === 2 ? 'air' : (R >= 4 && Math.random() < 0.3 ? 'storm' : (Math.random() < 0.5 ? 'water' : 'air')));
     this.budget = this.budgetMax; this.noise = Math.min(14, (R - 1) * 3);
-    this.sensors = []; this.armed = null; this.revealed = false; this.caseStart = this.now || 0; this.caseAt = this.now || 0; this.result = null;
+    this.sensors = []; this.armed = null; this.revealed = false; this.caseStart = this.now || 0; this.result = null;
     this.excluded = []; this.hintUsed = false; this.droneUsed = false; this.droneArmed = false;
     const nCand = Math.min(7, 3 + Math.floor(R / 1.5));
     this.cands = [];
@@ -88,7 +88,7 @@ class SourceHuntGame {
       else this.armDrone();
       return;
     }
-    if (this.now - (this.caseAt || 0) < 350) return;   // 새 사건 배너가 판을 가리는 동안 누른 것은 무시 (결과 카드를 넘기며 두세 번 톡하면 보이지 않는 자리에 센서가 놓이거나 핀이 골라졌음)
+    if (this.anim.some(a => a.kind === 'case')) return;   // '사건 #N' 배너가 판을 가리는 동안(약 0.5초) 누른 것은 무시 — 시작하자마자 연타하거나 결과 카드를 넘기며 두세 번 톡하면 보이지 않는 자리에 센서가 놓이거나 핀이 지목됐음
     const cx = Math.floor(x), cy = Math.floor(y);
     if (cx < 0 || cy < 0 || cx >= this.W || cy >= this.H - 2) return;   // 지도는 14줄까지 (예전: 액션 바 바로 위 틈을 누르면 보이지 않는 15번째 줄에 센서가 놓여 하나를 버림)
     const cand = this.cands.find(c => Math.hypot(c.x + 0.5 - x, c.y + 0.5 - y) < 0.62);   // 핀(반지름 0.5칸) 안쪽만 — 옆 칸을 누르면 센서

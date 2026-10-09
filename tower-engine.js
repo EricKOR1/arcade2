@@ -17,7 +17,7 @@ class TowerGame {
   }
   resetPlayer() { this.x = 1.5; this.y = this.floors[0]; this.vy = 0; this.onLadder = false; this.jumping = false; this.face = 1; }
   move(dir) { this.steer = dir; } releaseSteer(dir) { if (this.steer === dir) this.steer = 0; }
-  up() { this.upHeld = true; }
+  up() { this.upPulse = true; }   // 밀기·톡 같은 한 번 누름 (버튼·키를 꾹 누르는 동안은 페이지가 upHeld 를 켜 둠)
   softDrop() { this.wantDown = true; }
   rotate() { this.jump(); } hardDrop() { this.jump(); } fire() { this.jump(); }
   jump() { if (this.gameOver || this.jumping || this.onLadder) return; this.jumping = true; this.vy = -0.42; if (window.Sound) Sound.rotate(); }
@@ -30,11 +30,14 @@ class TowerGame {
     if (this.gameOver) return;
     const { dt, f } = FX.frame(this, now);
     if (this.invul > 0) this.invul -= dt;
-    // 사다리
+    // 사다리 — ▲·▼ 를 누르고 있는 동안 계속 오르내림 (예전: 엔진이 매 프레임 '누름'을 지워 꾹 눌러도 한 번에 0.12칸만 — 터치로는 사다리 하나에 30번 넘게 톡)
+    //   키보드 ↓ 는 softDropping 만 켬 (예전엔 읽지 않아 키보드로는 못 내려옴)
+    const goUp = this.upHeld || this.upPulse, goDown = this.softDropping || this.wantDown;
     const lad = this.ladderAt(this.x, this.y);
-    if (!this.jumping && lad && (this.upHeld || this.wantDown)) { this.onLadder = true; this.x = lad[0] + 0.5; }
+    // 오르기는 꼭대기가 아닐 때 · 내려가기는 바닥이 아닐 때만 잡음 (꼭대기에서 ▲ 를 누른 채로도 걸어 나갈 수 있게)
+    if (!this.jumping && !this.onLadder && lad && ((goUp && this.y > lad[2] + 0.05) || (goDown && this.y < lad[1] - 0.05))) { this.onLadder = true; this.x = lad[0] + 0.5; }
     if (this.onLadder) {
-      if (this.upHeld) this.y -= 0.12 * f; if (this.wantDown) this.y += 0.12 * f;
+      if (goUp) this.y -= 0.12 * f; if (goDown) this.y += 0.12 * f;
       const [, by, ty] = lad || [0, this.y, this.y];
       if (this.y <= ty) { this.y = ty; this.onLadder = false; }
       if (this.y >= by) { this.y = by; this.onLadder = false; }
@@ -47,7 +50,7 @@ class TowerGame {
         if (fl != null) { this.y = fl; this.jumping = false; this.vy = 0; } }
       else { const fl = this.floorAt(this.y); if (fl == null) { this.jumping = true; this.vy = 0; } }
     }
-    this.wantDown = false; this.upHeld = false;
+    this.wantDown = false; this.upPulse = false;   // upHeld·softDropping 은 손을 떼면 페이지가 끔
     // 꼭대기 도달
     if (this.y <= 1.6) {
       // 층 점수 500×층 + 시간 보너스: 60초 안에 깨면 남은 1초마다 20점 (예: 20초에 깨면 +800)

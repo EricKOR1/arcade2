@@ -100,7 +100,7 @@ const UC_PLACES = {
   onsanHarbor: { name: '온산항', at: [132.9, 93.7] },
   mouth:   { name: '명촌교 (태화강 하구)', at: [153.0, -21.0] }
 };
-const UC_START = [90.6, -29.6];
+const UC_START = [88.6, -28.6];   // 시청 재난상황실 앞 강둑 — 예전 [90.6, -29.6] 은 가벼운 화질에서 상황실 건물에 바로 붙어 첫 '위(W)' 이동이 0.5칸에서 막혔음
 // 장소 사람들 자리 (장소 기준 · 물가에서 한 발 물러남) — 온산 어민: 위판장 뒤 마른 땅 (v2026-10-18a · 예전 자리는 제련소 담장과 바다 사이 좁은 틈이라 물에 잠긴 땅 · 카메라와 사이에 제련소가 없게) · 울산항 어민: 부두 창고 사이 마른 땅 (예전 자리는 여천천 하구 물에 잠긴 강둑)
 const UC_NPC_AT = { researcher: ['lab', -5, 7], forecaster: ['weather', 4, 7], doctor: ['clinic', 4, 7], resident: ['garden', 4, 9], riverman: ['riverOffice', 4, 7], fisherT: ['mouth', 6, 5], fisherO: ['onsanHarbor', -7.9, -5.2], fisherP: ['port', -1.8, 1.2] };
 function ucNpcAt(id) { const [k, a, b] = UC_NPC_AT[id], P = UC_PLACES[k].at; return [P[0] + a, P[1] + b]; }

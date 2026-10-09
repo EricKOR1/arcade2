@@ -22,25 +22,36 @@ class FroggerGame {
       const len = kind === 'river' ? 2 + Math.floor(Math.random() * 3) : 1 + Math.floor(Math.random() * 2);
       const gap = len + 2 + Math.floor(Math.random() * 3);
       const items = [];
-      for (let x = -gap; x < FROG_COLS + gap; x += len + gap) items.push({ x: x + Math.random() * 2, len });
+      // 한 바퀴(span) 이음매: 예전엔 마지막 것과 첫 것 사이가 좁아 도로 줄의 4% 에서 차가 겹쳐 나오고, 강은 물만 10칸인 구간이 생김
+      const span = FROG_COLS + gap * 2 + len; let n = Math.ceil((FROG_COLS + gap * 2) / (len + gap)), step = len + gap;
+      if (kind === 'river') step = span / n;                    // 통나무: 한 바퀴에 같은 간격으로 (개수 그대로)
+      else if (span - (n - 1) * step < len + 3) n--;            // 차: 마지막 차가 첫 차에 붙으면 하나 뺌 (간격은 그대로)
+      const jit = Math.min(2, step - len - 1);
+      for (let i = 0; i < n; i++) items.push({ x: -gap + i * step + Math.random() * jit, len });
       return { kind, y, dir, speed, len, gap, items, color: kind === 'river' ? '#8B5A2B' : ['#FF5C7A', '#FFD166', '#4CC9F0', '#B15DFF'][y % 4] };
     });
   }
-  resetFrog() { this.fx = Math.floor(FROG_COLS / 2); this.fy = FROG_ROWS - 1; this.onLog = null; this.hopT = 0; }
+  resetFrog() { this.fx = Math.floor(FROG_COLS / 2); this.fy = FROG_ROWS - 1; this.onLog = null; this.hopT = 0; this.bestY = this.fy; }   // bestY: 이번에 가장 높이 올라간 줄
 
   hop(dx, dy) {
     if (this.gameOver || this.deathT > 0 || this.hopT > 0) return;
-    const nx = Math.round(this.fx) + dx, ny = this.fy + dy;
-    if (nx < 0 || nx >= FROG_COLS || ny < 0 || ny >= FROG_ROWS) return;
+    const ny = this.fy + dy;
+    // 강 줄끼리(통나무 위에서)는 지금 x 그대로 뜀 (예전: 칸에 맞춰 반올림해 최대 반 칸 옆으로 옮겨져, 보기엔 위 통나무에 닿는데 빠지는 일 4%) · 그 밖은 칸에 맞춤
+    const river = this.lanes[this.fy].kind === 'river' && this.lanes[ny] && this.lanes[ny].kind === 'river';
+    const nx = river ? this.fx + dx : Math.round(this.fx) + dx;
+    if (nx < -0.5 || nx > FROG_COLS - 0.5 || ny < 0 || ny >= FROG_ROWS) return;
     this.fx = nx; this.fy = ny; this.hopT = 1;
-    if (dy < 0) this.score += 5;
+    if (ny < this.bestY) { this.bestY = ny; this.score += 5; }   // 처음 올라선 줄만 +5 (예전: 위아래로 오르내리기만 해도 끝없이 +5 — 건너지 않고 초당 15점)
     if (window.Sound) Sound.move();
   }
   move(dir) { this.hop(dir, 0); }
   up() { this.hop(0, -1); }
   down() { this.hop(0, 1); }
   rotate() { this.up(); }
-  softDrop() { if (!this._dl) { this._dl = true; this.down(); } }
+  // ↓: 페이지는 키보드면 softDropping 만 켜고, ↓ 버튼이면 켠 뒤 softDrop() 도 부름 → 켜지는 순간 한 칸만 (예전: 키보드 ↓ 로는 못 내려옴)
+  set softDropping(v) { if (v && !this._sd) this.down(); this._sd = !!v; }
+  get softDropping() { return !!this._sd; }
+  softDrop() {}
   hardDrop() { this.up(); }
 
   die() {
@@ -53,7 +64,6 @@ class FroggerGame {
   tick(now) {
     if (this.gameOver) return;
     const { dt, f } = FX.frame(this, now);
-    if (!this.softDropping) this._dl = false;
     this.time += dt;
     if (this.hopT > 0) this.hopT = Math.max(0, this.hopT - 0.18 * f);
     if (this.deathT > 0) { this.deathT -= 0.03 * f; if (this.deathT <= 0) { this.deathT = 0; this.resetFrog(); } this.draw(); return; }

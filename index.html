@@ -1563,7 +1563,10 @@
       else if (dy < -th * 2) { (game.up ? game.up() : game.rotate()); sy = t.clientY; moved = true; }
       e.preventDefault();
     }, { passive: false });
-    canvas.addEventListener('touchend', () => { if (!moved && game) game.rotate(); });
+    // 끌어서 움직였으면 손을 뗄 때 좌우 조작도 멈춤 — 예전: 화면을 한 번 쓸면 패들·우주선이 벽까지 계속 가고, 소행성은 계속 돎
+    const endSwipe = tapped => { if (!game) return; if (tapped && !moved) game.rotate(); else if (moved && game.releaseSteer) { game.releaseSteer(1); game.releaseSteer(-1); } };
+    canvas.addEventListener('touchend', () => endSwipe(true));
+    canvas.addEventListener('touchcancel', () => endSwipe(false));
   }
 
   const wasd = { w: false, a: false, s: false, d: false };

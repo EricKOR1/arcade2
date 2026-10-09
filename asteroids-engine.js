@@ -15,8 +15,10 @@ class AsteroidsGame {
   }
   spawnWave() {
     const n = 2 + this.wave;
+    // 배에서 5칸 안에는 만들지 않음 — 화면 끝을 넘어 이어지는 거리로 잼 (예전: 배가 가장자리에 있으면 반대편 끝, 바로 옆에 생겼음)
+    const near = (x, y) => { let dx = Math.abs(x - this.x), dy = Math.abs(y - this.y); dx = Math.min(dx, this.W - dx); dy = Math.min(dy, this.H - dy); return Math.hypot(dx, dy) < 5; };
     for (let i = 0; i < n; i++) {
-      let x, y; do { x = Math.random() * this.W; y = Math.random() * this.H; } while (Math.hypot(x - this.x, y - this.y) < 5);
+      let x, y; do { x = Math.random() * this.W; y = Math.random() * this.H; } while (near(x, y));
       const a = Math.random() * Math.PI * 2, sp = 0.02 + Math.random() * 0.02 + this.wave * 0.003;
       this.rocks.push(this.makeRock(x, y, Math.cos(a) * sp, Math.sin(a) * sp, 3));
     }
@@ -47,6 +49,7 @@ class AsteroidsGame {
     const { dt, f } = FX.frame(this, now);
     this.angle += this.turn * 0.075 * f;
     const thr = this.thrust || this.upHeld;
+    this.thrusting = thr;   // 불꽃 그림용 (예전: 그리기 전에 thrust 를 끄므로 추진 불꽃이 한 번도 안 보였음)
     if (thr) { this.vx += Math.cos(this.angle) * 0.006 * f; this.vy += Math.sin(this.angle) * 0.006 * f;
       if (Math.random() < 0.6) this.parts.push({ x: this.x - Math.cos(this.angle) * 0.5, y: this.y - Math.sin(this.angle) * 0.5, vx: -Math.cos(this.angle) * 0.08 + (Math.random() - .5) * 0.04, vy: -Math.sin(this.angle) * 0.08 + (Math.random() - .5) * 0.04, l: 1, c: '#FFD166' }); }
     this.thrust = false;
@@ -104,17 +107,20 @@ class AsteroidsGame {
     const ctx = this.ctx, cs = this.cellSize, W = this.W * cs, H = this.H * cs;
     const bg = ctx.createLinearGradient(0, 0, W, H); bg.addColorStop(0, '#05070F'); bg.addColorStop(1, '#101730'); ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
     const neb = ctx.createRadialGradient(W * 0.25, H * 0.7, 0, W * 0.25, H * 0.7, W * 0.6); neb.addColorStop(0, 'rgba(76,201,240,0.10)'); neb.addColorStop(1, 'rgba(76,201,240,0)'); ctx.fillStyle = neb; ctx.fillRect(0, 0, W, H);
-    if (!this._stars) { this._stars = Array.from({ length: 50 }, () => [Math.random() * W, Math.random() * H, 0.4 + Math.random() * 0.6]); }
-    this._stars.forEach(s => { ctx.fillStyle = 'rgba(255,255,255,' + (0.25 + s[2] * 0.5).toFixed(2) + ')'; ctx.fillRect(s[0], s[1], 1.5, 1.5); });
+    // 별: 0~1 비율로 저장 (예전: 처음 화면 픽셀로 저장해, 화면을 돌리거나 크기가 바뀌면 별이 한쪽에만 몰렸음)
+    if (!this._stars) { this._stars = Array.from({ length: 50 }, () => [Math.random(), Math.random(), 0.4 + Math.random() * 0.6]); }
+    this._stars.forEach(s => { ctx.fillStyle = 'rgba(255,255,255,' + (0.25 + s[2] * 0.5).toFixed(2) + ')'; ctx.fillRect(s[0] * W, s[1] * H, 1.5, 1.5); });
     // 소행성 (울퉁불퉁 다각형)
     this.rocks.forEach(r => {
       ctx.save(); ctx.translate(r.x * cs, r.y * cs); ctx.rotate(r.rot);
       ctx.beginPath();
       r.pts.forEach((k, i) => { const a = (i / r.pts.length) * Math.PI * 2, rr = r.r * k * cs; if (i === 0) ctx.moveTo(Math.cos(a) * rr, Math.sin(a) * rr); else ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); });
       ctx.closePath();
-      // 입체 음영: 왼쪽 위가 밝고 오른쪽 아래가 어둡게
-      const rg = ctx.createRadialGradient(-r.r * cs * 0.35, -r.r * cs * 0.35, 0, 0, 0, r.r * cs * 1.05);
-      rg.addColorStop(0, '#8A93A6'); rg.addColorStop(0.6, '#4A5163'); rg.addColorStop(1, '#262B38');
+      // 입체 음영: 왼쪽 위가 밝고 오른쪽 아래가 어둡게 — 크기 3종 × 칸 크기마다 한 번만 만들어 재사용 (소행성 원점 기준이라 옮기고 돌려도 같음)
+      const gk = r.size + ':' + cs; if (!this._rg || this._rgCs !== cs) { this._rg = {}; this._rgCs = cs; }
+      let rg = this._rg[gk];
+      if (!rg) { rg = this._rg[gk] = ctx.createRadialGradient(-r.r * cs * 0.35, -r.r * cs * 0.35, 0, 0, 0, r.r * cs * 1.05);
+        rg.addColorStop(0, '#8A93A6'); rg.addColorStop(0.6, '#4A5163'); rg.addColorStop(1, '#262B38'); }
       ctx.fillStyle = rg; ctx.fill(); ctx.strokeStyle = 'rgba(201,209,220,0.7)'; ctx.lineWidth = 1.5; ctx.stroke();
       // 크레이터 (크기에 따라 1~3개, 위치는 고정)
       ctx.fillStyle = 'rgba(0,0,0,0.28)';
@@ -132,7 +138,7 @@ class AsteroidsGame {
       ctx.save(); ctx.translate(this.x * cs, this.y * cs); ctx.rotate(this.angle);
       const r = cs * 0.5;
       // 엔진 불꽃 (가속 중)
-      if (this.thrust) { const fl = 0.6 + Math.random() * 0.6; const fg = ctx.createLinearGradient(-r * 0.35, 0, -r * (0.35 + fl), 0);
+      if (this.thrusting) { const fl = 0.6 + Math.random() * 0.6; const fg = ctx.createLinearGradient(-r * 0.35, 0, -r * (0.35 + fl), 0);
         fg.addColorStop(0, '#FFF3C4'); fg.addColorStop(0.5, '#FF9F43'); fg.addColorStop(1, 'rgba(255,92,50,0)');
         ctx.fillStyle = fg; ctx.beginPath(); ctx.moveTo(-r * 0.35, r * 0.22); ctx.lineTo(-r * (0.35 + fl), 0); ctx.lineTo(-r * 0.35, -r * 0.22); ctx.closePath(); ctx.fill(); }
       // 선체: 네온 테두리 + 안쪽 그라데이션 + 조종석

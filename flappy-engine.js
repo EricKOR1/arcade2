@@ -61,7 +61,11 @@ class FlappyGame {
         // 처음 몇 개는 화면 가운데 근처에 두고, 익숙해지면 위아래로 퍼집니다
         const range = Math.min(1, 0.35 + this.passed * 0.06);
         const mid = (FLAP_ROWS - 1 - this.gap) / 2;
-        const gapY = 2.0 + mid * (1 - range) + Math.random() * (FLAP_ROWS - this.gap - 4.5) * range;
+        let gapY = 2.0 + mid * (1 - range) + Math.random() * (FLAP_ROWS - this.gap - 4.5) * range;
+        // 바로 앞 틈보다 너무 높으면 낮춤: 기둥 사이에서 올라가야 할 높이가 초당 5번쯤 톡으로 오를 수 있는 만큼(0.15칸/프레임)을 넘지 않게
+        // (예전: 30개 넘게 통과하면 기둥 40쌍에 1쌍꼴로 쉬지 않고 톡해도 못 지나는 높이 차가 나왔음)
+        const prev = this.pipes[this.pipes.length - 1];
+        if (prev) gapY = Math.max(gapY, prev.gapY + 0.72 - this.gap - 0.15 * (this.spacing - 1.84) / this.speed);
         this.pipes.push({ x: FLAP_COLS + 1, gapY: gapY, gapH: this.gap, passed: false });
       }
       this.pipes.forEach(p => { p.x -= this.speed * f; });
@@ -73,17 +77,29 @@ class FlappyGame {
           p.passed = true; this.passed++; this.score += 10;
           if (window.Sound) Sound.clear(1);
         }
-        const inX = this.x + 0.42 > p.x && this.x - 0.42 < p.x + 1;
-        const inGap = this.y - 0.36 > p.gapY && this.y + 0.36 < p.gapY + p.gapH;
-        if (inX && !inGap) this.die();
+        if (this.x + 0.42 > p.x && this.x - 0.42 < p.x + 1 && this.hitsPipe(p)) this.die();
       });
-      if (this.y + 0.4 >= FLAP_ROWS - 1 || this.y < -1) this.die();
+      if (this.y + 0.4 >= FLAP_ROWS - 1) this.die();
+      // 화면 위 끝은 천장 — 더 못 올라감 (예전: 위로 나가면 바로 끝이라, 시작하자마자 연타하면 1초 만에 보이지 않는 곳에서 끝남)
+      if (this.y < 0.35) { this.y = 0.35; if (this.vy < 0) this.vy = 0; }
     } else {
       this.y = FLAP_ROWS / 2 + Math.sin(now / 300) * 0.4;   // 시작 전 둥실둥실
     }
     this.clouds.forEach(c => { c.x -= 0.012 * c.s * f; if (c.x < -3) c.x = FLAP_COLS + 2; });
     if (this.wing > 0) this.wing -= 0.08 * f;
     this.draw();
+  }
+
+  // 기둥 충돌 — 화면에 그린 몸통(기울어진 타원 0.42×0.34)의 테두리 24점이 기둥 몸통 안에 들어가면 닿음
+  // (예전: 네모 판정이라 새 모서리 쪽은 그림이 안 닿았는데도 끝나는 경우가 죽음 10번 중 1번꼴)
+  hitsPipe(p) {
+    const tilt = Math.max(-0.5, Math.min(0.9, this.vy * 3)), c = Math.cos(tilt), s = Math.sin(tilt);
+    for (let i = 0; i < 24; i++) {
+      const a = i * Math.PI / 12, ex = Math.cos(a) * 0.42, ey = Math.sin(a) * 0.34;
+      const px = this.x + ex * c - ey * s, py = this.y + ex * s + ey * c;
+      if (px > p.x && px < p.x + 1 && (py < p.gapY || py > p.gapY + p.gapH)) return true;
+    }
+    return false;
   }
 
   die() {
