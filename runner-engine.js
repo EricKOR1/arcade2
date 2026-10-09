@@ -73,7 +73,7 @@ class RunnerGame {
   }
   getSnapshot() {
     const g = Array.from({ length: RN_ROWS }, () => Array(RN_COLS).fill(0)), col = l => 1 + (l + 1) * 3;
-    this.objs.forEach(o => { for (let z = Math.max(0, o.z); z < Math.min(60, o.z + o.len + 0.01); z += 4) { const r = RN_ROWS - 3 - Math.floor(z / 4); if (r < 0) continue; const v = o.k === 'train' ? 11 : o.k === 'coin' ? 4 : o.k === 'low' || o.k === 'high' ? 12 : 6; g[r][col(o.lane)] = v; g[r][col(o.lane) + 1] = v; } });
+    this.objs.forEach(o => { for (let z = Math.max(0, o.z); z < Math.min(60, o.z + o.len + 0.01); z += 4) { const r = RN_ROWS - 3 - Math.floor(z / 4); if (r < 0) continue; const v = o.k === 'train' ? 11 : o.k === 'coin' ? 4 : o.k === 'low' || o.k === 'high' ? 21 : 6; g[r][col(o.lane)] = v; g[r][col(o.lane) + 1] = v; } });   // 차단봉은 밝은 회색 21 (예전 12 는 바탕과 거의 같은 색이라 교사 미니 보드에서 안 보였음)
     const c = col(Math.round(this.lx)); g[RN_ROWS - 2][c] = g[RN_ROWS - 2][c + 1] = 10; return g;
   }
   // ── 그리기: 소실점 원근 (멀수록 작고 위로) ──

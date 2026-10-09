@@ -110,7 +110,7 @@ class HelixGame {
     if (v === 2 && !this.fire) for (const e of [0.13, -0.13]) { const k2 = this.segAt(this.rot + e); if (fl.seg[k2] !== 2) { k = k2; v = fl.seg[k2]; break; } }
     if (fl.goal) { b.y = fl.y; this.land(fl, k); this.stageClear(fl); return; }
     if (v === 0) { this.passFloor(fl, false); return; }                       // 틈으로 통과
-    if (this.fire) { this.passFloor(fl, true); b.vy = Math.min(b.vy, 0.18); return; }   // 불꽃 공: 부수고 지나감
+    if (this.fire) { this.passFloor(fl, true); b.y = fl.y; b.vy = -HX_BOUNCE; this.squash = 1; return; }   // 불꽃 공: 부수고 그 자리에서 한 번 튀어 오름 (예전: 그대로 떨어져 0.2초 뒤 아무 조각에나 닿음 — 계획해 내려가는 봇 죽음의 89%가 부순 직후)
     b.y = fl.y;
     if (v === 2) { this.die(fl, k); return; }
     this.land(fl, k); b.vy = -HX_BOUNCE;

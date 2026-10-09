@@ -94,13 +94,16 @@ const AR_MAPS = {
 //   dps = 탄 수 × 피해 ÷ 재장전(초).  볼트 3×20/0.48 = 125 · 바위 5×16/0.9 = 89(체력 160) · 매 1×70/0.85 = 82(사거리 2배)
 //   새싹 3×16/0.48 = 100(궁극기 회복) · 부엉 1×48/0.7 = 69(벽 너머 범위 피해) · 번개 2×20/0.36 = 111(체력 80 · 속도 1.2)
 //   종합 전투력(√(dps×체력)×속도): 86~113, 최대/최소 1.3배
+//   실제 싸움은 탄 3칸을 0.24초 간격(gap)으로 몰아 쏘는 '연사'가 승부를 가름 → 1:1 자동 대결(거리 2·4·6·8칸 × 봇 3종) 승률로 다시 맞춤
+//   (전: 매 81% · 번개 73% · 볼트 63% · 바위 38% · 새싹 35% · 부엉 9% → 후: 34~63%)
+//   매: 연사 간격 0.45초(3발 0.48초에 210 → 0.9초) · 바위: 거리 감소 시작 1.2→2칸 · 부엉: 피해 48→56, 체력 120→130 · 번개: 돌진 무적 0.5→0.3초
 const AR_CHARS = {
   bolt:   { name: '볼트',   role: '올라운더', hp: 100, speed: 1.0,  icon: '⚡', shape: 'round',  shot: { n: 3, spread: 0.09, speed: 0.32, life: 22, dmg: 20, cd: 480 }, sup: { kind: 'blast',  label: '대형탄', desc: '큰 폭발탄 (60)' } },
-  rock:   { name: '바위',   role: '탱커 · 샷건',     hp: 160, speed: 0.85, icon: '🪨', shape: 'square', shot: { n: 5, spread: 0.22, speed: 0.30, life: 13, dmg: 16, cd: 900, fall: { near: 1.2, min: 0.25 } }, sup: { kind: 'dash',   label: '돌진',   desc: '앞으로 돌진 · 0.7초 무적 · 부딪힌 적 30' } },
-  hawk:   { name: '매',     role: '저격수',   hp: 90,  speed: 1.0,  icon: '🎯', shape: 'diamond', shot: { n: 1, spread: 0,    speed: 0.48, life: 40, dmg: 70, cd: 850 }, sup: { kind: 'pierce', label: '관통탄', desc: '벽과 적을 뚫는 관통탄 (70)' } },
+  rock:   { name: '바위',   role: '탱커 · 샷건',     hp: 160, speed: 0.85, icon: '🪨', shape: 'square', shot: { n: 5, spread: 0.22, speed: 0.30, life: 13, dmg: 16, cd: 900, fall: { near: 2, min: 0.25 } }, sup: { kind: 'dash',   label: '돌진',   desc: '앞으로 돌진 · 0.7초 무적 · 부딪힌 적 30' } },
+  hawk:   { name: '매',     role: '저격수',   hp: 90,  speed: 1.0,  icon: '🎯', shape: 'diamond', shot: { n: 1, spread: 0,    speed: 0.48, life: 40, dmg: 70, cd: 850, gap: 450 }, sup: { kind: 'pierce', label: '관통탄', desc: '벽과 적을 뚫는 관통탄 (70)' } },
   sprout: { name: '새싹',   role: '힐러',     hp: 100, speed: 1.05, icon: '🌱', shape: 'round',  shot: { n: 3, spread: 0.12, speed: 0.30, life: 20, dmg: 16, cd: 480 }, sup: { kind: 'heal',   label: '치유',   desc: '주변 4칸 팀원 체력 +40 (나 +25)' } },
-  owl:    { name: '부엉',   role: '폭탄병',   hp: 120, speed: 0.95, icon: '💣', shape: 'round',  shot: { n: 1, spread: 0,    speed: 0.26, life: 26, dmg: 48, cd: 700, lob: true, radius: 1.1 }, sup: { kind: 'volley', label: '폭탄 세례', desc: '사방으로 폭탄 8발 (각 30)' } },
-  spark:  { name: '번개',   role: '돌격수',   hp: 80,  speed: 1.2,  icon: '🔥', shape: 'tri',    shot: { n: 2, spread: 0.06, speed: 0.36, life: 12, dmg: 20, cd: 360 }, sup: { kind: 'dash',   label: '섬광 돌진', desc: '앞으로 길게 돌진 · 0.5초 무적 · 부딪힌 적 25' } }
+  owl:    { name: '부엉',   role: '폭탄병',   hp: 130, speed: 0.95, icon: '💣', shape: 'round',  shot: { n: 1, spread: 0,    speed: 0.26, life: 26, dmg: 56, cd: 700, lob: true, radius: 1.1 }, sup: { kind: 'volley', label: '폭탄 세례', desc: '사방으로 폭탄 8발 (각 30)' } },
+  spark:  { name: '번개',   role: '돌격수',   hp: 80,  speed: 1.2,  icon: '🔥', shape: 'tri',    shot: { n: 2, spread: 0.06, speed: 0.36, life: 12, dmg: 20, cd: 360 }, sup: { kind: 'dash',   label: '섬광 돌진', desc: '앞으로 길게 돌진 · 0.3초 무적 · 부딪힌 적 25', inv: 300 } }
 };
 
 const AR_TEAM = { r: { name: '레드', color: '#FF5C7A', dark: '#B3213F' }, b: { name: '블루', color: '#4CC9F0', dark: '#1D7FA6' } };
@@ -177,7 +180,7 @@ class ArenaGame {
   }
   fire() {
     const now = this.clock(), sh = this.ch.shot;
-    if (this.isDead || this.gameOver || now < this.dashUntil || now - this.lastFire < Math.min(sh.cd, 240) || this.ammo < 1) return;
+    if (this.isDead || this.gameOver || now < this.dashUntil || now - this.lastFire < (sh.gap || Math.min(sh.cd, 240)) || this.ammo < 1) return;   // gap: 캐릭터별 연사 간격(없으면 0.24초)
     this.ammo -= 1; this.ammoT = 0;
     if (!this.aim) this.autoAim();                                    // 조준 조이스틱 없이 발사 버튼만 누르면: 가까운 적을 자동 조준, 없으면 바라보는 방향
     this.lastFire = now; this.recoil = 1;
@@ -200,7 +203,7 @@ class ArenaGame {
     if (k === 'blast') this.bullets.push({ x: this.x, y: this.y, vx: Math.cos(this.angle) * 0.22, vy: Math.sin(this.angle) * 0.22, life: 34, dmg: 60, big: true, radius: 1.1 });
     else if (k === 'pierce') this.bullets.push({ x: this.x, y: this.y, vx: Math.cos(this.angle) * 0.5, vy: Math.sin(this.angle) * 0.5, life: 60, dmg: 70, big: true, pierce: true, hit: {} });
     else if (k === 'volley') for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; this.bullets.push({ x: this.x, y: this.y, vx: Math.cos(a) * 0.24, vy: Math.sin(a) * 0.24, life: 28, dmg: 30, big: false, lob: true, radius: 1.0, t0: 28 }); }
-    else if (k === 'dash') { const long = this.charId === 'spark'; this.dashUntil = now + (long ? 500 : 700); this.invulUntil = this.dashUntil; this.dashDir = [Math.cos(this.angle), Math.sin(this.angle)]; this.dashHit = {}; this.dashDmg = long ? 25 : 30; }
+    else if (k === 'dash') { const long = this.charId === 'spark'; this.dashUntil = now + (long ? 500 : 700); this.invulUntil = this.ch.sup.inv != null ? now + this.ch.sup.inv : this.dashUntil; this.dashDir = [Math.cos(this.angle), Math.sin(this.angle)]; this.dashHit = {}; this.dashDmg = long ? 25 : 30; }
     else if (k === 'heal') { this.hp = Math.min(this.maxHp, this.hp + 25); this.burst(this.x, this.y, 20, '#7DF58F'); this.healRing = now + 900;
       Object.keys(this.peers).forEach(id => { const p = this.peers[id]; if (p.team !== this.team || p.dead) return; if (Math.hypot(p.x - this.x, p.y - this.y) <= 4 && this.opts.onAttack) this.opts.onAttack('heal', id, { amt: 40 }); }); }
     this.toast(this.ch.sup.label + '!', '#FFD166'); if (window.Sound) { const k = { dash: 'dash', heal: 'heal', volley: 'throwBomb', pierce: 'sniper', blast: 'shotgun' }[this.ch.sup.kind] || 'boost'; Sound[k](); } if (window.Haptic) Haptic.big();

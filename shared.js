@@ -110,12 +110,20 @@ function drawBevelCell(ctx, px, py, size, color) {
   ctx.drawImage(_cellSprite(size, color), px, py, size, size);
 }
 
+// 교사 화면이 줄여 쓰기를 안다고 알리면(session.rle → window.BOARD_RLE) 같은 값이 3칸 이상 이어질 때 '값*개수' 로 줄여 보냄
+// (예: 0,0,0,0,0,0,0,0,0,0 → 0*10 · 젬 아레나 판 5.3KB → 1.4KB · 테트리스 0.44KB → 0.24KB — 30명 판을 받는 교사 쪽 통신량이 큼)
+// 옛 교사 화면은 rle 를 알리지 않으므로 예전 모양 그대로 보냄
 function boardToRows(board) {
-  return board.map(row => row.join(','));
+  if (typeof window === 'undefined' || !window.BOARD_RLE) return board.map(row => row.join(','));
+  return board.map(row => { const o = [];
+    for (let i = 0; i < row.length;) { let j = i + 1; while (j < row.length && row[j] === row[i]) j++; const n = j - i;
+      if (n >= 3) o.push(row[i] + '*' + n); else for (let k = 0; k < n; k++) o.push(String(row[i])); i = j; }
+    return o.join(','); });
 }
 
 function rowsToBoard(rows) {
-  return rows.map(r => r.split(',').map(Number));
+  return rows.map(r => { const o = []; String(r).split(',').forEach(t => { const k = t.indexOf('*');
+    if (k < 0) o.push(Number(t)); else { const v = Number(t.slice(0, k)), n = Math.min(4096, +t.slice(k + 1) || 0); for (let i = 0; i < n; i++) o.push(v); } }); return o; });
 }
 
 // ── 진동 피드백 (지원 기기만 · 아주 짧게) ──

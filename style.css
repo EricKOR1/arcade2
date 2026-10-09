@@ -868,7 +868,7 @@ body.fullgrid .spectate { grid-template-columns: 1fr 320px }
    버튼판을 오른쪽 칸에 따로 두면 게임 화면이 60% 대로 줄어듭니다. → 게임 화면은 가로 전체, 버튼은 화면 위에 겹쳐 양손 위치로:
    왼쪽 = 방향키 · 오른쪽 = 동작 버튼. 세로로 긴 판(테트리스 등)은 판을 최대 높이로 가운데, 양옆 여백에 버튼 */
 @media (orientation: landscape) and (min-width: 640px) {
-  #screen-game.active { grid-template-columns: 1fr !important; grid-template-areas: "top" "canvas" !important }
+  #screen-game.active { grid-template-columns: minmax(0, 1fr) !important; grid-template-areas: "top" "canvas" !important }   /* minmax(0, …): 캔버스의 처음 크기(300px)가 칸을 넓혀 화면보다 넓어지던 것(가로 폭 732px 이하 폰에서 판이 버튼 밑으로) */
   #screen-game .canvas-wrap { grid-column: 1 !important }
   #screen-game:not(:has(.pad.pad-none)) .canvas-wrap:not(.bleed) { padding: 6px var(--side, 214px) }     /* 판이 버튼에 가리지 않게 양옆 비움 */
   #screen-game .pad:not(.pad-none) { position: absolute !important; left: 0; right: 0; bottom: 0; top: auto; max-height: none; overflow: visible; background: none;
@@ -950,6 +950,12 @@ body.fullgrid .spectate { grid-template-columns: 1fr 320px }
 @media (orientation: landscape) and (min-width: 640px) {
   /* 카트 아이템 창: 오른쪽은 미니맵(위)·버튼(아래)이 차지하므로 왼쪽 위 순위·랩 아래로 */
   #screen-game .k3-ctl .k3-right { zoom: 0.77 }                                  /* 오른쪽 버튼: 전체 1.5배 중 0.77 → 약 1.15배 (아이템 창을 위에 둘 자리) */
+}
+/* 작은 폰 가로(폭 640~699px · 아이폰 SE/8 667×375 · 갤럭시 640×360): 버튼 1.5배 + 양옆 270px 이면 판 자리가 100px 뿐이라
+   테트리스 판이 100×200 으로 줄고 회전 버튼이 NEXT 를 덮었으며, 타워 오르기는 오른쪽 버튼이 판을 가렸음 → 이 폭에서만 버튼 1.25배 · 양옆 224px */
+@media (orientation: landscape) and (min-width: 640px) and (max-width: 699px) and (max-height: 480px) {
+  #screen-game { --side: 224px }
+  #screen-game .pad:not(.pad-none) > * { zoom: 1.25 }
 }
 
 /* 카트 아이템 창: 오른쪽 버튼 바로 위 (index.html 이 실제 버튼 위치를 재서 bottom/right 지정) */
