@@ -1492,13 +1492,16 @@
   // 누르는 동안 유지 (repeat 값을 주면 연타처럼 반복)
   function press(id, onStart, onEnd, repeatMs) {
     const el = byId(id);
-    let rep = null, delay = null, down = false;
+    let rep = null, delay = null, down = false, touchT = 0;
     const start = e => {
-      e.preventDefault(); down = true; onStart();
+      if (e.type === 'mousedown' && Date.now() - touchT < 700) return;   // 손가락 톡 뒤 따라오는 호환 마우스 이벤트 — 예전엔 버튼 한 번에 두 번 움직였음
+      if (e.type === 'touchstart') touchT = Date.now();
+      if (e.cancelable) e.preventDefault(); down = true; onStart();
       if (repeatMs) delay = setTimeout(() => { rep = setInterval(onStart, repeatMs); }, 250);
     };
     const stop = () => { clearTimeout(delay); clearInterval(rep); rep = null; down = false; if (onEnd) onEnd(); };
     onTouchReset('press:' + id, () => { if (down) stop(); });
+    el.addEventListener('touchend', () => { touchT = Date.now(); });
     el.addEventListener('touchstart', start, { passive: false });
     ['touchend','touchcancel','mouseup','mouseleave'].forEach(ev => el.addEventListener(ev, stop));
     el.addEventListener('mousedown', start);
@@ -1528,8 +1531,11 @@
     if (def.padLayout === 'tap') {
       // 톡 누르는 자리(칸 단위)를 게임에 넘깁니다 (미사일 방어)
       const at = (cx, cy) => { const r = canvas.getBoundingClientRect(); if (game && game.tapAt) game.tapAt((cx - r.left) / r.width * def.grid.cols, (cy - r.top) / r.height * def.grid.rows); };
-      canvas.addEventListener('touchstart', e => { for (const t of e.changedTouches) at(t.clientX, t.clientY); e.preventDefault(); }, { passive: false });
-      canvas.addEventListener('mousedown', e => at(e.clientX, e.clientY));
+      // 손가락 톡 뒤에 따라오는 호환 마우스 이벤트는 무시 — 첫 판에 판 아래쪽 톡이 두 번 들어가던 것 (되돌리기 2번 · 메모 켰다 바로 꺼짐)
+      let touchT = 0;
+      canvas.addEventListener('touchstart', e => { touchT = Date.now(); for (const t of e.changedTouches) at(t.clientX, t.clientY); if (e.cancelable) e.preventDefault(); }, { passive: false });
+      canvas.addEventListener('touchend', () => { touchT = Date.now(); });
+      canvas.addEventListener('mousedown', e => { if (Date.now() - touchT > 700) at(e.clientX, e.clientY); });
       return;
     }
     if (isKart) {

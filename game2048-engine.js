@@ -3,6 +3,8 @@
 
 const G2048_SIZES = [4, 5, 6, 7, 8];
 const G2048_TIP = { 4: '기본 · 가장 어려움', 5: '조금 넉넉', 6: '넉넉 · 큰 숫자 도전', 7: '아주 넓음', 8: '끝없이 길게' };
+// 판 크기별 점수 배수 — 큰 판은 칸이 남아 버티기만 해도 점수가 쌓임 (무작위 밀기 450번: 4×4 는 약 130번에 끝나 1.3천 · 6×6~8×8 은 안 끝나고 6.4천, 3000번이면 6.4만)
+const G2048_MUL = { 4: 4, 5: 2.5, 6: 1.8, 7: 1.3, 8: 1 };
 const G2048_COLORS = { 2: '#EEE4DA', 4: '#EDE0C8', 8: '#F2B179', 16: '#F59563', 32: '#F67C5F', 64: '#F65E3B',
   128: '#EDCF72', 256: '#EDCC61', 512: '#EDC850', 1024: '#EDC53F', 2048: '#EDC22E', 4096: '#3C3A32' };
 
@@ -12,15 +14,31 @@ class Game2048 {
     this.N = 4; this.grid = [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]];
     this.score = 0; this.best = 0; this.moves = 0; this.gameOver = false; this.won = false;
     this.anim = []; this.lastMove = 0;
-    this.menu = true; this.sel = 0; this.sizeLabel = '-'; this._blockUntil = 0;
-    // 크기 고르기는 손가락 톡 위치가 필요 — 페이지의 스와이프 조작은 좌표를 넘기지 않아 캔버스에 직접 한 번만 붙임
+    this.menu = true; this.sel = 0; this.sizeLabel = '-'; this._blockUntil = 0; this.mul = 1; this._ptr = null;
+    // 손가락·마우스 밀기와 크기 고르기 톡은 캔버스에 직접 한 번만 붙임 — 페이지의 기본 스와이프는 세로 밀기에 두 칸(약 180px)이 필요했고,
+    // 짧은 아래 밀기·그냥 톡이 '위로 밀기'가 되고, 길게 밀면 두 번 움직였음. 손가락이 캔버스에 닿아 있는 동안 페이지 쪽 호출은 무시
     if (!canvas.__g2048Bound) {
       canvas.__g2048Bound = true;
-      canvas.addEventListener('pointerup', e => {
-        const g = canvas.__g2048; if (!g || !g.menu || (window.__game && window.__game !== g)) return;
-        const r = canvas.getBoundingClientRect(), k = (g.cellSize * 4) / r.width;
-        g.menuTap((e.clientX - r.left) * k, (e.clientY - r.top) * k);
+      canvas.style.touchAction = 'none';
+      const cur = () => { const g = canvas.__g2048; return g && !(window.__game && window.__game !== g) ? g : null; };
+      canvas.addEventListener('pointerdown', e => {
+        const g = cur(); if (!g) return;
+        g._ptr = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now(), done: false };
+        try { canvas.setPointerCapture(e.pointerId); } catch (x) {}
       });
+      canvas.addEventListener('pointermove', e => {
+        const g = cur(), p = g && g._ptr; if (!p || p.done || p.id !== e.pointerId) return;
+        const d = g.swipeDir(e.clientX - p.x, e.clientY - p.y, canvas.getBoundingClientRect().width);
+        if (d) { p.done = true; g.swipe(d); }
+      });
+      const end = e => {
+        const g = cur(), p = g && g._ptr; if (!p || p.id !== e.pointerId) return;
+        g._ptr = null; if (p.done || e.type !== 'pointerup') return;
+        const r = canvas.getBoundingClientRect(), d = g.swipeDir(e.clientX - p.x, e.clientY - p.y, r.width);
+        if (d) g.swipe(d);
+        else if (g.menu) { const k = (g.cellSize * 4) / r.width; g.menuTap((e.clientX - r.left) * k, (e.clientY - r.top) * k); }
+      };
+      canvas.addEventListener('pointerup', end); canvas.addEventListener('pointercancel', end);
     }
     canvas.__g2048 = this;
   }
@@ -34,7 +52,7 @@ class Game2048 {
     if (hit) this.startSize(hit.n);
   }
   startSize(n) {
-    this.N = n; this.sizeLabel = n + '×' + n; this.menu = false;
+    this.N = n; this.sizeLabel = n + '×' + n; this.menu = false; this.mul = G2048_MUL[n] || 1;
     this.grid = Array.from({ length: n }, () => Array(n).fill(0));
     this.anim = []; this.slide = null;
     this.addTile(); this.addTile();
@@ -43,6 +61,14 @@ class Game2048 {
   }
   menuStep(d) { this.sel = (this.sel + d + G2048_SIZES.length) % G2048_SIZES.length; if (window.Sound) Sound.move(); }
   blocked() { return performance.now() < this._blockUntil; }
+  // 손가락이 캔버스에 닿아 있는 중 (페이지 기본 스와이프가 부르는 move·up·down 은 무시 — 밀기는 위 포인터 처리가 한 번만)
+  touching() { return !!this._ptr && performance.now() - this._ptr.t < 4000; }
+  // 밀기 방향: 캔버스 폭의 7%(최소 18px) 넘게 움직이면 큰 쪽으로
+  swipeDir(dx, dy, w) {
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < Math.max(18, w * 0.07)) return null;
+    return Math.abs(dx) > Math.abs(dy) ? [Math.sign(dx), 0] : [0, Math.sign(dy)];
+  }
+  swipe(d) { if (!this.menu) this.push(d[0], d[1]); }
   addTile() {
     const empty = [];
     for (let y = 0; y < this.N; y++) for (let x = 0; x < this.N; x++) if (!this.grid[y][x]) empty.push([x, y]);
@@ -91,7 +117,7 @@ class Game2048 {
     });
     if (!moved) return;
     this.slide = { t: 0, tiles: slides };                 // 120ms 동안 미끄러지는 그림
-    this.moves++; this.score += gained;
+    this.moves++; this.score += Math.round(gained * this.mul);
     this.best = Math.max(this.best, ...g.flat());
     if (gained && window.Sound) Sound.clear(gained >= 64 ? 2 : 1); else if (window.Sound) Sound.move();
     if (this.best >= 2048 && !this.won) { this.won = true; if (window.Sound) Sound.levelUp(); }
@@ -107,15 +133,17 @@ class Game2048 {
     }
     return false;
   }
-  move(dir) { if (this.menu) { this.menuStep(dir); return; } this.push(dir, 0); }
-  up() { if (this.menu) { this.menuStep(-1); return; } this.push(0, -1); }
-  down() { if (this.menu) { this.menuStep(1); return; } this.push(0, 1); }
-  rotate() { if (this.menu) return; this.up(); }
-  softDrop() { if (!this._downLatch) { this._downLatch = true; this.down(); } }
+  move(dir) { if (this.touching()) return; if (this.menu) { this.menuStep(dir); return; } this.push(dir, 0); }
+  up() { if (this.touching()) return; if (this.menu) { this.menuStep(-1); return; } this.push(0, -1); }
+  down() { if (this.touching()) return; if (this.menu) { this.menuStep(1); return; } this.push(0, 1); }
+  rotate() {}                                            // 페이지 스와이프의 '그냥 톡' — 2048 에서는 아무 일도 안 함 (예전: 위로 밀기)
+  // ↓ 키·↓ 버튼: 페이지는 softDropping 만 켬 → 켜지는 순간 한 번 밀기 (예전엔 ↓ 키가 메뉴·판 모두에서 안 먹었음)
+  set softDropping(v) { if (v && !this._sd) this.down(); this._sd = !!v; }
+  get softDropping() { return !!this._sd; }
+  softDrop() {}
   hardDrop() { if (this.menu) { this.startSize(G2048_SIZES[this.sel]); return; } this.down(); }
 
   tick(now) {
-    if (!this.softDropping) this._downLatch = false;
     const dt = this.lastTick ? Math.min(50, now - this.lastTick) : 16.7; this.lastTick = now;
     if (this.slide) { this.slide.t += dt / 120; if (this.slide.t >= 1) this.slide = null; }
     if (!this.slide) this.anim = this.anim.filter(a => { if (a.delay) { a.delay = 0; return true; } return (a.t -= 0.09 * dt / 16.7) > 0; });
@@ -157,7 +185,8 @@ class Game2048 {
       ctx.fillStyle = on ? '#FFFFFF' : '#C9B9A8';
       for (let y = 0; y < b.n; y++) for (let x = 0; x < b.n; x++) ctx.fillRect(px + x * c + c * 0.15, py + y * c + c * 0.15, c * 0.7, c * 0.7);
       FX.text(ctx, b.n + ' × ' + b.n, b.x + b.h * 1.25, b.y + b.h * 0.53, { size: b.h * 0.42, weight: 800, color: on ? '#FFFFFF' : '#5E544B', baseline: 'middle' });
-      FX.text(ctx, G2048_TIP[b.n], b.x + b.w - b.h * 0.3, b.y + b.h * 0.53, { size: b.h * 0.27, weight: 600, color: on ? '#FFF3E0' : '#8F857B', align: 'right', baseline: 'middle' });
+      FX.text(ctx, G2048_TIP[b.n], b.x + b.w - b.h * 0.3, b.y + b.h * 0.36, { size: b.h * 0.24, weight: 600, color: on ? '#FFF3E0' : '#8F857B', align: 'right', baseline: 'middle' });
+      FX.text(ctx, '점수 ' + G2048_MUL[b.n] + '배', b.x + b.w - b.h * 0.3, b.y + b.h * 0.72, { size: b.h * 0.27, weight: 800, color: on ? '#FFFFFF' : '#C2552E', align: 'right', baseline: 'middle' });
     });
     ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
   }

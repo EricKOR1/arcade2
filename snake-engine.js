@@ -38,7 +38,11 @@ class SnakeGame {
   // 방향 바꾸기 — 반대 방향으로는 못 꺾습니다
   turn(dx, dy) {
     if (this.gameOver) return;
-    if (!this.started) { this.started = true; this.lastStep = 0; if (window.Sound) Sound.start(); }
+    if (!this.started) {
+      this.started = true; this.lastStep = 0; if (window.Sound) Sound.start();
+      // 첫 입력이 반대쪽(←)이면 몸을 뒤집어 그쪽으로 출발 — 예전: ← 를 눌러도 → 로 출발해 그대로 벽에 부딪힘
+      if (this.dir[0] === -dx && this.dir[1] === -dy) { this.body.reverse(); this.dir = [dx, dy]; this.queue = []; if (window.Sound) Sound.move(); return; }
+    }
     const last = this.queue.length ? this.queue[this.queue.length - 1] : this.dir;
     if (last[0] === -dx && last[1] === -dy) return;
     if (last[0] === dx && last[1] === dy) return;
@@ -48,7 +52,7 @@ class SnakeGame {
   move(dir) { this.turn(dir, 0); }
   up()      { this.turn(0, -1); }
   down()    { this.turn(0, 1); }
-  rotate()  { this.up(); }          // 키보드 ↑
+  rotate()  {}                      // 화면 톡 — 아무것도 안 함 (예전: 톡·짧게 아래로 쓸기가 '위로 꺾기'가 되어 반대로 꺾임 · 키보드 ↑ 는 up())
   softDrop(){ this.down(); }        // ↓ 버튼 · 키보드 ↓ 누름
   hardDrop(){ this.down(); }        // 스페이스
 

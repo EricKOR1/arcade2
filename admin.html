@@ -727,7 +727,7 @@
         ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; ctx.drawImage(screenImg, 0, 0, w, h);
         $('focus-note').classList.add('hidden');
       } else {
-        if (p.board) drawBoardGrid(ctx, rowsToBoard(p.board), cs);
+        if (p.board) { const bd = rowsToBoard(p.board), bc = bd[0] ? bd[0].length : 0; drawBoardGrid(ctx, bd, (bc && bd.length) ? cs * Math.min(1, cols / bc, rows / bd.length) : cs); }   // 2048 5×5~8×8 도 틀 안에 (예전: 왼쪽 위 4×4 만 보임)
         $('focus-note').textContent = '실제 화면을 받는 중… (잠시 도식으로 표시)'; $('focus-note').classList.remove('hidden');
       }
       if (p.status === 'gameover') {

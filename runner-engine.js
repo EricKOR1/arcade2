@@ -14,13 +14,14 @@ class RunnerGame {
   constructor(canvas, cellSize) {
     this.canvas = canvas; this.ctx = canvas.getContext('2d'); this.cellSize = cellSize;
     this.lane = 0; this.lx = 0; this.py = 0; this.vy = 0; this.slide = 0; this.speed = 16; this.dist = 0; this.coins = 0; this.score = 0;
-    this.objs = []; this.nextRow = 26; this.gameOver = false; this.magnet = 0; this.shield = 0; this.hitFlash = 0; this.lastTime = 0; this.now = 0; this.pops = []; this.run = 0;
+    this.objs = []; this.nextRow = 52; this.gameOver = false;   // 첫 장애물 줄은 약 3.2초 뒤 (예전 26m: 1.6초 — READY·GO 가 끝나자마자 부딪혔음)
+    this._sdOn = false; this.magnet = 0; this.shield = 0; this.hitFlash = 0; this.lastTime = 0; this.now = 0; this.pops = []; this.run = 0;
   }
   get best() { return Math.floor(this.dist); }
   // ── 조작 ──
   move(d) { if (this.gameOver) return; const n = Math.max(-1, Math.min(1, this.lane + d)); if (n !== this.lane) { this.lane = n; if (window.Sound) Sound.move(); } else if (window.Sound) Sound.bump(); }
   up() { if (this.gameOver) return; if (this.py <= 0.01) { this.vy = 9.5; this.slide = 0; if (window.Sound) Sound.jump(); } }
-  down() { if (this.gameOver) return; if (this.py > 0.05) this.vy = Math.min(this.vy, -14); this.slide = 0.75; if (window.Sound && Sound.roll) Sound.roll(); }   // 공중이면 빠르게 내려와 미끄러짐
+  down() { if (this.gameOver) return; if (this.py > 0.05) this.vy = Math.min(this.vy, -14); this.slide = 0.75; this._sdOn = !!this.softDropping; if (window.Sound && Sound.roll) Sound.roll(); }   // 공중이면 빠르게 내려와 미끄러짐
   rotate() { this.up(); } hardDrop() { this.up(); } softDrop() { this.down(); }
   spawnRow(z) {
     // 이미 지나가는 긴 열차와 합쳐 세 줄이 모두 막히지 않는 모양만 (항상 빠져나갈 줄이 하나는 있게)
@@ -42,7 +43,9 @@ class RunnerGame {
     const { dt, f } = FX.frame(this, now), k = dt / 1000; this.run += k;
     this.pops = this.pops.filter(p => (p.t -= 0.02 * f) > 0); this.hitFlash = Math.max(0, this.hitFlash - 0.04 * f);
     if (!this.gameOver) {
-      if (this.softDropping && this.slide <= 0 && this.py <= 0.01) this.down();
+      // 키보드 ↓ 는 softDropping 만 켬 → 누른 순간 공중이어도 바로 내려와 미끄러지게 (예전: 땅에 닿을 때까지 아무 일 없음) · 누르고 있으면 계속 미끄러짐
+      if (this.softDropping && !this._sdOn) this.down(); else if (this.softDropping && this.slide <= 0 && this.py <= 0.01) this.down();
+      if (!this.softDropping) this._sdOn = false;
       this.speed = Math.min(42, 16 + this.dist / 90); const dz = this.speed * k; this.dist += dz; this.score = Math.floor(this.dist) + this.coins * 10;
       this.lx += (this.lane - this.lx) * Math.min(1, k * 14);
       this.vy -= 26 * k; this.py = Math.max(0, this.py + this.vy * k); if (this.py <= 0 && this.vy < 0) { if (this.vy < -6 && window.Sound && Sound.land) Sound.land(0.2); this.vy = 0; }
@@ -58,7 +61,10 @@ class RunnerGame {
         if (!atLane(o)) continue;
         const hit = o.k === 'train' ? true : o.k === 'low' ? this.py < 0.55 : this.slide <= 0;
         if (hit) { o.dead = true; this.hitFlash = 1;
-          if (this.shield) { this.shield = 0; this.pops.push({ t: 1, txt: '🛡 방패가 막았어요!' }); if (window.Sound) Sound.bump(); if (o.k === 'train') this.lane = myLane === 0 ? (Math.random() < 0.5 ? -1 : 1) : 0; }
+          if (this.shield) { this.shield = 0; this.pops.push({ t: 1, txt: '🛡 방패가 막았어요!' }); if (window.Sound) Sound.bump();
+            // 열차에 막히면 옆 줄로 튕겨 나가되, 지금 비어 있는 줄로만 (예전: 아무 줄로나 밀려 옆 열차·차단봉에 바로 다시 부딪힘 — 방패를 먹고도 29% 가 0.35초 안에 끝)
+            if (o.k === 'train') { const clear = L => !this.objs.some(q => !q.dead && q.lane === L && (q.k === 'train' ? q.z <= 2 && q.z + q.len >= -1 : (q.k === 'low' || q.k === 'high') && q.z > -0.8 && q.z < 1.5));
+              const to = (myLane === 0 ? [-1, 1] : [0]).filter(clear); if (to.length) this.lane = to[Math.floor(Math.random() * to.length)]; } }
           else { this.gameOver = true; this.crashed = o.k; if (window.Sound) Sound.crash(); if (window.Sound) setTimeout(() => Sound.gameOver(), 350); } break; }
       }
       this.objs = this.objs.filter(o => !o.dead && o.z + o.len > -3);

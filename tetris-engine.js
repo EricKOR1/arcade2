@@ -43,10 +43,11 @@ class TetrisGame {
   }
 
   // 낙하 간격 — 줄을 못 지워도 30초마다 한 단계씩 빨라집니다 (줄 레벨과 시간 레벨 중 높은 쪽)
+  // 13단계부터는 110ms 에서 멈추지 않고 60ms 까지 조금씩 더 빨라집니다 (예전: 잘하면 끝없이 이어짐)
   get dropInterval() {
     const timeLevel = 1 + Math.floor((this.elapsed || 0) / 30000);
     const lv = Math.max(this.level, timeLevel);
-    return Math.max(110, 800 - (lv - 1) * 60);
+    return lv <= 12 ? 800 - (lv - 1) * 60 : Math.max(60, 110 - (lv - 13) * 8);
   }
 
   // 7종을 골고루 섞어 뽑기 (정식 테트리스 방식)
@@ -69,6 +70,7 @@ class TetrisGame {
     this.piece = { type, matrix, x: Math.floor((TETRIS_COLS - matrix[0].length) / 2), y: 0 };
     this.lockTimer = null;
     this.lockResets = 0;
+    this.floorKicks = 0;
     if (this.collides(this.piece, 0, 0)) {
       this.gameOver = true;
       if (window.Sound) Sound.gameOver();
@@ -121,17 +123,23 @@ class TetrisGame {
     const rotated = rotateMatrix(this.piece.matrix);
     const test = { type: this.piece.type, matrix: rotated, x: this.piece.x, y: this.piece.y };
     // 벽에 붙어 있을 때 살짝 밀어서 회전 (월킥)
-    for (const kick of [0, -1, 1, -2, 2]) {
-      test.x = this.piece.x + kick;
-      if (!this.collides(test, 0, 0)) {
+    // 바닥·쌓인 블록 위에서는 한 칸(막대는 두 칸) 올려서 회전 (플로어킥) — 예전: 바닥에 닿은 조각은 처음 모양에서 회전이 안 됨
+    // 올리기는 조각마다 2번까지만 (계속 돌려 버티기 방지) · 판 위로 넘어가는 자리는 쓰지 않음
+    const kicks = [[0, 0], [-1, 0], [1, 0], [-2, 0], [2, 0]];
+    if (this.floorKicks < 2) { kicks.push([0, -1], [-1, -1], [1, -1]); if (this.piece.type === 1) kicks.push([0, -2]); }
+    for (const [kx, ky] of kicks) {
+      test.x = this.piece.x + kx; test.y = this.piece.y + ky;
+      if (!this.collides(test, 0, 0) && (ky === 0 || !this.aboveTop(test))) {
         this.piece.matrix = rotated;
-        this.piece.x = test.x;
+        this.piece.x = test.x; this.piece.y = test.y;
+        if (ky < 0) this.floorKicks++;
         if (window.Sound) Sound.rotate();
         if (this.touchingGround()) this.resetLockDelay(performance.now());
         return;
       }
     }
   }
+  aboveTop(p) { const m = p.matrix; for (let y = 0; y < m.length; y++) for (let x = 0; x < m[y].length; x++) if (m[y][x] && p.y + y < 0) return true; return false; }
 
   softDrop() {
     if (this.gameOver) return;
@@ -197,8 +205,9 @@ class TetrisGame {
 
   tick(now) {
     if (this.gameOver) return;
-    if (!this.startAt) this.startAt = now;
-    this.elapsed = now - this.startAt;
+    // 실제로 플레이한 시간만 셉니다 (한 프레임 최대 0.1초) — 예전: 앱을 잠깐 나갔다 오면 그 시간만큼 레벨이 한꺼번에 올라감
+    this.elapsed = (this.elapsed || 0) + (this.lastTick ? Math.max(0, Math.min(100, now - this.lastTick)) : 0);
+    this.lastTick = now;
     // 시간이 흘러 레벨이 오르면 표시도 함께 올립니다
     const timeLevel = 1 + Math.floor(this.elapsed / 30000);
     if (timeLevel > this.level) { this.level = timeLevel; if (window.Sound) Sound.levelUp(); }
@@ -266,11 +275,7 @@ class TetrisGame {
     if (!this.gameOver) {
       // (착지 예상 위치 표시는 뺐습니다 — 어디에 떨어질지 스스로 판단하도록)
       const m = this.piece.matrix;
-      // 현재 블록: 주변 광채
-      ctx.save(); ctx.shadowColor = CELL_COLORS[this.piece.type]; ctx.shadowBlur = cs * 0.5;
-      ctx.fillStyle = 'rgba(0,0,0,0.001)';
-      for (let y = 0; y < m.length; y++) for (let x = 0; x < m[y].length; x++) if (m[y][x] && this.piece.y + y >= 0) ctx.fillRect((this.piece.x + x) * cs, (this.piece.y + y) * cs, cs, cs);
-      ctx.restore();
+      // (예전 '주변 광채'는 거의 투명한 칠에 그림자를 줘서 화면에 한 점도 보이지 않으면서 매 프레임 흐림 계산만 했음 — 뺐습니다)
       // 현재 블록
       for (let y = 0; y < m.length; y++) {
         for (let x = 0; x < m[y].length; x++) {
