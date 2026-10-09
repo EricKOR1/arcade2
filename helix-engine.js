@@ -47,8 +47,9 @@ class HelixGame {
       for (let t = 0, put = 0; t < 40 && put < nd; t++) {
         const k = Math.floor(Math.random() * HX_SEG);
         if (seg[k] !== 1) continue;
-        // 윗층 틈 아래는 최소 한 칸 이상 남기기 (틈 아래 전부가 빨강이 되지 않게)
-        if (safe.has(k) && [...safe].filter(j => j !== k && seg[j] !== 2).length < 1) continue;
+        // 윗층 틈 아래엔 '판'(튀어 오를 자리)을 한 칸 이상 남기기 — 예전엔 빈틈만 남아도 됐는데, 그 빈틈으로 계속 떨어진 끝이
+        // 빨강이면 미리 계획해도 피할 수 없었음 (떨어지는 0.2초 안엔 못 돌림 · 4단계 이후 층의 0.2~0.4%)
+        if (safe.has(k) && [...safe].filter(j => j !== k && seg[j] === 1).length < 1) continue;
         if (safe.has(k) && (L <= 3 || Math.random() < 0.7)) continue;   // 낮은 단계: 틈 바로 아래엔 빨강 없음
         seg[k] = 2; put++;
       }

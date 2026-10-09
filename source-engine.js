@@ -78,7 +78,7 @@ class SourceHuntGame {
   // 화면 아래 액션 바(범례·힌트·드론)는 마지막 두 줄(셀 좌표) 영역
   tapAt(x, y) {
     if (this.gameOver) return;
-    if (this.result) { if (this.now - this.result.at > 900) { this.result = null; if (this.lives <= 0) { this.gameOver = true; if (window.Sound) Sound.gameOver(); } else this.newCase(); } return; }
+    if (this.result) { if (this.now - this.result.at > 900) { this.result = null; if (this.lives <= 0) this.gameOver = true; else this.newCase(); } return; }   // 끝 소리는 플랫폼(endGame)이 냄 — 예전엔 여기서도 울려 두 번 겹쳤음
     if (this.legend) { this.legend = false; return; }
     // 액션 바
     if (y >= this.H - 1.6) {
@@ -150,7 +150,7 @@ class SourceHuntGame {
     const prev = this.now; this.now = now; if (!this.caseStart) this.caseStart = now;
     if (this.gameOver) return;
     if (this.legend && !this.result && prev) this.caseStart += now - prev;   // 범례를 보는 동안은 제한 시간이 멈춤 (예전: 시계는 계속 흘러 오래 보면 닫자마자 '시간 초과'로 ♥ 하나를 잃음)
-    if (this.result && this.lives <= 0 && now - this.result.at > 3000) { this.result = null; this.gameOver = true; if (window.Sound) Sound.gameOver(); this.draw(); return; }   // 마지막 ♥: 3초 뒤 저절로 끝 (예전: 톡할 때까지 '게임 중'으로 남아 결과 화면이 안 뜸)
+    if (this.result && this.lives <= 0 && now - this.result.at > 3000) { this.result = null; this.gameOver = true; this.draw(); return; }   // 마지막 ♥: 3초 뒤 저절로 끝 (예전: 톡할 때까지 '게임 중'으로 남아 결과 화면이 안 뜸) · 끝 소리는 플랫폼이 냄
     const { dt, f } = FX.frame(this, now);
     this.anim = this.anim.filter(a => (a.t -= 0.03 * f) > 0);
     this.parts = FX.stepParts(this.parts, f, 0.03);

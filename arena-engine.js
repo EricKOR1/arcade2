@@ -127,7 +127,7 @@ class ArenaGame {
     this.mapDef = AR_MAPS[this.mapId]; const built = this.mapDef.build(); this.map = built.rows; this.spawns = built.spawns; this.mine = built.mine; this.gemSpots = built.gemSpots;
     this.W = built.W; this.H = built.H;
     this.charId = (this.opts.charId && AR_CHARS[this.opts.charId]) ? this.opts.charId : 'bolt'; this.ch = AR_CHARS[this.charId];
-    arLoadArt(); (AR_ART.cbs = AR_ART.cbs || []).push(() => { this._bgCs = null; });   // 그림이 준비되면 바닥을 다시 굽습니다
+    arLoadArt(); AR_ART.cbs = [() => { this._bgCs = null; }];   // 그림이 준비되면 바닥을 다시 굽습니다 (지금 엔진 것만 — 예전엔 판마다 쌓여 지난 판 엔진·바닥 그림(약 16MB)이 메모리에 남음)
     this.peers = {}; this.bullets = []; this.parts = []; this.gems = {}; this.held = 0;
     this.hp = this.ch.hp; this.maxHp = this.ch.hp; this.super = 0; this.dashUntil = 0; this.invulUntil = 0;
     this.ammo = 3; this.ammoT = 0; this.dmgNums = []; this.feed = []; this.kills = 0; this.score = 0; this.gameOver = false;   // 탄약 3칸 · 피해 숫자 · 킬 피드 (예전: 주석에 묻혀 처치 수·점수가 NaN 이 됨)
@@ -153,7 +153,15 @@ class ArenaGame {
   }
   setPeers(map) { Object.keys(map).forEach(id => { const d = map[id]; if (d.raw) this.applyPeerRaw(id, d.raw, d.name); }); Object.keys(this.peers).forEach(id => { if (!map[id]) delete this.peers[id]; }); }
   removePeer(id) { delete this.peers[id]; }
-  setGems(map) { this.gems = map || {}; }
+  setGems(map) {
+    this.gems = map || {};
+    // 내가 주웠다고 센 젬을 서버가 다른 친구 것으로 정했으면(거의 동시에 주움) 하나 돌려놓음 — 예전엔 둘 다 세어 30명 판에서 젬이 불어나 1분 안에 끝남
+    //   (Firebase 는 내 쓰기를 먼저 내 화면에 '내 것'으로 보여 주므로, 4초 동안은 다른 친구 이름으로 바뀌는지 지켜봄)
+    const c = this.gemClaims; if (!c) return;
+    for (const id in c) { const g = this.gems[id];
+      if (g && g.by && g.by !== this.myId) { delete c[id]; if (this.held > 0) { this.held--; this.score = Math.max(0, this.score - 10); } }
+      else if (this.clock() - c[id] > 4000) delete c[id]; }
+  }
   get isDead() { return this.now < this.deadUntil; }
   clock() { return this.now || performance.now(); }
   cell(x, y) { const r = this.map[Math.floor(y)]; return r ? (r[Math.floor(x)] || '#') : '#'; }
@@ -209,7 +217,7 @@ class ArenaGame {
     this.toast(this.ch.sup.label + '!', '#FFD166'); if (window.Sound) { const k = { dash: 'dash', heal: 'heal', volley: 'throwBomb', pierce: 'sniper', blast: 'shotgun' }[this.ch.sup.kind] || 'boost'; Sound[k](); } if (window.Haptic) Haptic.big();
   }
   onEvent(e) {
-    if (!e) return;
+    if (!e || this.gameOver) return;                             // 판이 끝난 뒤 늦게 온 피격으로 쓰러져 젬을 또 떨구지 않게
     if (e.type === 'kill' && e.target === this.myId) { const v = this.peers[e.victim]; this.feed.unshift({ a: this.myName || '나', b: v ? v.name : '상대', t: this.clock() + 4000, me: true }); this.feed.length = Math.min(3, this.feed.length); this.kills++; this.score += 50; this.toast('처치!', '#FFD166'); if (window.Sound) Sound.kill(); }
     if (e.type === 'heal' && e.target === this.myId && !this.isDead) { this.hp = Math.min(this.maxHp, this.hp + (e.amt || 40)); this.burst(this.x, this.y, 12, '#7DF58F'); this.toast('치유 +' + (e.amt || 40), '#7DF58F'); return; }
     if (e.type === 'hit' && e.target === this.myId) {
@@ -222,9 +230,9 @@ class ArenaGame {
   die(byId) {
     const now = this.clock();
     this.deadUntil = now + 3200;
-    // 들고 있던 젬을 그 자리에 떨어뜨림
-    if (this.held > 0 && this.opts.onDropGems) { const drops = []; for (let i = 0; i < this.held; i++) { const a = Math.random() * Math.PI * 2, r = 0.4 + Math.random() * 0.9; drops.push([this.x + Math.cos(a) * r, this.y + Math.sin(a) * r]); } this.opts.onDropGems(drops); }
-    this.held = 0; this.super = 0;
+    // 들고 있던 젬을 그 자리에 떨어뜨림 — 설 수 있는 자리에만 (예전엔 약 0.5% 가 벽·물 속에 떨어져 아무도 못 줍고 '빈 젬 20개' 자리만 차지)
+    if (this.held > 0 && this.opts.onDropGems) { const drops = []; for (let i = 0; i < this.held; i++) { let x = this.x, y = this.y; for (let t = 0; t < 6; t++) { const a = Math.random() * Math.PI * 2, r = 0.4 + Math.random() * 0.9, nx = this.x + Math.cos(a) * r, ny = this.y + Math.sin(a) * r; if (!this.blocked(nx, ny)) { x = nx; y = ny; break; } } drops.push([x, y]); } this.opts.onDropGems(drops); }
+    this.held = 0; this.super = 0; this.gemClaims = null;
     this.burst(this.x, this.y, 18, AR_TEAM[this.team].color); if (window.Sound) Sound.death();
     const who = this.peers[byId] && this.peers[byId].name; this.toast((who ? who + '에게 ' : '') + '쓰러졌다 · 3초 뒤 부활', '#FF5C7A');
     this.feed.unshift({ a: who || '상대', b: this.myName || '나', t: this.clock() + 4000, me: false }); this.feed.length = Math.min(3, this.feed.length);
@@ -256,7 +264,7 @@ class ArenaGame {
       if (now - this.lastHurt > 3000 && this.hp < this.maxHp) this.hp = Math.min(this.maxHp, this.hp + 0.25 * f);
       // 젬 줍기
       Object.keys(this.gems).forEach(id => { const g = this.gems[id]; if (!g || g.by) return;
-        if (Math.hypot(g.x - this.x, g.y - this.y) < 0.62) { g.by = this.myId; this.held++; this.score += 10; this.burst(g.x, g.y, 6, '#B15DFF');
+        if (Math.hypot(g.x - this.x, g.y - this.y) < 0.62) { g.by = this.myId; this.held++; this.score += 10; this.burst(g.x, g.y, 6, '#B15DFF'); (this.gemClaims = this.gemClaims || {})[id] = this.clock();
           if (this.opts.onGem) this.opts.onGem(id); if (window.Sound) Sound.gem(); } });
     }
     // 탄
