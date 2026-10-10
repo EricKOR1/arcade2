@@ -50,7 +50,9 @@ class TerritoryGame {
       if (!free(x, y)) continue; let near = 1e9; Object.values(this.peers).forEach(p => { if (!p.dead) near = Math.min(near, Math.hypot(p.x - x, p.y - y)); });
       if (near > bd) { bd = near; best = [x, y]; } if (typeof slot === 'number' && k === 0) break; }
     if (!best) best = [4 + Math.floor(Math.random() * (TR_N - 8)), 4 + Math.floor(Math.random() * (TR_N - 8))];
-    this.cx = best[0]; this.cy = best[1]; this.p = 0; this.dir = Math.floor(Math.random() * 4); this.want = this.dir; this.deadUntil = 0; this.trail = []; this.trailSet = new Set();
+    this.cx = best[0]; this.cy = best[1]; this.p = 0; this.deadUntil = 0; this.trail = []; this.trailSet = new Set();
+    // 벽까지 가장 먼 쪽(경기장 가운데 쪽)을 보고 출발 — 예전엔 아무 쪽이나 봐서, 손을 안 대면 부활 뒤 2초 안에 벽에 부딪혀 탈락하는 일이 15%
+    { const room = [TR_N - 1 - this.cx, TR_N - 1 - this.cy, this.cx, this.cy]; this.dir = room.indexOf(Math.max(...room)); this.want = this.dir; }
     const got = []; for (let b = -1; b <= 1; b++) for (let a = -1; a <= 1; a++) { const i = this.idx(this.cx + a, this.cy + b); this.own[i] = this.myId; got.push(i); }
     this.recount(); this.emitCap(got); this.miniDirty = true;
   }

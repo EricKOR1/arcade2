@@ -469,7 +469,7 @@
   const eventsRef  = db.ref('events');
   const sessionRef = db.ref('session');
 
-  let game = null, syncTimer = null, started = false, cellSize = 20;
+  let game = null, gameStopped = false, syncTimer = null, started = false, cellSize = 20;   // gameStopped: stopGame 뒤의 옛 엔진 (결과 화면이 점수만 읽음 — 다시 그리거나 크기를 바꾸지 않음)
   let myNickname = '', trackId = 'meadow';
   const names = {}, peerPos = {}, hazards = {};
 
@@ -653,7 +653,7 @@
       canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
       canvas.getContext('2d', { alpha: false }).setTransform(dpr, 0, 0, dpr, 0, 0);   // 불투명: 배경과 합성하지 않아 빠름
     }
-    if (game) {
+    if (game && !gameStopped) {                          // 멈춘(destroy 한) 엔진은 건드리지 않음 — 예전: 대기실·다음 판으로 바뀔 때 화면 크기 감시가 옛 3D 장면을 다시 그려 GPU 에 다시 올렸음
       if (game.resize) game.resize(cellSize); else game.cellSize = cellSize;
       game.draw();
     }
@@ -1139,6 +1139,7 @@
           onGem: id => { gemsRef.child(id).transaction(g => { if (!g || g.by) return; g.by = playerId; return g; }); },
           onDropGems: drops => { drops.forEach((d, i) => gemsRef.child('d' + Date.now().toString(36) + i).set({ x: Math.round(d[0] * 10) / 10, y: Math.round(d[1] * 10) / 10 })); }
         });
+        gameStopped = false;
         if (!isKart && def.padLayout !== 'joystick') readyGo();
         if (game.setQuality) game.setQuality(quality);
         qFrames = 0; qSum = 0; qLast = 0;
@@ -1704,7 +1705,8 @@
 
   function stopGame() {
     startGen++; if (loopRaf) { cancelAnimationFrame(loopRaf); loopRaf = null; }   // 그리기 고리를 끊음 (예전: 멈춘 3D 가 대기 화면 뒤에서 계속 그려져 폰이 뜨거워지고, 다시 시작하면 두 겹으로 돎)
-    if (game && game.destroy) { try { game.destroy(); } catch (e) {} }
+    if (game && game.destroy && !gameStopped) { try { game.destroy(); } catch (e) {} }   // 결과 화면 → 대기실처럼 두 번 불려도 한 번만
+    gameStopped = true;
     if (watchTimer) { clearInterval(watchTimer); watchTimer = null; lastShot = ''; if (screenRef) screenRef.remove(); }
     if (finishesOff) { finishesOff(); finishesOff = null; }
     const fc = byId('fps-ctl'); if (fc) fc.remove();
