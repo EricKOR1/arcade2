@@ -4,6 +4,7 @@
 const RH_COLS = 8, RH_ROWS = 14, RH_LANES = 4;
 const RH_JUDGE_Y = 12;                     // 판정선 (칸 단위)
 const RH_PERFECT = 50, RH_GOOD = 110;      // 판정 창 (ms)
+const RH_EARLY = 180;                      // 이보다 덜 남았는데 '좋음' 창 전에 누르면 그 노트는 놓침 (마구 누르기 막기)
 const RH_LANE_COLORS = ['#4CC9F0', '#B15DFF', '#EF476F', '#FFD166'];
 const RH_LANE_CELLS = [1, 6, 7, 4];        // 미니보드 색 번호
 const RH_KEYS = { d: 0, f: 1, j: 2, k: 3 };
@@ -145,7 +146,7 @@ class RhythmGame {
       if (n.j || n.lane !== lane) continue;
       const d = Math.abs(n.t - st); if (d < bd) { bd = d; best = i; }
     }
-    if (best < 0 || bd > RH_GOOD) return;
+    if (best < 0 || bd > RH_GOOD) { this._early(lane, st, notes); return; }
     const n = notes[best], perfect = bd <= RH_PERFECT;
     n.j = perfect ? 1 : 2;
     if (perfect) this.perfect++; else this.good++;
@@ -156,6 +157,18 @@ class RhythmGame {
     this._burst(lane, perfect ? 14 : 8);
     if (window.Sound && window.Sound.note) window.Sound.note(n.f, 0.32, 'triangle', perfect ? 0.3 : 0.24, 0);   // 멜로디 음
     this._updateAcc();
+  }
+
+  // 판정 창(±0.11초)보다 조금 이르게(0.18초 안) 누르면 그 줄의 다음 노트는 놓침 — 예전엔 빈 톡에 아무 벌이 없어
+  // 네 줄을 0.1~0.15초마다 마구 누르면 노트를 다 맞혀 제대로 친 학생보다 점수가 높았음 (별빛 질주: 마구 3.6만 · 잘 친 사람 3.1만)
+  _early(lane, st, notes) {
+    for (let i = this.nextNote; i < notes.length; i++) {
+      const n = notes[i], d = n.t - st; if (d > RH_EARLY) break;
+      if (n.j || n.lane !== lane || d <= RH_GOOD) continue;
+      n.j = 3; this.miss++; this.combo = 0; this._judgeText('빨라요', '#FF9F5A'); this._updateAcc();
+      if (window.Sound && window.Sound.bump) window.Sound.bump();
+      return;
+    }
   }
 
   start(i) {

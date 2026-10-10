@@ -44,17 +44,21 @@ class MazeGame {
   resetActors() {
     this.px = 9; this.py = 15; this.dir = [0,0]; this.want = [0,0]; this.mouth = 0;
     // 단계별 드론 수: 1단계 2대 → 2단계 3대 → 3단계부터 4대. 출동 간격도 처음엔 길게
+    // wait: 출동까지 남은 시간(ms) — 로봇이 출발한 뒤 움직이는 동안만 줄어듦 (예전: 만든 순간의 시각 기준이라 첫 판·두 번째 판 모두 출발하자마자 드론이 한꺼번에 나옴)
     const count = Math.min(4, 1 + this.level), gap = Math.max(2000, 5000 - this.level * 800);
-    this.drones = [0,1,2,3].slice(0, count).map(i => ({ x: 8 + i % 3, y: 9, dir: [0,-1], home: true, out: this.now + 3000 + i * gap, dead: 0, color: ['#FF5C7A','#FFB3C6','#4CC9F0','#FFA726'][i] }));
+    this.drones = [0,1,2,3].slice(0, count).map(i => ({ x: 8 + i % 3, y: 9, dir: [0,-1], home: true, wait: 3000 + i * gap, dead: 0, color: ['#FF5C7A','#FFB3C6','#4CC9F0','#FFA726'][i] }));
     this.deathT = 0;
   }
-  free(x, y) { if (y < 0 || y >= MZ_ROWS) return false; if (x < 0 || x >= MZ_COLS) return true; return !this.walls[y][x]; }   // 좌우 끝은 터널
+  free(x, y) { if (y < 0 || y >= MZ_ROWS) return false; if (x < 0 || x >= MZ_COLS) return MZ_MAP[y][0] === '.' && MZ_MAP[y][MZ_COLS - 1] === '.'; return !this.walls[y][x]; }   // 좌우 끝은 터널 (터널 줄에서만 — 예전엔 판 밖 세로줄 전체가 길이라 터널 끝에서 ↑↓ 로 로봇·드론이 지도 밖으로 나갔음)
 
   // 조작: 다음 갈림길에서 꺾도록 예약
   turn(dx, dy) { if (this.gameOver) return; this.want = [dx, dy]; this.started = true; }
   move(dir) { this.turn(dir, 0); }
   up() { this.turn(0, -1); } down() { this.turn(0, 1); }
-  rotate() { this.up(); } softDrop() { if (!this._dl) { this._dl = true; this.down(); } } hardDrop() { this.up(); }
+  rotate() { this.up(); } softDrop() {} hardDrop() { this.up(); }
+  // ↓: 페이지는 키보드면 softDropping 만 켬 → 켜지는 순간 아래로 예약 (예전: 키보드 ↓ 가 안 먹었음 · ↓ 버튼은 softDropping 을 켜므로 여기서 함께 처리)
+  set softDropping(v) { if (v && !this._sd) this.down(); this._sd = !!v; }
+  get softDropping() { return !!this._sd; }
 
   // 목표 칸에서 모든 칸까지의 걸음 수 (터널 연결 포함). 목표 칸마다 한 번만 계산해 둡니다
   distMap(tx, ty) {
@@ -92,7 +96,6 @@ class MazeGame {
     this.now = now;
     if (this.gameOver) return;
     const { dt, f } = FX.frame(this, now);
-    if (!this.softDropping) this._dl = false;
     if (this.deathT > 0) { this.deathT -= 0.025 * f; if (this.deathT <= 0) { this.deathT = 0; this.resetActors(); this.started = false; } this.draw(); return; }
     if (!this.started) { this.draw(); return; }
 
@@ -117,8 +120,8 @@ class MazeGame {
 
     // 드론
     this.drones.forEach((d, i) => {
-      if (d.dead > 0) { d.dead -= dt; if (d.dead <= 0) { d.dead = 0; d.x = 9; d.y = 9; d.home = true; d.out = now + 2000; } return; }
-      if (d.home) { if (now > d.out) { d.home = false; d.x = 9; d.y = 7; d.dir = [i % 2 ? 1 : -1, 0]; } return; }
+      if (d.dead > 0) { d.dead -= dt; if (d.dead <= 0) { d.dead = 0; d.x = 9; d.y = 9; d.home = true; d.wait = 2000; } return; }
+      if (d.home) { d.wait -= dt; if (d.wait <= 0) { d.home = false; d.x = 9; d.y = 7; d.dir = [i % 2 ? 1 : -1, 0]; } return; }
       // 드론 속도: 1단계 로봇의 75% → 4단계쯤 로봇과 비슷 → 이후 조금 더 빠름
       const sp = (d.scared ? 0.045 : Math.min(0.086, 0.056 + (this.level - 1) * 0.008)) * f;
       const actor = { get px() { return d.x; }, set px(v) { d.x = v; }, get py() { return d.y; }, set py(v) { d.y = v; }, get dir() { return d.dir; }, set dir(v) { d.dir = v; } };
@@ -150,7 +153,7 @@ class MazeGame {
     const g = MZ_MAP.map((r, y) => r.split('').map((c, x) => this.walls[y][x] ? 46 : (this.dots[y][x] === 2 ? 48 : (this.dots[y][x] ? 47 : 0))));
     const put = (x, y, v) => { const cx = Math.round(x), cy = Math.round(y); if (cx >= 0 && cx < MZ_COLS && cy >= 0 && cy < MZ_ROWS) g[cy][cx] = v; };
     this.drones.forEach(d => { if (!d.dead) put(d.x, d.y, d.scared ? 50 : 49); });
-    put(this.px, this.py, 23);
+    put(this.px, this.py, 13);   // 로봇은 초록 (예전 23 은 셀과 같은 노란색이라 교사 미니 보드에서 안 보였음)
     return g;
   }
 

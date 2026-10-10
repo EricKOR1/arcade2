@@ -156,7 +156,21 @@ class KartGame3D extends KartGame {
     if (this.composer) { this.composer.setSize(W, H); if (this.bloom) this.bloom.setSize(W, H); }
     if (this.renderer) { this.renderer.setSize(W, H, false); this.glCanvas.style.width = '100%'; this.glCanvas.style.height = '100%'; this.camera.aspect = W / H; this.camera.updateProjectionMatrix(); }
   }
-  destroy() { super.destroy(); try { this.renderer.dispose(); this.hudCanvas.remove(); } catch (e) {} }
+  destroy() { super.destroy(); try { this.freeGL(); } catch (e) {} try { this.renderer.dispose(); this.hudCanvas.remove(); } catch (e) {} }
+  // 판이 끝날 때 GPU 자원 정리 — 다음 판이 같은 캔버스(같은 WebGL 컨텍스트)를 다시 쓰므로, 지우지 않으면 판마다 버퍼 약 170개·텍스처 18장·셰이더 12개가 쌓였음
+  //   (renderer.dispose() 는 장면의 도형·재질·텍스처를 지우지 않음 · 다음 판에 같은 것을 다시 쓰면 three.js 가 알아서 다시 올림)
+  freeGL() {
+    const seen = new Set(), tex = t => { if (t && t.isTexture && !seen.has(t)) { seen.add(t); t.dispose(); } };
+    const mat = m => { if (!m || seen.has(m)) return; seen.add(m); Object.keys(m).forEach(k => tex(m[k])); if (m.uniforms) Object.keys(m.uniforms).forEach(k => { const u = m.uniforms[k]; if (u) tex(u.value); }); m.dispose(); };
+    const roots = [this.scene]; Object.keys(this).forEach(k => { const v = this[k]; if (!v || k === 'scene') return; if (v.isTexture) tex(v); else if (v.isMaterial) mat(v); else if (v.isObject3D && !v.parent) roots.push(v); });   // 장면 밖에 따로 들고 있는 것도
+    const tmp = []; let n = 0;   // three r128 은 InstancedMesh 의 instanceMatrix 버퍼를 지우는 길이 없어, 도형에 잠깐 붙였다가 도형과 함께 지움
+    roots.forEach(R => R && R.traverse(o => { if (o.isInstancedMesh && o.geometry) ['instanceMatrix', 'instanceColor'].forEach(k => { if (o[k]) { const nm = '__free' + (n++); o.geometry.setAttribute(nm, o[k]); tmp.push([o.geometry, nm]); } }); }));
+    roots.forEach(R => R && R.traverse(o => { if (o.geometry && !seen.has(o.geometry)) { seen.add(o.geometry); o.geometry.dispose(); } [].concat(o.material || []).forEach(mat); if (o.customDepthMaterial) mat(o.customDepthMaterial); if (o.shadow && o.shadow.map) { o.shadow.map.dispose(); o.shadow.map = null; } }));
+    tmp.forEach(([g, nm]) => g.deleteAttribute(nm));
+    if (this.scene) { tex(this.scene.background); tex(this.scene.environment); this.scene.environment = null; }
+    const cp = this.composer; if (cp) { [cp.renderTarget1, cp.renderTarget2].forEach(rt => { if (rt && rt.dispose) rt.dispose(); }); (cp.passes || []).forEach(p => { if (p && p.dispose) p.dispose(); }); this.composer = null; }
+    if (this.renderer && this.renderer.renderLists) this.renderer.renderLists.dispose();
+  }
 
   // 맞는 쪽 연출 (규칙은 부모 그대로)
   hitByMissile(byId, kind) { const blocked = this.finished || this.guarded(); const r = super.hitByMissile(byId, kind); if (!blocked) { this.fxExplode(this.karts.__me && this.karts.__me.g.position, kind === 'turtle' ? 0x06D6A0 : 0xFF7A1A); this.shake3d = 0.5; } return r; }   // 방어막으로 막으면 폭발 없음
@@ -177,8 +191,9 @@ class KartGame3D extends KartGame {
     //   (태블릿 GPU 는 MSAA 를 칩 안에서 처리해 거의 공짜) · 소프트웨어 그리기(가속 꺼짐)만 끔 · 주소 ?aa=0/1 로 고정
     let aa = true; { const am = typeof location !== 'undefined' && location.search.match(/[?&]aa=([01])/);
       if (am) aa = am[1] === '1';
-      else try { const c = document.createElement('canvas'), gl = c.getContext('webgl'), ex = gl && gl.getExtension('WEBGL_debug_renderer_info'), nm = ex ? String(gl.getParameter(ex.UNMASKED_RENDERER_WEBGL)) : '';
-        if (/swiftshader|llvmpipe|software/i.test(nm)) aa = false; const lc = gl && gl.getExtension('WEBGL_lose_context'); if (lc) lc.loseContext(); } catch (e) {} }
+      else try { if (KartGame3D._soft == null) { const c = document.createElement('canvas'), gl = c.getContext('webgl'), ex = gl && gl.getExtension('WEBGL_debug_renderer_info'), nm = ex ? String(gl.getParameter(ex.UNMASKED_RENDERER_WEBGL)) : '';   // 한 번만 재서 기억 (예전: 판마다 시험용 WebGL 컨텍스트를 새로 만듦)
+          KartGame3D._soft = /swiftshader|llvmpipe|software/i.test(nm); const lc = gl && gl.getExtension('WEBGL_lose_context'); if (lc) lc.loseContext(); }
+        if (KartGame3D._soft) aa = false; } catch (e) {} }
     this.renderer = new T.WebGLRenderer({ canvas: this.glCanvas, antialias: aa });
     this.renderer.setPixelRatio(Math.max(this.opts.minDpr || 0, Math.min(window.devicePixelRatio || 1, this.opts.maxDpr || 1.25)));   // minDpr: 교사 관전 화면은 모니터보다 촘촘히 그려 또렷하게
     this.scene = new T.Scene();

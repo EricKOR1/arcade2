@@ -163,7 +163,7 @@ class SlingshotGame {
     // 부서짐 · 잠자기 · 깨우기
     for (const b of bodies) {
       if (!b.alive) continue;
-      if (b.dmg >= b.hp) { this.destroy(b); continue; }
+      if (b.dmg >= b.hp) { this.breakBlock(b); continue; }
       if (b.sleep) continue;
       let mv = 0; for (const p of b.pts) mv = Math.max(mv, Math.abs(p.x - p.ox) + Math.abs(p.y - p.oy));
       if (mv > 0.004) this.wakeNear(b, 0.04);
@@ -280,7 +280,7 @@ class SlingshotGame {
 
   // ── 부서짐 · 효과 ──
   center(b) { let x = 0, y = 0; for (const p of b.pts) { x += p.x; y += p.y; } return { x: x / b.pts.length, y: y / b.pts.length }; }
-  destroy(b) {
+  breakBlock(b) {   // 블록 부서짐 (예전 이름 destroy — 페이지가 판을 정리할 때 부르는 game.destroy() 와 이름이 겹쳤음)
     b.alive = false; const c = this.center(b);
     this.wakeNear(b, 0.1);
     if (b.kind === 'target') {

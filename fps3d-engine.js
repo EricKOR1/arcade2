@@ -604,7 +604,7 @@ class Fps3DGame {
   // 교사 관전에서 경기 맵을 바꿀 때: 장면을 비우고 GPU 자원을 돌려줌
   disposeScene() {
     if (this.hud && this.hud.parentElement) this.hud.parentElement.removeChild(this.hud);
-    if (this.scene) this.scene.traverse(o => { if (o.geometry) o.geometry.dispose(); const ms = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : []; ms.forEach(mt => { if (mt.map) mt.map.dispose(); mt.dispose(); }); });
+    this.freeGL();
     this.scene = null; this.models = {}; this._w = 0;
   }
 
@@ -1250,7 +1250,7 @@ class Fps3DGame {
   getSnapshot() { return null; }
 
   draw() {
-    if (!this.scene) return;
+    if (!this.scene || this._dead) return;
     this.updateModels();
     if (this.noGL || !this.renderer) return;
     const T = THREE, now = this.clock();
@@ -1603,7 +1603,17 @@ class Fps3DGame {
   }
 
   destroy() {
+    this._dead = true;                                     // 뒤에 draw() 가 불려도 지운 장면을 다시 올리지 않게
     if (this.hud && this.hud.parentElement) this.hud.parentElement.removeChild(this.hud);
+    try { this.freeGL(); } catch (e) {}                    // renderer.dispose() 보다 먼저 (그 뒤엔 찾지 못해 안 지워짐)
     if (this.renderer) { try { this.renderer.dispose(); } catch (e) {} }
+  }
+  // 장면의 GPU 자원(그물 · 재질 · 모든 무늬 · 인스턴스 · 그림자)을 돌려줌
+  //   예전: renderer.dispose() 만 해서 대기실로 돌렸다 다시 시작할 때마다 같은 WebGL 에 버퍼 약 130 · 텍스처 약 19 · 셰이더 13개씩 쌓였음
+  freeGL() {
+    if (!this.scene) return; const seen = new Set(), tex = t => { if (t && t.isTexture && !seen.has(t)) { seen.add(t); t.dispose(); } };
+    this.scene.traverse(o => { if (o.geometry && !seen.has(o.geometry)) { seen.add(o.geometry); o.geometry.dispose(); }
+      [].concat(o.material || []).forEach(m => { if (!m || seen.has(m)) return; seen.add(m); Object.keys(m).forEach(k => tex(m[k])); m.dispose(); });
+      if (o.isInstancedMesh && o.dispose) o.dispose(); if (o.isLight && o.shadow && o.shadow.map) { o.shadow.map.dispose(); o.shadow.map = null; } });
   }
 }

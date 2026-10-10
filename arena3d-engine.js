@@ -21,19 +21,31 @@ class ArenaGame3D extends ArenaGame {
   releaseAim(dx, dy) { super.releaseAim(this.flip ? -(dx || 0) : dx, this.flip ? -(dy || 0) : dy); }
 
   resize() {
-    const W = this.host.clientWidth || 800, H = this.host.clientHeight || 600; if (W < 10 || H < 10) return;
+    const W = this.host.clientWidth || 800, H = this.host.clientHeight || 600; if (W < 10 || H < 10 || this._dead) return;
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     this.hudCanvas.width = Math.round(W * dpr); this.hudCanvas.height = Math.round(H * dpr); this.hudDpr = dpr;
     if (this.renderer) { this.renderer.setSize(W, H, false); this.glCanvas.style.width = '100%'; this.glCanvas.style.height = '100%'; this.camera.aspect = W / H; this.camera.updateProjectionMatrix(); }
     this.vw = W; this.vh = H;
   }
   captureTo(g, w, h) {
-    if (!this.renderer) return;
+    if (!this.renderer || this._dead) return;
     this.renderer.render(this.scene, this.camera);                 // 그린 직후 같은 순간에 복사해야 빈 화면이 아님
     g.drawImage(this.glCanvas, 0, 0, w, h);
     if (this.hudCanvas && this.hudCanvas.width) g.drawImage(this.hudCanvas, 0, 0, w, h);
   }
-  destroy() { try { this.renderer.dispose(); if (this.hudCanvas.parentNode) this.hudCanvas.parentNode.removeChild(this.hudCanvas); } catch (e) {} }
+  destroy() { this._dead = true; try { this.freeGL(); } catch (e) {} try { this.renderer.dispose(); if (this.hudCanvas.parentNode) this.hudCanvas.parentNode.removeChild(this.hudCanvas); } catch (e) {} }
+  // 판을 끝낼 때 GPU 자원(그물 · 재질 · 무늬 · 인스턴스 · 그림자)을 돌려줌 — renderer.dispose() 보다 먼저 (그 뒤엔 찾지 못해 안 지워짐)
+  //   예전: renderer.dispose() 만 해서 대기실로 돌렸다 다시 시작할 때마다 같은 WebGL 에 버퍼 113 · 텍스처 5 · 셰이더 6개씩 쌓였음
+  freeGL() { if (this.scene) this.scene.traverse(o => ArenaGame3D.freeObj(o, this._freed || (this._freed = new Set()))); }
+  static freeObj(o, seen) {
+    const tex = t => { if (t && t.isTexture && !seen.has(t)) { seen.add(t); t.dispose(); } };
+    if (o.geometry && !seen.has(o.geometry)) { seen.add(o.geometry); o.geometry.dispose(); }
+    [].concat(o.material || []).forEach(m => { if (!m || seen.has(m)) return; seen.add(m); Object.keys(m).forEach(k => tex(m[k])); m.dispose(); });
+    if (o.isInstancedMesh && o.dispose) o.dispose();
+    if (o.isLight && o.shadow && o.shadow.map) { o.shadow.map.dispose(); o.shadow.map = null; }
+  }
+  // 나간 친구의 모델: 장면에서 빼면서 GPU 자원도 돌려줌 (모델마다 그물·재질을 새로 만듦)
+  dropModel(m) { this.scene.remove(m); const seen = new Set(); m.traverse(o => ArenaGame3D.freeObj(o, seen)); }
 
   initThree() {
     const T = THREE, th = AR_THEMES[this.mapId] || AR_THEMES.mine;
@@ -111,12 +123,13 @@ class ArenaGame3D extends ArenaGame {
   }
   modelFor(id, chId, ally, isMe) {
     let m = this.models[id];
-    if (m && (m.userData.chId !== chId || m.userData.ally !== ally)) { this.scene.remove(m); m = null; }
+    if (m && (m.userData.chId !== chId || m.userData.ally !== ally)) { this.dropModel(m); m = null; }
     if (!m) m = this.models[id] = this.makeModel(chId, ally, isMe);
     return m;
   }
 
   draw() {
+    if (this._dead) return;                                          // 끝낸 판(destroy 뒤): 대기 화면 크기 맞추기 등이 부르는 draw() 가 지운 장면을 같은 WebGL 에 다시 올리지 않게
     if (!this.renderer) return super.draw();
     const T = THREE, now = this.now;
     // ── 캐릭터 ──
@@ -132,7 +145,7 @@ class ArenaGame3D extends ArenaGame {
       const hidden = p.hidden && p.team !== this.team && Math.hypot(p.x - this.x, p.y - this.y) > 2.2;
       put(id, p.x, p.y, p.angle || 0, p.ch || 'bolt', p.team === this.team, false, !p.dead && !hidden, p.hidden ? 0.55 : 1); });
     put('__me', this.x, this.y, this.angle, this.charId, true, true, !this.isDead, this.hidden ? 0.6 : 1);
-    Object.keys(this.models).forEach(id => { if (!seen[id]) { this.scene.remove(this.models[id]); delete this.models[id]; } });
+    Object.keys(this.models).forEach(id => { if (!seen[id]) { this.dropModel(this.models[id]); delete this.models[id]; } });
     // ── 젬 ──
     const M = this.tmpM, q = new T.Quaternion(), sc = new T.Vector3(1, 1, 1); let n = 0;
     Object.keys(this.gems).forEach(id => { const gm = this.gems[id]; if (!gm || gm.by || n >= 60) return; q.setFromEuler(new T.Euler(0, now / 500 + gm.x, 0)); M.compose(new T.Vector3(gm.x, 0.45 + Math.sin(now / 260 + gm.x) * 0.08, gm.y), q, sc); this.gemMesh.setMatrixAt(n++, M); });

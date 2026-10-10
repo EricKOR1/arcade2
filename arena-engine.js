@@ -94,13 +94,16 @@ const AR_MAPS = {
 //   dps = 탄 수 × 피해 ÷ 재장전(초).  볼트 3×20/0.48 = 125 · 바위 5×16/0.9 = 89(체력 160) · 매 1×70/0.85 = 82(사거리 2배)
 //   새싹 3×16/0.48 = 100(궁극기 회복) · 부엉 1×48/0.7 = 69(벽 너머 범위 피해) · 번개 2×20/0.36 = 111(체력 80 · 속도 1.2)
 //   종합 전투력(√(dps×체력)×속도): 86~113, 최대/최소 1.3배
+//   실제 싸움은 탄 3칸을 0.24초 간격(gap)으로 몰아 쏘는 '연사'가 승부를 가름 → 1:1 자동 대결(거리 2·4·6·8칸 × 봇 3종) 승률로 다시 맞춤
+//   (전: 매 81% · 번개 73% · 볼트 63% · 바위 38% · 새싹 35% · 부엉 9% → 후: 34~63%)
+//   매: 연사 간격 0.45초(3발 0.48초에 210 → 0.9초) · 바위: 거리 감소 시작 1.2→2칸 · 부엉: 피해 48→56, 체력 120→130 · 번개: 돌진 무적 0.5→0.3초
 const AR_CHARS = {
   bolt:   { name: '볼트',   role: '올라운더', hp: 100, speed: 1.0,  icon: '⚡', shape: 'round',  shot: { n: 3, spread: 0.09, speed: 0.32, life: 22, dmg: 20, cd: 480 }, sup: { kind: 'blast',  label: '대형탄', desc: '큰 폭발탄 (60)' } },
-  rock:   { name: '바위',   role: '탱커 · 샷건',     hp: 160, speed: 0.85, icon: '🪨', shape: 'square', shot: { n: 5, spread: 0.22, speed: 0.30, life: 13, dmg: 16, cd: 900, fall: { near: 1.2, min: 0.25 } }, sup: { kind: 'dash',   label: '돌진',   desc: '앞으로 돌진 · 0.7초 무적 · 부딪힌 적 30' } },
-  hawk:   { name: '매',     role: '저격수',   hp: 90,  speed: 1.0,  icon: '🎯', shape: 'diamond', shot: { n: 1, spread: 0,    speed: 0.48, life: 40, dmg: 70, cd: 850 }, sup: { kind: 'pierce', label: '관통탄', desc: '벽과 적을 뚫는 관통탄 (70)' } },
+  rock:   { name: '바위',   role: '탱커 · 샷건',     hp: 160, speed: 0.85, icon: '🪨', shape: 'square', shot: { n: 5, spread: 0.22, speed: 0.30, life: 13, dmg: 16, cd: 900, fall: { near: 2, min: 0.25 } }, sup: { kind: 'dash',   label: '돌진',   desc: '앞으로 돌진 · 0.7초 무적 · 부딪힌 적 30' } },
+  hawk:   { name: '매',     role: '저격수',   hp: 90,  speed: 1.0,  icon: '🎯', shape: 'diamond', shot: { n: 1, spread: 0,    speed: 0.48, life: 40, dmg: 70, cd: 850, gap: 450 }, sup: { kind: 'pierce', label: '관통탄', desc: '벽과 적을 뚫는 관통탄 (70)' } },
   sprout: { name: '새싹',   role: '힐러',     hp: 100, speed: 1.05, icon: '🌱', shape: 'round',  shot: { n: 3, spread: 0.12, speed: 0.30, life: 20, dmg: 16, cd: 480 }, sup: { kind: 'heal',   label: '치유',   desc: '주변 4칸 팀원 체력 +40 (나 +25)' } },
-  owl:    { name: '부엉',   role: '폭탄병',   hp: 120, speed: 0.95, icon: '💣', shape: 'round',  shot: { n: 1, spread: 0,    speed: 0.26, life: 26, dmg: 48, cd: 700, lob: true, radius: 1.1 }, sup: { kind: 'volley', label: '폭탄 세례', desc: '사방으로 폭탄 8발 (각 30)' } },
-  spark:  { name: '번개',   role: '돌격수',   hp: 80,  speed: 1.2,  icon: '🔥', shape: 'tri',    shot: { n: 2, spread: 0.06, speed: 0.36, life: 12, dmg: 20, cd: 360 }, sup: { kind: 'dash',   label: '섬광 돌진', desc: '앞으로 길게 돌진 · 0.5초 무적 · 부딪힌 적 25' } }
+  owl:    { name: '부엉',   role: '폭탄병',   hp: 130, speed: 0.95, icon: '💣', shape: 'round',  shot: { n: 1, spread: 0,    speed: 0.26, life: 26, dmg: 56, cd: 700, lob: true, radius: 1.1 }, sup: { kind: 'volley', label: '폭탄 세례', desc: '사방으로 폭탄 8발 (각 30)' } },
+  spark:  { name: '번개',   role: '돌격수',   hp: 80,  speed: 1.2,  icon: '🔥', shape: 'tri',    shot: { n: 2, spread: 0.06, speed: 0.36, life: 12, dmg: 20, cd: 360 }, sup: { kind: 'dash',   label: '섬광 돌진', desc: '앞으로 길게 돌진 · 0.3초 무적 · 부딪힌 적 25', inv: 300 } }
 };
 
 const AR_TEAM = { r: { name: '레드', color: '#FF5C7A', dark: '#B3213F' }, b: { name: '블루', color: '#4CC9F0', dark: '#1D7FA6' } };
@@ -124,7 +127,7 @@ class ArenaGame {
     this.mapDef = AR_MAPS[this.mapId]; const built = this.mapDef.build(); this.map = built.rows; this.spawns = built.spawns; this.mine = built.mine; this.gemSpots = built.gemSpots;
     this.W = built.W; this.H = built.H;
     this.charId = (this.opts.charId && AR_CHARS[this.opts.charId]) ? this.opts.charId : 'bolt'; this.ch = AR_CHARS[this.charId];
-    arLoadArt(); (AR_ART.cbs = AR_ART.cbs || []).push(() => { this._bgCs = null; });   // 그림이 준비되면 바닥을 다시 굽습니다
+    arLoadArt(); AR_ART.cbs = [() => { this._bgCs = null; }];   // 그림이 준비되면 바닥을 다시 굽습니다 (지금 엔진 것만 — 예전엔 판마다 쌓여 지난 판 엔진·바닥 그림(약 16MB)이 메모리에 남음)
     this.peers = {}; this.bullets = []; this.parts = []; this.gems = {}; this.held = 0;
     this.hp = this.ch.hp; this.maxHp = this.ch.hp; this.super = 0; this.dashUntil = 0; this.invulUntil = 0;
     this.ammo = 3; this.ammoT = 0; this.dmgNums = []; this.feed = []; this.kills = 0; this.score = 0; this.gameOver = false;   // 탄약 3칸 · 피해 숫자 · 킬 피드 (예전: 주석에 묻혀 처치 수·점수가 NaN 이 됨)
@@ -150,7 +153,15 @@ class ArenaGame {
   }
   setPeers(map) { Object.keys(map).forEach(id => { const d = map[id]; if (d.raw) this.applyPeerRaw(id, d.raw, d.name); }); Object.keys(this.peers).forEach(id => { if (!map[id]) delete this.peers[id]; }); }
   removePeer(id) { delete this.peers[id]; }
-  setGems(map) { this.gems = map || {}; }
+  setGems(map) {
+    this.gems = map || {};
+    // 내가 주웠다고 센 젬을 서버가 다른 친구 것으로 정했으면(거의 동시에 주움) 하나 돌려놓음 — 예전엔 둘 다 세어 30명 판에서 젬이 불어나 1분 안에 끝남
+    //   (Firebase 는 내 쓰기를 먼저 내 화면에 '내 것'으로 보여 주므로, 4초 동안은 다른 친구 이름으로 바뀌는지 지켜봄)
+    const c = this.gemClaims; if (!c) return;
+    for (const id in c) { const g = this.gems[id];
+      if (g && g.by && g.by !== this.myId) { delete c[id]; if (this.held > 0) { this.held--; this.score = Math.max(0, this.score - 10); } }
+      else if (this.clock() - c[id] > 4000) delete c[id]; }
+  }
   get isDead() { return this.now < this.deadUntil; }
   clock() { return this.now || performance.now(); }
   cell(x, y) { const r = this.map[Math.floor(y)]; return r ? (r[Math.floor(x)] || '#') : '#'; }
@@ -177,7 +188,7 @@ class ArenaGame {
   }
   fire() {
     const now = this.clock(), sh = this.ch.shot;
-    if (this.isDead || this.gameOver || now < this.dashUntil || now - this.lastFire < Math.min(sh.cd, 240) || this.ammo < 1) return;
+    if (this.isDead || this.gameOver || now < this.dashUntil || now - this.lastFire < (sh.gap || Math.min(sh.cd, 240)) || this.ammo < 1) return;   // gap: 캐릭터별 연사 간격(없으면 0.24초)
     this.ammo -= 1; this.ammoT = 0;
     if (!this.aim) this.autoAim();                                    // 조준 조이스틱 없이 발사 버튼만 누르면: 가까운 적을 자동 조준, 없으면 바라보는 방향
     this.lastFire = now; this.recoil = 1;
@@ -200,13 +211,13 @@ class ArenaGame {
     if (k === 'blast') this.bullets.push({ x: this.x, y: this.y, vx: Math.cos(this.angle) * 0.22, vy: Math.sin(this.angle) * 0.22, life: 34, dmg: 60, big: true, radius: 1.1 });
     else if (k === 'pierce') this.bullets.push({ x: this.x, y: this.y, vx: Math.cos(this.angle) * 0.5, vy: Math.sin(this.angle) * 0.5, life: 60, dmg: 70, big: true, pierce: true, hit: {} });
     else if (k === 'volley') for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; this.bullets.push({ x: this.x, y: this.y, vx: Math.cos(a) * 0.24, vy: Math.sin(a) * 0.24, life: 28, dmg: 30, big: false, lob: true, radius: 1.0, t0: 28 }); }
-    else if (k === 'dash') { const long = this.charId === 'spark'; this.dashUntil = now + (long ? 500 : 700); this.invulUntil = this.dashUntil; this.dashDir = [Math.cos(this.angle), Math.sin(this.angle)]; this.dashHit = {}; this.dashDmg = long ? 25 : 30; }
+    else if (k === 'dash') { const long = this.charId === 'spark'; this.dashUntil = now + (long ? 500 : 700); this.invulUntil = this.ch.sup.inv != null ? now + this.ch.sup.inv : this.dashUntil; this.dashDir = [Math.cos(this.angle), Math.sin(this.angle)]; this.dashHit = {}; this.dashDmg = long ? 25 : 30; }
     else if (k === 'heal') { this.hp = Math.min(this.maxHp, this.hp + 25); this.burst(this.x, this.y, 20, '#7DF58F'); this.healRing = now + 900;
       Object.keys(this.peers).forEach(id => { const p = this.peers[id]; if (p.team !== this.team || p.dead) return; if (Math.hypot(p.x - this.x, p.y - this.y) <= 4 && this.opts.onAttack) this.opts.onAttack('heal', id, { amt: 40 }); }); }
     this.toast(this.ch.sup.label + '!', '#FFD166'); if (window.Sound) { const k = { dash: 'dash', heal: 'heal', volley: 'throwBomb', pierce: 'sniper', blast: 'shotgun' }[this.ch.sup.kind] || 'boost'; Sound[k](); } if (window.Haptic) Haptic.big();
   }
   onEvent(e) {
-    if (!e) return;
+    if (!e || this.gameOver) return;                             // 판이 끝난 뒤 늦게 온 피격으로 쓰러져 젬을 또 떨구지 않게
     if (e.type === 'kill' && e.target === this.myId) { const v = this.peers[e.victim]; this.feed.unshift({ a: this.myName || '나', b: v ? v.name : '상대', t: this.clock() + 4000, me: true }); this.feed.length = Math.min(3, this.feed.length); this.kills++; this.score += 50; this.toast('처치!', '#FFD166'); if (window.Sound) Sound.kill(); }
     if (e.type === 'heal' && e.target === this.myId && !this.isDead) { this.hp = Math.min(this.maxHp, this.hp + (e.amt || 40)); this.burst(this.x, this.y, 12, '#7DF58F'); this.toast('치유 +' + (e.amt || 40), '#7DF58F'); return; }
     if (e.type === 'hit' && e.target === this.myId) {
@@ -219,9 +230,9 @@ class ArenaGame {
   die(byId) {
     const now = this.clock();
     this.deadUntil = now + 3200;
-    // 들고 있던 젬을 그 자리에 떨어뜨림
-    if (this.held > 0 && this.opts.onDropGems) { const drops = []; for (let i = 0; i < this.held; i++) { const a = Math.random() * Math.PI * 2, r = 0.4 + Math.random() * 0.9; drops.push([this.x + Math.cos(a) * r, this.y + Math.sin(a) * r]); } this.opts.onDropGems(drops); }
-    this.held = 0; this.super = 0;
+    // 들고 있던 젬을 그 자리에 떨어뜨림 — 설 수 있는 자리에만 (예전엔 약 0.5% 가 벽·물 속에 떨어져 아무도 못 줍고 '빈 젬 20개' 자리만 차지)
+    if (this.held > 0 && this.opts.onDropGems) { const drops = []; for (let i = 0; i < this.held; i++) { let x = this.x, y = this.y; for (let t = 0; t < 6; t++) { const a = Math.random() * Math.PI * 2, r = 0.4 + Math.random() * 0.9, nx = this.x + Math.cos(a) * r, ny = this.y + Math.sin(a) * r; if (!this.blocked(nx, ny)) { x = nx; y = ny; break; } } drops.push([x, y]); } this.opts.onDropGems(drops); }
+    this.held = 0; this.super = 0; this.gemClaims = null;
     this.burst(this.x, this.y, 18, AR_TEAM[this.team].color); if (window.Sound) Sound.death();
     const who = this.peers[byId] && this.peers[byId].name; this.toast((who ? who + '에게 ' : '') + '쓰러졌다 · 3초 뒤 부활', '#FF5C7A');
     this.feed.unshift({ a: who || '상대', b: this.myName || '나', t: this.clock() + 4000, me: false }); this.feed.length = Math.min(3, this.feed.length);
@@ -253,7 +264,7 @@ class ArenaGame {
       if (now - this.lastHurt > 3000 && this.hp < this.maxHp) this.hp = Math.min(this.maxHp, this.hp + 0.25 * f);
       // 젬 줍기
       Object.keys(this.gems).forEach(id => { const g = this.gems[id]; if (!g || g.by) return;
-        if (Math.hypot(g.x - this.x, g.y - this.y) < 0.62) { g.by = this.myId; this.held++; this.score += 10; this.burst(g.x, g.y, 6, '#B15DFF');
+        if (Math.hypot(g.x - this.x, g.y - this.y) < 0.62) { g.by = this.myId; this.held++; this.score += 10; this.burst(g.x, g.y, 6, '#B15DFF'); (this.gemClaims = this.gemClaims || {})[id] = this.clock();
           if (this.opts.onGem) this.opts.onGem(id); if (window.Sound) Sound.gem(); } });
     }
     // 탄

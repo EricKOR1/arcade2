@@ -25,8 +25,13 @@ const Sound = (function () {
     if (!AC) return;
     wire(new AC());
   }
-  function resume() { init(); if (ctx && ctx.state === 'suspended') ctx.resume(); }
-  const on = () => enabled && !forced && ctx;
+  // 'interrupted'(아이폰 전화·앱 전환 뒤)도 다시 켬 · 누르지 않은 때 부르면 거절될 수 있어 오류는 삼킴
+  function resume() { init(); if (ctx && ctx.state !== 'running' && ctx.state !== 'closed') { try { const p = ctx.resume(); if (p && p.catch) p.catch(() => {}); } catch (e) {} } }
+  // 멈춘 소리 장치에는 예약하지 않음 — 예전엔 멈춘 동안 쌓인 소리가 다시 켜지는 순간 한꺼번에 터졌음 (state 가 없는 옛 브라우저는 그대로 재생)
+  const on = () => enabled && !forced && ctx && ctx.state !== 'suspended' && ctx.state !== 'interrupted' && ctx.state !== 'closed';
+  // 화면을 누를 때마다 멈춘 소리 장치를 다시 켬: 선생님이 게임을 옮겨 새로 열린 페이지(자동 입장)는 '누른 순간'에 만들어지지 않아
+  // 아이폰·아이패드에서 그 수업 내내 소리가 안 났음 (브라우저는 touchend·pointerup·keydown 같은 '누른 순간'에만 소리를 허락)
+  if (typeof document !== 'undefined') ['pointerup', 'touchend', 'mousedown', 'keydown'].forEach(ev => document.addEventListener(ev, () => { if (ctx && ctx.state !== 'running') resume(); }, { capture: true, passive: true }));
 
   // 재생 허가: 같은 소리 최소 간격(ms) · 전체 동시 소리 수
   function allow(name, gapMs, dur) {
@@ -113,8 +118,9 @@ const Sound = (function () {
   };
 
   // ── 카트 엔진음: 3단 기어 (속도가 오르면 음이 올라가다 기어가 바뀌면 살짝 떨어짐) ──
-  let eng = null;
+  let eng = null, engWanted = false;   // engWanted: 게임이 엔진음을 켜 둔 상태 — 음소거 동안엔 소리만 멈췄다가 풀리면 다시 (예전: 한 번 끄면 그 판 끝까지 엔진음 없음)
   function engineStart() {
+    engWanted = true;
     if (!on() || eng) return;
     const o1 = ctx.createOscillator(), o2 = ctx.createOscillator(), sub = ctx.createOscillator();
     const rum = ctx.createBufferSource(), rumF = ctx.createBiquadFilter(), rumG = ctx.createGain();
@@ -130,7 +136,8 @@ const Sound = (function () {
   }
   // level 0~1 (속도 비율), boost true 면 더 높고 큰 소리
   function engineSet(level, boost) {
-    if (!eng || !ctx) return;
+    if (!ctx) return;
+    if (!eng) { if (engWanted && on()) engineStart(); if (!eng) return; }   // 음소거가 풀렸거나 소리 장치가 늦게 켜짐 → 엔진음 다시
     if (!on()) { eng.g.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.05); return; }
     const t = ctx.currentTime, L = Math.max(0, Math.min(1, level || 0));
     const gear = Math.min(2, Math.floor(L * 3)), rpm = L * 3 - gear;                 // 기어 안에서 0~1
@@ -140,7 +147,8 @@ const Sound = (function () {
     eng.lp.frequency.setTargetAtTime(420 + L * 1400 + (boost ? 900 : 0), t, 0.08);
     eng.g.gain.setTargetAtTime(0.04 + L * 0.05 + (boost ? 0.03 : 0), t, 0.1);   // 계속 울리니 총·충돌음보다 작게
   }
-  function engineStop() {
+  function engineStop() { engWanted = false; engineHalt(); }   // 게임이 끔 (완주 · 판 끝)
+  function engineHalt() {                                       // 소리만 멈춤 (음소거)
     if (!eng) return;
     const t = ctx.currentTime; eng.g.gain.setTargetAtTime(0.0001, t, 0.12);
     const e = eng; eng = null; setTimeout(() => { try { e.o1.stop(); e.o2.stop(); e.sub.stop(); e.rum.stop(); } catch (x) {} }, 600);
@@ -175,12 +183,12 @@ const Sound = (function () {
   return Object.assign({
     resume: resume,
     engineStart: engineStart, engineSet: engineSet, engineStop: engineStop, skidSet: skidSet,
-    setEnabled: function (v) { enabled = v; if (!v) { engineStop(); skidSet(0); } },
+    setEnabled: function (v) { enabled = v; if (!v) { engineHalt(); skidSet(0); } },
     isEnabled: function () { return enabled; },
-    setForcedMute: function (v) { forced = !!v; if (forced) { engineStop(); skidSet(0); } },   // 교사 전체 음소거
+    setForcedMute: function (v) { forced = !!v; if (forced) { engineHalt(); skidSet(0); } },   // 교사 전체 음소거
     isForcedMute: function () { return forced; },
     setVolume: function (v) { volume = v; if (master) master.gain.value = v; },
-    _attach: function (c) { wire(c); voices = 0; Object.keys(lastAt).forEach(k => delete lastAt[k]); eng = null; skid = null; },   // 검사용: 오프라인 오디오에 연결
+    _attach: function (c) { wire(c); voices = 0; Object.keys(lastAt).forEach(k => delete lastAt[k]); eng = null; engWanted = false; skid = null; },   // 검사용: 오프라인 오디오에 연결
 
     // ── 기존 이름 (다른 게임 호환) ──
     move:      function () { if (allow('move', 30, 0.06)) tone(180, 0.05, 'square', 0.16); },

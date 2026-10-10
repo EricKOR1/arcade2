@@ -15,7 +15,9 @@ class MissileGame {
     this.startWave();
   }
   get citiesLeft() { return this.cities.filter(c => c.alive).length; }
-  startWave() { this.spawnLeft = 5 + this.wave * 3; this.spawnTimer = 800; this.bases[0].ammo = 10 + Math.min(10, this.wave * 2); this.waveClear = 0; }
+  // 탄: 예전처럼 10 + 웨이브×2 (최대 20) 이되, 미사일 수 + 2 보다 적지는 않게 (최대 36)
+  // (예전: 6웨이브부터 미사일이 탄보다 많아져(23·26·29발 대 20발) 실력과 상관없이 7~8웨이브에서 끝남)
+  startWave() { this.spawnLeft = 5 + this.wave * 3; this.spawnTimer = 800; this.bases[0].ammo = Math.min(36, Math.max(10 + Math.min(10, this.wave * 2), this.spawnLeft + 2)); this.waveClear = 0; }
 
   // 톡 누른 자리(칸 단위)로 요격탄 발사
   tapAt(x, y) {
@@ -57,7 +59,7 @@ class MissileGame {
       if (m.y >= this.H - 1) { this.missiles.splice(i, 1); this.burst(m.x, this.H - 1, '#FF5C7A');
         const c = this.cities.find(c => c.alive && Math.abs(c.x - m.x) < 0.9); if (c) { c.alive = false; if (window.Sound) Sound.crash(); }
         if (Math.abs(this.bases[0].x - m.x) < 0.9) { this.bases[0].ammo = Math.max(0, this.bases[0].ammo - 4); if (window.Sound) Sound.crash(); }
-        if (this.citiesLeft === 0) { this.gameOver = true; if (window.Sound) Sound.gameOver(); } } }
+        if (this.citiesLeft === 0 && !this.gameOver) { this.gameOver = true; if (window.Sound) Sound.gameOver(); } } }
     // 웨이브 끝: 남은 도시·탄약 보너스
     if (this.spawnLeft === 0 && !this.missiles.length && !this.waveClear) { this.waveClear = now + 2200; this.score += this.citiesLeft * 100 + this.bases[0].ammo * 5; this.saved += this.citiesLeft; if (window.Sound) Sound.levelUp(); }
     if (this.waveClear && now > this.waveClear) { this.wave++; if (this.wave % 3 === 0) { const d = this.cities.find(c => !c.alive); if (d) d.alive = true; } this.startWave(); }
@@ -76,11 +78,17 @@ class MissileGame {
     return g;
   }
 
-  draw() {
-    const ctx = this.ctx, cs = this.cellSize, W = this.W * cs, H = this.H * cs, now = this.now;
+  // 움직이지 않는 배경(하늘·별·땅·도시·기지 몸체)을 한 장에 그려 둡니다 — 도시가 무너지거나 살아날 때·크기가 바뀔 때만 다시 그림
+  // (예전: 매 프레임 그라데이션 30여 개로 같은 그림을 새로 그렸음)
+  bgLayer(W, H, cs, k) {
+    const sig = cs + ':' + k + ':' + this.cities.map(c => c.alive ? 1 : 0).join('');
+    if (this._bg && this._bgSig === sig) return this._bg;
+    const cv = this._bg || document.createElement('canvas'); cv.width = Math.max(1, Math.round(W * k)); cv.height = Math.max(1, Math.round(H * k));
+    const ctx = cv.getContext('2d'); ctx.setTransform(k, 0, 0, k, 0, 0);
     const sky = ctx.createLinearGradient(0, 0, 0, H); sky.addColorStop(0, '#04061A'); sky.addColorStop(1, '#1A1440'); ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
-    if (!this._stars) this._stars = Array.from({ length: 40 }, () => [Math.random() * W, Math.random() * H * 0.8, Math.random()]);
-    this._stars.forEach(s => { ctx.fillStyle = 'rgba(255,255,255,' + (0.3 + s[2] * 0.5).toFixed(2) + ')'; ctx.fillRect(s[0], s[1], 1.5, 1.5); });
+    // 별: 0~1 비율로 저장 (예전: 처음 화면 픽셀로 저장해 화면을 돌리면 별이 한쪽에 몰렸음)
+    if (!this._stars) this._stars = Array.from({ length: 40 }, () => [Math.random(), Math.random() * 0.8, Math.random()]);
+    this._stars.forEach(s => { ctx.fillStyle = 'rgba(255,255,255,' + (0.3 + s[2] * 0.5).toFixed(2) + ')'; ctx.fillRect(s[0] * W, s[1] * H, 1.5, 1.5); });
     // 땅 · 도시
     { const hg = ctx.createLinearGradient(0, H - cs * 2.2, 0, H - cs); hg.addColorStop(0, 'rgba(124,106,246,0)'); hg.addColorStop(1, 'rgba(124,106,246,0.25)'); ctx.fillStyle = hg; ctx.fillRect(0, H - cs * 2.2, W, cs * 1.2); }
     ctx.fillStyle = '#2C2347'; ctx.fillRect(0, H - cs, W, cs);
@@ -91,12 +99,22 @@ class MissileGame {
         [[-0.7, 0.6], [-0.3, 0.9], [0.1, 0.5], [0.4, 0.8]].forEach(([o, h]) => { const bg2 = ctx.createLinearGradient(x + o * cs, 0, x + o * cs + cs * 0.28, 0); bg2.addColorStop(0, '#5FD8FF'); bg2.addColorStop(1, '#1D7FA6'); ctx.fillStyle = bg2; ctx.fillRect(x + o * cs, y - h * cs, cs * 0.28, h * cs);
           ctx.fillStyle = 'rgba(255,224,150,0.85)'; for (let wy = y - h * cs + cs * 0.1; wy < y - cs * 0.12; wy += cs * 0.17) ctx.fillRect(x + o * cs + cs * 0.06, wy, cs * 0.06, cs * 0.07); }); }
       else { ctx.fillStyle = '#5A4A6A'; ctx.fillRect(x - 0.7 * cs, y - cs * 0.15, cs * 1.3, cs * 0.15); } });
-    // 기지
+    // 기지 몸체
+    const bx = this.bases[0].x * cs, by = H - cs;
+    const dg = ctx.createRadialGradient(bx - cs * 0.3, by - cs * 0.6, cs * 0.1, bx, by - cs * 0.3, cs * 1.0); dg.addColorStop(0, '#B8ADFF'); dg.addColorStop(1, '#4F3FC2');
+    ctx.fillStyle = dg; ctx.beginPath(); ctx.arc(bx, by, cs * 0.95, Math.PI, 0); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#2C2347'; ctx.beginPath(); ctx.arc(bx, by, cs * 0.55, Math.PI, 0); ctx.closePath(); ctx.fill();
+    this._bg = cv; this._bgSig = sig;
+    return cv;
+  }
+
+  draw() {
+    const ctx = this.ctx, cs = this.cellSize, W = this.W * cs, H = this.H * cs, now = this.now;
+    const tf = ctx.getTransform ? ctx.getTransform() : null, k = (tf && tf.a) || 1;   // 기기 해상도 배율 — 배경도 같은 선명도로
+    ctx.drawImage(this.bgLayer(W, H, cs, k), 0, 0, W, H);
+    // 기지 포신 (조준 방향)
     const b = this.bases[0], bx = b.x * cs, by = H - cs;
-    { const dg = ctx.createRadialGradient(bx - cs * 0.3, by - cs * 0.6, cs * 0.1, bx, by - cs * 0.3, cs * 1.0); dg.addColorStop(0, '#B8ADFF'); dg.addColorStop(1, '#4F3FC2');
-      ctx.fillStyle = dg; ctx.beginPath(); ctx.arc(bx, by, cs * 0.95, Math.PI, 0); ctx.closePath(); ctx.fill();
-      ctx.fillStyle = '#2C2347'; ctx.beginPath(); ctx.arc(bx, by, cs * 0.55, Math.PI, 0); ctx.closePath(); ctx.fill();
-      ctx.fillStyle = '#C9D1DC'; ctx.save(); ctx.translate(bx, by - cs * 0.15); ctx.rotate(this._aimA != null ? this._aimA : -Math.PI / 2); ctx.fillRect(0, -cs * 0.08, cs * 0.9, cs * 0.16); ctx.restore(); }
+    { ctx.fillStyle = '#C9D1DC'; ctx.save(); ctx.translate(bx, by - cs * 0.15); ctx.rotate(this._aimA != null ? this._aimA : -Math.PI / 2); ctx.fillRect(0, -cs * 0.08, cs * 0.9, cs * 0.16); ctx.restore(); }
     ctx.fillStyle = '#fff'; ctx.font = '800 ' + Math.round(cs * .45) + 'px Pretendard, sans-serif'; ctx.textAlign = 'center'; ctx.fillText(String(b.ammo), bx, by - cs * 0.15); ctx.textAlign = 'left';
     // 적 미사일 궤적
     this.missiles.forEach(m => { const tg = ctx.createLinearGradient(m.sx * cs, m.sy * cs, m.x * cs, m.y * cs); tg.addColorStop(0, 'rgba(255,92,122,0)'); tg.addColorStop(1, 'rgba(255,92,122,0.75)');

@@ -29,7 +29,7 @@ class BreakoutGame {
   // 좌표는 "칸" 단위 — 화면 크기와 무관하게 동작합니다
   resetLevel(first) {
     const rows = Math.min(7, 4 + this.level);
-    this.bricks = [];
+    this.bricks = []; this._bv = (this._bv || 0) + 1;
     for (let r = 0; r < rows; r++)
       for (let c = 0; c < BRICK_COLS; c++) {
         // 위쪽 줄은 두 번 맞아야 깨집니다 (레벨 2부터)
@@ -75,7 +75,7 @@ class BreakoutGame {
   // 벽돌에 피해 (공·레이저 공통)
   damageBrick(i, dmg) {
     const k = this.bricks[i]; if (!k) return;
-    k.hp -= dmg;
+    k.hp -= dmg; this._bv++;
     this.flash.push({ x: k.x, y: k.y, t: 1, color: k.color });
     if (k.hp <= 0) {
       this.bricks.splice(i, 1); this.left--; this.score += 10 * this.level;
@@ -209,7 +209,8 @@ class BreakoutGame {
       // 패들 — 맞은 위치에 따라 각도가 달라지고, 튕길 때마다 조금씩 빨라집니다
       if (b.vy > 0 && b.y + b.r >= this.paddleY && b.y - b.r <= this.paddleY + 0.5 &&
           b.x >= this.paddleX - b.r && b.x <= this.paddleX + this.paddleW + b.r) {
-        const rel = (b.x - (this.paddleX + this.paddleW / 2)) / (this.paddleW / 2);
+        // 모서리 끝에 맞아도 수직에서 약 69° 까지만 (예전: 작은 패들·큰 공이면 거의 수평이나 아래로 튕겨 공이 기어가거나 그대로 빠짐)
+        const rel = Math.max(-1.15, Math.min(1.15, (b.x - (this.paddleX + this.paddleW / 2)) / (this.paddleW / 2)));
         this.hits++;
         // 자석 패들: 공이 붙습니다 (발사 버튼으로 다시 쏨). 한 번에 하나만
         if (now < this.magnetUntil && !this.stuck) { this.stuck = b; b.offset = rel; b.vx = 0; b.vy = 0; b.y = this.paddleY - b.r; if (window.Sound) Sound.lock(); continue; }
@@ -227,9 +228,12 @@ class BreakoutGame {
         const k = this.bricks[i];
         if (b.x + b.r < k.x || b.x - b.r > k.x + 1 || b.y + b.r < k.y || b.y - b.r > k.y + 1) continue;
         if (!pierce) {
+          // 맞은 면 쪽으로 밀어내고, 그 면에서 멀어지는 방향으로 튕김
+          // (예전: 부호만 뒤집고 겹친 채로 둬서, 다음 계산에서 또 맞아 두 번 뒤집힘 → 2번 맞아야 하는 벽돌을 한 번에 뚫고 지나감)
           const ox = Math.min(b.x + b.r - k.x, k.x + 1 - (b.x - b.r));
           const oy = Math.min(b.y + b.r - k.y, k.y + 1 - (b.y - b.r));
-          if (ox < oy) b.vx = -b.vx; else b.vy = -b.vy;
+          if (ox < oy) { const left = b.x < k.x + 0.5; b.vx = left ? -Math.abs(b.vx) : Math.abs(b.vx); b.x += left ? -ox : ox; }
+          else { const up = b.y < k.y + 0.5; b.vy = up ? -Math.abs(b.vy) : Math.abs(b.vy); b.y += up ? -oy : oy; }
         }
         this.damageBrick(i, pierce ? 2 : 1);
         if (!pierce) break;
@@ -258,7 +262,7 @@ class BreakoutGame {
   }
 
   brickLayer(cs) {
-    const sig = cs + ':' + this.bricks.map(k => k.x + ',' + k.y + ',' + k.hp).join('|');
+    const sig = cs + ':' + this._bv;   // 벽돌이 바뀔 때만 번호가 오름 (예전: 매 프레임 벽돌 84개로 긴 문자열을 만들어 비교)
     if (this._layerSig === sig && this._layer) return this._layer;
     const W = BRICK_COLS * cs, H = BRICK_ROWS * cs;
     if (!this._layer) this._layer = document.createElement('canvas');

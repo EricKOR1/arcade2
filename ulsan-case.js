@@ -100,7 +100,7 @@ const UC_PLACES = {
   onsanHarbor: { name: '온산항', at: [132.9, 93.7] },
   mouth:   { name: '명촌교 (태화강 하구)', at: [153.0, -21.0] }
 };
-const UC_START = [90.6, -29.6];
+const UC_START = [88.6, -28.6];   // 시청 재난상황실 앞 강둑 — 예전 [90.6, -29.6] 은 가벼운 화질에서 상황실 건물에 바로 붙어 첫 '위(W)' 이동이 0.5칸에서 막혔음
 // 장소 사람들 자리 (장소 기준 · 물가에서 한 발 물러남) — 온산 어민: 위판장 뒤 마른 땅 (v2026-10-18a · 예전 자리는 제련소 담장과 바다 사이 좁은 틈이라 물에 잠긴 땅 · 카메라와 사이에 제련소가 없게) · 울산항 어민: 부두 창고 사이 마른 땅 (예전 자리는 여천천 하구 물에 잠긴 강둑)
 const UC_NPC_AT = { researcher: ['lab', -5, 7], forecaster: ['weather', 4, 7], doctor: ['clinic', 4, 7], resident: ['garden', 4, 9], riverman: ['riverOffice', 4, 7], fisherT: ['mouth', 6, 5], fisherO: ['onsanHarbor', -7.9, -5.2], fisherP: ['port', -1.8, 1.2] };
 function ucNpcAt(id) { const [k, a, b] = UC_NPC_AT[id], P = UC_PLACES[k].at; return [P[0] + a, P[1] + b]; }
@@ -221,7 +221,7 @@ function ucAirConc(C, polId, x, z, h) {
     const along = dx * ax + dz * az, cross = -dx * az + dz * ax; if (along <= 2) return 0;
     const sig = 6 + along * 0.22; return q * Math.exp(-cross * cross / (2 * sig * sig)) / (1 + along / 40) / (0.6 + w.spd * 0.25); };
   if (C.pol === polId && P.path === 'air' && h >= C.t0 && h <= C.t0 + C.dur + 0.3) { const pt = ucPoint(C.point); c += plume(pt.x, pt.z, P.peak); }
-  const cap = Math.min((P.limit - P.base) * 0.6, (polId === 'h2s' ? 4.5 : polId === 'benzene' ? 6.55 : 26.2) * 0.5);   // 허가 범위(기준) 안 · 센서 기록에 '치솟음'으로 보이지 않을 만큼
+  const cap = Math.min((P.limit - P.base) * 0.6, (polId === 'h2s' ? 3.4 : polId === 'benzene' ? 6.55 : 26.2) * 0.5);   // 허가 범위(기준) 안 · 센서 기록에 '치솟음'으로 보이지 않을 만큼 · 공기 시료 분석·검지관에서도 '평소의 5배'(크게 높음) 아래 (황화수소: 예전 4.5 → 평소 배출만으로 5.5배까지 나와 범인 물질처럼 보였음)
   let dsum = 0; C.decoys.forEach(dc => { if (dc.pol === polId && dc.point.x != null) dsum += plume(dc.point.x, dc.point.z, P.peak * dc.k * 0.3); }); c += Math.min(dsum, cap);
   return c;
 }

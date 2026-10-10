@@ -78,7 +78,7 @@ class SourceHuntGame {
   // 화면 아래 액션 바(범례·힌트·드론)는 마지막 두 줄(셀 좌표) 영역
   tapAt(x, y) {
     if (this.gameOver) return;
-    if (this.result) { if (this.now - this.result.at > 900) { this.result = null; if (this.lives <= 0) { this.gameOver = true; if (window.Sound) Sound.gameOver(); } else this.newCase(); } return; }
+    if (this.result) { if (this.now - this.result.at > 900) { this.result = null; if (this.lives <= 0) this.gameOver = true; else this.newCase(); } return; }   // 끝 소리는 플랫폼(endGame)이 냄 — 예전엔 여기서도 울려 두 번 겹쳤음
     if (this.legend) { this.legend = false; return; }
     // 액션 바
     if (y >= this.H - 1.6) {
@@ -88,8 +88,9 @@ class SourceHuntGame {
       else this.armDrone();
       return;
     }
+    if (this.anim.some(a => a.kind === 'case')) return;   // '사건 #N' 배너가 판을 가리는 동안(약 0.5초) 누른 것은 무시 — 시작하자마자 연타하거나 결과 카드를 넘기며 두세 번 톡하면 보이지 않는 자리에 센서가 놓이거나 핀이 지목됐음
     const cx = Math.floor(x), cy = Math.floor(y);
-    if (cx < 0 || cy < 0 || cx >= this.W || cy >= this.H - 1.6) return;
+    if (cx < 0 || cy < 0 || cx >= this.W || cy >= this.H - 2) return;   // 지도는 14줄까지 (예전: 액션 바 바로 위 틈을 누르면 보이지 않는 15번째 줄에 센서가 놓여 하나를 버림)
     const cand = this.cands.find(c => Math.hypot(c.x + 0.5 - x, c.y + 0.5 - y) < 0.62);   // 핀(반지름 0.5칸) 안쪽만 — 옆 칸을 누르면 센서
     if (cand && !this.droneArmed) {
       if (this.excluded.includes(cand)) { this.flash('AI 가 제외한 후보예요', '#9AA3B2'); return; }
@@ -146,8 +147,10 @@ class SourceHuntGame {
   move() {} rotate() {} softDrop() {} hardDrop() {}
 
   tick(now) {
-    this.now = now; if (!this.caseStart) this.caseStart = now;
+    const prev = this.now; this.now = now; if (!this.caseStart) this.caseStart = now;
     if (this.gameOver) return;
+    if (this.legend && !this.result && prev) this.caseStart += now - prev;   // 범례를 보는 동안은 제한 시간이 멈춤 (예전: 시계는 계속 흘러 오래 보면 닫자마자 '시간 초과'로 ♥ 하나를 잃음)
+    if (this.result && this.lives <= 0 && now - this.result.at > 3000) { this.result = null; this.gameOver = true; this.draw(); return; }   // 마지막 ♥: 3초 뒤 저절로 끝 (예전: 톡할 때까지 '게임 중'으로 남아 결과 화면이 안 뜸) · 끝 소리는 플랫폼이 냄
     const { dt, f } = FX.frame(this, now);
     this.anim = this.anim.filter(a => (a.t -= 0.03 * f) > 0);
     this.parts = FX.stepParts(this.parts, f, 0.03);
@@ -286,7 +289,7 @@ class SourceHuntGame {
       ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.font = F('600', px * 3.4); ctx.fillText('진원지: ' + this.source.name + (this.result.ok ? ' · 센서 ' + this.result.used + '개 · ' + this.result.secs + '초' : ''), W / 2, by + px * 24);
       ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.font = F('600', px * 3);
       ctx.fillText(this.result.ok ? (this.kind === 'air' ? '바람을 거슬러 값이 커지는 끝이 진원지' : '하류 값이 크고 상류가 0인 지점 바로 위') : '공개된 확산 모양을 보고 다음엔 거슬러 올라가 보세요', W / 2, by + px * 28.5);
-      ctx.fillStyle = '#FFD166'; ctx.font = F('700', px * 3.2); ctx.fillText('화면을 톡 → 다음 사건', W / 2, by + px * 33.5); ctx.textAlign = 'left'; }
+      ctx.fillStyle = '#FFD166'; ctx.font = F('700', px * 3.2); ctx.fillText(this.lives <= 0 ? '♥를 모두 잃었어요 — 곧 수사 종료' : '화면을 톡 → 다음 사건', W / 2, by + px * 33.5); ctx.textAlign = 'left'; }
     if (this.gameOver) { ctx.fillStyle = 'rgba(8,13,24,0.75)'; ctx.fillRect(0, 0, W, H); ctx.textAlign = 'center'; ctx.fillStyle = '#fff'; ctx.font = F('800', px * 7); ctx.fillText('수사 종료', W / 2, H / 2 - px * 4);
       ctx.font = F('600', px * 3.6); ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.fillText(this.solved + '건 해결 · 최고 ' + this.bestCombo + '연속', W / 2, H / 2 + px * 4); ctx.textAlign = 'left'; }
   }

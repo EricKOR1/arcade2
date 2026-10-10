@@ -86,12 +86,21 @@ class UlsanRpgGame {
   setBoost(on) { if (on) this.interact(); }
   // ── 점프 (v2026-10-20b): 낮은 담장·상자·화단 등(높이 UlsanRpgGame.JUMP_CLEAR 칸 이하)은 뛰어넘거나 위에 올라설 수 있음 ──
   jump() { if (this.ui.modalOpen || this.ov || this.gameOver) return; const sup = this.supportH(this.px, this.pz); if (this.jv || (this.jh || 0) > sup + 0.02) return; this.jv = UlsanRpgGame.JUMP_V; this._actT = this.now || 0; }
-  resize() { const W = this.host.clientWidth || 800, H = this.host.clientHeight || 600; if (!this.renderer || W < 10) return;
+  resize() { const W = this.host.clientWidth || 800, H = this.host.clientHeight || 600; if (!this.renderer || W < 10 || this._dead) return;
     if (this.touch && !this.noPace && (this.qLevel == null || this.qLevel > 0)) { const pr = Math.min(window.devicePixelRatio || 1, Math.max(1.25, Math.min(1.5, Math.sqrt(0.65e6 / (W * H))))); if (Math.abs(pr - this.renderer.getPixelRatio()) > 0.01) this.renderer.setPixelRatio(pr); }   // 절전: 폰·태블릿은 그릴 점 수를 약 65만 개 안쪽으로 (배율 1.25~1.5 · 예전 1.5 고정 — 태블릿은 약 220만 개)
     this.renderer.setSize(W, H, false); if (this.composer) this.composer.setSize(W, H); this.glCanvas.style.width = '100%'; this.glCanvas.style.height = '100%'; this.camera.aspect = W / H; this.camera.updateProjectionMatrix(); this.vw = W; this.vh = H;
     if (this.ui.quest) { this.ui.quest.classList.toggle('compact', (H < 540 && W > H) || W < 600); this.ui.quest.classList.toggle('tiny', H < 540 && W > H); this._toastK = null; } }   // tiny(폰 가로): 다음 할 일 한 줄 + 안내 단추는 아이콘만 (조이스틱과 겹치지 않게)   // 낮은 가로 화면 · 폰 세로: 퀘스트 창을 줄여 조이스틱·3D 화면을 덜 가리게
-  destroy() { this._dead = true; try { this.renderer.dispose(); this.ui.root.remove(); this.host.classList.remove('urpg-host'); removeEventListener('keydown', this._kd); removeEventListener('keyup', this._ku); removeEventListener('blur', this._blur); document.removeEventListener('visibilitychange', this._blur); } catch (e) {} }
-  captureTo(g, w, h) { this.renderer.render(this.scene, this.camera); g.drawImage(this.glCanvas, 0, 0, w, h); }
+  destroy() { this._dead = true; try { this.freeGL(); } catch (e) {} try { this.renderer.dispose(); this.ui.root.remove(); this.host.classList.remove('urpg-host'); removeEventListener('keydown', this._kd); removeEventListener('keyup', this._ku); removeEventListener('blur', this._blur); document.removeEventListener('visibilitychange', this._blur); } catch (e) {} }
+  // 판을 끝낼 때 GPU 자원(그물 · 재질 · 무늬 · 그림자 · 환경광 · 후처리)을 바로 돌려줌 — renderer.dispose() 보다 먼저 (그 뒤엔 무늬를 찾지 못해 안 지워짐)
+  //   예전: renderer.dispose() 만 해서 교사가 대기실로 돌렸다 다시 시작할 때마다 같은 캔버스(같은 WebGL)에 텍스처·버퍼·셰이더가 한 판씩 쌓였음 (실사풍 한 판 ≈ 텍스처 50개 · 버퍼 650개 · 셰이더 30개)
+  freeGL() {
+    const seen = new Set(), tex = t => { if (t && t.isTexture && !seen.has(t)) { seen.add(t); t.dispose(); } };
+    const mat = m => { if (!m || seen.has(m)) return; seen.add(m); Object.keys(m).forEach(k => { if (k !== 'envMap') tex(m[k]); }); if (m.uniforms) Object.keys(m.uniforms).forEach(k => { const u = m.uniforms[k]; if (u) tex(u.value); }); m.dispose(); };
+    [this.scene, this.skyScene].forEach(S => { if (S) S.traverse(o => { if (o.geometry && !seen.has(o.geometry)) { seen.add(o.geometry); o.geometry.dispose(); } [].concat(o.material || []).forEach(mat); if (o.customDepthMaterial) mat(o.customDepthMaterial); if (o.isInstancedMesh && o.dispose) o.dispose(); if (o.isLight && o.shadow && o.shadow.map) { o.shadow.map.dispose(); o.shadow.map = null; } }); });
+    [this.seaTex, this.winEm, this.detailTex, this._qmTex].forEach(tex); (this.waterMats || []).forEach(w => tex(w.tex));
+    if (this.realPostOff) this.realPostOff(); if (this.envRT) { this.envRT.dispose(); this.envRT = null; } if (this.pmrem) { this.pmrem.dispose(); this.pmrem = null; } if (this.scene) this.scene.environment = null;
+  }
+  captureTo(g, w, h) { if (this._dead) return; this.renderer.render(this.scene, this.camera); g.drawImage(this.glCanvas, 0, 0, w, h); }
   get evidenceCount() { return this.evidence.length - 1; }
   get timeLeft() { return this.caseLeftSec / 3600; }
   // 이 사건에 남은 실제 시간(초) — 보고서를 낸 뒤·끝난 뒤엔 멈춤
@@ -422,7 +431,7 @@ class UlsanRpgGame {
     const iv = this.lastTime ? this.paceIv(now) : 0; if (iv && now - this.lastTime < iv - 4) return;   // 절전: 이번 화면 차례는 건너뜀 (지난 시간은 다음 장에 한꺼번에)
     this._paceIv = iv; this._drawnAt = now;
     const dt = this.lastTime ? Math.min(0.1, Math.max(0, (now - this.lastTime) / 1000)) : 0.016; this.lastTime = now; this.now = now;   // 느린 기기(초당 10프레임)에서도 같은 속도
-    if (this.gameOver) { if (this.replay) { this.replay.objs.forEach(o => this.scene.remove(o)); this.replay = null; this.ui.root.classList.remove('rp-on'); this.ui.rp.classList.add('hidden'); } if (this.ov) this.exitOverview(); this.updateHud(); return this.draw(); }
+    if (this.gameOver) { if (this.replay) { this.replay.objs.forEach(o => { this.scene.remove(o); o.traverse(x => { if (x.geometry) x.geometry.dispose(); if (x.material) x.material.dispose(); if (x.isInstancedMesh && x.dispose) x.dispose(); }); }); this.replay = null; this.ui.root.classList.remove('rp-on'); this.ui.rp.classList.add('hidden'); } if (this.ov) this.exitOverview(); this.updateHud(); return this.draw(); }
     let mx = this.mx, my = this.my; if (this.keys.KeyA || this.keys.ArrowLeft) mx -= 1; if (this.keys.KeyD || this.keys.ArrowRight) mx += 1; if (this.keys.KeyW || this.keys.ArrowUp) my -= 1; if (this.keys.KeyS || this.keys.ArrowDown) my += 1;
     const m = Math.hypot(mx, my); let moving = false;
     if (m > 0.1 && !this.ui.modalOpen && !this.ov) { const k = Math.min(1, m), dist = 16 * k * dt, dx = mx / m, dz = my / m, n = Math.max(1, Math.ceil(dist / 0.3)), st = dist / n;
@@ -475,6 +484,7 @@ class UlsanRpgGame {
     if (this.mg) this.mgFrame(now); else if (!(this.ui.modalOpen && this._cover)) this.draw();   // 미니게임 중 · 화면을 거의 다 덮는 창(전체 지도·수첩 등)이 열려 있으면 3D 를 다시 그리지 않음 (가벼움)
   }
   draw() {
+    if (this._dead) return;   // 끝낸 판(destroy 뒤): 대기실 화면 크기 맞추기·다음 판 시작 때 플랫폼이 부르는 draw() 가 지운 장면을 같은 WebGL 에 다시 올리던 것 (판마다 버퍼 약 550개 · 셰이더 25개가 쌓임)
     // 절전: 그림자 지도는 움직일 때만 매번 새로 · 가만히 있으면 0.2초에 한 번 (예전: 아무것도 안 움직여도 매 화면 도시 전체를 한 번 더 그렸음)
     const SM = this.renderer && this.renderer.shadowMap; if (SM && SM.enabled) { const t = this.now || performance.now(); if (SM.autoUpdate) SM.autoUpdate = false;
       if (!this._shT || this._shDirty || t - (this._actT || 0) < 700 || t - this._shT > 200 || t < this._shT) { SM.needsUpdate = true; this._shT = t; this._shDirty = false; } }
@@ -623,7 +633,7 @@ class UlsanRpgGame {
       const big = air ? ratio >= 5 : over, rtx = '평소의 ' + (ratio >= 10 ? Math.round(ratio) : ratio.toFixed(1)) + '배';
       const verdict = this.set.ratio === 'none' ? '' : strong ? (big ? '<b class="no">⚠ ' + (air ? '아주 높음' : '기준 초과') + '</b><small>' + rtx + '</small>' : ratio >= 2 ? '조금 높음<small>' + rtx + '</small>' : '보통') : (over ? '<b class="no">기준 초과</b> ' : '') + '<span class="dim">' + rtx + '</span>';   // 쉬움·보통: 판정 글자 · 어려움: 몇 배인지만
       rows.push('<tr' + (strong && big ? ' class="hotrow"' : '') + (big ? ' data-big="1"' : '') + '><th>' + Q.name + '<small>' + Q.desc + '</small></th><td><b>' + (val < 0.01 ? val.toFixed(4) : val < 1 ? val.toFixed(3) : val.toFixed(1)) + '</b> ' + Q.unit + '</td><td class="dim">평소 ' + Q.base + (air ? '' : '<br>기준 ' + Q.limit) + '</td>' + (verdict ? '<td>' + verdict + '</td>' : '') + '</tr>');
-      if (pid === C.pol && val > Q.base * 3) { if (s.kind === 'air') key = true; else { const d = ucDownstream(pt.river, pt.s, s.river, s.s); if (d >= 0 && d < 140) key = true; } }
+      if (pid === C.pol && val > Q.base * 3) { if (s.kind === 'air') key = true; else { const d = ucDownstream(pt.river, pt.s, s.river, s.s); if (d >= 0 && (d < 140 || val > Q.limit)) key = true; } }   // 기준을 넘었으면 멀리 떨어진 신고 지점 물도 결정적 증거 (예전: 태화강 사건의 약 9%는 신고 지점이 배출구에서 140칸 넘게 떨어져 ① 의 핵심 증거가 '결정적'으로 안 셈)
       if (pid === C.pol && s.kind !== 'air' && P.path === 'water' && val <= Q.limit && s.river === pt.river && s.s < pt.s && pt.s - s.s < 70) key = true;   // 바로 위(상류)가 깨끗함 = 위치를 좁히는 증거
     }));
     this.addEvidence({ title: '📊 분석 결과 · ' + s.label.replace(/^(💧 물 |🌫 공기 )/, ''), sk: s.kind, html: '<table class="u-lab">' + rows.join('') + '</table>' + (s.kind === 'air' ? '<p class="dim">평소보다 <b>크게</b> 높은 물질이 ① 답일 가능성이 커요. 냄새 · 아픈 사람들의 증상도 함께 보세요.</p>' : '<p class="dim"><b>기준</b> = 법으로 정한 한도예요. 공장이 평소 조금씩 내보내는 물은 기준 안이라, <b>기준을 넘은</b> 물질이 ① 답일 가능성이 커요.</p>'), key });
@@ -1498,7 +1508,7 @@ class UlsanRpgGame {
   }
   replayRestart() { const r = this.replay; if (!r) return; r.t = r.start; r.play = true; r.began = r.stopped = false; r.log = []; if (r.parts) r.parts = []; r.sensors.forEach(s => { s.hit = false; s.m.scale.setScalar(1); s.m.material.color.set('#9AA3B5'); if (this.hq !== 'low') s.m.material.color.convertSRGBToLinear(); }); this.ui.rpPlay.textContent = '⏸'; this.ui.rpLog.innerHTML = ''; }
   stopReplay() {
-    const r = this.replay; if (!r) return; r.objs.forEach(o => { this.scene.remove(o); o.traverse(x => { if (x.geometry) x.geometry.dispose(); if (x.material) x.material.dispose(); }); }); this.replay = null;
+    const r = this.replay; if (!r) return; r.objs.forEach(o => { this.scene.remove(o); o.traverse(x => { if (x.geometry) x.geometry.dispose(); if (x.material) x.material.dispose(); if (x.isInstancedMesh && x.dispose) x.dispose(); }); }); this.replay = null;
     this.ui.root.classList.remove('rp-on'); this.ui.rp.classList.add('hidden'); this.ui.rpLab.classList.remove('on'); this.exitOverview(); this._dayKey = null; this.setDayTime(this.nowH);
     if (this.report && !this.gameOver) this.showResult(this.report);
   }

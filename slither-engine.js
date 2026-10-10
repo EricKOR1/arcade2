@@ -234,7 +234,7 @@ class SlitherGame {
   setMove(x, y) { this.mx = x; this.my = y; }
   setBoost(on) { this.boost = !!on; }
   setQuality(q) { this.quality = q; }
-  fire() { this.boost = true; }            // 패드 호환: 발사 = 부스트
+  fire() { this.boost = true; this.kbBoost = true; }   // 패드 호환: 발사(스페이스) = 부스트 — 키를 떼면(firing=false) tick 에서 끔 (예전: 스페이스 한 번에 부스트가 계속 켜져 길이가 줄어듦)
   releaseFire() { this.boost = false; }
 
   dropPelletsFrom(pts, from, cnt) { const end = Math.min(pts.length, from + cnt); for (let i = from; i < end; i += 2) { const t = pts[i]; this.spawnPellet(t[0] + (this.rnd() - .5) * .4, t[1] + (this.rnd() - .5) * .4, 2); } }
@@ -282,6 +282,7 @@ class SlitherGame {
     this.frameN++;
     if (!this.superCool) this.superCool = now + SL_SUPER_GAP;                       // 시작하고 15초 동안은 슈퍼 없음
     if (this.deadUntil > 0 && now >= this.deadUntil) this.respawn();
+    if (this.kbBoost && !this.firing) { this.kbBoost = false; this.boost = false; }   // 스페이스를 뗌
     this.stepPeers(f, now);                                                          // 상대를 먼저 옮김 — 판정이 이번 프레임 화면과 같도록
     { const l = this.leaderId(); if (l !== this.leader || l !== this.myId) this.leadSince = now; this.leader = l; }   // leadSince: 내가 1등이 된 시각
     if (!this.isDead) {
