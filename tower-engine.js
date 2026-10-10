@@ -57,19 +57,24 @@ class TowerGame {
       const sec = (now - (this.levelStartAt || now)) / 1000, bonus = Math.max(0, Math.round((60 - sec) * 20));
       this.level++; this.climbed++; this.score += 500 * this.level + bonus; this.lastBonus = bonus; this.bonusUntil = now + 2000; this.levelStartAt = now;
       if (window.Sound) Sound.levelUp(); this.barrels = []; this.resetPlayer(); this.invul = 1500; }
-    // 통 생성 · 이동 (맨 위 층 왼쪽에서 출발, 층 끝에서 아래로 떨어지고 방향 전환, 가끔 사다리로 내려감)
+    // 통 생성 · 이동 (맨 위 층 왼쪽에서 출발, 층 끝에서 아래로 떨어지고 방향 전환, 가끔 아래층으로 이어진 사다리를 타고 내려감)
     // 통 생성 간격: 1층 4초 → 층마다 0.35초씩 짧아져 최소 1초. 속도: 1층 0.07 → 층마다 +0.01
     this.spawnT -= dt; if (this.spawnT <= 0) { this.spawnT = Math.max(1000, 4000 - (this.level - 1) * 350); this.barrels.push({ x: 1, y: 5, dir: 1, vy: 0, falling: false, rot: 0 }); }
     const bs = Math.min(0.16, 0.07 + (this.level - 1) * 0.01);
     const ladderChance = Math.min(0.5, 0.15 + (this.level - 1) * 0.06);   // 사다리로 내려올 확률: 1층 15% → 서서히
+    // 학생이 그 사다리에 매달려 있거나 발치(아래층 착지 지점 근처)에 있으면 그 사다리로는 안 내려감 (머리 위로 떨어뜨리지 않게)
+    const nearLadder = ([lx, by, ty]) => Math.abs(this.x - lx - 0.5) < 1.6 && this.y > ty + 0.3 && this.y < by + 0.3;
     this.barrels.forEach(b => { b.rot += b.dir * 0.2 * f;
+      // 사다리 타고 내려가기: 일정한 속도로 내려가 아래층에 닿으면 반대 방향으로 굴러감
+      if (b.ladderTo != null) { b.y = Math.min(b.ladderTo, b.y + 0.1 * f); if (b.y >= b.ladderTo) { b.ladderTo = null; b.dir = -b.dir; } return; }
       if (b.falling) { b.vy += 0.03 * f; b.y += b.vy * f;
         // 떨어지기 시작한 층보다 '아래'의 층에만 착지 (같은 층에 다시 걸려 영원히 튕기던 버그)
         const fl = this.floors.find(fy => fy > (b.fromY || 0) + 0.5 && b.y >= fy - 0.05 && b.y <= fy + 0.6);
         if (fl != null && b.y >= fl) { b.y = fl; b.falling = false; b.vy = 0; b.dir = -b.dir; b.fromY = null; } return; }
-      b.x += b.dir * bs * f;
-      const lad = this.ladders.find(([lx, by]) => by === b.y && Math.abs(lx + 0.5 - b.x) < 0.15);
-      if (lad && Math.random() < ladderChance && !b.usedLadder) { b.usedLadder = true; b.falling = true; b.fromY = b.y; b.vy = 0.05; b.x = lad[0] + 0.5; return; }
+      const px = b.x; b.x += b.dir * bs * f;
+      // 이 층이 꼭대기인 사다리(= 아래층으로 가는 사다리) 위를 지나는 순간 한 번만 정함 (예전: 위로 가는 사다리 발치에서 바닥을 뚫고 떨어짐)
+      const lad = !b.usedLadder && this.ladders.find(([lx, , ty]) => ty === b.y && (px - lx - 0.5) * (b.x - lx - 0.5) <= 0);
+      if (lad && Math.random() < ladderChance && !nearLadder(lad)) { b.usedLadder = true; b.ladderTo = lad[1]; b.x = lad[0] + 0.5; return; }
       if (b.x < 0.5 || b.x > this.W - 0.5) { b.falling = true; b.fromY = b.y; b.vy = 0; b.x = Math.max(0.5, Math.min(this.W - 0.5, b.x)); b.usedLadder = false; }
     });
     this.barrels = this.barrels.filter(b => b.y < this.H + 1 && !(b.y >= this.floors[0] && (b.x <= 0.5 || b.x >= this.W - 0.5)));

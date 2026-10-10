@@ -212,12 +212,26 @@ p { margin: 0 }
 }
 .nav-back:active { transform: scale(.92); background: rgba(255,255,255,.16) }
 .nav-back.hidden { display: none !important }
+/* ← 버튼 오른쪽 아래 모서리에 붙은 작은 소리 버튼 — 게임마다 위쪽 HUD 자리가 달라 늘 비어 있는 이 모서리만 씀 */
+.mute-float {
+  position: fixed; left: calc(36px + env(safe-area-inset-left)); top: calc(36px + env(safe-area-inset-top));
+  z-index: 61; width: 26px; height: 26px; border-radius: 50%; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  font: 700 13px/1 Pretendard, sans-serif; color: var(--a-text);
+  background: var(--a-glass2); border: 1px solid var(--a-line2); box-shadow: var(--shadow-float);
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.mute-float::before { content: ''; position: absolute; inset: -2px -8px -8px -2px; border-radius: 50% }   /* 누르는 자리를 오른쪽·아래로만 넓힘 (← 버튼 가운데를 누르면 늘 뒤로 가기) */
+.mute-float.off { color: #FF8A8A; border-color: rgba(255,138,138,.55) }
+.mute-float:active { transform: scale(.9) }
+.mute-float.hidden { display: none !important }
 /* 게임 화면에서는 점수 칩과 겹치지 않도록 상단 바를 밀어 줍니다 */
 #screen-game.active ~ .nav-back, .app .nav-back { }
 #screen-game .topbar { padding-left: 60px }
 #screen-dom .dom-host { padding-top: 4px }
 @media (orientation: landscape) and (max-height: 540px) {
   .nav-back { width: 36px; height: 36px; border-radius: 11px; font-size: 17px }
+  .mute-float { left: calc(31px + env(safe-area-inset-left)); top: calc(31px + env(safe-area-inset-top)); width: 23px; height: 23px; font-size: 12px }
   #screen-game .topbar { padding-left: 52px }
 }
 

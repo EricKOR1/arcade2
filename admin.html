@@ -304,9 +304,12 @@
       if (n) eventsRef.update(up); }); }, 20000);
 
   // ── 젬 아레나 광산: 교사 화면이 젬을 솟게 합니다 (누군가 한 명이 맡아야 모두 같은 젬을 봅니다) ──
-  let gemN = 0, currentStatus = 'idle', currentStartAt = 0, gemSpotsCache = null;
+  let gemN = 0, currentStatus = 'idle', currentStartAt = 0, gemSpotsCache = null, gemLast = 0;
+  // 젬이 솟는 간격: 인원이 많을수록 길게 — 30명이면 젬이 나오자마자 주워져 한 판이 1~2분 만에 끝났음 (10명 이하 4초 · 20명 이하 5초 · 그 이상 6초)
+  const gemEvery = () => lastPlayerCount > 20 ? 6000 : lastPlayerCount > 10 ? 5000 : 4000;
   setInterval(() => {
     if ((GAMES[currentGameId] || {}).mapRegistry !== 'arena' || currentStatus !== 'playing') return;   // 젬 아레나 2D·3D 공통 광산
+    if (Date.now() - gemLast < gemEvery()) return; gemLast = Date.now();
     db.ref('gems').once('value').then(s => { const all = s.val() || {}; const free = Object.keys(all).filter(k => !all[k].by).length;
       if (free >= 20) return;
       // 젬은 '걸을 수 있는 칸' 목록(맵이 계산) 중 하나에 — 예전엔 광산 벽 안에도 생겼습니다
@@ -316,7 +319,7 @@
       let pick = null; for (let t = 0; t < 8 && !pick; t++) { const c = spots[Math.floor(Math.random() * spots.length)]; if (!taken.some(g => Math.hypot(g.x - c[0], g.y - c[1]) < 0.9)) pick = c; }
       if (!pick) return;
       db.ref('gems/g' + (gemN++) + '_' + Date.now().toString(36)).set({ x: pick[0], y: pick[1] }); });
-  }, 4000);
+  }, 500);
 
   // ── 게임 분류 칩 ──
   $('game-filter').addEventListener('click', e => {

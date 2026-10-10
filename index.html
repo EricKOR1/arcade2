@@ -24,6 +24,7 @@
 <div class="app">
 
   <button id="nav-back" class="nav-back hidden" aria-label="뒤로">←</button>
+  <button id="mute-float" class="mute-float hidden" aria-label="소리 끄기">♪</button>
 
 
   <!-- 입장 -->
@@ -333,6 +334,9 @@
     curScreen = id;
     const back = BACK_TO[id];
     document.getElementById('nav-back').classList.toggle('hidden', !back);
+    // 소리 버튼: 위 막대(♪)가 안 보이는 화면(대기실·결과, 위 막대를 숨기는 카트·대전·울산 게임 화면)에서는 ← 모서리의 작은 버튼으로
+    const topHidden = document.querySelector('.topbar').classList.contains('kart-mode');
+    document.getElementById('mute-float').classList.toggle('hidden', !back || (id === 'screen-game' && !topHidden));
     // 뒤로 갈 곳이 있으면 기록을 하나 쌓아 둡니다 (휴대폰 뒤로가기가 여기서 잡힙니다)
     if (back) { try { history.pushState({ screen: id }, ''); } catch (e) {} }
   }
@@ -474,13 +478,18 @@
   const names = {}, peerPos = {}, hazards = {};
 
   // ── 소리 ──
-  const muteBtn = document.getElementById('mute-btn');
-  muteBtn.addEventListener('click', () => {
-    const on = !Sound.isEnabled();
+  const muteBtn = document.getElementById('mute-btn'), muteFloat = document.getElementById('mute-float');
+  // 학생이 고른 소리 켜기/끄기는 기기에 기억 — 선생님이 게임을 옮겨 페이지가 새로 열려도 그대로 (예전: 옮길 때마다 다시 켜짐)
+  function setMute(on, save) {
     Sound.setEnabled(on);
     if (window.Haptic) Haptic.on = on;                   // 소리를 끄면 진동도 끕니다
-    muteBtn.textContent = on ? '♪' : '✕';
-  });
+    muteBtn.textContent = muteFloat.textContent = on ? '♪' : '✕';
+    muteFloat.classList.toggle('off', !on); muteBtn.setAttribute('aria-label', on ? '소리 끄기' : '소리 켜기'); muteFloat.setAttribute('aria-label', on ? '소리 끄기' : '소리 켜기');
+    if (save) { try { localStorage.setItem('arcade.sound', on ? '1' : '0'); } catch (e) {} }
+  }
+  muteBtn.addEventListener('click', () => setMute(!Sound.isEnabled(), true));
+  muteFloat.addEventListener('click', e => { e.stopPropagation(); setMute(!Sound.isEnabled(), true); });
+  try { if (localStorage.getItem('arcade.sound') === '0') setMute(false, false); } catch (e) {}
 
   // ── 입장 ──
   // ── 주소창 없이: 전체 화면 ──
