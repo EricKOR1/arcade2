@@ -76,7 +76,7 @@ class TerritoryGame {
     const hx = this.cx + TR_DIRS[this.dir][0] * this.p, hy = this.cy + TR_DIRS[this.dir][1] * this.p, now = this.now || 0;
     const fl = (this.has('shield') ? 1 : 0) | (this.has('speed') ? 2 : 0) | (this.has('slow') ? 4 : 0);   // 효과 (친구 화면에 방패 고리 · 번개 꼬리)
     let s = [hx.toFixed(2), hy.toFixed(2), this.dir, this.isDead ? 1 : 0, this.ci, this.kills, this.cells, fl].join(',') + '|' + this.corners();
-    if (now - this._full > 2000) { this._full = now; s += '|' + this.terrRle(); }   // 2초마다 내 땅 전체 (늦게 들어온 친구도 땅을 보게)
+    if (now - this._full > ((this.opts.sendMs || 165) > 200 ? 4000 : 2000)) { this._full = now; s += '|' + this.terrRle(); }   // 2초마다 내 땅 전체 (늦게 들어온 친구도 땅을 보게) — 21명 이상(전송 간격이 길 때)은 4초마다: 땅이 넓어지면 이 부분이 신호의 대부분이라
     return s;
   }
   corners() { const T = this.trail; if (!T.length) return ''; const out = []; for (let i = 0; i < T.length; i++) { const a = T[i - 1], b = T[i], c = T[i + 1]; if (!a || !c || (b % TR_N - a % TR_N) !== (c % TR_N - b % TR_N) || ((b / TR_N | 0) - (a / TR_N | 0)) !== ((c / TR_N | 0) - (b / TR_N | 0))) out.push((b % TR_N) + '.' + (b / TR_N | 0)); } return out.join(';'); }
@@ -88,9 +88,14 @@ class TerritoryGame {
     if (typeof raw !== 'string' || id === this.myId) return; const [h, tr, terr] = raw.split('|'), a = h.split(',');
     const x = +a[0], y = +a[1]; if (!isFinite(x) || !isFinite(y)) return;
     const p = this.peers[id] || (this.peers[id] = { x, y, trailKey: null, trail: new Set(), trailPts: [] }), dead = a[3] === '1';
-    if (!p.dead && dead) { this.clearOwner(id); p.trail = new Set(); p.trailPts = []; }   // 친구가 탈락: 그 땅이 비어요
+    if (!p.dead && dead) { this.clearOwner(id); p.trail = new Set(); p.trailPts = [];   // 친구가 탈락: 그 땅이 비어요
+      if (p.pcut > 0 && (this.now || 0) - p.pcut < 1500) { p.pcut = 0; this.kills++; this.toast('✂️ ' + (name || p.name || '친구') + '의 꼬리를 잘랐어요!', '#FFE38A'); if (window.Sound) (Sound.kill || Sound.levelUp).call(Sound); } }   // 머리 너머를 자른 뒤 1.5초 안에 탈락
     if (Math.hypot(p.x - x, p.y - y) > 3) { p.x = x; p.y = y; }
     Object.assign(p, { tx: x, ty: y, dir: +a[2] || 0, dead, ci: (+a[4] || 0) % TR_COLORS.length, kills: +a[5] || 0, cells: +a[6] || 0, fl: +a[7] || 0, name: name || p.name || '' });
+    // 도착 간격(이동 평균)으로 '다음 신호가 올 때쯤 받은 위치 조금 앞에 닿는' 속도를 정함 → 그 사이를 고른 속도로 감 (tick). 보내는 간격은 인원에 따라 165~235ms
+    { const now = this.now || 0, iv = p.iv || this.opts.sendMs || 165; p.iv = p.rcv == null ? iv : (now - p.rcv < iv * 2.5 ? iv + (Math.max(40, now - p.rcv) - iv) * 0.15 : iv); p.rcv = now; p.rcvS = this.clock();
+      const N = Math.max(3, p.iv / 16.7), v = TR_SPEED / 60 * (p.fl & 2 ? 1.5 : 1) * (p.fl & 4 ? 0.6 : 1), M = N * 0.1, dist = Math.abs(x - p.x) + Math.abs(y - p.y);
+      p.spd = Math.max(v * 0.5, Math.min(v * 2.5, (dist - v * M) / N)); p.mg = v * M; }
     if (tr !== p.trailKey) { p.trailKey = tr; p.trail = new Set(); p.trailPts = []; const pts = (tr || '').split(';').filter(Boolean).map(q => q.split('.').map(Number)).filter(q => q.length === 2 && q.every(isFinite));
       for (let k = 0; k < pts.length; k++) { const [x0, y0] = pts[k], nx = pts[k + 1] || pts[k]; const dx = Math.sign(nx[0] - x0), dy = Math.sign(nx[1] - y0); let X = x0, Y = y0, g = 0; p.trail.add(this.idx(X, Y)); while ((X !== nx[0] || Y !== nx[1]) && g++ < 200) { X += dx; Y += dy; p.trail.add(this.idx(X, Y)); } }
       p.trailPts = pts; }
@@ -103,12 +108,21 @@ class TerritoryGame {
   removePeer(id) { if (!this.peers[id]) return; this.clearOwner(id); delete this.peers[id]; }
   clearOwner(id) { for (let i = 0; i < this.own.length; i++) if (this.own[i] === id) this.own[i] = null; this.miniDirty = true; }
   lostCell() {}
+  // 친구의 받은 머리 칸 너머로 '지금쯤 곧게 더 간' 칸들 (최대 3칸) 안에 i 가 있나 — 그 친구 땅에 들어가면 꼬리가 없으니 멈춤
+  freshTrail(p, id, i) {
+    if (p.tx == null || p.rcv == null) return false;
+    const D = TR_DIRS[p.dir | 0] || TR_DIRS[0], X = D[0] > 0 ? Math.floor(p.tx + 1e-6) : D[0] < 0 ? Math.ceil(p.tx - 1e-6) : Math.round(p.tx), Y = D[1] > 0 ? Math.floor(p.ty + 1e-6) : D[1] < 0 ? Math.ceil(p.ty - 1e-6) : Math.round(p.ty);
+    const v = TR_SPEED * (p.fl & 2 ? 1.5 : 1) * (p.fl & 4 ? 0.6 : 1), K = Math.min(3, Math.ceil(v * ((this.now || 0) - p.rcv + 150) / 1000));
+    for (let k = 1; k <= K; k++) { const x = X + D[0] * k, y = Y + D[1] * k; if (x < 0 || y < 0 || x >= TR_N || y >= TR_N) return false; const c = this.idx(x, y); if (this.own[c] === id) return false; if (c === i) return true; }
+    return false;
+  }
   onEvent(e) {
     if (!e || e.by === this.myId) return;
     if (e.type === 'cap') { const cells = TerritoryGame.rleCells(e.rle); let lost = 0; cells.forEach(i => { if (this.own[i] === this.myId) lost++; this.own[i] = e.by; }); this.recount(); this.miniDirty = true;
       if (lost >= 8 && !this.isDead) this.toast('😮 ' + ((this.peers[e.by] || {}).name || '친구') + '가 내 땅 ' + lost + '칸을 가져갔어요', '#FFB3BF'); }
     if (e.type === 'item' && e.k) { this.taken.add(e.k); this.items = this.items.filter(q => q.key !== e.k); }
-    if (e.type === 'cut' && e.target === this.myId && !this.isDead && this.trail.length) { if (this.has('shield')) { this.toast('🛡 방패가 꼬리를 지켰어요!', '#9BE7FF'); return; } this.die(((this.peers[e.by] || {}).name || '친구') + '가 내 꼬리를 밟았어요', e.by); }
+    if (e.type === 'cut' && e.target === this.myId && !this.isDead && this.trail.length) { if (e.c != null && (!this.trailSet.has(+e.c) || (e.ct && this.trailAt && this.trailAt.get(+e.c) > e.ct))) return;   // 그 칸이 지금 내 꼬리가 아니거나(벌써 땅으로 돌아옴 · 예측이 빗나감) 친구가 지나간 뒤에 내가 들어갔으면 무시
+      if (this.has('shield')) { this.toast('🛡 방패가 꼬리를 지켰어요!', '#9BE7FF'); return; } this.die(((this.peers[e.by] || {}).name || '친구') + '가 내 꼬리를 밟았어요', e.by); }
   }
   recount() { let n = 0; for (let i = 0; i < this.own.length; i++) if (this.own[i] === this.myId) n++; this.cells = n; this.best = Math.max(this.best, n); this.score = this.best; }
   die(why, by) {
@@ -136,9 +150,13 @@ class TerritoryGame {
     const i = this.idx(x, y);
     if (this.trailSet.has(i)) { this.die('내 꼬리를 밟았어요'); return; }
     const it = this.items.find(q => q.x === x && q.y === y); if (it) this.pickup(it);
-    Object.keys(this.peers).forEach(id => { const p = this.peers[id]; if (!p.dead && !(p.fl & 1) && p.trail.has(i)) { p.trail = new Set(); this.kills++; this.toast('✂️ ' + (p.name || '친구') + '의 꼬리를 잘랐어요!', '#FFE38A'); if (this.opts.onAttack) this.opts.onAttack('cut', id, {}); if (window.Sound) (Sound.kill || Sound.levelUp).call(Sound); } });
+    Object.keys(this.peers).forEach(id => { const p = this.peers[id]; if (p.dead || (p.fl & 1)) return;
+      if (p.trail.has(i)) { p.trail = new Set(); this.kills++; this.toast('✂️ ' + (p.name || '친구') + '의 꼬리를 잘랐어요!', '#FFE38A'); if (this.opts.onAttack) this.opts.onAttack('cut', id, { c: i, ct: Math.round(this.clock()) }); if (window.Sound) (Sound.kill || Sound.levelUp).call(Sound); }
+      // 받은 꼬리 끝(머리) 너머: 신호가 오는 사이 친구가 곧게 더 가며 만든 꼬리 — 그 친구 기기가 칸을 확인해 탈락 (점수는 탈락 신호를 받으면)
+      //   (신호 간격이 길면(인원이 많은 판) 머리 바로 뒤를 가로지른 자르기가 20% 넘게 빠지던 것 — 모의 실험)
+      else if (!(p.pcut > 0 && (this.now || 0) - p.pcut < 1500) && this.freshTrail(p, id, i)) { p.pcut = this.now || 1; if (this.opts.onAttack) this.opts.onAttack('cut', id, { c: i, ct: Math.round(this.clock()) }); } });
     if (this.own[i] === this.myId) { if (this.trail.length) this.capture(); }
-    else { this.trail.push(i); this.trailSet.add(i); }
+    else { this.trail.push(i); this.trailSet.add(i); (this.trailAt || (this.trailAt = new Map())).set(i, this.clock()); }   // trailAt: 그 칸에 들어간 시각(서버 시계) — 자르기 확인 · 친구 머리 신호가 그보다 오래된 것이면 '밟음' 아님
   }
   tick(now) {
     const { dt, f } = FX.frame(this, now), k = dt / 1000; this.run += k;
@@ -150,10 +168,19 @@ class TerritoryGame {
       this.p += TR_SPEED * (this.has('speed') ? 1.5 : 1) * (this.has('slow') ? 0.6 : 1) * k;
       while (this.p >= 1 && !this.isDead) { this.p -= 1; this.cx += TR_DIRS[this.dir][0]; this.cy += TR_DIRS[this.dir][1];
         if (this.want !== this.dir && !((this.want + 2) % 4 === this.dir && this.trail.length)) this.dir = this.want; this.enter(); }
-      // 친구 머리가 내 꼬리 위에 있으면 (신호가 늦어도 꼬리 잘림이 빠지지 않게)
-      if (this.trail.length && !this.isDead && !this.has('shield')) Object.keys(this.peers).forEach(id => { const p = this.peers[id]; if (p.dead || this.isDead) return; const i = this.idx(Math.round(p.tx), Math.round(p.ty)); if (this.trailSet.has(i) && i !== this.trail[this.trail.length - 1]) this.die((p.name || '친구') + '가 내 꼬리를 밟았어요', id); });
+      // 친구 머리가 내 꼬리 위에 있으면 (신호가 늦어도 꼬리 잘림이 빠지지 않게) — 단 그 칸에 신호가 오기 0.25초 전보다 늦게 들어갔으면 친구가 먼저 지나간 것 (예전: 바로 뒤를 자르면 자른 쪽도 함께 탈락)
+      if (this.trail.length && !this.isDead && !this.has('shield')) Object.keys(this.peers).forEach(id => { const p = this.peers[id]; if (p.dead || this.isDead) return; const i = this.idx(Math.round(p.tx), Math.round(p.ty)), at = this.trailAt && this.trailAt.get(i); if (this.trailSet.has(i) && i !== this.trail[this.trail.length - 1] && !(at != null && p.rcvS != null && at > p.rcvS - 250)) this.die((p.name || '친구') + '가 내 꼬리를 밟았어요', id); });
     }
-    Object.values(this.peers).forEach(p => { p.x += ((p.tx == null ? p.x : p.tx) - p.x) * Math.min(1, k * 10); p.y += ((p.ty == null ? p.y : p.ty) - p.y) * Math.min(1, k * 10); });
+    // 친구 머리: 받은 위치까지 정해 둔 속도로 고르게 (칸 따라 ㄱ자로 — 먼저 지금 방향의 줄에 맞춘 뒤 그 줄을 따라). 다음 신호가 늦으면 서서히 늦추고, 닿은 뒤엔 지금 방향으로 0.35칸까지만 더
+    //   (예전: 남은 거리의 일정 비율씩 — 신호를 받을 때마다 확 갔다가 멈칫, 간격이 길수록 심해짐. 모의 실험 235ms: 멈칫 프레임 15% → 1%)
+    Object.values(this.peers).forEach(p => { if (p.tx == null) return;
+      const D = TR_DIRS[p.dir | 0] || TR_DIRS[0], ex = p.tx - p.x, ey = p.ty - p.y, ah = ex * D[0] + ey * D[1], side = D[0] ? ey : ex, dist = Math.max(0, ah) + Math.abs(side);   // ah: 앞쪽 남은 거리 · side: 옆 어긋남
+      let m = (p.spd || TR_SPEED / 60) * f * Math.min(1, 0.4 + 0.6 * dist / Math.max(1e-6, p.mg || 0.3));
+      const s1 = Math.min(Math.abs(side), m); m -= s1; if (D[0]) p.y += Math.sign(side) * s1; else p.x += Math.sign(side) * s1;   // 먼저 줄 맞추기
+      let fw = 0;
+      if (Math.abs(side) - s1 < 1e-9) { if (ah > 0) { fw = Math.min(ah, m); m -= fw; }      // 그 줄을 따라 받은 위치까지
+        if (m > 0 && !p.dead) fw += Math.min(m, Math.max(0, 0.35 - Math.max(0, fw - ah))); }  // 다음 신호가 늦으면 지금 방향으로 조금만 더 (멈칫 대신 · 꺾였으면 다음 신호 때 되돌아감)
+      p.x += D[0] * fw; p.y += D[1] * fw; });
     this.parts = FX.stepParts(this.parts, f, 0.03); this.pops = (this.pops || []).filter(q => (q.t -= 0.02 * f) > 0); this.toasts = this.toasts.filter(t => t.until > now);
     this.draw();
   }

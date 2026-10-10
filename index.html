@@ -1109,7 +1109,7 @@
 
   // ── 시작 ──
   function startGame() {
-    const gen = ++startGen; if (loopRaf) { cancelAnimationFrame(loopRaf); loopRaf = null; } lastSync = null; lastSyncJs = '';   // 예전 판의 그리기 고리가 남아 있으면 끊음 (두 겹으로 돌면 기기가 두 배로 일함)
+    const gen = ++startGen; if (loopRaf) { cancelAnimationFrame(loopRaf); loopRaf = null; } lastSync = null; lastSyncJs = ''; lastPosJs = '';   // 예전 판의 그리기 고리가 남아 있으면 끊음 (두 겹으로 돌면 기기가 두 배로 일함)
     overShown = false; document.querySelectorAll('.gameover-flash').forEach(e => e.remove());   // 새 판: 게임 오버 안내 초기화
     byId('rank-stat').classList.add('hidden'); byId('over-label').textContent = '최종 점수'; byId('final-detail').textContent = '';   // 지난 판 순위·완주 표시가 남지 않게
     started = true;
@@ -1126,6 +1126,9 @@
       const r = snap.val() || {};
       Object.keys(r).forEach(id => { names[id] = r[id] || ''; });
       const order = Object.keys(r).sort();
+      // 위치 신호 간격: 모두가 서로의 신호를 받으므로 받는 양은 인원² 에 비례 — 인원이 많으면 조금 늦게 보냄 (30명 기준 한 시간 다운로드 약 30% 줄임)
+      //   받는 엔진은 실제 도착 간격을 재서 그 사이를 고르게 그림 (opts.sendMs 는 처음 값)
+      const sendMs = !isRealtime ? 250 : order.length <= 12 ? 165 : order.length <= 20 ? 200 : 235;
       const slot = Math.max(0, order.indexOf(playerId));
 
       // 테트리스는 다른 사람 정보가 필요 없으므로 수신을 끊어 통신량을 아낌
@@ -1139,7 +1142,7 @@
         const cd = sessionStartAt ? Math.max(0, (sessionStartAt - serverNow()) / 1000) : undefined;
         game = def.create(canvas, {
           countdown: cd, charId: (def.chars ? (sessionStorage.getItem('charId') || 'bolt') : undefined), teamInfo: (def.chars ? myTeamInfo() : undefined),
-          cellSize: cellSize, trackId: trackId, slot: slot, seed: sessionStartAt || 0,   // seed: 같은 판 = 같은 사건(울산 환경 수사대)
+          cellSize: cellSize, trackId: trackId, slot: slot, seed: sessionStartAt || 0, sendMs: sendMs,   // seed: 같은 판 = 같은 사건(울산 환경 수사대)
           teams: sessionTeams, roster: order, serverNow: serverNow,   // 레이저 태그: 매칭전 경기 배정표 · 위치 신호의 보낸 시각(서버 시계)
           myId: playerId, myName: myNickname,
           onDropHazard: dropHazard, onHitHazard: hitHazard, nameOf: id => names[id] || '',
@@ -1163,7 +1166,7 @@
 
         // 네트워크 전송이 프레임 중간에 끼어들면 그 순간 화면이 멈칫합니다.
         // 타이머는 '보낼 때'만 표시하고, 실제 전송은 그리기가 끝난 뒤에 합니다.
-        clearInterval(syncTimer); syncTimer = setInterval(() => { syncDue = true; }, isRealtime ? 165 : 250);
+        clearInterval(syncTimer); syncTimer = setInterval(() => { syncDue = true; }, sendMs);
         if (loopRaf) cancelAnimationFrame(loopRaf); loopRaf = requestAnimationFrame(loop);
         setWatched(watchedNow);                           // 교사가 이 학생 화면을 보고 있었으면 바로 보냄 (예전: 다음 수업 신호가 올 때까지 멈춤)
       });
@@ -1221,11 +1224,13 @@
     startHtmlGame();
   });
 
-  let lastScoreSync = 0;
+  let lastScoreSync = 0, lastPosJs = '', lastPosAt = 0;
   function pushState() {
     if (!game) return;
     if (isRealtime) {
-      myPosRef.set(game.serialize());
+      // 위치 신호: 지난번과 같은 글자면 보내지 않음 (가만히 있거나 쓰러져 기다리는 학생 · 완주한 카트) — 3초마다 한 번은 그대로 다시 보냄 (교사 화면이 지운 자리 되살리기)
+      const ps = game.serialize(), pt = Date.now();
+      if (ps !== lastPosJs || pt - lastPosAt > 3000) { lastPosJs = ps; lastPosAt = pt; myPosRef.set(ps); }
       if (!isKart) {
         // 점수·통계는 1초에 한 번만 (교사 화면 목록용)
         if (Date.now() - lastScoreSync > 1000) {

@@ -4,14 +4,17 @@
 const LP_COLS = 10, LP_ROWS = 14, LP_TIME = 8 * 60 * 1000;
 const LP_INK = '#2B2D42', LP_ACC = '#4361EE', LP_RED = '#EF476F', LP_PAPER = '#FFFDF8';
 const LP_FONT = 'Pretendard, sans-serif';
-// 종류별 난이도 설정 (기본점 × 난이도 + 시간 보너스 − 실수 감점)
-const LP_SDK = [{ N: 6, bw: 3, bh: 2, givens: 15, par: 150, label: '쉬움', size: '6×6' },
-                { N: 9, bw: 3, bh: 3, givens: 34, par: 360, label: '보통', size: '9×9' },
-                { N: 9, bw: 3, bh: 3, givens: 25, par: 480, label: '어려움', size: '9×9' }];
-const LP_NONO = [{ n: 5, par: 45, label: '쉬움', size: '5×5' },
-                 { n: 8, par: 120, label: '보통', size: '8×8' },
-                 { n: 10, par: 200, label: '어려움', size: '10×10' }];
-const LP_BASE = { sudoku: 120, nono: 70 }, LP_PEN = 15;
+// 종류별 난이도 설정 (기본점 + 시간 보너스(기준 시간보다 1초 빠를 때마다 1.5점) − 실수 감점)
+//   par(기준 시간) = 예상 풀이 시간(초): 엔진이 만드는 퍼즐을 사람처럼 푸는 봇으로 잰 품(채울 칸 · 확정 칸 찾기 · 줄 추론 수)을
+//   쉬움(6×6 150초 · 5×5 45초)에 맞춰 환산 — 9×9 보통은 6×6 의 약 4배, 어려움(단서 25)은 약 9배, 네모 8×8 은 5×5 의 약 3배, 10×10 은 약 5배
+//   base(기본점) = 예상 시간 1초당 1점 × 난이도 가산(쉬움 1 · 보통 1.1 · 어려움 1.2) — 예전(기본 120·70 × 난이도)은 네모 쉬움 1초당 1.56점, 스도쿠 보통 0.39점이라 쉬운 퍼즐만 반복하는 쪽이 유리했음
+const LP_SDK = [{ N: 6, bw: 3, bh: 2, givens: 15, par: 150, base: 150, label: '쉬움', size: '6×6' },
+                { N: 9, bw: 3, bh: 3, givens: 34, par: 620, base: 680, label: '보통', size: '9×9' },
+                { N: 9, bw: 3, bh: 3, givens: 25, par: 1340, base: 1610, label: '어려움', size: '9×9' }];
+const LP_NONO = [{ n: 5, par: 45, base: 45, label: '쉬움', size: '5×5' },
+                 { n: 8, par: 140, base: 150, label: '보통', size: '8×8' },
+                 { n: 10, par: 230, base: 275, label: '어려움', size: '10×10' }];
+const LP_PEN = 15;
 
 const LPgen = {
   shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; const t = a[i]; a[i] = a[j]; a[j] = t; } return a; },
@@ -306,7 +309,7 @@ class LogicPuzzleGame {
   }
   win() {
     const P = this.pz, cfg = this.kind === 'sudoku' ? LP_SDK[this.diff] : LP_NONO[this.diff];
-    const secs = P.elapsed / 1000, base = (this.diff + 1) * LP_BASE[this.kind];
+    const secs = P.elapsed / 1000, base = cfg.base;
     const bonus = Math.max(0, Math.round((cfg.par - secs) * 1.5)), pen = P.miss * LP_PEN;
     const pts = Math.max(10, base + bonus - pen);
     this.score += pts; this.solved++;
@@ -416,7 +419,7 @@ class LogicPuzzleGame {
         ctx.fillStyle = FX.tint(col, -0.25); FX.rr(ctx, x, y + 3, w, h, cs * 0.25); ctx.fill();
         ctx.fillStyle = gr; FX.rr(ctx, x, y, w, h, cs * 0.25); ctx.fill();
         FX.text(ctx, cf.label, x + w / 2, y + 0.8 * cs, { size: cs * 0.46, weight: 900, color: FX.tint(col, -0.45), align: 'center' });
-        FX.text(ctx, cf.size, x + w / 2, y + 1.35 * cs, { size: cs * 0.34, weight: 700, color: FX.tint(col, -0.3), align: 'center' });
+        FX.text(ctx, cf.size + ' · ' + cf.base + '점', x + w / 2, y + 1.35 * cs, { size: cs * 0.32, weight: 700, color: FX.tint(col, -0.3), align: 'center' });   // 기본점을 보여 줘 어려운 퍼즐을 고를 이유가 보이게
         for (let s = 0; s <= d; s++) { ctx.fillStyle = FX.tint(col, -0.1); ctx.beginPath(); ctx.arc(x + w / 2 + (s - d / 2) * cs * 0.28, y + 1.62 * cs, cs * 0.07, 0, 6.29); ctx.fill(); }
         if (this.saved[k + d]) { ctx.fillStyle = '#F79824'; FX.rr(ctx, x + w - 1.15 * cs, y - 0.2 * cs, 1.25 * cs, 0.5 * cs, cs * 0.25); ctx.fill();
           FX.text(ctx, '이어서', x + w - 0.52 * cs, y + 0.05 * cs, { size: cs * 0.26, weight: 800, color: '#fff', align: 'center', baseline: 'middle' }); }

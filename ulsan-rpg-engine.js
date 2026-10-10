@@ -29,7 +29,7 @@ class UlsanRpgGame {
       ['🔎', '이렇게 수사해요', '<ol class="ht-list"><li><b>단서 모으기</b> — 📱 제보 · 📰 소식 · 사람들 이야기로 <b>어디서</b> 일이 났는지 추리' + (easy ? '' : ' (신고 장소는 바로 알려 주지 않아요)') + '</li><li><b>시료 채취</b> — ' + (water ? '강가에서 💧 물 시료' : '냄새 센서에서 🌫 공기 시료') + ' → 🔬 연구원에서 실험(미니게임) · 분석 → <b>①</b></li><li><b>범인 좁히기</b> — ' + (water ? '🔬 물벼룩 독성 지도: 배출구 <b>바로 위는 깨끗</b>하고 <b>바로 아래부터 독하면</b> 그곳!' : '🧭 바람길: 냄새가 난 곳에서 <b>바람을 거슬러</b> 가면 그 공장!') + ' → <b>② ③</b></li><li><b>시각 맞추기</b> — 🗂 서류 · 💂 경비원 · ' + (water ? '⏪ 시간 되감기(거리 ÷ 물 빠르기)' : '💨 냄새가 치솟은 시각') + ' → <b>④</b></li></ol>'],
       ['🧪', '과학 수사 규칙 3가지', '<ul class="ht-list"><li>💧 <b>강물은 위(상류)에서 아래(하류)로만</b> 흘러요 — 오염은 시작된 곳 아래에서만 나와요.</li><li>🌬 <b>냄새는 바람이 불어 가는 쪽</b>으로 퍼져요 — 거꾸로 거슬러 가면 출발점.</li><li>⏱ <b>걸린 시간 = 거리 ÷ 빠르기</b> — 도착한 시각에서 빼면 떠난 시각.</li></ul><p class="dim">📰 소문과 뉴스는 <b>증거가 아니에요</b>. 측정값으로 확인하세요. 공장 사람들은 범인이든 아니든 비슷하게 말해요 — 👔 심문에서 증거로 모순을 깨 보세요.</p>'],
       ['🏆', '막히면 · 점수', '<ul class="ht-list"><li>' + (hard ? '왼쪽 위 <b>다음 할 일</b>은 짧게만 나와요 (어려움) — 📓 수첩의 사건 개요를 보세요.' : '막히면 왼쪽 위 <b>다음 할 일</b>을 보세요 — 📍 길 안내 · 🚙 바로 가기가 있어요.') + '</li><li>📝 보고서에 네 답 + <b>이유가 된 증거 3개</b>를 골라 제출해요. 시간이 다 되면 <b>자동 제출</b>돼요.</li><li>⭐ 미니게임 별 · 🧩 사건 재구성 보드로 <b>보너스 점수</b>!</li><li>순위는 선생님 화면에서 <b>총점 → 걸린 시간</b> 순이에요.</li></ul>' + (first ? '<p class="ht-go">📖 이 안내를 읽는 동안에는 <b>제한 시간이 멈춰 있어요</b>.</p>' : '')]];
-    const close = () => { this.closeDialog(); if (first) { const d = Math.min(180000, Math.max(0, Date.now() - Math.max(t0, this.caseStartReal))); this.caseStartReal += d; this.startReal += d; this.save(); this.showIntro(true); } };   // 처음: 읽은 시간만큼(최대 3분) 제한 시간·걸린 시간을 뒤로
+    const close = () => { this.closeDialog(); if (first) { const d = Math.min(180000, Math.max(0, Date.now() - Math.max(t0, this.caseStartReal))); this.caseStartReal += d; this.startReal += d; this.readMs = (this.readMs || 0) + d; this.save(); this.showIntro(true); } };   // 처음: 읽은 시간만큼(최대 3분) 제한 시간·걸린 시간을 뒤로
     const draw = () => { const [ic, tt, body] = pages[pg], last = pg === pages.length - 1;
       this.dialog(ic, tt + ' <small class="ht-n">' + (pg + 1) + ' / ' + pages.length + '</small>', '<div class="ht">' + body + '</div><div class="ht-dots">' + pages.map((x, i) => '<i class="' + (i === pg ? 'on' : '') + '"></i>').join('') + '</div>',
         [[last ? '🚀 수사 시작!' : '다음 ▶', () => { if (last) close(); else { pg++; draw(); } }]].concat(pg ? [['◀ 이전', () => { pg--; draw(); }]] : []).concat(last ? [] : [[first ? '건너뛰기 — 바로 시작' : '닫기', close]]), true);
@@ -55,7 +55,7 @@ class UlsanRpgGame {
   get saveKeys() { const t = this.opts.trackId || ''; return ['ulsan:' + this.seed + ':' + t + ':' + (this.opts.myId || '-'), 'ulsan:' + this.seed + ':' + t + ':n:' + (this.opts.myName || '')]; }
   save() {
     if (!this.opts.seed || this._noSave) return; this._savedAt = this.now || 0; this._dirty = false;
-    try { const js = JSON.stringify({ v: 4, caseNo: this.caseNo, results: this.results, startReal: this.startReal, caseStartReal: this.caseStartReal, doneAt: this.doneAt || 0, nowH: this.nowH, samples: this.samples, pending: this.pending,
+    try { const js = JSON.stringify({ v: 4, caseNo: this.caseNo, results: this.results, startReal: this.startReal, caseStartReal: this.caseStartReal, doneAt: this.doneAt || 0, srv: 1, readMs: this.readMs || 0, nowH: this.nowH, samples: this.samples, pending: this.pending,
         evidence: this.evidence, known: this.known, talked: this.talked, visited: this.visited, draft: this.draft, mini: this.mini || null, px: this.px, pz: this.pz, heading: this.heading, warned: this.warned, report: this.report, left: this._leftAtSubmit || 0, finished: !!this.finished, dest: this.dest, seenEv: this.seenEv, fun: this.fun || null });
       const [k1, k2] = this.saveKeys; try { sessionStorage.setItem(k1, js); if (!this._ssPruned) { this._ssPruned = true; for (let i = sessionStorage.length - 1; i >= 0; i--) { const k = sessionStorage.key(i); if (k && k.indexOf('ulsan:') === 0 && k.indexOf('ulsan:' + this.seed + ':') !== 0) sessionStorage.removeItem(k); } } } catch (e) {}   // 지난 판 기록은 지움 (탭을 오래 열어 두면 쌓여 저장이 막히던 것)
       if (this.opts.myName) try { localStorage.setItem(k2, js); for (let i = localStorage.length - 1; i >= 0; i--) { const k = localStorage.key(i); if (k && k.indexOf('ulsan:') === 0 && k.indexOf('ulsan:' + this.seed + ':') !== 0) localStorage.removeItem(k); } } catch (e) {}   // 지난 판 기록은 지움
@@ -70,7 +70,7 @@ class UlsanRpgGame {
   restore(o) {
     this.caseNo = Math.min(o.caseNo, this.caseTotal); this.C = this.makeCase(this.caseNo);
     ['results', 'startReal', 'caseStartReal', 'nowH', 'samples', 'pending', 'evidence', 'known', 'talked', 'visited', 'draft', 'px', 'pz', 'heading', 'warned', 'seenEv', 'mini', 'fun'].forEach(k => { if (o[k] != null) this[k] = o[k]; });
-    this.doneAt = o.doneAt || undefined; this.score = this.results.reduce((a, x) => a + x.score, 0); this.dest = null; if (o.dest) this.setDest(o.dest.x, o.dest.z, o.dest.name, true, o.dest.key);
+    this.readMs = o.readMs || 0; this.doneAt = o.doneAt ? (o.srv ? o.doneAt : o.doneAt + this.clockNow() - Date.now()) : undefined; this.score = this.results.reduce((a, x) => a + x.score, 0); this.dest = null; if (o.dest) this.setDest(o.dest.x, o.dest.z, o.dest.name, true, o.dest.key);
     if (!this.canStand(this.px, this.pz)) this.unstick();   // 저장된 자리가 건물 속·물 위면 (부딪힘이 생기기 전 저장)
     this.camera.position.set(this.px, 45, this.pz + 34);
     if (o.finished) { this.finished = true; this.report = o.report; this._leftAtSubmit = o.left; this.gameOver = true; return; }
@@ -80,7 +80,10 @@ class UlsanRpgGame {
   get casesStr() { return this.results.map(r => r.grade).join(' '); }
   get solvedCount() { return this.results.filter(r => r.fac && r.point).length; }
   get done() { return this.results.length >= this.caseTotal; }
-  get elapsedSec() { return Math.max(0, Math.round(((this.doneAt || Date.now()) - this.startReal) / 1000)); }   // 출발 카운트다운 중 음수 방지
+  // 걸린 시간: 모두 같은 기준 — 공통 출발 시각(opts.seed = 선생님이 시작한 순간 · 서버 시계)부터 서버 시계로 (처음 설명 읽은 시간 최대 3분은 뺌)
+  //   예전: 기기가 스스로 시작한 때부터 재서 늦게 들어오거나 새로고침한 학생이 동점일 때 유리했음 · 판 정보가 없으면(미리보기) 기기 시계로
+  clockNow() { return this.opts.seed && typeof this.opts.serverNow === 'function' ? this.opts.serverNow() : Date.now(); }
+  get elapsedSec() { const s0 = this.opts.seed ? this.opts.seed + (this.readMs || 0) : this.startReal; return Math.max(0, Math.round(((this.doneAt || this.clockNow()) - s0) / 1000)); }   // 출발 카운트다운 중 음수 방지
   // ── 플랫폼 인터페이스 ──
   setMove(x, y) { this.mx = x; this.my = y; }
   setBoost(on) { if (on) this.interact(); }
@@ -1575,7 +1578,7 @@ class UlsanRpgGame {
   submit(rep) {
     this._leftAtSubmit = this.caseLeftSec;
     const r = ucScore(this.C, rep); r.auto = !!rep.auto; r.bonus = this.caseBonus ? this.caseBonus() : 0; r.score += r.bonus; this.report = r; this.results.push(r); this.score = this.results.reduce((a, x) => a + x.score, 0);   // ⭐ 별점 보너스 (미니게임 · 추격) — 등급은 보너스 빼고
-    if (this.done) this.doneAt = Date.now();
+    if (this.done) this.doneAt = this.clockNow();
     this.save(); this.showResult(r);
   }
   // 결과 창 (새로고침 뒤에도 다시 보여 줄 수 있게 따로)
@@ -1599,7 +1602,7 @@ class UlsanRpgGame {
   finalReport() {
     const m = Math.floor(this.elapsedSec / 60), sec = this.elapsedSec % 60;
     const rows = this.results.map((r, i) => '<tr style="--d:' + (0.5 + i * 0.2).toFixed(2) + 's"><th>사건 ' + (i + 1) + '</th><td><b class="gr g-' + r.grade + '">' + r.grade + '</b> ' + r.score + '점 ' + (r.fac && r.point ? '✅ 오염원 확인' : '') + (r.auto ? ' ⏰' : '') + '</td></tr>').join('');
-    this.dialog('🏆', '수사 완료 — 최종 결과', '<div class="u-grade g-final">' + this.score + '<small>' + (this.caseTotal * 100) + '점 만점 · 해결 ' + this.solvedCount + '/' + this.caseTotal + ' · 걸린 시간 ' + m + '분 ' + sec + '초 · ' + this.set.name + '</small></div><table class="u-res">' + rows + '</table><p class="dim">순위는 선생님 화면에서 총점 → 걸린 시간 순으로 매겨져요.</p>',
+    this.dialog('🏆', '수사 완료 — 최종 결과', '<div class="u-grade g-final">' + this.score + '<small>' + (this.caseTotal * 100) + '점 만점 · 해결 ' + this.solvedCount + '/' + this.caseTotal + ' · 걸린 시간 ' + m + '분 ' + sec + '초 · ' + this.set.name + '</small></div><table class="u-res">' + rows + '</table><p class="dim">순위는 선생님 화면에서 총점 → 걸린 시간 순으로 매겨져요. 걸린 시간은 모두 선생님이 시작한 순간부터 재요 (처음 설명을 읽은 시간은 빼요).</p>',
       [['마치기', () => { this.closeDialog(); this.finished = true; this.gameOver = true; this.save(); }]], true);
     this.ui.dlg.querySelector('.u-opts button').className = 'primary';
   }
