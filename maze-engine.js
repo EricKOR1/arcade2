@@ -72,7 +72,8 @@ class MazeGame {
     const keys = Object.keys(this._dmaps); if (keys.length > 60) delete this._dmaps[keys[0]];
     this._dmaps[key] = dm; return dm;
   }
-  get speed() { return 0.075 + (this.level - 1) * 0.008; }
+  // 로봇 속도: 1단계 0.075 → 단계마다 +0.008 · 5단계(0.107)에서 멈춤 (예전엔 끝없이 빨라져 드론이 멈춘 6단계부터 오히려 쉬워지고, 10단계쯤엔 너무 빨라 꺾기 어려움)
+  get speed() { return Math.min(0.107, 0.075 + (this.level - 1) * 0.008); }
 
   // 격자 이동 공통: 이번 프레임에 칸 중심을 만나면 거기서 방향을 정하고 남은 거리만큼 더 갑니다
   stepActor(a, step, decide) {
@@ -122,8 +123,8 @@ class MazeGame {
     this.drones.forEach((d, i) => {
       if (d.dead > 0) { d.dead -= dt; if (d.dead <= 0) { d.dead = 0; d.x = 9; d.y = 9; d.home = true; d.wait = 2000; } return; }
       if (d.home) { d.wait -= dt; if (d.wait <= 0) { d.home = false; d.x = 9; d.y = 7; d.dir = [i % 2 ? 1 : -1, 0]; } return; }
-      // 드론 속도: 1단계 로봇의 75% → 4단계쯤 로봇과 비슷 → 이후 조금 더 빠름
-      const sp = (d.scared ? 0.045 : Math.min(0.086, 0.056 + (this.level - 1) * 0.008)) * f;
+      // 드론 속도: 1단계 로봇의 75% → 5단계 82% → 6단계부터 86% 에서 멈춤 (예전 상한 0.086: 로봇만 계속 빨라져 6단계부터 쉬워짐)
+      const sp = (d.scared ? 0.045 : Math.min(0.092, 0.056 + (this.level - 1) * 0.008)) * f;
       const actor = { get px() { return d.x; }, set px(v) { d.x = v; }, get py() { return d.y; }, set py(v) { d.y = v; }, get dir() { return d.dir; }, set dir(v) { d.dir = v; } };
       this.stepActor(actor, sp, () => {
         const dcx = d.x, dcy = d.y;

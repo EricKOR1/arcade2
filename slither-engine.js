@@ -133,11 +133,14 @@ class SlitherGame {
   // ── 신호 ──
   // x,y,각도,길이,부스트,죽음,겉모습,삼킴 (앞 8칸은 예전 형식과 같음) · 표시(1 무적 2 슈퍼),목숨,마디번호,보낸시각,몸마디수,첫마디x,y(1/100칸),방향들
   serialize() {
+    if (this.isDead && this._deadSer && this._deadKey === this.life + ':' + this.kills) return this._deadSer;   // 쓰러져 기다리는 3초: 같은 글자 → 페이지가 다시 보내지 않음 (보낸 시각만 바뀌던 신호 · 인원² 만큼 받음)
     const t = this.trail, nb = Math.min(t.length, Math.ceil(this.len / SL_SEG) + 3), K = this.clock() < this.fullUntil ? nb : Math.min(SL_K, nb);
     let dirs = ''; for (let i = 1; i < K; i++) dirs += slEnc(Math.atan2(t[i][1] - t[i - 1][1], t[i][0] - t[i - 1][0]));
     const fl = (this.invul > 0 ? 1 : 0) | (this.isSuper ? 2 : 0);
-    return [this.x.toFixed(2), this.y.toFixed(2), this.angle.toFixed(2), Math.round(this.len), (this.boost && this.len > 8 && !this.isDead) ? 1 : 0, this.isDead ? 1 : 0, this.skin, this.kills,
+    const s = [this.x.toFixed(2), this.y.toFixed(2), this.angle.toFixed(2), Math.round(this.len), (this.boost && this.len > 8 && !this.isDead) ? 1 : 0, this.isDead ? 1 : 0, this.skin, this.kills,
       fl, this.life, this.seq, (Math.round(this.clock()) % SL_TSM).toString(36), nb, Math.round((t[0][0] - this.x) * 100), Math.round((t[0][1] - this.y) * 100), dirs].join(',');
+    if (this.isDead) { this._deadSer = s; this._deadKey = this.life + ':' + this.kills; }
+    return s;
   }
   static parse(raw) {
     const a = String(raw).split(','), has = i => a[i] != null && a[i] !== '';
@@ -162,6 +165,9 @@ class SlitherGame {
     p.hx = d.x; p.hy = d.y; p.ang = d.angle; p.len = Math.max(1, Math.min(3000, d.len)); p.boost = d.boost; p.dead = d.dead;
     p.skin = ((Math.round(d.ci) % N) + N) % N; p.kills = d.kills; p.sup = !!(d.fl & 2) && !d.dead; p.inv = !!(d.fl & 1); p.life = d.life; p.nb = d.nb;
     p.name = name || p.name || ''; p.seen = now;
+    // 도착 간격(이동 평균) — 보내는 간격이 인원에 따라 165~235ms 로 달라짐. 다음 신호가 올 때쯤 받은 길 끝 '조금 앞'에 닿는 속도로 정해 그 사이를 고르게 감 (stepPeers)
+    { const iv = p.iv || this.opts.sendMs || 165; p.iv = p.rcv == null ? iv : (now - p.rcv < iv * 2.5 ? iv + (Math.max(40, now - p.rcv) - iv) * 0.15 : iv); p.rcv = now;
+      const N = Math.max(3, p.iv / 16.7), v = SL_SPEED * (p.boost ? 1.7 : 1), M = 1 + N * 0.15; p.spd = Math.max(v * 0.5, Math.min(v * 2.5, (p.lag - v * M) / N)); p.mg = v * M; }
     if (p.sup && !wasSup) { this.superCool = Math.max(this.superCool, now + SL_SUPER_GAP); this.toast(slJosa(p.name || '친구', '이', '가') + ' 슈퍼 지렁이로 태어났다!', '#FFD447'); }
     // 몸이 모자라면 (처음 받음 · 신호가 크게 빠짐) 전체 몸을 한 번 요청 — 3초에 한 번까지
     if (d.seq >= 0 && !d.dead && p.pts.length + 8 < Math.min(d.nb, Math.ceil(p.len / SL_SEG) + 1) && now - this.needAt > 3000) { this.needAt = now; this.send('need', '*', {}); }
@@ -330,9 +336,11 @@ class SlitherGame {
   stepPeers(f, now) {
     for (const id in this.peers) { const p = this.peers[id];
       if (p.dead && !p.dying) continue;
-      const v = SL_SPEED * (p.boost ? 1.7 : 1), T = v * 7;                             // 목표 지연: 약 7프레임(0.12초) 뒤를 그림
+      const v = SL_SPEED * (p.boost ? 1.7 : 1);
       if (p.koAt && now - p.koAt < 600) { /* 내가 '닿음'을 알린 직후: 그 자리에서 멈춰 기다림 */ }
-      else { let adv = v * f * (0.5 + 0.5 * p.lag / T); if (p.dying) adv = Math.max(adv, p.lag * 0.3 * f); p.lag = Math.max(0, p.lag - adv); }
+      // 받은 길 위를 신호를 받을 때 정한 속도(p.spd)로 고르게 따라감. 다음 신호가 늦어 길 끝(여유 p.mg 안)에 가까워지면 서서히 늦춤
+      //   (예전: 남은 길에 비례한 속도 — 신호 간격마다 빨라졌다 느려졌다 했고(165ms 에서 ±35%), 간격이 길면 길 끝에서 자주 멈칫)
+      else { let adv = (p.spd || v) * f * Math.min(1, 0.4 + 0.6 * p.lag / Math.max(1e-6, p.mg || v * 3)); if (p.dying) adv = Math.max(adv, p.lag * 0.3 * f); p.lag = Math.max(0, p.lag - adv); }
       this.placeRender(p);
       if (p.dying && (p.lag < 0.05 || now - p.dyingAt > 500)) {                         // 죽은 자리에 닿음 → 먹이로
         p.dying = false; this.dropPelletsFrom(p.pts, p.vs, p.vn); this.burst(p.rx, p.ry, 16, p.sup ? '#FFD447' : SL_SKINS[p.skin || 0].c); }

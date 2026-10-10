@@ -519,7 +519,7 @@ class KartGame3D extends KartGame {
     im.instanceColor = new T.InstancedBufferAttribute(new Float32Array(64 * 3).fill(1), 3); im.count = 0;   // (setColorAt 은 그때의 count 만큼만 만들어 0 이면 색이 비어 검게 나옴)
     this.scene.add(im); this._farK = im; return im;
   }
-  // 친구들 (2D 판과 같은 0.15초 보간 위치 = stepPeers 가 옮겨 둔 pr.x·y·angle)
+  // 친구들 (2D 판과 같은 보간 위치(신호 간격에 따라 0.15~0.19초 전) = stepPeers 가 옮겨 둔 pr.x·y·angle)
   //   가까운 몇 대만 자세한 모델(그림자 포함) · 나머지는 간단한 카트 한 묶음 · 아주 멀면(안개 속) 생략
   //   (예전엔 30대 모두 자세한 모델 — 카트마다 그리기 3번 + 그림자 3번, 삼각형 1,100개 → 화면이 무거웠음)
   drawPeers3D(now) {

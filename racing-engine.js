@@ -967,7 +967,7 @@ class KartGame {
       const d = map[id];
       if (!this.peers[id]) this.peers[id] = { x: d.x, y: d.y, angle: d.angle };
       const p = this.peers[id];
-      // 샘플 버퍼: 받은 위치를 시각과 함께 쌓아 두고, 그리기는 0.15초 전 시각을 두 샘플 '사이'에서 보간합니다.
+      // 샘플 버퍼: 받은 위치를 시각과 함께 쌓아 두고, 그리기는 0.15초(신호 간격이 길면 조금 더) 전 시각을 두 샘플 '사이'에서 보간합니다.
       // (예측이 틀릴 일이 없어 상대 카트가 떨리지 않습니다 — 온라인 게임의 표준 방식)
       const nowMs = this.clock();
       p.buf = p.buf || [];
@@ -989,13 +989,13 @@ class KartGame {
   }
   setHazards(list) { this.hazards = list; }
 
-  // 상대의 '0.15초 전' 위치를 샘플 사이에서 보간. 최신 샘플보다 뒤면 짧게(최대 0.2초) 직선 예측.
+  // 상대의 '0.15초(pr.dly) 전' 위치를 샘플 사이에서 보간. 최신 샘플보다 뒤면 짧게(최대 0.2초) 직선 예측.
   // out 을 주면 그 객체에 써서 돌려줌 (매 프레임 30명 × 새 객체를 만들지 않게)
   interpPeer(pr, now, out) {
     const o = out || {}, buf = pr.buf;
     const put = (x, y, a, vx, vy, va) => { o.x = x; o.y = y; o.a = a; o.vx = vx || 0; o.vy = vy || 0; o.va = va || 0; return o; };   // v*: 이 순간 움직이는 빠르기(단위/ms)
     if (!buf || !buf.length) return put(pr.tx != null ? pr.tx : pr.x, pr.ty != null ? pr.ty : pr.y, pr.tangle != null ? pr.tangle : pr.angle);
-    const rt = now - (this.interpDelay || 150);
+    const rt = now - (pr.dly || this.interpDelay || 150);   // pr.dly: 그 친구의 신호 간격에 맞춘 지연 (stepPeers)
     let a = null, b = null;
     for (let i = buf.length - 1; i >= 0; i--) { if (buf[i].t <= rt) { a = buf[i]; b = buf[i + 1] || null; break; } }
     if (!a) return put(buf[0].x, buf[0].y, buf[0].a);
@@ -1011,14 +1011,19 @@ class KartGame {
   // 상대 카트를 매 프레임 한 번 '보이는 위치'로 옮김 — 2D·3D 그리기 · 미니맵 · 카트 충돌 · 자석이 모두 이 값(pr.x·y·angle·e)을 씀
   // (예전엔 2D 그리기 안에서만 옮겨 3D 판에서는 상대 위치가 첫 신호에 멈춰 있었음: 미니맵 점이 출발선에 고정 · 보이지 않는 카트와 충돌)
   stepPeers(now, f) {
-    const t = this.track, ip = this._ip || (this._ip = { x: 0, y: 0, a: 0 }), far = t.carLen * 12;
+    const t = this.track, ip = this._ip || (this._ip = { x: 0, y: 0, a: 0 }), far = t.carLen * 12, iv0 = this.opts.sendMs || 165;
     for (const id in this.peers) {
       const pr = this.peers[id], buf = pr.buf;
       // 새 신호에 시각 매기기: 이번 프레임 시각을 도착 시각으로 하고, 네트워크 흔들림(±수십 ms)은 평균 간격으로 걸러냄 (크게 어긋나면 다시 맞춤)
+      // 평균 간격은 실제 도착 간격으로 잼 — 인원이 많은 판은 보내는 간격이 길고(index.html sendMs), 교사 관전은 간격을 모름. 멈췄다 다시 달린 틈(간격의 2.5배 넘게)은 빼고 잼
       if (buf) for (let i = 0; i < buf.length; i++) { const sm = buf[i]; if (!sm.pend) continue; sm.pend = false; sm.ra = now; let ts = now; const lb = i > 0 ? buf[i - 1] : null;
-        if (lb) { const gap = now - lb.ra; pr.iv = (pr.iv || 165) + (Math.max(60, Math.min(400, gap)) - (pr.iv || 165)) * 0.1;   // 보내는 간격(약 165ms)에서 시작
-          const pred = lb.t + pr.iv; ts = pred + (now - pred) * 0.2; if (Math.abs(now - ts) > 220) ts = now; ts = Math.max(ts, lb.t + 30); }
+        if (lb) { const gap = now - lb.ra, iv = pr.iv || iv0; if (gap < iv * 2.5) pr.iv = iv + (Math.max(60, gap) - iv) * 0.1; else pr.iv = iv;
+          const pred = lb.t + pr.iv; ts = pred + (now - pred) * 0.2; if (Math.abs(now - ts) > Math.max(220, pr.iv * 1.35)) ts = now; ts = Math.max(ts, lb.t + 30); }
         sm.t = ts; }
+      // 보간 지연: 간격 165ms → 0.15초(예전과 같음). 간격이 길면 늘어난 간격의 절반만큼 늦게 그림 (235ms → 0.185초) · 바뀔 때는 천천히
+      //   (간격만큼 다 늦추면 가장 매끄럽지만 상대가 0.08초 더 뒤에 보이고, 안 늦추면 예측 구간이 길어져 멈칫 — 모의 실험에서 절반이 균형)
+      const dw = 150 + Math.max(0, Math.min(100, ((pr.iv || iv0) - 165) * 0.5));
+      pr.dly = pr.dly == null ? dw : pr.dly + (dw - pr.dly) * Math.min(1, 0.03 * (f || 1));
       this.interpPeer(pr, now, ip);
       // 보이는 위치 = 시간 기준 보간 위치 + 어긋남. 보간 경로가 꺾이거나(예측이 틀려) 튀면 그 차이를 어긋남에 담아 0.07초마다 절반씩 녹임
       // (예전엔 지난 위치에서 매 프레임 60%씩 따라가게 해 프레임 간격이 들쭉날쭉하면 상대 카트가 빨라졌다 느려졌다 했음)

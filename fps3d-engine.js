@@ -354,6 +354,7 @@ const F3_EYE = 1.6;
 const F3_HIT_GAP = 200;          // 명중 신호를 묶는 간격(ms)
 const F3_BASE_LAT = 80;          // 서버 시계를 모를 때 가정하는 기본 지연(ms)
 const F3_LEAD = 0.6;             // 신호 나이의 몇 %만큼 앞당겨 그릴지
+const F3_SPAWN_PROT = 1200;      // 부활 직후 무적(ms) — 내가 쏘면 바로 풀림 (명중은 쏜 사람 화면 기준이라 신호에 실어 보냄)
 const F3_STAMP_WRAP = 60466176;  // 보낸 시각을 36진수 5자리로 (약 16.8시간마다 한 바퀴)
 const F3_GRAV = 22.3;            // 중력 (칸/초²) — 점프 예측용
 
@@ -393,12 +394,12 @@ class Fps3DGame {
   }
 
   static teamOf(id) { let h = 0; for (const c of String(id)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return (h & 1) ? 'red' : 'blue'; }
-  // 신호: x,y,방향,체력,킬,데스,팀,발사,다운,이동,상하,높이,구르기,판,레드승,블루승, 보낸시각(36진수),속도x,속도y,높이속도,경기번호
+  // 신호: x,y,방향,체력,킬,데스,팀,발사,다운,이동,상하,높이,구르기,판,레드승,블루승, 보낸시각(36진수),속도x,속도y,높이속도,경기번호,무적(1)
   static parse(raw) {
     const a = String(raw).split(',');
     const rt = (a[12] === undefined || a[12] === '') ? -1 : +a[12];
     return { x: +a[0], y: +a[1], angle: +a[2], hp: +a[3], kills: +a[4], deaths: +a[5], team: a[6] || null, fire: a[7] === '1', dead: a[8] === '1', moving: a[9] === '1', pitch: +a[10] || 0, z: +a[11] || 0, rollT: rt, roll: rt >= 0, round: +a[13] || 1, wr: +a[14] || 0, wb: +a[15] || 0,
-             st: a[16] ? parseInt(a[16], 36) : null, vx: +a[17] || 0, vy: +a[18] || 0, vz: +a[19] || 0, match: (a[20] === undefined || a[20] === '') ? null : +a[20] };
+             st: a[16] ? parseInt(a[16], 36) : null, vx: +a[17] || 0, vy: +a[18] || 0, vz: +a[19] || 0, match: (a[20] === undefined || a[20] === '') ? null : +a[20], prot: a[21] === '1' };
   }
   // 교사 화면·학생 화면이 같은 맵을 만들 때 씀
   static mapFor(track, match) { return f3MapFor(track, match); }
@@ -451,6 +452,7 @@ class Fps3DGame {
     if (this.scene) { this.disposeScene(); this.initScene(); if (this.q != null) this.setQuality(this.q); }
   }
   get isDead() { return this.now < this.deadUntil; }
+  get spawnSafe() { return !this.isDead && this.now < (this.protUntil || 0); }   // 부활 직후 무적 중
   get reloading() { return this.now < this.reloadUntil || this.now < (this.readyUntil || 0); }   // 재장전 중이거나 무기 전환 준비 중
   get wpn() { return F3_WEAPONS[this.weapon] || F3_WEAPONS.rifle; }
   get magSize() { return this.wpn.mag; }
@@ -477,6 +479,7 @@ class Fps3DGame {
     this.x = best[0]; this.y = best[1];
     const C = this.map.length / 2; this.yaw = Math.atan2(C - this.y, C - this.x); this.pitch = 0;
     this.ammo = this.magSize; this.reloadUntil = 0; this.zoomed = false;
+    this.protUntil = this.clock() + F3_SPAWN_PROT;            // 부활 직후 무적 (판 시작 출발 때도 — 같은 규칙)
   }
 
   // ── 장면 구성 ──
@@ -842,7 +845,7 @@ class Fps3DGame {
     if (this.rolling || this.mEnd) return;                 // 구르는 중 · 매칭전 판이 끝난 뒤엔 쏠 수 없습니다
     if (this.ammo <= 0) { this.reload(); return; }
     if (now - this.lastFire < this.wpn.rate) return;
-    this.lastFire = now; this.muzzle = 1; this.ammo--;
+    this.lastFire = now; this.muzzle = 1; this.ammo--; this.protUntil = 0;   // 쏘면 무적이 바로 풀림 (무적으로 공격만 하는 꼼수 막기)
     if (this.ammo <= 0) this.reload();
     if (window.Sound) { if (this.weapon === 'sniper') { Sound.sniper(); Sound.bolt(0.32); } else Sound.rifle(); }   // 총소리 · 스나이퍼는 이어서 볼트 철컥
     // 산탄: 스나이퍼는 줌 상태면 거의 정확, 줌 없이 쏘면 많이 튐
@@ -872,7 +875,7 @@ class Fps3DGame {
     let best = null, bestD = 1e9, hitZ = 0;
     Object.keys(this.peers).forEach(id => {
       const p = this.peers[id];
-      if (p.dead || (this.teamMode && p.team === this.team)) return;
+      if (p.dead || p.prot || (this.teamMode && p.team === this.team)) return;   // 부활 직후 무적인 상대는 맞지 않음 (레이저는 지나감)
       const rx = p.x - this.x, ry = p.y - this.y;
       const t = rx * dx + ry * dy; if (t <= 0 || t > (this.weapon === 'sniper' ? 60 : 30)) return;
       const px = this.x + dx * t, py = this.y + dy * t, pz = this.eyeZ + dz * t;
@@ -957,7 +960,7 @@ class Fps3DGame {
     if (!e) return;
     if (this.matchMode && e.m != null && +e.m !== this.match) return;            // 다른 경기의 사건은 무시
     if (e.type === 'hit' && e.target === this.myId) {
-      if (this.isDead || this.mEnd) return;
+      if (this.isDead || this.mEnd || this.spawnSafe) return;   // 부활 직후 무적: 받은 명중 무시 (쏜 쪽이 무적 신호를 아직 못 받았을 때)
       this.hp = Math.max(0, this.hp - (e.dmg || 26)); this.hurt = 1;
       if (window.Haptic) Haptic.hit();
       const p = this.peers[e.by];
@@ -995,7 +998,7 @@ class Fps3DGame {
     const head = [r(this.x, 2), r(this.y, 2), r(yaw, 2), this.hp, this.kills, this.deaths, this.team || '',
             this.muzzle > 0.5 ? 1 : 0, dead ? 1 : 0, this.moving && !still ? 1 : 0, r(this.pitch, 2),
             r(this.z, 2), rt >= 0 ? r(rt, 2) : '', tm ? round : '', tm ? wins.red : '', tm ? wins.blue : ''].join(',');
-    const tail = [still ? '0' : r(this.svx || 0, 1), still ? '0' : r(this.svy || 0, 1), (this.onGround || still) ? '' : r(this.svz || 0, 1), this.matchMode ? this.match : ''].join(',');
+    const tail = [still ? '0' : r(this.svx || 0, 1), still ? '0' : r(this.svy || 0, 1), (this.onGround || still) ? '' : r(this.svz || 0, 1), this.matchMode ? this.match : ''].join(',') + (this.spawnSafe ? ',1' : '');   // 끝 칸: 부활 직후 무적
     if (head === this._serHead && tail === this._serTail && this._ser) return this._ser;
     this._serHead = head; this._serTail = tail;
     const t = this.opts.serverNow ? this.opts.serverNow() : this.clock();
@@ -1029,9 +1032,11 @@ class Fps3DGame {
       age = Math.min(600, ((p.base != null ? p.base : F3_BASE_LAT) + jit) * F3_LEAD);   // 다 앞당기지 않고 60% 만 (방향을 바꾸면 덜 튐 — 30명 모의 실험에서 가장 정확)
       p.st = d.st;
     }
+    // 도착 간격(이동 평균, 멈춰 서서 안 보낸 틈은 뺌) → 보정 시간: 간격 165ms 0.1초 · 235ms 약 0.14초 (간격이 길면 한 번에 고칠 양이 커서, 같은 0.1초면 출렁임이 1.2배 — 모의 실험)
+    { const iv = p.iv || this.opts.sendMs || 165; p.iv = p.at == null ? iv : (now - p.at < iv * 2.5 ? iv + (Math.max(40, now - p.at) - iv) * 0.15 : iv); p.tau = Math.max(100, Math.min(150, 100 * p.iv / 165)); }
     p.at = now;
     const shownX = p.x, shownY = p.y, had = p.tx != null;
-    Object.assign(p, { tx: d.x, ty: d.y, tz: d.z, vx: d.vx, vy: d.vy, vz: d.vz, sAt: now - age, tangle: d.angle, hp: d.hp, kills: d.kills, deaths: d.deaths, team: d.team, fire: d.fire, dead: d.dead, moving: d.moving, pitch: d.pitch, roll: d.roll, rollT: d.rollT, round: d.round, wr: d.wr, wb: d.wb, match: d.match, hitSent: 0, hitKill: false });
+    Object.assign(p, { tx: d.x, ty: d.y, tz: d.z, vx: d.vx, vy: d.vy, vz: d.vz, sAt: now - age, tangle: d.angle, hp: d.hp, kills: d.kills, deaths: d.deaths, team: d.team, fire: d.fire, dead: d.dead, moving: d.moving, pitch: d.pitch, roll: d.roll, rollT: d.rollT, round: d.round, wr: d.wr, wb: d.wb, match: d.match, prot: d.prot, hitSent: 0, hitKill: false });
     // 보정: 새 신호로 계산한 '지금 위치' 와 화면에 있던 위치의 차이를 0.1초에 걸쳐 줄임 (순간이동처럼 튀지 않게). 3칸 넘게 차이 나면(부활 등) 바로 옮김
     const g = this.predict(p, now);
     if (had && !d.dead && Math.hypot(shownX - g.x, shownY - g.y) < 3) { p.cx = shownX - g.x; p.cy = shownY - g.y; }
@@ -1076,9 +1081,9 @@ class Fps3DGame {
     this.now = now;
     const { dt, f } = FX.frame(this, now); this.lastF = f;
     // 상대 위치 = 예측 위치(마지막 신호 + 속도 × 신호 나이) + 남은 보정(0.1초에 걸쳐 0 으로)
-    const kc = 1 - Math.exp(-dt / 100), kz = 1 - Math.exp(-dt / 60), sa = this.smooth(0.4, f);
+    const kz = 1 - Math.exp(-dt / 60), sa = this.smooth(0.4, f);
     for (const id in this.peers) { const p = this.peers[id]; if (p.tx == null) continue;
-      p.cx -= p.cx * kc; p.cy -= p.cy * kc;
+      const kc = 1 - Math.exp(-dt / (p.tau || 100)); p.cx -= p.cx * kc; p.cy -= p.cy * kc;   // p.tau: 신호 간격에 맞춘 보정 시간 (applyPeerRaw)
       const g = this.predict(p, now); p.x = g.x + p.cx; p.y = g.y + p.cy; p.z = p.z == null ? g.z : p.z + (g.z - p.z) * kz;
       let da = p.tangle - p.angle; while (da > Math.PI) da -= Math.PI * 2; while (da < -Math.PI) da += Math.PI * 2; p.angle += da * sa;
       p.walk = (p.walk || 0) + (p.moving ? 0.22 * f : 0); }
@@ -1101,6 +1106,7 @@ class Fps3DGame {
     if (this.spectator) {
       const p = this.peers[this.followId];
       if (p) { this.x = p.x; this.y = p.y; this.z = p.z || 0; if (p.roll) { this.rollStart = now - p.rollT * 700; this.rollUntil = this.rollStart + 700; } else this.rollUntil = 0; this.yaw = p.angle; this.pitch = p.pitch || 0; this.hp = p.hp; this.kills = p.kills; this.deaths = p.deaths; this.team = p.team; this.myName = p.name || ''; this.deadUntil = p.dead ? now + 100 : 0; this.moving = p.moving; if (p.fire) this.muzzle = 1; }
+      this.protUntil = p && p.prot ? now + 100 : 0;   // 관전: 따라가는 학생의 부활 직후 무적 표시
       if (this.matchMode) this.stepMatch(now);
       this.draw(); return;
     }
@@ -1313,6 +1319,7 @@ class Fps3DGame {
       if (wantTag && (!u.tag || u.tag.userData.name !== p.name)) { if (u.tag) { this.scene.remove(u.tag); if (u.tag.userData.material && u.tag.userData.material.map) u.tag.userData.material.map.dispose(); } u.tag = this.makeTag(p.name || '', p.team, p.hp); this.scene.add(u.tag); }
       if (u.tag) { u.tag.visible = wantTag; if (wantTag) { if (u.tag.userData.hp !== p.hp) this.setTagHp(u.tag, p.hp || 0); u.tag.position.set(p.x, (p.z || 0) + 2.0, p.y); } }
       if (hide) continue;
+      if (p.prot && !p.dead && Math.floor(now / 110) % 2) continue;   // 부활 직후 무적: 깜빡임 (아래에서 하늘색으로도 칠함)
       if (p.rollPlaying && now - (p.rollAt || 0) >= 700) { p.rollPlaying = false; p.roll = false; p.rollT = -1; }   // 재생이 끝나면 정리
       const rolling = p.rollPlaying || p.roll;
       let rx = 0, rz = 0, y = p.z || 0;
@@ -1334,7 +1341,7 @@ class Fps3DGame {
       S.L.makeRotationX(-(p.pitch || 0) - (p.fire ? 0.35 : 0)).setPosition(0.3, 1.05, -0.15); this.sArm.setMatrixAt(i, S.M.multiplyMatrices(S.R, S.L));
       // 색: 팀 색 장식 · 피격 순간 하얗게 번쩍
       const fl = p.flash && now < p.flash ? 2.6 : 1;
-      S.c.setScalar(fl); this.sBody.setColorAt(i, S.c); this.sArm.setColorAt(i, S.c); this.sLegs.setColorAt(i * 2, S.c); this.sLegs.setColorAt(i * 2 + 1, S.c);
+      if (p.prot && !p.dead && fl === 1) S.c.setRGB(0.75, 1.55, 1.9); else S.c.setScalar(fl); this.sBody.setColorAt(i, S.c); this.sArm.setColorAt(i, S.c); this.sLegs.setColorAt(i * 2, S.c); this.sLegs.setColorAt(i * 2 + 1, S.c);
       S.c.setHex(p.team ? F3_TEAM[p.team] : 0xFFD166); if (fl > 1) S.c.lerp(S.c.clone().setScalar(1), 0.7); this.sTrim.setColorAt(i, S.c);
       i++;
     }
@@ -1410,6 +1417,11 @@ class Fps3DGame {
       [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([ax, ay]) => { ctx.beginPath(); ctx.moveTo(W / 2 + ax * 6, hy + ay * 6); ctx.lineTo(W / 2 + ax * 16, hy + ay * 16); ctx.stroke(); }); }
     if (this.dmgDir && now < this.dmgDir.until) { const k = (this.dmgDir.until - now) / 900; ctx.save(); ctx.translate(W / 2, hy); ctx.rotate(this.dmgDir.a); ctx.strokeStyle = 'rgba(255,60,80,' + (k * 0.9).toFixed(2) + ')'; ctx.lineWidth = 8; ctx.lineCap = 'round'; ctx.beginPath(); ctx.arc(0, 0, Math.min(W, H) * 0.22, -0.35, 0.35); ctx.stroke(); ctx.restore(); }
     if (this.hurt > 0 || (this.hp <= 30 && !this.isDead)) { const a = Math.max(this.hurt * 0.6, this.hp <= 30 && !this.isDead ? 0.25 + Math.sin(now / 180) * 0.12 : 0); const g = ctx.createRadialGradient(W / 2, hy, H * 0.25, W / 2, hy, H * 0.85); g.addColorStop(0, 'rgba(255,40,70,0)'); g.addColorStop(1, 'rgba(255,40,70,' + a.toFixed(2) + ')'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); }
+    // 부활 직후 무적: 하늘색 테두리 + 남은 시간 막대
+    if (this.spawnSafe) { const k = Math.max(0, Math.min(1, (this.protUntil - now) / F3_SPAWN_PROT));
+      ctx.strokeStyle = 'rgba(127,231,255,' + (0.45 + 0.3 * Math.sin(now / 90)).toFixed(2) + ')'; ctx.lineWidth = 8; ctx.strokeRect(4, 4, W - 8, H - 8);
+      FX.text(ctx, '🛡 보호 중 · 쏘면 풀려요', W / 2, hy + 74, { size: 15, weight: 800, color: '#7FE7FF', align: 'center', stroke: 'rgba(8,10,16,0.8)' });
+      if (!this.spectator) { ctx.fillStyle = 'rgba(127,231,255,0.85)'; ctx.fillRect(W / 2 - 60, hy + 84, 120 * k, 4); } ctx.textAlign = 'left'; }
     // ── 체력 · 탄약 카드: 조작 버튼을 피해 빈자리에 ──
     // 학생 화면이 버튼 위치를 재서 알려 줍니다 (setHudSafe). 가로가 넉넉하면 조이스틱 오른쪽 바닥에 나란히,
     // 좁으면 조이스틱 위에 세로로 쌓습니다.

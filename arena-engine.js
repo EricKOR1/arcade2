@@ -149,6 +149,10 @@ class ArenaGame {
     const p = this.peers[id]; const now = this.clock();
     const last = p.buf[p.buf.length - 1];
     if (!last || Math.abs(last.x - d.x) > 1e-4 || Math.abs(last.y - d.y) > 1e-4) { if (last && Math.hypot(last.x - d.x, last.y - d.y) > 6) p.buf.length = 0; p.buf.push({ t: now, x: d.x, y: d.y }); if (p.buf.length > 5) p.buf.shift(); }
+    // 도착 간격(이동 평균)으로 '다음 신호가 올 때쯤 받은 위치 조금 앞에 닿는' 속도를 정함 → followPeers 가 그 사이를 고른 속도로 감 (보내는 간격은 인원에 따라 165~235ms)
+    { const iv = p.iv || this.opts.sendMs || 165; p.iv = p.rcv == null ? iv : (now - p.rcv < iv * 2.5 ? iv + (Math.max(40, now - p.rcv) - iv) * 0.15 : iv);
+      const N = Math.max(3, p.iv / 16.7), M = N * 0.15, dist = Math.hypot(d.x - p.x, d.y - p.y);
+      p.spd = dist / (N + M); p.mg = p.spd * M; p.rcv = now; }
     Object.assign(p, { tx: d.x, ty: d.y, tangle: d.angle, hp: d.hp, gems: d.gems, team: d.team, dead: d.dead, hidden: d.hidden, sup: d.sup, kills: d.kills, ch: d.ch, dash: d.dash, name: name || p.name || '' });
   }
   setPeers(map) { Object.keys(map).forEach(id => { const d = map[id]; if (d.raw) this.applyPeerRaw(id, d.raw, d.name); }); Object.keys(this.peers).forEach(id => { if (!map[id]) delete this.peers[id]; }); }
@@ -283,7 +287,7 @@ class ArenaGame {
           if (this.opts.onAttack) this.opts.onAttack('hit', id, { dmg: dmg }); gain(); pop(p.x, p.y, dmg, '#FFD166'); this.burst(b.x, b.y, 5, '#FFD166'); } });
       if (done) { if (b.big) this.burst(b.x, b.y, 24, '#FFD166'); this.bullets.splice(i, 1); }
     }
-    this.followPeers();
+    this.followPeers(f);
     this.parts = FX.stepParts(this.parts, f, 0.05);
     this.recoil = Math.max(0, (this.recoil || 0) - 0.08 * f); this.hurt = Math.max(0, (this.hurt || 0) - 0.05 * f);
     // 승리 판정: 팀 젬 10개 → 15초 카운트다운
@@ -304,8 +308,13 @@ class ArenaGame {
   solidMove(x, y) { const c = this.cell(x, y); return c === '#' || c === 'G' || c === 'w'; }   // 물은 걸을 수 없지만 탄은 넘어갑니다
   blocked(x, y) { const r = 0.32; return this.solidMove(x - r, y - r) || this.solidMove(x + r, y - r) || this.solidMove(x - r, y + r) || this.solidMove(x + r, y + r); }
 
-  // 상대 위치를 신호 쪽으로 부드럽게 따라감 (2D·3D 공용 — 명중 판정도 이 위치를 씀)
-  followPeers() { Object.keys(this.peers).forEach(id => { const p = this.peers[id]; if (p.tx == null) return; p.x += (p.tx - p.x) * 0.5; p.y += (p.ty - p.y) * 0.5; if (p.tangle != null) p.angle = p.tangle; }); }
+  // 상대 위치를 신호 쪽으로 고른 속도로 따라감 (2D·3D 공용 — 명중 판정도 이 위치를 씀). 속도는 신호를 받을 때 정함 (applyPeerRaw)
+  //   다음 신호가 늦어 받은 위치에 거의 닿으면 서서히 늦춤. 예전: 매 프레임 남은 거리의 절반씩 — 신호마다 확 갔다가 멈춰 서서 뚝뚝 끊겨 보였음 (모의 실험: 멈칫 프레임 55% → 15%)
+  followPeers(f) { f = f || 1; Object.keys(this.peers).forEach(id => { const p = this.peers[id]; if (p.tx == null) return; if (p.tangle != null) p.angle = p.tangle;
+      const dx = p.tx - p.x, dy = p.ty - p.y, dist = Math.hypot(dx, dy);
+      if (dist < 1e-6) return;
+      const m = (dist > 6 || !p.spd) ? dist : p.spd * f * Math.min(1, 0.4 + 0.6 * dist / Math.max(1e-6, p.mg || 0.05));   // 6칸 넘게(부활 등)는 바로
+      if (m >= dist) { p.x = p.tx; p.y = p.ty; } else { p.x += dx / dist * m; p.y += dy / dist * m; } }); }
   getSnapshot() { return this.snapshotScaled(36, 48); }
   snapshotScaled(SW, SH) {
     const g = []; for (let y = 0; y < SH; y++) { g.push([]); for (let x = 0; x < SW; x++) { const c = this.map[Math.floor(y * this.H / SH)][Math.floor(x * this.W / SW)]; g[y].push(c === '#' ? 63 : c === 'G' ? 64 : c === 'b' ? 65 : c === 'w' ? 58 : 66); } }

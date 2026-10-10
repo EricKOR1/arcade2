@@ -15,8 +15,8 @@
 <link rel="apple-touch-icon" href="icon-180.png">
 <meta name="theme-color" content="#1B2027">
 <title>아케이드</title>
-<link rel="stylesheet" href="platform.css?v=2026-10-20o">
-<link rel="stylesheet" href="style.css?v=2026-10-20o">
+<link rel="stylesheet" href="platform.css?v=2026-10-20p">
+<link rel="stylesheet" href="style.css?v=2026-10-20p">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nanum+Myeongjo:wght@700;800&display=swap" rel="stylesheet">
 </head>
@@ -24,6 +24,7 @@
 <div class="app">
 
   <button id="nav-back" class="nav-back hidden" aria-label="뒤로">←</button>
+  <button id="mute-float" class="mute-float hidden" aria-label="소리 끄기">♪</button>
 
 
   <!-- 입장 -->
@@ -135,17 +136,17 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script src="firebase-config.js?v=2026-10-20o"></script>
-<script src="sound.js?v=2026-10-20o"></script>
-<script src="shared.js?v=2026-10-20o"></script>
-<script src="fx.js?v=2026-10-20o"></script>
+<script src="firebase-config.js?v=2026-10-20p"></script>
+<script src="sound.js?v=2026-10-20p"></script>
+<script src="shared.js?v=2026-10-20p"></script>
+<script src="fx.js?v=2026-10-20p"></script>
 <!-- 게임 엔진(*-engine.js · three.min.js · 울산 · 카트 3D 파일)은 아래 ENGINE_FILES 표대로 고른 게임에 필요한 것만 불러옵니다 -->
-<script src="games.js?v=2026-10-20o"></script>
-<script src="app.js?v=2026-10-20o"></script>
+<script src="games.js?v=2026-10-20p"></script>
+<script src="app.js?v=2026-10-20p"></script>
 <script>
 (function () {
 
-  const BUILD = '2026-10-20o';   // 화면 아래에 표시됩니다
+  const BUILD = '2026-10-20p';   // 화면 아래에 표시됩니다
 
   const gameId = getGameId();
   const def = GAMES[gameId];
@@ -333,6 +334,9 @@
     curScreen = id;
     const back = BACK_TO[id];
     document.getElementById('nav-back').classList.toggle('hidden', !back);
+    // 소리 버튼: 위 막대(♪)가 안 보이는 화면(대기실·결과, 위 막대를 숨기는 카트·대전·울산 게임 화면)에서는 ← 모서리의 작은 버튼으로
+    const topHidden = document.querySelector('.topbar').classList.contains('kart-mode');
+    document.getElementById('mute-float').classList.toggle('hidden', !back || (id === 'screen-game' && !topHidden));
     // 뒤로 갈 곳이 있으면 기록을 하나 쌓아 둡니다 (휴대폰 뒤로가기가 여기서 잡힙니다)
     if (back) { try { history.pushState({ screen: id }, ''); } catch (e) {} }
   }
@@ -474,13 +478,18 @@
   const names = {}, peerPos = {}, hazards = {};
 
   // ── 소리 ──
-  const muteBtn = document.getElementById('mute-btn');
-  muteBtn.addEventListener('click', () => {
-    const on = !Sound.isEnabled();
+  const muteBtn = document.getElementById('mute-btn'), muteFloat = document.getElementById('mute-float');
+  // 학생이 고른 소리 켜기/끄기는 기기에 기억 — 선생님이 게임을 옮겨 페이지가 새로 열려도 그대로 (예전: 옮길 때마다 다시 켜짐)
+  function setMute(on, save) {
     Sound.setEnabled(on);
     if (window.Haptic) Haptic.on = on;                   // 소리를 끄면 진동도 끕니다
-    muteBtn.textContent = on ? '♪' : '✕';
-  });
+    muteBtn.textContent = muteFloat.textContent = on ? '♪' : '✕';
+    muteFloat.classList.toggle('off', !on); muteBtn.setAttribute('aria-label', on ? '소리 끄기' : '소리 켜기'); muteFloat.setAttribute('aria-label', on ? '소리 끄기' : '소리 켜기');
+    if (save) { try { localStorage.setItem('arcade.sound', on ? '1' : '0'); } catch (e) {} }
+  }
+  muteBtn.addEventListener('click', () => setMute(!Sound.isEnabled(), true));
+  muteFloat.addEventListener('click', e => { e.stopPropagation(); setMute(!Sound.isEnabled(), true); });
+  try { if (localStorage.getItem('arcade.sound') === '0') setMute(false, false); } catch (e) {}
 
   // ── 입장 ──
   // ── 주소창 없이: 전체 화면 ──
@@ -1100,7 +1109,7 @@
 
   // ── 시작 ──
   function startGame() {
-    const gen = ++startGen; if (loopRaf) { cancelAnimationFrame(loopRaf); loopRaf = null; } lastSync = null; lastSyncJs = '';   // 예전 판의 그리기 고리가 남아 있으면 끊음 (두 겹으로 돌면 기기가 두 배로 일함)
+    const gen = ++startGen; if (loopRaf) { cancelAnimationFrame(loopRaf); loopRaf = null; } lastSync = null; lastSyncJs = ''; lastPosJs = '';   // 예전 판의 그리기 고리가 남아 있으면 끊음 (두 겹으로 돌면 기기가 두 배로 일함)
     overShown = false; document.querySelectorAll('.gameover-flash').forEach(e => e.remove());   // 새 판: 게임 오버 안내 초기화
     byId('rank-stat').classList.add('hidden'); byId('over-label').textContent = '최종 점수'; byId('final-detail').textContent = '';   // 지난 판 순위·완주 표시가 남지 않게
     started = true;
@@ -1117,6 +1126,9 @@
       const r = snap.val() || {};
       Object.keys(r).forEach(id => { names[id] = r[id] || ''; });
       const order = Object.keys(r).sort();
+      // 위치 신호 간격: 모두가 서로의 신호를 받으므로 받는 양은 인원² 에 비례 — 인원이 많으면 조금 늦게 보냄 (30명 기준 한 시간 다운로드 약 30% 줄임)
+      //   받는 엔진은 실제 도착 간격을 재서 그 사이를 고르게 그림 (opts.sendMs 는 처음 값)
+      const sendMs = !isRealtime ? 250 : order.length <= 12 ? 165 : order.length <= 20 ? 200 : 235;
       const slot = Math.max(0, order.indexOf(playerId));
 
       // 테트리스는 다른 사람 정보가 필요 없으므로 수신을 끊어 통신량을 아낌
@@ -1130,7 +1142,7 @@
         const cd = sessionStartAt ? Math.max(0, (sessionStartAt - serverNow()) / 1000) : undefined;
         game = def.create(canvas, {
           countdown: cd, charId: (def.chars ? (sessionStorage.getItem('charId') || 'bolt') : undefined), teamInfo: (def.chars ? myTeamInfo() : undefined),
-          cellSize: cellSize, trackId: trackId, slot: slot, seed: sessionStartAt || 0,   // seed: 같은 판 = 같은 사건(울산 환경 수사대)
+          cellSize: cellSize, trackId: trackId, slot: slot, seed: sessionStartAt || 0, sendMs: sendMs,   // seed: 같은 판 = 같은 사건(울산 환경 수사대)
           teams: sessionTeams, roster: order, serverNow: serverNow,   // 레이저 태그: 매칭전 경기 배정표 · 위치 신호의 보낸 시각(서버 시계)
           myId: playerId, myName: myNickname,
           onDropHazard: dropHazard, onHitHazard: hitHazard, nameOf: id => names[id] || '',
@@ -1154,7 +1166,7 @@
 
         // 네트워크 전송이 프레임 중간에 끼어들면 그 순간 화면이 멈칫합니다.
         // 타이머는 '보낼 때'만 표시하고, 실제 전송은 그리기가 끝난 뒤에 합니다.
-        clearInterval(syncTimer); syncTimer = setInterval(() => { syncDue = true; }, isRealtime ? 165 : 250);
+        clearInterval(syncTimer); syncTimer = setInterval(() => { syncDue = true; }, sendMs);
         if (loopRaf) cancelAnimationFrame(loopRaf); loopRaf = requestAnimationFrame(loop);
         setWatched(watchedNow);                           // 교사가 이 학생 화면을 보고 있었으면 바로 보냄 (예전: 다음 수업 신호가 올 때까지 멈춤)
       });
@@ -1212,11 +1224,13 @@
     startHtmlGame();
   });
 
-  let lastScoreSync = 0;
+  let lastScoreSync = 0, lastPosJs = '', lastPosAt = 0;
   function pushState() {
     if (!game) return;
     if (isRealtime) {
-      myPosRef.set(game.serialize());
+      // 위치 신호: 지난번과 같은 글자면 보내지 않음 (가만히 있거나 쓰러져 기다리는 학생 · 완주한 카트) — 3초마다 한 번은 그대로 다시 보냄 (교사 화면이 지운 자리 되살리기)
+      const ps = game.serialize(), pt = Date.now();
+      if (ps !== lastPosJs || pt - lastPosAt > 3000) { lastPosJs = ps; lastPosAt = pt; myPosRef.set(ps); }
       if (!isKart) {
         // 점수·통계는 1초에 한 번만 (교사 화면 목록용)
         if (Date.now() - lastScoreSync > 1000) {

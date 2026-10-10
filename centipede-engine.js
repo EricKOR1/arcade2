@@ -16,11 +16,13 @@ class CentipedeGame {
   }
   spawnWave() {
     const len = Math.min(12, 6 + this.wave * 2);
-    this.chains = [{ segs: Array.from({ length: len }, (_, i) => ({ x: -i, y: 0 })), dir: 1, speed: 0.045 + this.wave * 0.008, t: 0 }];
+    // 빠르기: 웨이브마다 +0.01 (예전 +0.008 — 한 발씩 쏘게 바꾸며 판이 8분을 넘지 않게 조금 당김)
+    this.chains = [{ segs: Array.from({ length: len }, (_, i) => ({ x: -i, y: 0 })), dir: 1, vdir: 1, speed: 0.045 + this.wave * 0.01, t: 0 }];
   }
   move(dir) { this.steer = dir; } releaseSteer(dir) { if (this.steer === dir) this.steer = 0; }
   rotate() { this.fire(); } hardDrop() { this.fire(); } softDrop() {} up() {}
-  fire() { if (this.gameOver || this.now - this.lastFire < 170 || this.bullets.length >= 3) return; this.lastFire = this.now; this.bullets.push({ x: this.x, y: this.y - 0.5 }); if (window.Sound) Sound.move(); }
+  // 탄은 원작처럼 화면에 한 발만 (예전 3발: 아무 데나 마구 쏘는 쪽이 노려 쏘는 쪽보다 오래 버팀 — 빗나간 탄은 끝까지 날아가야 다음 발)
+  fire() { if (this.gameOver || this.now - this.lastFire < 170 || this.bullets.length >= 1) return; this.lastFire = this.now; this.bullets.push({ x: this.x, y: this.y - 0.5 }); if (window.Sound) Sound.move(); }
 
   tick(now) {
     this.now = now;
@@ -38,25 +40,26 @@ class CentipedeGame {
         if (k >= 0 && !hit) { hit = true; const s = ch.segs[k]; this.mush[Math.max(0, Math.round(s.y))][Math.max(0, Math.min(this.W - 1, Math.round(s.x)))] = 3;
           this.score += k === 0 ? 100 : 10; this.burst(s.x + 0.5, s.y + 0.5);
           const tail = ch.segs.splice(k + 1); ch.segs.splice(k, 1);
-          if (tail.length) this.chains.push({ segs: tail, dir: -ch.dir, speed: ch.speed, t: 0 });
+          if (tail.length) this.chains.push({ segs: tail, dir: -ch.dir, vdir: ch.vdir, speed: ch.speed, t: 0 });
           if (window.Sound) Sound.clear(1); } });
       if (hit) this.bullets.splice(i, 1);
     }
     this.chains = this.chains.filter(ch => ch.segs.length);
-    // 지네 이동: 머리가 격자 단위로 진행, 벽·버섯을 만나면 한 줄 내려가고 방향 전환
+    // 지네 이동: 머리가 격자 단위로 진행, 벽·버섯을 만나면 한 줄 내려가고(올라가고) 방향 전환
+    //   원작처럼 바닥 줄에 닿으면 한 줄씩 올라가고, 내 구역(아래 5줄) 맨 윗줄에서 다시 내려감 (예전: 50% 확률로 3줄 위로 순간이동 → 몸이 끊겨 보임)
     this.chains.forEach(ch => { ch.t += ch.speed * f; if (ch.t < 1) return; ch.t = 0;
       const head = ch.segs[0]; let nx = head.x + ch.dir, ny = head.y;
       const blocked = nx < 0 || nx >= this.W || (this.mush[ny] && this.mush[ny][nx] > 0);
-      if (blocked) { ny = head.y + 1; nx = head.x; ch.dir = -ch.dir; if (ny >= this.H - 1) { ny = this.H - 1; } }
+      if (blocked) { if (!(ch.vdir < 0) && head.y >= this.H - 1) ch.vdir = -1; else if (ch.vdir < 0 && head.y <= this.H - 5) ch.vdir = 1;
+        ny = head.y + (ch.vdir < 0 ? -1 : 1); nx = head.x; ch.dir = -ch.dir; }
       for (let i = ch.segs.length - 1; i > 0; i--) { ch.segs[i].x = ch.segs[i - 1].x; ch.segs[i].y = ch.segs[i - 1].y; }
       head.x = nx; head.y = ny;
-      if (ny >= this.H - 1 && nx === head.x) { /* 바닥 도달: 위로 튕겨 다시 내려옴 */ if (head.y >= this.H - 1 && Math.random() < 0.5) head.y = this.H - 4; }
     });
     // 충돌
     if (this.invul <= 0 && this.chains.some(ch => ch.segs.some(s => Math.abs(s.x + 0.5 - this.x) < 0.7 && Math.abs(s.y + 0.5 - this.y) < 0.7))) {
       this.lives--; this.invul = 2000; this.burst(this.x, this.y, '#4CC9F0'); if (window.Sound) Sound.crash();
       if (this.lives <= 0) { this.gameOver = true; if (window.Sound) Sound.gameOver(); }
-      else { this.chains.forEach(ch => ch.segs.forEach(s => { s.y = Math.max(0, s.y - 8); })); }
+      else { this.chains.forEach(ch => { ch.vdir = 1; ch.segs.forEach(s => { s.y = Math.max(0, s.y - 8); }); }); }
     }
     if (!this.chains.length) { this.wave++; this.score += 100 * this.wave; if (window.Sound) Sound.levelUp(); this.spawnWave(); }
     this.parts = FX.stepParts(this.parts, f, 0.05);
