@@ -308,7 +308,7 @@ class TankCore {
   restore(s) { ['score', 'kills', 'deaths', 'ts', 'lv', 'lx', 'pts'].forEach(k => { if (isFinite(+s[k])) this[k] = +s[k]; });
     if (s.up) TK_UP_KEYS.forEach(k => { this.up[k] = Math.max(0, Math.min(5, s.up[k] | 0)); }); if (Array.isArray(s.uo)) this.upOrder = s.uo.filter(k => this.up[k] != null).slice(0, 40);
     if (!this.ffa && (s.team === 'r' || s.team === 'b')) { this.team = s.team; this.lateJoin = false; } if (TK_TYPES[s.type]) this.lastType = s.type; this.restored = true; }
-  save() { if (typeof sessionStorage === 'undefined') return; try { sessionStorage.setItem(this.saveKey(), JSON.stringify({ seed: this.seed, score: this.score, kills: this.kills, deaths: this.deaths, ts: this.ts, lv: this.lv, lx: this.lx, pts: this.pts, up: this.up, uo: this.upOrder, team: this.team, type: this.type })); } catch (e) {} }
+  save() { try { if (typeof sessionStorage === 'undefined') return; sessionStorage.setItem(this.saveKey(), JSON.stringify({ seed: this.seed, score: this.score, kills: this.kills, deaths: this.deaths, ts: this.ts, lv: this.lv, lx: this.lx, pts: this.pts, up: this.up, uo: this.upOrder, team: this.team, type: this.type })); } catch (e) {} }
   srv() { return this.opts.serverNow ? this.opts.serverNow() : (this.now || 0); }
   clock() { return this.now || 0; }
   get isDead() { return !this.alive; }
@@ -331,7 +331,7 @@ class TankCore {
   // 마우스로 가리킨 땅 위 지점 (3D 쪽이 화면 → 땅 좌표로 바꿔 넘김) — 곡사는 그 지점에 떨어짐
   setAimPoint(x, z) { if (!isFinite(x) || !isFinite(z)) return; this.aimPt = [x, z]; this.aimDir = Math.atan2(z - this.z, x - this.x); this.aimUntil = this.now + 1500; }
   releaseAim(dx, dy) { if (Math.hypot(dx || 0, dy || 0) > 0.15) { this.setAim(dx, dy); this.aimUntil = this.now + 700; } this.fire(); }
-  fire() { if (!this.alive || this.gameOver) return; this.wantFire = this.now + 450; }
+  fire() { if (!this.alive || this.gameOver) return; this.wantFire = this.now + 1500; }   // 톡 한 번이면 포탑이 돌아간 뒤(최대 1.5초 안) 쏨 — 포탑이 느린 중전차·구축전차도
   useSuper() {
     if (!this.alive || this.gameOver || this.super < 100) return false;
     const k = this.T.sk.kind, tier = this.skTier, now = this.now; this.skAt = now; this.super = 0;
@@ -690,9 +690,9 @@ class TankCore {
       if ((this.target || (this.rev && now - this.revAt < 400)) && Math.abs(tkAng(goal - this.h)) > (this.rev ? 1.75 : 2.1)) { rev = true; goal = tkAng(goal + Math.PI); this.revAt = now; }
       const da = tkAng(goal - this.h); this.h = tkAng(this.h + Math.max(-turn, Math.min(turn, da)));
       const c = Math.cos(tkAng(goal - this.h)); sp = this.speedOf() * len * (c > 0 ? Math.sqrt(c) : 0) * (rev ? 0.65 : 1);
-    } else if (T.arc && this.target && this.alive) {
-      // 구축전차: 가만히 있을 때 표적이 포탑 범위 밖이면 차체를 표적 쪽으로
-      const da = tkAng(Math.atan2(this.aimZ - this.z, this.aimX - this.x) - this.h); if (Math.abs(da) > T.arc * 0.8) { const turn = T.turn * dt; this.h = tkAng(this.h + Math.max(-turn, Math.min(turn, da))); }
+    } else if (T.arc && this.alive && (this.target || (this.aimDir != null && now < this.aimUntil))) {
+      // 구축전차: 가만히 있을 때 표적(또는 마우스로 겨눈 쪽)이 포탑 범위 밖이면 차체를 그쪽으로
+      const da = tkAng((this.aimDir != null && now < this.aimUntil ? this.aimDir : Math.atan2(this.aimZ - this.z, this.aimX - this.x)) - this.h); if (Math.abs(da) > T.arc * 0.8) { const turn = T.turn * dt; this.h = tkAng(this.h + Math.max(-turn, Math.min(turn, da))); }
     }
     this.rev = rev;
     let vx = 0, vz = 0;
@@ -719,7 +719,7 @@ class TankCore {
     this.tu = tkAng(this.tu + Math.max(-tr, Math.min(tr, dtu)));
     if (T.arc) { const rel = tkAng(this.tu - this.h); if (Math.abs(rel) > T.arc) this.tu = tkAng(this.h + Math.sign(rel) * T.arc); }
     dtu = tkAng(goal - this.tu);
-    // 발사: 포탑이 표적을 향하면(±6°) 쏨 — 버튼을 누른 뒤 0.45초 안
+    // 발사: 포탑이 표적을 향하면(±6°) 쏨 — 버튼을 누른 뒤 1.5초 안
     if (this.wantFire && now <= this.wantFire && this.ammo >= 1 && now - this.lastShot >= T.gap * 1000 * (1 - 0.08 * this.up.rel) && (Math.abs(dtu) < 0.1 || (!this.target && !this.tgtObs && this.aimDir == null))) this.shoot();
     if (this.wantFire && now > this.wantFire) this.wantFire = 0;
     // 수리: 6초간 안 맞으면 천천히 · 정비전차 곁(팀) · 수리 구역
@@ -807,6 +807,19 @@ class TankCore {
       if (Math.abs(W.height(p.x, p.z) - s.ey) > 3) continue; if (p.prot) continue;
       this.sendHit(p, this.dmgTo(p, s.dmg * (1 - 0.65 * Math.min(1, d / (R + 0.6))), 0, 0, true), p.x, p.z, true); }
     W.near(s.ex, s.ez, R, o => { if (o.max && Math.hypot(o.x - s.ex, o.z - s.ez) < R + o.rad * 0.5) this.damageObs(o, s.dmg * 0.7); return false; });
+  }
+  // ── 교사 미니보드: 36×36 칸 (높이 4단계 · 물 · 구조물 · 나무 · 전차) ──
+  getSnapshot() {
+    const G = 36, W = this.world, L = this.L;
+    if (!this._snapBase) { const b = this._snapBase = [];
+      for (let y = 0; y < G; y++) { const row = []; for (let x = 0; x < G; x++) { const wx = (x + 0.5) / G * L, wz = (y + 0.5) / G * L, h = W.height(wx, wz);
+          row.push(W.matAt(wx, wz) === 2 ? 58 : h < 0.6 ? 66 : h < 2 ? 12 : h < 3.6 ? 63 : 45); } b.push(row); }
+      W.obs.forEach(o => { if (o.k === 'tree') { const gx = Math.floor(o.x / L * G), gy = Math.floor(o.z / L * G); if (b[gy] && b[gy][gx] != null && b[gy][gx] !== 58) b[gy][gx] = 65; } }); }
+    const g = this._snapBase.map(r => r.slice()), put = (x, z, v) => { const gx = Math.floor(x / L * G), gy = Math.floor(z / L * G); if (g[gy] && g[gy][gx] != null) g[gy][gx] = v; };
+    for (const o of W.obs) if (o.max && !o.dead && (o.k === 'bunker' || o.k === 'tower' || o.k === 'sandbag')) put(o.x, o.z, 57);
+    for (const id in this.peers) { const p = this.peers[id]; if (p.dead || p.tx == null) continue; put(p.x, p.z, this.ffa ? 68 : p.team === 'b' ? 69 : 68); }
+    if (this.alive) put(this.x, this.z, 23);
+    return g;
   }
   // ── 판 끝 ──
   teamScores() {
