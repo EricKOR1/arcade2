@@ -167,6 +167,40 @@ const GAMES = {
     sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, held: g.held, kills: g.kills, team: g.team }; }
   },
 
+  // 탱크 대전 3D: 규칙 · 통신은 tank-engine.js(TankCore), 그림 · HUD · 카드는 tank3d-engine.js(TankGame)
+  tank: {
+    type: 'canvas',
+    name: '탱크 대전 3D (팀전)',
+    desc: '언덕과 골짜기가 있는 3D 들판에서 레드 · 블루 팀 전차 대결. 적 전차와 상자 · 벙커를 부수면 XP, 레벨이 오르면 장갑 · 엔진 · 포탄을 업그레이드. 전차 6종은 서로 강한 상대와 약한 상대가 있어요',
+    howto: '출격할 때 전차 6종 중 고르기 · 조이스틱 이동(화면 위 = 북쪽) · ● 발사(가까운 적 자동 조준, 꾹 = 연사) · ★ 전차 스킬 · 레벨이 오르면 화면 위 카드를 톡 · 언덕 뒤에 숨으면 직사포를 막고, 높은 곳은 사거리가 늘어요 · 7분 뒤 팀 점수가 높은 팀 승리',
+    meta: '실시간 팀 대전 · 3D 지형 · 전차 6종 · 맵 3종(인원별 크기) · 최대 30명',
+    primary: '70% 0.16 135', primaryContent: '100% 0 0', hex: '#6DBE45',
+    grid: { cols: 36, rows: 36 },   // 교사 미니보드 (지형 높이 · 물 · 구조물 · 전차)
+    adminView: 'grid', fullBleed: true, engine3d: true,
+    needsPeers: true, realtime: true, hasNext: false, hasTracks: true, trackKind: 'map', mapRegistry: 'tank',   // 시작할 때 인원을 맵 이름에 붙임 ('hills:24')
+    stats: [{ key: 'lv', label: '레벨' }, { key: 'kills', label: '격파' }],
+    detail: function (g) { const r = g.result; return (g.team === 'r' ? '레드 팀' : g.team === 'b' ? '블루 팀' : '팀전') + ' · ' + (g.T ? g.T.name : '') + ' · 레벨 ' + g.lv + ' · 격파 ' + g.kills + (r ? (r.tie ? ' · 무승부' : r.win ? ' · 승리' : ' · 패배') : ''); },
+    controls: [], padLayout: 'arena', padHint: false,   // 조작 안내는 엔진이 첫 출격 때 그림
+    create: function (canvas, opts) { return new TankGame(canvas, Object.assign({ maxDpr: 1.25 }, opts, { ffa: false })); },
+    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, lv: g.lv, kills: g.kills, team: g.team || '' }; }
+  },
+  tankffa: {
+    type: 'canvas',
+    name: '탱크 대전 3D (개인전)',
+    desc: '모두가 상대인 3D 전차 개인전. 적 전차와 상자 · 벙커를 부수며 XP 를 모아 레벨을 올리고 업그레이드. 정비전차는 지뢰를 깔 수 있어요',
+    howto: '출격할 때 전차 6종 중 고르기 · 조이스틱 이동(화면 위 = 북쪽) · ● 발사(가까운 적 자동 조준, 꾹 = 연사) · ★ 전차 스킬 · 레벨이 오르면 화면 위 카드를 톡 · 높은 레벨 전차를 쓰러뜨리면 XP 를 더 받아요 · 7분 뒤 점수(XP) 순위',
+    meta: '실시간 개인전 · 3D 지형 · 전차 6종 · 맵 3종(인원별 크기) · 최대 30명',
+    primary: '74% 0.17 60', primaryContent: '100% 0 0', hex: '#E9A23B',
+    grid: { cols: 36, rows: 36 },
+    adminView: 'grid', fullBleed: true, engine3d: true,
+    needsPeers: true, realtime: true, hasNext: false, hasTracks: true, trackKind: 'map', mapRegistry: 'tank',
+    stats: [{ key: 'lv', label: '레벨' }, { key: 'kills', label: '격파' }],
+    detail: function (g) { const r = g.result; return '개인전 · ' + (g.T ? g.T.name : '') + ' · 레벨 ' + g.lv + ' · 격파 ' + g.kills + (r ? ' · ' + r.rank + '등 / ' + r.total + '명' : ''); },
+    controls: [], padLayout: 'arena', padHint: false,
+    create: function (canvas, opts) { return new TankGame(canvas, Object.assign({ maxDpr: 1.25 }, opts, { ffa: true })); },
+    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, lv: g.lv, kills: g.kills }; }
+  },
+
   slither: {
     type: 'canvas',
     name: '뱀 아레나',

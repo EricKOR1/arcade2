@@ -15,8 +15,8 @@
 <link rel="apple-touch-icon" href="icon-180.png">
 <meta name="theme-color" content="#1B2027">
 <title>아케이드</title>
-<link rel="stylesheet" href="platform.css?v=2026-10-20p">
-<link rel="stylesheet" href="style.css?v=2026-10-20p">
+<link rel="stylesheet" href="platform.css?v=2026-10-20q">
+<link rel="stylesheet" href="style.css?v=2026-10-20q">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nanum+Myeongjo:wght@700;800&display=swap" rel="stylesheet">
 </head>
@@ -136,17 +136,17 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script src="firebase-config.js?v=2026-10-20p"></script>
-<script src="sound.js?v=2026-10-20p"></script>
-<script src="shared.js?v=2026-10-20p"></script>
-<script src="fx.js?v=2026-10-20p"></script>
+<script src="firebase-config.js?v=2026-10-20q"></script>
+<script src="sound.js?v=2026-10-20q"></script>
+<script src="shared.js?v=2026-10-20q"></script>
+<script src="fx.js?v=2026-10-20q"></script>
 <!-- 게임 엔진(*-engine.js · three.min.js · 울산 · 카트 3D 파일)은 아래 ENGINE_FILES 표대로 고른 게임에 필요한 것만 불러옵니다 -->
-<script src="games.js?v=2026-10-20p"></script>
-<script src="app.js?v=2026-10-20p"></script>
+<script src="games.js?v=2026-10-20q"></script>
+<script src="app.js?v=2026-10-20q"></script>
 <script>
 (function () {
 
-  const BUILD = '2026-10-20p';   // 화면 아래에 표시됩니다
+  const BUILD = '2026-10-20q';   // 화면 아래에 표시됩니다
 
   const gameId = getGameId();
   const def = GAMES[gameId];
@@ -171,6 +171,7 @@
     fps: E_FPS3D, fpsteam: E_FPS3D, fpsmatch: E_FPS3D,
     fpsclassic: ['fps-engine.js', 'fps3d-engine.js'],                    // 2D 레이저 태그도 3D 쪽 맵 도구(f3Scale)로 인원별 맵 크기를 맞춤 (three.js 는 필요 없음)
     arena: ['arena-engine.js'], arena3d: ['three.min.js', 'arena-engine.js', 'three-quality.js', 'arena3d-engine.js'],
+    tank: ['three.min.js', 'three-quality.js', 'tank-engine.js', 'tank3d-engine.js'], tankffa: ['three.min.js', 'three-quality.js', 'tank-engine.js', 'tank3d-engine.js'],
     slither: ['slither-engine.js'], territory: ['territory-engine.js'],
     g2048: ['game2048-engine.js'], blockpuzzle: ['blockpuzzle-engine.js'], match3: ['match3-engine.js'], stack: ['stack-engine.js'], watersort: ['watersort-engine.js'],
     logic: ['logic-engine.js'], slingshot: ['slingshot-engine.js'], rhythm: ['rhythm-engine.js'], helix: ['helix-engine.js'], runner: ['runner-engine.js'],
@@ -784,7 +785,7 @@
       '<div class="fjoy" id="fjoy"><div class="fjoy-base"><div class="fjoy-knob"></div></div></div>' +
       (slither ? '<button class="asuper aboost" id="aboost">' + (rpg ? '🔍<small>조사</small>' : '⚡<small>부스트</small>') + '</button>' + (rpg ? '<button class="asuper ajump" id="ajump">⤴<small>점프</small></button>' : '')
                : '<button class="ffire" id="afire"><span>●</span>발사<div class="pips"><i class="pip on"></i><i class="pip on"></i><i class="pip on"></i></div></button><button class="asuper" id="asuper">★<small>0%</small></button>') +
-      '<div class="fhint" id="fhint">' + (rpg ? '조이스틱: 이동 · ⤴ 점프(낮은 담장·상자 넘기) · 🔍 조사·대화 · 위 버튼: 수첩·지도·보고서' : slither ? '조이스틱: 방향 · ⚡ 꾹: 부스트(길이 소모) · 머리가 다른 뱀 몸에 닿으면 탈락' : '조이스틱: 이동(총구도 그 방향) · ● 발사(가까운 적 자동 조준, 꾹 누르면 연사) · ★ 궁극기') + '</div>';
+      (def.padHint === false ? '' : '<div class="fhint" id="fhint">' + (rpg ? '조이스틱: 이동 · ⤴ 점프(낮은 담장·상자 넘기) · 🔍 조사·대화 · 위 버튼: 수첩·지도·보고서' : slither ? '조이스틱: 방향 · ⚡ 꾹: 부스트(길이 소모) · 머리가 다른 뱀 몸에 닿으면 탈락' : '조이스틱: 이동(총구도 그 방향) · ● 발사(가까운 적 자동 조준, 꾹 누르면 연사) · ★ 궁극기') + '</div>');   // padHint false: 엔진이 안내를 그림 (탱크 대전)
     wrap.appendChild(ctl);
     // 안내 문구는 처음 4초만 보이고 서서히 사라집니다 (레이저 태그와 같은 방식)
     setTimeout(() => { const h = byId('fhint'); if (h) h.classList.add('fade'); }, 4000);
@@ -1614,6 +1615,7 @@
   function onKeyDown(e) {
     if (!game || game.gameOver) return;
     if (def.padLayout === 'rpg') return;                   // 울산 환경 수사대는 게임이 키를 직접 처리 (예전엔 ←↑→·스페이스가 없는 기능을 불러 오류)
+    if (game.onKey && game.onKey(e)) return;               // 탱크 대전: 숫자키 카드 · Space 스킬을 엔진이 먼저 받음
     const k = e.key.toLowerCase();
     if (game.setMove && (k === 'w' || k === 'a' || k === 's' || k === 'd')) { wasd[k] = true; pushWasd(); return; }
     if (k === 'r' && game.reload) { game.reload(); return; }
