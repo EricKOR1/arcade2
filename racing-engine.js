@@ -3399,7 +3399,7 @@ class KartGame {
         const rows = [];
         if (rk) rows.push({ rank: rk, name: this.myName || '나', me: true });
         Object.keys(this.peers).forEach(id => {
-          const p = this.peers[id]; if (!p.finished) return;
+          const p = this.peers[id]; if (!p.finished || (this.spectator && id === this.followId)) return;   // 관전: 따라가는 학생은 위 '나' 줄로 (두 번 나오지 않게)
           const r = 1000 - ((p.progress || 0) - laps * n);
           if (r >= 1 && r <= 999) rows.push({ rank: r, name: p.name || '학생', me: false });
         });
