@@ -273,6 +273,7 @@
       score: (game && typeof game.score === 'number') ? game.score : 0
     };
     if (started && lastSync) Object.assign(base, lastSync, { nickname: myNickname, game: gameId, status: lastSync.status === 'gameover' ? 'gameover' : status, joinedAt: base.joinedAt, lastSeen: base.lastSeen });   // 끝낸 사건 · 점수 · 걸린 시간이 지워지지 않게
+    if (started && isKart && game && game.finished && game.finishRank) Object.assign(base, { status: 'finished', score: 1000 - game.finishRank, rank: game.finishRank });   // 카트: 완주 뒤 다시 연결돼도 교사 화면 완주 순위가 지워지지 않게
     return playerRef.set(base).then(function () {
       myRosterRef.set(myNickname); myRosterRef.onDisconnect().remove();
       playerRef.onDisconnect().remove();
@@ -1359,7 +1360,11 @@
     const ms = sessionStartAt ? Math.max(1, Math.round(serverNow() - sessionStartAt)) : ((game && game.raceMs) || 1);
     db.ref('finishes/' + playerId).set({ ms: ms, n: myNickname || '' });   // (예전엔 없는 변수 nickname 을 써서 완주 순간 오류 → 순위가 저장되지 않았습니다)
     playerRef.update({ status: 'finished' });
-    const ref = db.ref('finishes');
+    syncDue = true;                                      // 완주 표시가 실린 위치 신호를 다음 프레임에 바로 (교사 순위표·관전 · 다른 학생 결과판)
+    // 결과 화면은 결승 뒤 잠깐(FINISH_CARD_MS) 게임 화면의 '완주! n위' 카드를 보여 준 다음에 — 예전엔 곧바로 결과 화면이 덮어 카드가 안 보였고,
+    // 결과 화면이 위치 신호 타이머까지 꺼서 완주 신호가 대부분 나가지 못했음(교사 화면에 '완주' 가 안 뜸)
+    const ref = db.ref('finishes'), g0 = startGen, t0 = Date.now();
+    let myRank = 0, shown = false, cardT = null;
     const recalc = snap => {
       const all = snap.val() || {};
       const list = Object.keys(all).map(id => ({ id: id, ms: +all[id].ms || 0 }))
@@ -1367,13 +1372,16 @@
       const rank = list.findIndex(x => x.id === playerId) + 1;
       if (!rank) return;
       if (game) game.finishRank = rank;
-      playerRef.update({ score: 1000 - rank, rank: rank });
-      showResult(rank);
+      const changed = rank !== myRank; myRank = rank;
+      if (changed) { playerRef.update({ score: 1000 - rank, rank: rank }); syncDue = true; }
+      if (shown) { if (changed) showResult(rank); }
+      else if (!cardT) cardT = setTimeout(() => { if (g0 !== startGen) return; shown = true; showResult(myRank); }, Math.max(0, FINISH_CARD_MS - (Date.now() - t0)));   // 그 사이 대기실·새 판이면 띄우지 않음
     };
     ref.on('value', recalc);
-    finishesOff = () => ref.off('value', recalc);
-    setTimeout(() => { if (finishesOff) { finishesOff(); finishesOff = null; } }, 30000);   // 30초 뒤 고정
+    const off = () => ref.off('value', recalc); finishesOff = off;
+    setTimeout(() => { if (finishesOff === off) { off(); finishesOff = null; } }, 30000);   // 30초 뒤 고정 (지난 판의 타이머가 이번 판 구독을 끊지 않게)
   }
+  const FINISH_CARD_MS = 2500;
 
   function drawNextPreview() {
     const c = document.getElementById('next-canvas');
@@ -1706,7 +1714,7 @@
     document.getElementById('final-score').textContent = rank ? rank + '등' : '완주';
     document.getElementById('final-detail').textContent = (game && def.detail) ? def.detail(game) : '완주했습니다';
     show('screen-over');
-    clearInterval(syncTimer);
+    if (!isKart) clearInterval(syncTimer);               // 카트: 위치 신호(완주 표시·순위)는 계속 — 같은 내용이면 3초에 한 번만 보냄
     playersRef.once('value').then(s => showRank(rank, Object.keys(s.val() || {}).length));
   }
 

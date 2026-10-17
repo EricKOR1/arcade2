@@ -484,6 +484,7 @@
   // 게임 시작 — 지난 판의 완주 순위 카운터·위치·아이템·이벤트를 비우고 시작합니다
   $('start-btn').addEventListener('click', () => {
     finishRef.set(0); posRef.remove(); hazardsRef.remove(); eventsRef.remove(); db.ref('gems').remove();   // 젬 아레나: 지난 판 젬이 남아 새 판이 젬 20개로 시작하던 것
+    db.ref('finishes').remove();   // 카트 완주 기록 — 예전엔 남아서 2판의 완주 순위가 1판 기록(나간 학생 포함)과 섞여 밀렸음
     playersRef.once('value').then(snap => {
       const ps = snap.val() || {}, up = {};
       Object.keys(ps).forEach(id => { up[id + '/status'] = 'waiting'; up[id + '/score'] = 0; up[id + '/rank'] = null; });
