@@ -1024,7 +1024,7 @@ class Fps3DGame {
     const lethal = p && !p.hitKill && h.dmg >= (p.hp || 0) - this.pendDmg(p);   // 쓰러뜨릴 만큼이면 바로 (한 번만 — 상대 신호가 늦어도 계속 쏟아내지 않게)
     if (lethal) p.hitKill = true;
     if (now - h.last >= F3_HIT_GAP || lethal) this.flushHit(target, now);
-    if (lethal) { p.dead = true; p.downUntil = now + 1200 + (p.iv || 200); p.downDeaths = (p.deaths || 0) + 1; }   // 확인 신호(다운·킬)가 이 시간 안에 안 오면 되돌림
+    if (lethal) { p.dead = true; p.downPred = true; p.downUntil = now + 1200 + (p.iv || 200); p.downDeaths = (p.deaths || 0) + 1; }   // 확인 신호(다운·킬)가 이 시간 안에 안 오면 되돌림 (팀전 라운드 판정엔 확인 전까지 안 셈)
     return !!lethal;
   }
   flushHit(target, now) {
@@ -1092,7 +1092,7 @@ class Fps3DGame {
     }
     // 킬 소식: 쓰러진 학생을 다음 위치 신호를 기다리지 않고 바로 쓰러뜨려 보여 줌 (위치 신호보다 먼저 올 때가 많음)
     if (e.type === 'kill' && e.victim && e.victim !== this.myId) { const v = this.peers[e.victim];
-      if (v && (!v.dead || v.downUntil)) { v.downDeaths = v.downUntil ? v.downDeaths : (v.deaths || 0) + 1; v.dead = true; v.downUntil = Math.max(v.downUntil || 0, this.clock() + 1500); } }
+      if (v && (!v.dead || v.downUntil)) { v.downDeaths = v.downUntil ? v.downDeaths : (v.deaths || 0) + 1; v.dead = true; v.downPred = false; v.downUntil = Math.max(v.downUntil || 0, this.clock() + 1500); } }
     if (e.type === 'hit') return;
     if (e.type === 'kill' && e.target === this.myId) {
       if (this.mEnd) return;
@@ -1175,7 +1175,7 @@ class Fps3DGame {
       while (p.pend.length && now - p.pend[0][0] > 1000) p.pend.shift(); }
     // 먼저 보여 준 다운(내가 쓰러뜨림 · 킬 소식): 다운 신호가 오거나 데스 수가 늘면 확정, 그 전 신호(맞기 전에 보낸 것)로는 일어나지 않음
     if (p.downUntil) { if (d.dead || d.deaths >= p.downDeaths || now >= p.downUntil) p.downUntil = 0; else p.dead = true; }
-    if (!p.downUntil) p.hitKill = false;
+    if (!p.downUntil) { p.hitKill = false; p.downPred = false; }
     // 보정: 새 신호로 계산한 '지금 위치' 와 화면에 있던 위치의 차이를 0.1초에 걸쳐 줄임 (순간이동처럼 튀지 않게). 3칸 넘게 차이 나면(부활 등) 바로 옮김
     const g = this.predict(p, now);
     if (had && !d.dead && Math.hypot(shownX - g.x, shownY - g.y) < 3) { p.cx = shownX - g.x; p.cy = shownY - g.y; }
@@ -1226,7 +1226,7 @@ class Fps3DGame {
       const g = this.predict(p, now); p.x = g.x + p.cx; p.y = g.y + p.cy; p.z = p.z == null ? g.z : p.z + (g.z - p.z) * kz;
       let da = p.tangle - p.angle; while (da > Math.PI) da -= Math.PI * 2; while (da < -Math.PI) da += Math.PI * 2; p.angle += da * sa;
       p.walk = (p.walk || 0) + (p.moving ? 0.22 * f : 0);
-      if (p.downUntil && now >= p.downUntil) { p.downUntil = 0; p.dead = p.sigDead; p.hitKill = false; this.downUndo = (this.downUndo || 0) + 1; } }   // 먼저 보여 준 다운이 확인되지 않음 → 신호대로 되돌림
+      if (p.downUntil && now >= p.downUntil) { p.downUntil = 0; p.dead = p.sigDead; p.hitKill = false; p.downPred = false; this.downUndo = (this.downUndo || 0) + 1; } }   // 먼저 보여 준 다운이 확인되지 않음 → 신호대로 되돌림
     this.flushHits(now);
     this.tracers = this.tracers.filter(t => t.until > now);
     this.muzzle = Math.max(0, this.muzzle - (this.flashBig ? 0.12 : 0.2) * f); this.recoil = Math.max(0, this.recoil - (this.weapon === 'sniper' ? 0.035 : 0.06) * f);
@@ -1254,6 +1254,7 @@ class Fps3DGame {
     if (this.matchMode) this.stepMatch(now); else this.stepRounds(now);
     if (this.mEnd) { this.moving = 0; this.firing = false; this.draw(); return; }      // 매칭전 판 끝: 결과 화면 (움직이지 않음)
     if (this.isDead) {
+      this.aimOn = 0;
       if (!this._respawned && this.deadUntil - now < 50) { this._respawned = true; this.hp = 100; this.spawnAt(Math.floor(Math.random() * 12)); this.dmgDir = null; }
       this.draw(); return;
     }
@@ -1321,7 +1322,7 @@ class Fps3DGame {
     const c = { red: { total: 0, alive: 0 }, blue: { total: 0, alive: 0 } };
     const add = (team, dead) => { if (!c[team]) return; c[team].total++; if (!dead) c[team].alive++; };
     if (!this.spectator) add(this.team, this.isDead);
-    Object.keys(this.peers).forEach(id => { const p = this.peers[id]; if (p.team) add(p.team, !!p.dead); });
+    Object.keys(this.peers).forEach(id => { const p = this.peers[id]; if (p.team) add(p.team, !!p.dead && !p.downPred); });   // 내가 먼저 보여 준 다운(확인 전)은 살아 있는 것으로
     return c;
   }
   // 새 판 시작: 전원 부활 · 위치 초기화 · 탄약 가득

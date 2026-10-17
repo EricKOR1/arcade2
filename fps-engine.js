@@ -318,6 +318,7 @@ class FpsGame {
       this.draw(); return;
     }
     if (this.isDead) {
+      this.aimOn = 0;
       if (!this._respawned && this.deadUntil - now < 50) { this._respawned = true; this.hp = 100; this.spawnAt(Math.floor(Math.random() * 12)); this.dmgDir = null; }
       this.draw(); return;
     }
