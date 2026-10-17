@@ -204,15 +204,16 @@ const GAMES = {
   slither: {
     type: 'canvas',
     name: '뱀 아레나',
-    desc: '큰 뱀이 작은 뱀을 삼키며 자라는 실시간 대전. 먹이를 먹어 길이를 키우고, 머리끼리 부딪히면 1.2배 이상 큰 쪽이 삼켜요. 가끔 태어나는 슈퍼 지렁이는 1등의 머리를 먹으면 1등 자리를 이어받아요',
-    howto: '조이스틱으로 방향 · 부스트 버튼(꾹)으로 가속(길이 소모) · 내 머리가 다른 뱀 몸에 닿으면 내가 탈락 · 머리끼리는 1.2배 이상 큰 쪽이 삼킴 · 경기장 벽에 닿으면 탈락 · 슈퍼 지렁이는 1등과 부딪혀도 안 죽음',
+    desc: '큰 뱀이 작은 뱀을 삼키며 자라는 실시간 대전. 먹이를 먹어 길이를 키우고, 머리끼리 부딪히면 1.2배 이상 큰 쪽이 삼켜요. 가끔 태어나는 슈퍼 지렁이는 1등의 머리를 먹으면 1등 자리를 이어받아요. 누군가 길이 2000에 닿으면 경기 끝 — 그 순간 점수로 순위를 매겨요',
+    howto: '조이스틱으로 방향 · 부스트 버튼(꾹)으로 가속(길이 소모) · 내 머리가 다른 뱀 몸에 닿으면 내가 탈락 · 머리끼리는 1.2배 이상 큰 쪽이 삼킴 · 경기장 벽에 닿으면 탈락 · 슈퍼 지렁이는 1등과 부딪혀도 안 죽음 · 길이 2000에 먼저 닿으면 1등으로 경기 끝',
     meta: '실시간 대전 · 최대 30명 · 개인전 · 맵 5종(인원별 크기)',
     primary: '75% 0.19 160', primaryContent: '100% 0 0', hex: '#06D6A0',
     grid: { cols: 30, rows: 30 },
     adminView: 'grid', fullBleed: true,
     needsPeers: true, realtime: true, hasNext: false, hasTracks: true, trackKind: 'map', mapRegistry: 'slither',   // 맵(인원별 크기) 선택
     stats: [{ key: 'len', label: '길이' }, { key: 'kills', label: '삼킴' }],
-    detail: function (g) { return '길이 ' + Math.round(g.len) + ' · 최고 ' + Math.round(Math.max(g.best, g.len)) + ' · 삼킴 ' + g.kills; },
+    overText: function (g) { return g.winner ? '경기 끝!' : 'GAME OVER'; },
+    detail: function (g) { return (g.rank ? g.winner + ' 2000 달성 · ' + g.total + '명 중 ' + g.rank + '등 · ' : '') + '길이 ' + Math.round(g.len) + ' · 최고 ' + Math.round(Math.max(g.best, g.len)) + ' · 삼킴 ' + g.kills; },
     controls: [], padLayout: 'slither',
     create: function (canvas, opts) { return new SlitherGame(canvas, opts); },
     sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: Math.round(Math.max(g.best, g.len)), len: Math.round(g.len), kills: g.kills }; }

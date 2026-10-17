@@ -15,8 +15,8 @@
 <link rel="apple-touch-icon" href="icon-180.png">
 <meta name="theme-color" content="#1B2027">
 <title>아케이드</title>
-<link rel="stylesheet" href="platform.css?v=2026-10-20r">
-<link rel="stylesheet" href="style.css?v=2026-10-20r">
+<link rel="stylesheet" href="platform.css?v=2026-10-20s">
+<link rel="stylesheet" href="style.css?v=2026-10-20s">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nanum+Myeongjo:wght@700;800&display=swap" rel="stylesheet">
 </head>
@@ -136,17 +136,17 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script src="firebase-config.js?v=2026-10-20r"></script>
-<script src="sound.js?v=2026-10-20r"></script>
-<script src="shared.js?v=2026-10-20r"></script>
-<script src="fx.js?v=2026-10-20r"></script>
+<script src="firebase-config.js?v=2026-10-20s"></script>
+<script src="sound.js?v=2026-10-20s"></script>
+<script src="shared.js?v=2026-10-20s"></script>
+<script src="fx.js?v=2026-10-20s"></script>
 <!-- 게임 엔진(*-engine.js · three.min.js · 울산 · 카트 3D 파일)은 아래 ENGINE_FILES 표대로 고른 게임에 필요한 것만 불러옵니다 -->
-<script src="games.js?v=2026-10-20r"></script>
-<script src="app.js?v=2026-10-20r"></script>
+<script src="games.js?v=2026-10-20s"></script>
+<script src="app.js?v=2026-10-20s"></script>
 <script>
 (function () {
 
-  const BUILD = '2026-10-20r';   // 화면 아래에 표시됩니다
+  const BUILD = '2026-10-20s';   // 화면 아래에 표시됩니다
 
   const gameId = getGameId();
   const def = GAMES[gameId];
@@ -1689,7 +1689,7 @@
     clearInterval(syncTimer);
     try { if (game && game.draw) game.draw(); } catch (e) {}                          // 마지막 장면을 그대로 두고 그 위에
     const wrap = byId('canvas-wrap'), fl = document.createElement('div'); fl.className = 'gameover-flash';
-    fl.innerHTML = '<div class="go-card"><b>' + (def.overText || 'GAME OVER') + '</b><span>' + (typeof game.score === 'number' ? '점수 ' + game.score : '') + '</span></div>';
+    fl.innerHTML = '<div class="go-card"><b>' + ((typeof def.overText === 'function' ? def.overText(game) : def.overText) || 'GAME OVER') + '</b><span>' + (typeof game.score === 'number' ? '점수 ' + game.score : '') + '</span></div>';
     if (wrap) wrap.appendChild(fl);
     if (window.Sound && Sound.gameOver) Sound.gameOver(); if (window.Haptic && Haptic.hit) Haptic.hit();
     const g0 = startGen;
@@ -1700,6 +1700,7 @@
     countUp(document.getElementById('final-score'), game.score);
     document.getElementById('final-detail').textContent = def.detail ? def.detail(game) : '';
     show('screen-over');
+    if (game.rank && game.total) { showRank(game.rank, game.total); return; }   // 엔진이 경기 끝 순간의 순위를 직접 셈 (뱀 아레나 2000 달성)
     playersRef.once('value').then(snap => {
       const players = snap.val() || {};
       const scores = Object.keys(players).map(id => players[id].score || 0);

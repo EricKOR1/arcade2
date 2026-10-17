@@ -37,6 +37,7 @@ const SL_SEG = 0.45;           // 몸 마디 간격(칸) — 마디는 정확히
 const SL_SPEED = 0.11;         // 한 프레임(16.7ms) 이동 칸 · 부스트는 1.7배
 const SL_K = 8;                // 신호마다 싣는 최근 마디 수
 const SL_TSM = 1679616;        // 보낸 시각(ms)을 36진 4글자로 — 이 값으로 나눈 나머지
+const SL_WIN = 2000;           // 길이 2000에 먼저 닿으면 경기 끝 (그 순간 점수로 모두의 순위)
 const SL_SUPER_P = 0.09, SL_SUPER_MS = 60000, SL_SUPER_GAP = 15000;   // 슈퍼: 부활 때 9% · 60초 · 끝난 뒤 15초는 새로 안 나옴
 const SL_COLORS = ['#06D6A0', '#4CC9F0', '#FFD166', '#FF5C7A', '#B15DFF', '#FF9F43', '#7DF58F', '#F78FB3'];   // 먹이 색
 
@@ -142,14 +143,14 @@ class SlitherGame {
     let dirs = ''; for (let i = 1; i < K; i++) dirs += slEnc(Math.atan2(t[i][1] - t[i - 1][1], t[i][0] - t[i - 1][0]));
     const fl = (this.invul > 0 ? 1 : 0) | (this.isSuper ? 2 : 0);
     const s = [this.x.toFixed(2), this.y.toFixed(2), this.angle.toFixed(2), Math.round(this.len), (this.boost && this.len > 8 && !this.isDead) ? 1 : 0, this.isDead ? 1 : 0, this.skin, this.kills,
-      fl, this.life, this.seq, (Math.round(this.srvNow()) % SL_TSM).toString(36), nb, Math.round((t[0][0] - this.x) * 100), Math.round((t[0][1] - this.y) * 100), dirs].join(',');
+      fl, this.life, this.seq, (Math.round(this.srvNow()) % SL_TSM).toString(36), nb, Math.round((t[0][0] - this.x) * 100), Math.round((t[0][1] - this.y) * 100), dirs, Math.round(Math.max(this.best, this.len))].join(',');
     if (this.isDead) { this._deadSer = s; this._deadKey = this.life + ':' + this.kills; }
     return s;
   }
   static parse(raw) {
     const a = String(raw).split(','), has = i => a[i] != null && a[i] !== '';
     return { x: +a[0], y: +a[1], angle: +a[2], len: +a[3] || 6, boost: a[4] === '1', dead: a[5] === '1', ci: +a[6] || 0, kills: +a[7] || 0,
-      fl: +a[8] || 0, life: has(9) ? +a[9] : -1, seq: has(10) ? +a[10] : -1, ts: has(11) ? parseInt(a[11], 36) : -1, nb: +a[12] || 0, ax: (+a[13] || 0) / 100, ay: (+a[14] || 0) / 100, dirs: a[15] || '' };
+      fl: +a[8] || 0, life: has(9) ? +a[9] : -1, seq: has(10) ? +a[10] : -1, ts: has(11) ? parseInt(a[11], 36) : -1, nb: +a[12] || 0, ax: (+a[13] || 0) / 100, ay: (+a[14] || 0) / 100, dirs: a[15] || '', best: has(16) ? +a[16] || 0 : 0 };
   }
   applyPeerRaw(id, raw, name) {
     if (typeof raw !== 'string') return;                       // 이전 게임의 옛 신호 등 형식이 다르면 무시
@@ -171,6 +172,8 @@ class SlitherGame {
     const wasSup = p.sup, N = SL_SKINS.length;
     p.hx = d.x; p.hy = d.y; p.ang = d.angle; p.len = Math.max(1, Math.min(3000, d.len)); p.boost = d.boost; p.dead = d.dead;
     p.skin = ((Math.round(d.ci) % N) + N) % N; p.kills = d.kills; p.sup = !!(d.fl & 2) && !d.dead; p.inv = !!(d.fl & 1); p.life = d.life; p.nb = d.nb;
+    p.best = Math.max(p.best || 0, d.best || 0, d.dead ? 0 : p.len);
+    if (p.best >= SL_WIN && !this.gameOver) this.finish(id, p.name || name);   // 끝 소식을 놓쳐도 상대 길이가 2000이면 끝
     p.name = name || p.name || ''; p.seen = now; if (d.ts >= 0 && isFinite(d.ts)) p.ts = d.ts;
     // 도착 간격(이동 평균) — 보내는 간격이 인원에 따라 165~235ms 로 달라짐. 다음 신호가 올 때쯤 받은 길 끝 '조금 앞'에 닿는 속도로 정해 그 사이를 고르게 감 (stepPeers)
     { const iv = p.iv || this.opts.sendMs || 165; p.iv = p.rcv == null ? iv : (now - p.rcv < iv * 2.5 ? iv + (Math.max(40, now - p.rcv) - iv) * 0.15 : iv); p.rcv = now;
@@ -220,6 +223,7 @@ class SlitherGame {
   onEvent(e) {
     if (!e || e.by === this.myId) return;
     const now = this.clock(), nm = this.nameOf(e.by), me = e.target === this.myId;
+    if (e.type === 'win') { this.finish(e.by, e.name || nm); return; }            // 누가 2000 달성 → 경기 끝
     if (e.type === 'need') { this.fullUntil = now + 400; return; }                 // 누가 내 몸 전체를 원함 → 다음 신호에 통째로
     if (e.type === 'eaten') { if (me && !this.isDead) this.die('머리끼리 부딪혀 ' + nm + '에게 먹혔어요', e.by, 'eat'); return; }   // 예전 형식 호환
     if (e.type === 'ko') {                                                          // 몸 주인 기기가 '내 머리가 자기 몸에 깊게 들어왔다'고 알려 옴
@@ -264,6 +268,19 @@ class SlitherGame {
     this.dropPellets(this.trail, this.len); this.burst(this.x, this.y, 24, SL_SKINS[this.skin].c);
     this.toast(reason + ' · 3초 뒤 부활', '#FF5C7A'); if (window.Sound) Sound.death(); if (typeof Haptic !== 'undefined') Haptic.big();
     if (by && cause === 'body' && !quiet) this.send('crash', by, { life: this.life });   // 몸 주인에게 알림 (주인 화면에 '부딪혔다')
+  }
+  // 경기 끝: 그 순간의 점수(최고 길이)로 순위 — 2000 달성자가 1등
+  finish(winId, winName) {
+    if (this.gameOver) return;
+    const my = Math.round(Math.max(this.best, this.len)), list = [{ id: this.myId, s: winId === this.myId ? SL_WIN : my }], now = this.clock();
+    for (const id in this.peers) { const p = this.peers[id]; if (now - p.seen > 6000 && id !== winId) continue; list.push({ id, s: id === winId ? SL_WIN : Math.round(Math.max(p.best || 0, this.live(p) ? p.len : 0)) }); }
+    if (!list.some(e => e.id === winId)) list.push({ id: winId, s: SL_WIN });   // 달성자 신호가 아직 안 왔어도 순위에 넣음
+    list.sort((a, b) => (b.s - a.s) || (a.id === winId ? -1 : b.id === winId ? 1 : 0));
+    this.rank = list.findIndex(e => e.id === this.myId) + 1; this.total = list.length;
+    this.winner = winId === this.myId ? (this.myName || '나') : (winName || this.nameOf(winId));
+    this.best = this.score = list.find(e => e.id === this.myId).s; this.gameOver = true;
+    this.say(winId === this.myId ? '2000 달성! 1등!' : slJosa(this.winner, '이', '가') + ' 2000 달성!', '경기 끝 · 나는 ' + this.total + '명 중 ' + this.rank + '등', '#FFD447', 9e9);
+    if (window.Sound && Sound.levelUp) Sound.levelUp();
   }
   burst(x, y, n, c) { for (let i = 0; i < n; i++) { const a = Math.random() * Math.PI * 2, v = 0.04 + Math.random() * 0.1; this.parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, l: 1, c }); } }
   respawn() {
@@ -320,7 +337,7 @@ class SlitherGame {
       let h = this.trail[0], dx = this.x - h[0], dy = this.y - h[1], dd = Math.sqrt(dx * dx + dy * dy);
       while (dd >= SL_SEG) { const k = SL_SEG / dd; h = [h[0] + dx * k, h[1] + dy * k]; this.trail.unshift(h); this.seq++; this.tAt[this.seq & 63] = now; dx = this.x - h[0]; dy = this.y - h[1]; dd = Math.sqrt(dx * dx + dy * dy); }
       const maxPts = Math.ceil(this.len / SL_SEG) + 3; if (this.trail.length > maxPts) this.trail.length = maxPts;
-      if (this.len > 999) this.len = 999;                                             // 길이 상한 (전체 몸 신호 크기 제한)
+      if (this.len > SL_WIN) this.len = SL_WIN;                                       // 길이 상한 2000 (닿으면 경기 끝)
       if (this.invul > 0) this.invul -= dt;
       // 먹이 (가까운 것만 거리 계산)
       const pull = R + 0.6, eat = R + 0.15, pl = this.pellets;
@@ -335,6 +352,7 @@ class SlitherGame {
         else if (this.frameN % 6 === 0) { const t = this.trail[Math.floor(Math.random() * Math.min(this.trail.length, Math.ceil(this.len / SL_SEG)))]; this.parts.push({ x: t[0], y: t[1], vx: (Math.random() - .5) * .03, vy: -0.03, l: 1, c: Math.random() < .5 ? '#FFF6C8' : '#FFD447' }); }
       }
       if (!this.isDead) this.collide(R, now);
+      if (!this.isDead && this.len >= SL_WIN && !this.gameOver) { this.len = SL_WIN; this.send('win', '*', { name: this.myName, len: SL_WIN }); this.finish(this.myId, this.myName); }
     }
     if (this.isSuper) this.superCool = Math.max(this.superCool, now + SL_SUPER_GAP);
     if (this.frameN % 60 === 0) this.housekeep(now);
@@ -643,7 +661,7 @@ class SlitherGame {
         FX.text(ctx, '슈퍼 지렁이가 다가와요! ' + Math.round(sd) + '칸', W / 2, 191, { size: 13, weight: 800, color: '#FFE3E8', align: 'center' });
         this.drawPointer(ctx, W, H, S.rx * sc + ox, S.ry * sc + oy, '#FF5C7A', '슈퍼', now); }
     }
-    if (this.isDead) { ctx.fillStyle = 'rgba(8,10,16,0.5)'; ctx.fillRect(0, 0, W, H); FX.text(ctx, '부활까지 ' + Math.ceil((this.deadUntil - now) / 1000), W / 2, H / 2, { size: 30, weight: 800, color: '#fff', align: 'center', baseline: 'middle', shadow: 10 }); FX.text(ctx, '최고 길이 ' + Math.round(this.best), W / 2, H / 2 + 34, { size: 15, weight: 700, color: '#FFD166', align: 'center', baseline: 'middle' }); }
+    if (this.isDead && !this.gameOver) { ctx.fillStyle = 'rgba(8,10,16,0.5)'; ctx.fillRect(0, 0, W, H); FX.text(ctx, '부활까지 ' + Math.ceil((this.deadUntil - now) / 1000), W / 2, H / 2, { size: 30, weight: 800, color: '#fff', align: 'center', baseline: 'middle', shadow: 10 }); FX.text(ctx, '최고 길이 ' + Math.round(this.best), W / 2, H / 2 + 34, { size: 15, weight: 700, color: '#FFD166', align: 'center', baseline: 'middle' }); }
     this.toasts.slice(-2).forEach((t, i) => FX.text(ctx, t.text, W / 2, Math.max(H * 0.3, 262) + (this.banner ? 92 : 0) + i * 26, { size: 17, weight: 800, color: t.color, align: 'center', stroke: 'rgba(0,0,0,0.55)', strokeW: 4 }));
     if (this.banner) { const b = this.banner, k = Math.min(1, (now - b.at) / 180), w = Math.min(W - 24, 340), y = Math.max(H * 0.3, 262), lines = b.s ? b.s.split(' · ') : [], bh = 50 + lines.length * 17;
       ctx.save(); ctx.globalAlpha = k; ctx.translate(W / 2, y); ctx.scale(0.85 + 0.15 * k, 0.85 + 0.15 * k);
