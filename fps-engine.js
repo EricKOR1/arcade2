@@ -89,6 +89,7 @@ class FpsGame {
     const C = this.map.length / 2; this.angle = Math.atan2(C - this.y, C - this.x);
     this.ammo = FPS_MAG; this.reloadUntil = 0;
     this.protUntil = this.clock() + FPS_SPAWN_PROT;          // 부활 직후 무적 (출발 때도 — 같은 규칙)
+    this._hist = [];
   }
 
   // ── 조작 ──
@@ -109,49 +110,75 @@ class FpsGame {
     if (this.isDead || this.spectator || this.reloading) return;
     if (this.ammo <= 0) { this.reload(); return; }
     if (now - this.lastFire < 110) return;                      // 연사 속도
+    // 반동으로 조준이 살짝 흔들림 (조준점이 벌어진 만큼)
+    const spread = 0.012 * this.recoil + (this.moving ? 0.012 : 0);
+    const aim = this.angle + (Math.random() - 0.5) * spread * 2;
     this.lastFire = now; this.muzzle = 1; this.recoil = Math.min(1, this.recoil + 0.35); this.ammo--; this.protUntil = 0;   // 쏘면 무적이 바로 풀림 (무적으로 공격만 하는 꼼수 막기)
     if (this.ammo <= 0) this.reload();
     if (window.Sound) Sound.hardDrop();
-    // 반동으로 조준이 살짝 흔들림
-    const spread = 0.012 * this.recoil + (this.moving ? 0.012 : 0);
-    const aim = this.angle + (Math.random() - 0.5) * spread * 2;
-    // 히트스캔
-    let best = null, bestD = 1e9;
-    Object.keys(this.peers).forEach(id => {
-      const p = this.peers[id];
-      if (p.dead || p.prot || (this.teamMode && p.team === this.team)) return;   // 부활 직후 무적인 상대는 맞지 않음 (레이저는 지나감)
-      const dx = p.x - this.x, dy = p.y - this.y, d = Math.hypot(dx, dy);
-      if (d > 16) return;
-      let da = Math.atan2(dy, dx) - aim; while (da > Math.PI) da -= Math.PI * 2; while (da < -Math.PI) da += Math.PI * 2;
-      if (Math.abs(da) > Math.max(0.03, 0.36 / d)) return;
-      if (this.blocked(this.x, this.y, p.x, p.y)) return;
-      if (d < bestD) { bestD = d; best = id; }
-    });
-    // 레이저 궤적 (맞았으면 상대까지, 아니면 벽까지)
-    let tx = this.x, ty = this.y, n = 0;
-    while (!this.wall(tx, ty) && n++ < 200) { tx += Math.cos(aim) * 0.1; ty += Math.sin(aim) * 0.1; }
-    if (best) { const p = this.peers[best]; tx = p.x; ty = p.y; }
+    // 히트스캔: 화면에 그려진 병사 그대로 (그 열의 벽보다 앞 · 조준점이 몸 그림 안)
+    const hit = this.aimHit(aim), wd = this.wallDist(aim);
+    let tx = this.x + Math.cos(aim) * wd, ty = this.y + Math.sin(aim) * wd;
+    if (hit) { const p = this.peers[hit.id]; tx = p.x; ty = p.y; }
     this.tracers.push({ x0: this.x, y0: this.y, x1: tx, y1: ty, until: now + 90 });
-    if (best) {
-      const dmg = bestD < 6 ? 34 : 26;                          // 가까우면 3발, 멀면 4발
-      this.queueHit(best, dmg);
-      this.hits.push({ id: best, until: now + 160 });
+    if (hit && hit.prot) this.protMark = 1;                     // 부활 직후 보호 중인 상대: 피해 없음 (하늘색 고리)
+    else if (hit) {
+      const dmg = hit.dist < 6 ? 34 : 26;                       // 가까우면 3발, 멀면 4발
+      if (this.queueHit(hit.id, dmg, tx, ty)) this.killMark = 1;   // 쓰러뜨릴 만큼 맞힘: 큰 X
+      this.hits.push({ id: hit.id, until: now + 160 });
       this.hitMarker = 1; this.score += 3;
       if (window.Sound) Sound.lock();
     }
   }
-
-  // 명중 신호 묶기: 같은 상대에게 0.2초 안의 연속 명중은 피해를 합쳐 한 번에 (첫 발 · 쓰러뜨릴 만큼은 바로)
-  queueHit(target, dmg) {
+  // 화면 크기 · 병사 그림 크기 (그리기와 판정이 같은 값을 씀)
+  viewSize() { return [this.canvas.clientWidth || this.canvas.width || 400, this.canvas.clientHeight || this.canvas.height || 300]; }
+  // 높이는 거리에 반비례. 폭은 가로로 넓은 화면에서 조금 넓게 (벽도 가로로 늘어나 보임 — 예전엔 폰 가로에서 그려진 몸이 판정 폭의 1/4)
+  spriteSize(d, W, H) { const h = Math.min(H * 2.2, H / Math.max(0.05, d)) * 0.72; return [h, h * 0.42 * Math.min(1.6, Math.max(1, Math.sqrt(W / H / 0.9)))]; }
+  // 각도 aim 방향으로 벽까지 거리
+  wallDist(aim) {
+    const dx = Math.cos(aim), dy = Math.sin(aim);
+    let mx = Math.floor(this.x), my = Math.floor(this.y);
+    const ddx = Math.abs(1 / (dx || 1e-9)), ddy = Math.abs(1 / (dy || 1e-9));
+    let sx, sy, sdx, sdy, side = 0, n = 0;
+    if (dx < 0) { sx = -1; sdx = (this.x - mx) * ddx; } else { sx = 1; sdx = (mx + 1 - this.x) * ddx; }
+    if (dy < 0) { sy = -1; sdy = (this.y - my) * ddy; } else { sy = 1; sdy = (my + 1 - this.y) * ddy; }
+    while (n++ < this.map.length * 2) { if (sdx < sdy) { sdx += ddx; mx += sx; side = 0; } else { sdy += ddy; my += sy; side = 1; } if (this.cell(mx + 0.5, my + 0.5) !== '.') break; }
+    return side === 0 ? sdx - ddx : sdy - ddy;
+  }
+  // 조준선(각도 aim)이 맞히는 병사: 조준점 가로 위치가 그려진 몸(왼팔 끝 ~ 몸통 오른쪽 끝, 여유 3px) 안이고 그 자리 벽보다 앞인 가장 가까운 상대
+  aimHit(aim) {
+    const [W, H] = this.viewSize(), tf = Math.tan(Math.PI / 6);
+    let da0 = aim - this.angle; while (da0 > Math.PI) da0 -= Math.PI * 2; while (da0 < -Math.PI) da0 += Math.PI * 2;
+    const ax = W / 2 + Math.tan(da0) / tf * (W / 2), wall = this.wallDist(aim) * Math.cos(da0);
+    let best = null, bd = 1e9, bdist = 0;
+    for (const id in this.peers) {
+      const p = this.peers[id]; if (p.tx == null || p.dead || (this.teamMode && p.team === this.team) || (this.spectator && id === this.followId)) continue;
+      const dx = p.x - this.x, dy = p.y - this.y, dist = Math.hypot(dx, dy);
+      let da = Math.atan2(dy, dx) - this.angle; while (da > Math.PI) da -= Math.PI * 2; while (da < -Math.PI) da += Math.PI * 2;
+      if (Math.abs(da) > Math.PI / 6 + 0.3 || dist < 0.2 || dist > 18) continue;      // 그리지 않는 상대
+      const d = dist * Math.cos(da); if (d >= wall || d >= bd) continue;
+      const sx = W / 2 + Math.tan(da) / tf * (W / 2), w = this.spriteSize(d, W, H)[1], pad = 3;
+      if (ax < sx - w * 0.55 - pad || ax > sx + w * 0.42 + pad) continue;
+      best = id; bd = d; bdist = dist;
+    }
+    return best ? { id: best, dist: bdist, prot: !!this.peers[best].prot } : null;
+  }
+  pendDmg(p) { let s = 0; if (p && p.pend) for (const q of p.pend) s += q[1]; return s; }
+  // 명중 신호 묶기: 같은 상대에게 0.2초 안의 연속 명중은 피해를 합쳐 한 번에 (첫 발 · 쓰러뜨릴 만큼은 바로 + 그 자리에서 쓰러지는 모습을 먼저 보여 줌)
+  queueHit(target, dmg, hx, hy) {
     const now = this.clock(), h = this._hitQ[target] || (this._hitQ[target] = { dmg: 0, n: 0, last: -1e9 }), p = this.peers[target];
-    h.dmg += dmg; h.n++;
-    const lethal = p && !p.hitKill && h.dmg >= (p.hp || 0) - (p.hitSent || 0); if (lethal) p.hitKill = true;
+    h.dmg += dmg; h.n++; h.at = now; if (hx != null) { h.hx = hx; h.hy = hy; }
+    const lethal = p && !p.hitKill && h.dmg >= (p.hp || 0) - this.pendDmg(p); if (lethal) p.hitKill = true;
     if (now - h.last >= 200 || lethal) this.flushHit(target, now);
+    if (lethal) { p.dead = true; p.downUntil = now + 1200 + (p.iv || 200); p.downDeaths = (p.deaths || 0) + 1; }   // 확인 신호가 이 시간 안에 안 오면 되돌림
+    return !!lethal;
   }
   flushHit(target, now) {
     const h = this._hitQ[target]; if (!h || !h.n) return;
-    if (this.opts.onAttack) this.opts.onAttack('hit', target, h.n > 1 ? { dmg: h.dmg, n: h.n } : { dmg: h.dmg });
-    const p = this.peers[target]; if (p) p.hitSent = (p.hitSent || 0) + h.dmg;
+    const p = this.peers[target], pay = h.n > 1 ? { dmg: h.dmg, n: h.n } : { dmg: h.dmg };
+    if (p) pay.l = p.deaths || 0; if (h.hx != null) { pay.hx = Math.round(h.hx * 10) / 10; pay.hy = Math.round(h.hy * 10) / 10; } if (now - (h.at || now) > 20) pay.a = Math.round(now - h.at);   // 맞은 쪽이 거를 수 있게
+    if (this.opts.onAttack) this.opts.onAttack('hit', target, pay);
+    if (p) { (p.pend || (p.pend = [])).push([now, h.dmg]); if (p.pend.length > 12) p.pend.shift(); }
     h.dmg = 0; h.n = 0; h.last = now;
   }
 
@@ -166,6 +193,7 @@ class FpsGame {
     if (!e) return;
     if (e.type === 'hit' && e.target === this.myId) {
       if (this.isDead || this.spawnSafe) return;                 // 부활 직후 무적: 받은 명중 무시 (쏜 쪽이 무적 신호를 아직 못 받았을 때)
+      if (!this.hitOk(e)) { this.hitRejected = (this.hitRejected || 0) + 1; return; }
       this.hp = Math.max(0, this.hp - (e.dmg || 26)); this.hurt = 1;
       // 맞은 방향 (공격자 위치 기준)
       const p = this.peers[e.by];
@@ -179,7 +207,12 @@ class FpsGame {
         if (this.opts.onAttack) this.opts.onAttack('kill', e.by, { victim: this.myId });
         if (window.Sound) Sound.gameOver();
       }
-    } else if (e.type === 'kill' && e.target === this.myId) {
+      return;
+    }
+    // 킬 소식: 쓰러진 학생을 다음 위치 신호를 기다리지 않고 바로 쓰러뜨려 보여 줌
+    if (e.type === 'kill' && e.victim && e.victim !== this.myId) { const v = this.peers[e.victim];
+      if (v && (!v.dead || v.downUntil)) { v.downDeaths = v.downUntil ? v.downDeaths : (v.deaths || 0) + 1; v.dead = true; v.downUntil = Math.max(v.downUntil || 0, this.clock() + 1500); } }
+    if (e.type === 'kill' && e.target === this.myId) {
       this.kills++; this.streak++; this.score += 100 + (this.streak >= 3 ? 50 : 0);
       this.pushFeed(this.myName, this.nameOf(e.victim), '#06D6A0');
       this.showToast(this.streak >= 5 ? '🔥 ' + this.streak + '연속 킬!' : (this.streak >= 3 ? this.streak + '연속 킬  +150' : this.nameOf(e.victim) + ' 처치  +100'), this.streak >= 3 ? '#FFD166' : '#06D6A0');
@@ -187,6 +220,18 @@ class FpsGame {
     } else if (e.type === 'kill') {
       this.pushFeed(this.nameOf(e.by), this.nameOf(e.victim), '#9AA3B2');
     }
+  }
+  // 받은 명중 거르기 — 쏜 사람 화면이 기준, 너무 오래된 것(0.8초) · 이전 목숨에 쏜 것 · 내가 그 근처(3칸)에 간 적이 없는 것만 버림 (3D 와 같음)
+  hitOk(e) {
+    if (e.l != null && +e.l !== this.deaths) return false;
+    let age = 0;
+    if (e.t && this.opts.serverNow) { age = this.opts.serverNow() - e.t + (+e.a || 0); if (age > 800) return false; }
+    if (e.hx != null && this._hist && this._hist.length) {
+      const since = this.clock() - Math.max(0, age) - 400; let ok = Math.hypot(this.x - e.hx, this.y - e.hy) < 3;
+      for (let i = this._hist.length - 1; i >= 0 && !ok; i -= 3) { const h = this._hist[i]; if (h[0] < since) break; ok = Math.hypot(h[1] - e.hx, h[2] - e.hy) < 3; }
+      if (!ok) return false;
+    }
+    return true;
   }
   nameOf(id) { if (this.peers[id] && this.peers[id].name) return this.peers[id].name; if (this.opts.nameOf) return this.opts.nameOf(id) || '?'; return '?'; }
   pushFeed(a, b, color) { this.feed.unshift({ a, b, color, until: this.clock() + 5000 }); this.feed = this.feed.slice(0, 5); }
@@ -225,8 +270,13 @@ class FpsGame {
     // 도착 간격(이동 평균, 멈춰 서서 안 보낸 틈은 뺌) → 보정 시간 0.1초(165ms) ~ 약 0.14초(235ms) — 3D 와 같음
     { const iv = p.iv || this.opts.sendMs || 165; p.iv = p.at == null ? iv : (now - p.at < iv * 2.5 ? iv + (Math.max(40, now - p.at) - iv) * 0.15 : iv); p.tau = Math.max(100, Math.min(150, 100 * p.iv / 165)); }
     p.at = now;
-    const shownX = p.x, shownY = p.y, had = p.tx != null;
-    Object.assign(p, { tx: d.x, ty: d.y, vx: d.vx, vy: d.vy, sAt: now - age, tangle: d.angle, hp: d.hp, kills: d.kills, deaths: d.deaths, team: d.team, fire: d.fire, dead: d.dead, moving: d.moving, prot: d.prot, hitSent: 0, hitKill: false });
+    const shownX = p.x, shownY = p.y, had = p.tx != null, prevHp = p.hp, prevDeaths = p.deaths;
+    Object.assign(p, { tx: d.x, ty: d.y, vx: d.vx, vy: d.vy, sAt: now - age, tangle: d.angle, hp: d.hp, kills: d.kills, deaths: d.deaths, team: d.team, fire: d.fire, dead: d.dead, sigDead: d.dead, moving: d.moving, prot: d.prot });
+    // 보낸 피해 중 이 체력 신호에 반영된 것은 지움 · 먼저 보여 준 다운은 확인되거나 시간이 지날 때까지 유지 (3D 와 같음)
+    if (p.pend) { if (d.deaths !== prevDeaths) p.pend.length = 0; else { let drop = Math.max(0, (prevHp || 0) - d.hp); while (p.pend.length && p.pend[0][1] <= drop + 0.5) { drop -= p.pend[0][1]; p.pend.shift(); } }
+      while (p.pend.length && now - p.pend[0][0] > 1000) p.pend.shift(); }
+    if (p.downUntil) { if (d.dead || d.deaths >= p.downDeaths || now >= p.downUntil) p.downUntil = 0; else p.dead = true; }
+    if (!p.downUntil) p.hitKill = false;
     const g = this.predict(p, now);
     if (had && !d.dead && Math.hypot(shownX - g.x, shownY - g.y) < 3) { p.cx = shownX - g.x; p.cy = shownY - g.y; } else { p.cx = 0; p.cy = 0; p.x = g.x; p.y = g.y; }
     if (name) p.name = name;
@@ -252,12 +302,14 @@ class FpsGame {
     for (const id in this.peers) { const p = this.peers[id]; if (p.tx == null) continue;
       const kc = 1 - Math.exp(-dt / (p.tau || 100)); p.cx -= p.cx * kc; p.cy -= p.cy * kc; const g = this.predict(p, now); p.x = g.x + p.cx; p.y = g.y + p.cy;   // p.tau: 신호 간격에 맞춘 보정 시간 (applyPeerRaw)
       let da = p.tangle - p.angle; while (da > Math.PI) da -= Math.PI * 2; while (da < -Math.PI) da += Math.PI * 2; p.angle += da * sa;
-      p.walk = (p.walk || 0) + (p.moving ? 0.22 * f : 0); }
+      p.walk = (p.walk || 0) + (p.moving ? 0.22 * f : 0);
+      if (p.downUntil && now >= p.downUntil) { p.downUntil = 0; p.dead = p.sigDead; p.hitKill = false; } }   // 먼저 보여 준 다운이 확인되지 않음 → 되돌림
     for (const id in this._hitQ) { const h = this._hitQ[id]; if (h.n && now - h.last >= 200) this.flushHit(id, now); }
     this.tracers = this.tracers.filter(t => t.until > now);
     this.hits = this.hits.filter(h => h.until > now);
     this.muzzle = Math.max(0, this.muzzle - 0.18 * f); this.recoil = Math.max(0, this.recoil - 0.06 * f);
     this.hurt = Math.max(0, this.hurt - 0.04 * f); this.hitMarker = Math.max(0, this.hitMarker - 0.08 * f);
+    this.killMark = Math.max(0, (this.killMark || 0) - 0.04 * f); this.protMark = Math.max(0, (this.protMark || 0) - 0.06 * f);
 
     if (this.spectator) {
       const p = this.peers[this.followId];
@@ -266,6 +318,7 @@ class FpsGame {
       this.draw(); return;
     }
     if (this.isDead) {
+      this.aimOn = 0;
       if (!this._respawned && this.deadUntil - now < 50) { this._respawned = true; this.hp = 100; this.spawnAt(Math.floor(Math.random() * 12)); this.dmgDir = null; }
       this.draw(); return;
     }
@@ -274,7 +327,7 @@ class FpsGame {
     this._respawned = false;
     if (this.reloadUntil && now >= this.reloadUntil && this.ammo < FPS_MAG) { this.ammo = FPS_MAG; this.reloadUntil = 0; if (window.Sound) Sound.rotate(); }
 
-    this.angle += this.turn * 0.05 * f;
+    this.angle += this.turn * 0.05 * f * (this.aimOn ? 0.3 : 1);   // 조준점이 상대 위면 회전이 느려짐 (버튼으로도 멈춰 조준하기 쉽게)
     const px = this.x, py = this.y;
     let mv = this.fwd; if (this.upHeld) mv = 1;
     this.moving = mv ? 1 : 0;
@@ -291,6 +344,8 @@ class FpsGame {
       this.svx = (this.svx || 0) + (vx - (this.svx || 0)) * 0.6; this.svy = (this.svy || 0) + (vy - (this.svy || 0)) * 0.6;
       if (Math.abs(this.svx) < 0.05) this.svx = 0; if (Math.abs(this.svy) < 0.05) this.svy = 0; }
     if (this.firing) this.shoot();
+    const hs = this._hist || (this._hist = []); if (!hs.length || now - hs[hs.length - 1][0] >= 50) { hs.push([now, this.x, this.y]); if (hs.length > 32) hs.shift(); }   // 내 위치 기록 (받은 명중 확인용)
+    { const ah = this.aimHit(this.angle); this.aimOn = ah ? (ah.prot ? 2 : 1) : 0; }   // 조준점 색 (판정과 같은 계산)
     this.draw();
   }
 
@@ -430,36 +485,41 @@ class FpsGame {
   drawSoldier(ctx, s, W, H, hy, FOV, cw, cols, zb, now) {
     const p = s.p;
     const sx = W / 2 + Math.tan(s.da) / Math.tan(FOV / 2) * (W / 2);
-    const h = Math.min(H * 2.2, H / Math.max(0.05, s.d)) * 0.72, w = h * 0.42;
-    const col = Math.floor(sx / cw);
-    if (col >= 0 && col < cols && zb[col] < s.d) return;
+    const [h, w] = this.spriteSize(s.d, W, H);
+    // 벽에 가린 열은 그리지 않음 (예전: 가운데 열 하나로 전부 그리거나 전부 숨김 → 모서리에서 보이는 대로 맞지 않던 것)
+    const c0 = Math.max(0, Math.floor((sx - w * 0.62) / cw)), c1 = Math.min(cols - 1, Math.floor((sx + w * 0.92) / cw));
+    let vis = 0, all = true; for (let c = c0; c <= c1; c++) { if (zb[c] >= s.d) vis++; else all = false; }
+    if (!vis) return;
     const teamC = p.team ? FPS_TEAM_COLORS[p.team] : '#FFD166';
     const fog = Math.min(0.75, s.dist / 14);
     const hit = this.hits.some(x => x.id === s.id);
     const y0 = hy - h * 0.5, yBase = y0 + h;                 // y0 = 머리 위, yBase = 발
     ctx.save();
+    if (!all) { ctx.beginPath(); let a = -1; for (let c = c0; c <= c1 + 1; c++) { const v = c <= c1 && zb[c] >= s.d; if (v && a < 0) a = c; else if (!v && a >= 0) { ctx.rect(a * cw, 0, (c - a) * cw, H); a = -1; } } ctx.clip(); }
     if (p.dead) { ctx.globalAlpha = 0.5; ctx.translate(sx, yBase); ctx.rotate(0.9); ctx.translate(-sx, -yBase); }
     const prot = p.prot && !p.dead;                          // 부활 직후 무적: 깜빡임 + 하늘색 방패
     if (prot) { ctx.globalAlpha = Math.floor(now / 110) % 2 ? 0.35 : 0.9; ctx.strokeStyle = '#7FE7FF'; ctx.lineWidth = Math.max(2, w * 0.08); ctx.beginPath(); ctx.ellipse(sx, y0 + h * 0.5, w * 0.85, h * 0.58, 0, 0, Math.PI * 2); ctx.stroke(); }
+    // 색: 맞은 순간 하얗게 · 거리 안개 — 몸 색에 직접 섞음 (예전: 몸 둘레 네모 전체를 덮어 판정보다 넓은 상자처럼 보였음)
+    const tint = hex => { const n = parseInt(hex.slice(1), 16); let r = n >> 16, gg = (n >> 8) & 255, b = n & 255; if (hit) { r += (255 - r) * 0.55; gg += (255 - gg) * 0.55; b += (255 - b) * 0.55; }
+      return 'rgb(' + Math.round(r + (14 - r) * fog) + ',' + Math.round(gg + (19 - gg) * fog) + ',' + Math.round(b + (34 - b) * fog) + ')'; };
+    const tc = tint(teamC);
     // 다리 (걷기 애니메이션)
     const sw = p.moving ? Math.sin(p.walk) * 0.35 : 0;
-    ctx.fillStyle = '#23283A';
+    ctx.fillStyle = tint('#23283A');
     ctx.fillRect(sx - w * 0.3, y0 + h * 0.56, w * 0.24, h * 0.44 - Math.max(0, sw) * h * 0.1);
     ctx.fillRect(sx + w * 0.06, y0 + h * 0.56, w * 0.24, h * 0.44 - Math.max(0, -sw) * h * 0.1);
     // 몸통 (방탄복) + 팀 색 띠
-    ctx.fillStyle = '#3A4256'; FX.rr(ctx, sx - w * 0.42, y0 + h * 0.22, w * 0.84, h * 0.38, w * 0.12); ctx.fill();
-    ctx.fillStyle = teamC; ctx.fillRect(sx - w * 0.42, y0 + h * 0.22, w * 0.84, h * 0.06); ctx.fillRect(sx - w * 0.12, y0 + h * 0.28, w * 0.24, h * 0.3);
+    ctx.fillStyle = tint('#3A4256'); FX.rr(ctx, sx - w * 0.42, y0 + h * 0.22, w * 0.84, h * 0.38, Math.min(w, h * 0.42) * 0.12); ctx.fill();
+    ctx.fillStyle = tc; ctx.fillRect(sx - w * 0.42, y0 + h * 0.22, w * 0.84, h * 0.06); ctx.fillRect(sx - w * 0.12, y0 + h * 0.28, w * 0.24, h * 0.3);
     // 팔 + 총
-    ctx.fillStyle = '#2F3648'; ctx.fillRect(sx - w * 0.55, y0 + h * 0.26, w * 0.14, h * 0.3);
-    ctx.fillStyle = '#1A1D24'; ctx.fillRect(sx + w * 0.1, y0 + h * 0.36, w * 0.75, h * 0.07);
-    ctx.fillStyle = teamC; ctx.fillRect(sx + w * 0.75, y0 + h * 0.36, w * 0.1, h * 0.07);
-    if (p.fire) { ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.beginPath(); ctx.arc(sx + w * 0.9, y0 + h * 0.39, w * 0.14, 0, Math.PI * 2); ctx.fill(); }
-    // 머리 (헬멧 + 바이저)
-    ctx.fillStyle = '#2B3140'; ctx.beginPath(); ctx.arc(sx, y0 + h * 0.12, w * 0.24, Math.PI, 0); ctx.fill(); ctx.fillRect(sx - w * 0.24, y0 + h * 0.12, w * 0.48, h * 0.1);
-    ctx.fillStyle = teamC; ctx.fillRect(sx - w * 0.2, y0 + h * 0.13, w * 0.4, h * 0.06);
-    ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillRect(sx - w * 0.16, y0 + h * 0.14, w * 0.14, h * 0.03);
-    if (hit) { ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.fillRect(sx - w * 0.6, y0, w * 1.5, h); }
-    if (fog > 0.05) { ctx.fillStyle = 'rgba(14,19,34,' + fog.toFixed(2) + ')'; ctx.fillRect(sx - w * 0.6, y0, w * 1.5, h); }
+    ctx.fillStyle = tint('#2F3648'); ctx.fillRect(sx - w * 0.55, y0 + h * 0.26, w * 0.14, h * 0.3);
+    ctx.fillStyle = tint('#1A1D24'); ctx.fillRect(sx + w * 0.1, y0 + h * 0.36, w * 0.75, h * 0.07);
+    ctx.fillStyle = tc; ctx.fillRect(sx + w * 0.75, y0 + h * 0.36, w * 0.1, h * 0.07);
+    if (p.fire) { ctx.fillStyle = 'rgba(255,255,255,' + (0.85 * (1 - fog)).toFixed(2) + ')'; ctx.beginPath(); ctx.arc(sx + w * 0.9, y0 + h * 0.39, Math.min(w, h * 0.42) * 0.14, 0, Math.PI * 2); ctx.fill(); }
+    // 머리 (헬멧 + 바이저) — 헬멧 높이는 키에 맞춤 (가로 화면에서 몸이 넓어져도 머리가 위로 튀어나오지 않게)
+    ctx.fillStyle = tint('#2B3140'); ctx.beginPath(); ctx.ellipse(sx, y0 + h * 0.12, w * 0.24, h * 0.1, 0, Math.PI, 0); ctx.fill(); ctx.fillRect(sx - w * 0.24, y0 + h * 0.12, w * 0.48, h * 0.1);
+    ctx.fillStyle = tc; ctx.fillRect(sx - w * 0.2, y0 + h * 0.13, w * 0.4, h * 0.06);
+    ctx.fillStyle = 'rgba(255,255,255,' + (0.35 * (1 - fog)).toFixed(2) + ')'; ctx.fillRect(sx - w * 0.16, y0 + h * 0.14, w * 0.14, h * 0.03);
     ctx.restore();
     // 이름표 · 체력 · 거리
     if (h > 22 && !p.dead) {
@@ -511,11 +571,15 @@ class FpsGame {
     const rr = (x, y, w, h, r, fill) => { ctx.fillStyle = fill; FX.rr(ctx, x, y, w, h, r); ctx.fill(); };
     // 조준점 — 움직이거나 쏘면 벌어짐 · 히트마커
     const gap = 6 + this.recoil * 10 + (this.moving ? 5 : 0);
-    ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 2;
+    ctx.strokeStyle = this.aimOn === 1 ? 'rgba(255,92,122,0.98)' : this.aimOn === 2 ? 'rgba(127,231,255,0.98)' : 'rgba(255,255,255,0.9)'; ctx.lineWidth = 2;   // 지금 쏘면 맞는 상대 위: 빨강 · 보호 중: 하늘색
     [[-1, 0], [1, 0], [0, -1], [0, 1]].forEach(([ax, ay]) => { ctx.beginPath(); ctx.moveTo(W / 2 + ax * gap, hy + ay * gap); ctx.lineTo(W / 2 + ax * (gap + 8), hy + ay * (gap + 8)); ctx.stroke(); });
     ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.fillRect(W / 2 - 1, hy - 1, 2, 2);
     if (this.hitMarker > 0) { ctx.strokeStyle = 'rgba(255,80,80,' + this.hitMarker.toFixed(2) + ')'; ctx.lineWidth = 3;
       [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([ax, ay]) => { ctx.beginPath(); ctx.moveTo(W / 2 + ax * 6, hy + ay * 6); ctx.lineTo(W / 2 + ax * 16, hy + ay * 16); ctx.stroke(); }); }
+    // 쓰러뜨릴 만큼 맞힘: 큰 빨간 X · 보호 중인 상대를 맞힘: 하늘색 고리 (피해 없음)
+    if (this.killMark > 0) { ctx.strokeStyle = 'rgba(255,60,80,' + Math.min(1, this.killMark * 1.5).toFixed(2) + ')'; ctx.lineWidth = 5;
+      [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([ax, ay]) => { ctx.beginPath(); ctx.moveTo(W / 2 + ax * 9, hy + ay * 9); ctx.lineTo(W / 2 + ax * 24, hy + ay * 24); ctx.stroke(); }); }
+    if (this.protMark > 0) { ctx.strokeStyle = 'rgba(127,231,255,' + Math.min(1, this.protMark * 1.5).toFixed(2) + ')'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(W / 2, hy, 15, 0, Math.PI * 2); ctx.stroke(); }
     // 피격 방향 표시 (빨간 호)
     if (this.dmgDir && now < this.dmgDir.until) {
       const k = (this.dmgDir.until - now) / 900;

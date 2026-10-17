@@ -1145,7 +1145,11 @@ class KartGame {
         this.segIdx = this.track.nearestIndex(this.x, this.y, this.segIdx).index;
         this.lap = Math.floor((tgt.progress || 0) / this.track.n);
         this.progress = tgt.progress || 0;
-        this.finished = !!tgt.finished; this.airZ = tgt.z || 0;
+        const wasFin = this.finished; this.finished = !!tgt.finished; this.airZ = tgt.z || 0;
+        // 관전: 그 학생이 완주하면 완주 카드(순위는 진행도에 실린 값)를 보여 줌 (예전엔 finishedAt 이 없어 카드가 투명했음)
+        if (this.finished && !wasFin) this.finishedAt = now;
+        const fr = this.finished ? 1000 - ((tgt.progress || 0) - this.track.laps * this.track.n) : 0;
+        this.finishRank = fr >= 1 && fr <= 999 ? fr : null;
         this.boostUntil = tgt.boost ? now + 100 : 0;
         this.myName = tgt.name || ''; this.look = kartLook(this.myName || this.followId);
       }
@@ -1168,7 +1172,13 @@ class KartGame {
     //   (예전엔 핸들만 꺾어도 끼익 소리가 계속 나 드리프트가 길게 이어지는 것처럼 들렸음)
     if (!this.spectator && window.Sound && Sound.skidSet) { const sa = Math.abs(this.slip || 0), sk = sa > 0.08 && this.speed > this.maxSpeed * 0.3 ? Math.min(0.9, 0.3 + sa * 1.1) : 0;
       const v = this.finished || this.airborne ? 0 : Math.max(sk, now < (this.slideUntil || 0) ? 0.8 : 0); if (v > 0.05 || this._skidV > 0.05) Sound.skidSet(v); this._skidV = v; }
-    if (!this.finished) this.stepPhysics(now); else { this.slip = 0; this.drifting = false; this._prev = null; }
+    if (!this.finished) this.stepPhysics(now);
+    else {
+      this.slip = 0; this.drifting = false; this._prev = null;
+      // 완주 뒤에도 진행도에 완주 순위를 얹음 — 순위(finishRank)는 결승 뒤에 서버에서 오므로, 결승 순간 한 번만 계산하던 예전엔
+      // 위치 신호에 순위가 끝내 실리지 않아 다른 학생의 결과판·교사 관전에 내 순위가 안 보였음
+      this.progress = this.track.laps * this.track.n + (this.finishRank ? 1000 - this.finishRank : 0);
+    }
     this.updateRank();
     if (this.rank < this.lastRank && !this.finished && this.countdown <= 0) {
       this.showToast('▲ ' + this.rank + '위로 추월!', '#FFD166');
@@ -3389,7 +3399,7 @@ class KartGame {
         const rows = [];
         if (rk) rows.push({ rank: rk, name: this.myName || '나', me: true });
         Object.keys(this.peers).forEach(id => {
-          const p = this.peers[id]; if (!p.finished) return;
+          const p = this.peers[id]; if (!p.finished || (this.spectator && id === this.followId)) return;   // 관전: 따라가는 학생은 위 '나' 줄로 (두 번 나오지 않게)
           const r = 1000 - ((p.progress || 0) - laps * n);
           if (r >= 1 && r <= 999) rows.push({ rank: r, name: p.name || '학생', me: false });
         });

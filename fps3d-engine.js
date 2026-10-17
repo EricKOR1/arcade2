@@ -357,6 +357,13 @@ const F3_LEAD = 0.6;             // 신호 나이의 몇 %만큼 앞당겨 그�
 const F3_SPAWN_PROT = 1200;      // 부활 직후 무적(ms) — 내가 쏘면 바로 풀림 (명중은 쏜 사람 화면 기준이라 신호에 실어 보냄)
 const F3_STAMP_WRAP = 60466176;  // 보낸 시각을 36진수 5자리로 (약 16.8시간마다 한 바퀴)
 const F3_GRAV = 22.3;            // 중력 (칸/초²) — 점프 예측용
+// 병사 판정 상자 — 그려진 모델(initSoldiers)과 같은 크기·자리 (몸 기준: x 옆, y 위, z 앞이 -) [가운데 x,y,z, 반폭 x,y,z, 부위]
+// 부위: 0 몸 · 1 머리 · 2 왼다리 · 3 오른다리 · 4 오른팔(총 든 팔, 위아래로 돌아감). 총은 판정 없음
+const F3_PARTS = [[0, 1.55, -0.012, 0.15, 0.16, 0.163, 1], [0, 1.0125, 0, 0.24, 0.3125, 0.15, 0], [-0.32, 1.0, 0, 0.065, 0.25, 0.07, 0],
+                  [-0.11, 0.35, 0, 0.08, 0.35, 0.09, 2], [0.11, 0.35, 0, 0.08, 0.35, 0.09, 3], [0.3, 1.05, -0.15, 0.065, 0.2, 0.07, 4]];
+const F3_PAD_PX = 0.0093;        // 가장자리 여유: 화면 약 2.5px (거리에 비례) — 조준점이 몸 바로 옆을 스쳐도 맞음
+const F3_BOXH = { '#': 2.48, '=': 2.48, 'B': 2.48, 'H': 4.08, 'W': 1.28, 'X': 1.0, 'L': 0.6 };   // 상자 모양 구조물 높이 (위 테두리 0.08 포함)
+const F3_HIT_OLD = 800;          // 받은 명중이 이보다 오래 전에 쏜 것이면 무시(ms) — 엄폐물 뒤로 숨은 지 한참 뒤에 맞는 일 막기
 
 class Fps3DGame {
   constructor(canvas, opts) {
@@ -480,6 +487,7 @@ class Fps3DGame {
     const C = this.map.length / 2; this.yaw = Math.atan2(C - this.y, C - this.x); this.pitch = 0;
     this.ammo = this.magSize; this.reloadUntil = 0; this.zoomed = false;
     this.protUntil = this.clock() + F3_SPAWN_PROT;            // 부활 직후 무적 (판 시작 출발 때도 — 같은 규칙)
+    this._hist = [];                                          // 위치 기록은 새 목숨부터
   }
 
   // ── 장면 구성 ──
@@ -695,6 +703,7 @@ class Fps3DGame {
   // 종류별 InstancedMesh 로 한 번에 그림 (예전: 소품 하나 = 메시 1~2개 → 그리기 14~32번). 점광원 수는 그대로(태블릿에서 무거움)
   buildDecor(th, N) {
     const T = THREE; this.props = new T.Group(); this.scene.add(this.props);
+    const solid = this._props = [];   // 총알을 막는 소품 (세운 원기둥으로 어림: x, y, 반지름, 아래, 위) — 기기마다 자리가 달라도 내 화면에 보이는 대로
     const spot = () => { let x, y, tries = 0; do { x = 2 + Math.random() * (N - 4); y = 2 + Math.random() * (N - 4); tries++; } while (this.wall(x, y) && tries < 40); return [x, y]; };
     const nearWall = () => { let x, y, tries = 0; do { [x, y] = spot(); tries++; } while (!(this.wall(x + 1, y) || this.wall(x - 1, y) || this.wall(x, y + 1) || this.wall(x, y - 1)) && tries < 60); return [x, y]; };
     const inst = (geo, mat, list) => { if (!list.length) return null; const im = new T.InstancedMesh(geo, mat, list.length), m = new T.Matrix4(), q = new T.Quaternion(), e = new T.Euler(), v = new T.Vector3(), s = new T.Vector3(), c = new T.Color();
@@ -702,7 +711,7 @@ class Fps3DGame {
       this.props.add(im); return im; };
     const A = Math.min(4, Math.max(1, Math.pow(N / 44, 2))), n = Math.round(14 * A);   // 넓은 맵엔 소품도 더
     if (th.decor === 'barrels' || th.decor === 'lamps') {
-      const pts = []; for (let i = 0; i < n; i++) { const [x, y] = nearWall(); pts.push({ x, y: 0.3, z: y }); }
+      const pts = []; for (let i = 0; i < n; i++) { const [x, y] = nearWall(); pts.push({ x, y: 0.3, z: y }); solid.push([x, y, 0.22, 0, 0.6]); }
       inst(new T.CylinderGeometry(0.22, 0.22, 0.6, 10), new T.MeshLambertMaterial({ color: 0x4E6BC2 }), pts);
       inst(new T.CylinderGeometry(0.23, 0.23, 0.06, 10), new T.MeshLambertMaterial({ color: 0xD9DEE8 }), pts.map(p => ({ x: p.x, y: 0.45, z: p.z })));
       if (th.decor === 'lamps') { // 천장 램프: 노란 원판 + 빛 (빛은 4개만 — 점광원은 태블릿에서 무겁습니다)
@@ -710,11 +719,11 @@ class Fps3DGame {
           if (i < 10 && i % 3 === 0) { const pt = new T.PointLight(0xFFE0A0, 0.55, 12); pt.position.set(x, 3.4, y); this.props.add(pt); } }
         inst(new T.CylinderGeometry(0.35, 0.35, 0.08, 10), new T.MeshBasicMaterial({ color: 0xFFE9A8 }), lamps); }
     } else if (th.decor === 'cactus') {
-      const mat = new T.MeshLambertMaterial({ color: 0x4F8A3A }), pts = []; for (let i = 0; i < n; i++) { const [x, y] = spot(); pts.push({ x, y: 0.7, z: y }); }
+      const mat = new T.MeshLambertMaterial({ color: 0x4F8A3A }), pts = []; for (let i = 0; i < n; i++) { const [x, y] = spot(); pts.push({ x, y: 0.7, z: y }); solid.push([x, y, 0.19, 0, 1.4], [x + 0.28, y, 0.12, 0.6, 1.2]); }
       inst(new T.CylinderGeometry(0.16, 0.2, 1.4, 7), mat, pts);
       inst(new T.CylinderGeometry(0.1, 0.12, 0.6, 7), mat, pts.map(p => ({ x: p.x + 0.28, y: 0.9, z: p.z })));
     } else if (th.decor === 'snow') {
-      const pts = []; for (let i = 0; i < n; i++) { const [x, y] = spot(); pts.push({ x, y: 0.45, z: y, s: 1, sy: 0.9 + Math.random() * 0.6 }); }
+      const pts = []; for (let i = 0; i < n; i++) { const [x, y] = spot(), sy = 0.9 + Math.random() * 0.6; pts.push({ x, y: 0.45, z: y, s: 1, sy }); solid.push([x, y, 0.22, 0, 0.45 + sy * 0.3]); }
       inst(new T.ConeGeometry(0.35, 1, 5), new T.MeshLambertMaterial({ color: 0xBFE3FF, transparent: true, opacity: 0.85 }), pts);
     } else if (th.decor === 'neon') {
       const cols = [0xFF5C7A, 0x4CC9F0, 0xB15DFF, 0xFFD166], pts = [];
@@ -722,7 +731,7 @@ class Fps3DGame {
         if (i < 16 && i % 4 === 0) { const pl = new T.PointLight(cols[i % 4], 0.8, 9); pl.position.set(x, 1.9, y); this.props.add(pl); } }   // 간판 · 빛은 4개만
       inst(new T.BoxGeometry(0.9, 0.3, 0.06), new T.MeshBasicMaterial({ color: 0xFFFFFF }), pts);
     } else if (th.decor === 'trees') {
-      const pts = []; for (let i = 0; i < n; i++) { const [x, y] = spot(), r = 0.4 + Math.random() * 0.25; pts.push({ x, y: 0.3, z: y, s: r, sy: r * 0.7 }); }
+      const pts = []; for (let i = 0; i < n; i++) { const [x, y] = spot(), r = 0.4 + Math.random() * 0.25; pts.push({ x, y: 0.3, z: y, s: r, sy: r * 0.7 }); solid.push([x, y, r * 0.85, 0, 0.3 + r * 0.55]); }
       inst(new T.SphereGeometry(1, 7, 5), new T.MeshLambertMaterial({ color: 0x3F8F4F }), pts);
     }
   }
@@ -845,13 +854,13 @@ class Fps3DGame {
     if (this.rolling || this.mEnd) return;                 // 구르는 중 · 매칭전 판이 끝난 뒤엔 쏠 수 없습니다
     if (this.ammo <= 0) { this.reload(); return; }
     if (now - this.lastFire < this.wpn.rate) return;
+    // 조준선 = 지금 화면 가운데 (카메라와 같은 위치·방향: 걸음 흔들림 · 반동으로 튄 시선 포함). 산탄만큼 살짝 흩어짐
+    const base = 0.01 * this.recoil + (this.moving ? 0.012 : 0);
+    const spread = this.weapon === 'sniper' ? (this.zoomed ? base * 0.15 : 0.06) : base;
+    const ray = this.viewRay((Math.random() - 0.5) * spread * 2, (Math.random() - 0.5) * spread);
     this.lastFire = now; this.muzzle = 1; this.ammo--; this.protUntil = 0;   // 쏘면 무적이 바로 풀림 (무적으로 공격만 하는 꼼수 막기)
     if (this.ammo <= 0) this.reload();
     if (window.Sound) { if (this.weapon === 'sniper') { Sound.sniper(); Sound.bolt(0.32); } else Sound.rifle(); }   // 총소리 · 스나이퍼는 이어서 볼트 철컥
-    // 산탄: 스나이퍼는 줌 상태면 거의 정확, 줌 없이 쏘면 많이 튐
-    const base = 0.01 * this.recoil + (this.moving ? 0.012 : 0);
-    const spread = this.weapon === 'sniper' ? (this.zoomed ? base * 0.15 : 0.06) : base;
-    const yaw = this.yaw + (Math.random() - 0.5) * spread * 2, pitch = this.pitch + (Math.random() - 0.5) * spread;
     // 반동: 라이플은 짧게 톡, 스나이퍼는 크게 걷어차고 볼트를 당깁니다
     if (this.weapon === 'sniper') {
       this.recoil = 1; this.kickVis = 0.13; this.pitch = Math.min(1.1, this.pitch + 0.02); this.kickRoll = (Math.random() - 0.5) * 0.08;   // 화면이 7° 확 튀었다 돌아오고, 조준은 1° 남음
@@ -870,56 +879,162 @@ class Fps3DGame {
       if (window.Haptic && Haptic.tap) Haptic.tap();
       this.shells.push({ t: 0, vx: 0.6 + Math.random() * 0.3, vy: 0.5, vz: -0.1 });
     }
-    // 조준선을 따라 전진하며 벽 또는 사람에 닿는 첫 지점
-    const dx = Math.cos(yaw) * Math.cos(pitch), dy = Math.sin(yaw) * Math.cos(pitch), dz = Math.sin(pitch);
-    let best = null, bestD = 1e9, hitZ = 0;
-    Object.keys(this.peers).forEach(id => {
-      const p = this.peers[id];
-      if (p.dead || p.prot || (this.teamMode && p.team === this.team)) return;   // 부활 직후 무적인 상대는 맞지 않음 (레이저는 지나감)
-      const rx = p.x - this.x, ry = p.y - this.y;
-      const t = rx * dx + ry * dy; if (t <= 0 || t > (this.weapon === 'sniper' ? 60 : 30)) return;
-      const px = this.x + dx * t, py = this.y + dy * t, pz = this.eyeZ + dz * t;
-      const lateral = Math.hypot(px - p.x, py - p.y);
-      // 터치 조준을 감안해 판정을 넉넉하게: 몸통 반지름 0.5 + 거리 비례 (10칸에서 약 3.5도)
-      const tol = Math.max(0.5, t * 0.06);
-      // 상대의 발 높이(점프 중이면 +z) 와 키(구르는 중이면 낮아짐)
-      const base = p.z || 0, top = base + (p.roll ? 1.05 : 1.85);
-      if (lateral > tol || pz < base - 0.2 || pz > top) return;
-      if (this.blocked(this.x, this.y, p.x, p.y)) return;
-      // 여러 명이 겹치면 조준선에 가장 가까운 쪽 (같으면 가까운 쪽)
-      const score = lateral / tol + t * 0.01;
-      if (score < bestD) { bestD = score; best = id; hitZ = pz; this._bestT = t; }
-    });
-    if (best) bestD = this._bestT;
-    let ex = this.x, ey = this.y, ez = this.eyeZ, n = 0;
-    while (!this.wall(ex, ey) && ez > 0 && ez < 2.2 && n++ < 400) { ex += dx * 0.08; ey += dy * 0.08; ez += dz * 0.08; }
-    if (best) { const p = this.peers[best]; ex = p.x; ey = p.y; ez = hitZ; }
+    // 조준선이 처음 닿는 것: 그려진 병사(부위별 상자) 또는 벽·상자·나무·바닥 — 화면에 보이는 그대로
+    const hit = this.rayHit(ray);
+    const ex = ray.ox + ray.dx * hit.t, ey = ray.oy + ray.dy * hit.t, ez = ray.oz + ray.dz * hit.t;
     this.tracers.push({ from: [this.x, this.y, this.eyeZ - 0.1], to: [ex, ey, ez], until: now + 80 });
     if (this.tracers.length > 6) this.tracers.shift();
-    if (best) {
-      const head = hitZ > 1.66;                                 // 눈높이(1.6) 직사는 몸통, 살짝 올려야 머리
-      const dmg = head ? this.wpn.dmgHead : (bestD < 8 ? this.wpn.dmgBody : this.wpn.dmgFar);
-      this.pops = this.pops || []; this.pops.push({ x: ex, y: ey, z: ez + 0.2, val: dmg, head: head, until: now + 800 });
-      this.queueHit(best, dmg, head);
+    this.pops = this.pops || [];
+    if (hit.id && hit.prot) {                                   // 부활 직후 보호 중인 상대: 피해 없음을 바로 보여 줌
+      this.protMark = 1; this.pops.push({ x: ex, y: ey, z: ez + 0.2, text: '🛡 보호 중', until: now + 900 });
+    } else if (hit.id) {
+      const p = this.peers[hit.id], head = hit.head;
+      const dmg = head ? this.wpn.dmgHead : (hit.t < 8 ? this.wpn.dmgBody : this.wpn.dmgFar);
+      const left = Math.max(1, (p.hp || 0) - this.pendDmg(p) - ((this._hitQ[hit.id] && this._hitQ[hit.id].dmg) || 0));   // 숫자는 남은 체력까지만 (실제로 깎이는 만큼)
+      this.pops.push({ x: ex, y: ey, z: ez + 0.2, val: Math.min(dmg, left), head: head, until: now + 800 });
+      const kill = this.queueHit(hit.id, dmg, head, ex, ey);
       this.hitMarker = head ? 1.4 : 1; this.score += head ? 5 : 3;
-      this.peers[best].flash = now + 150;
+      if (kill) this.killMark = 1;                              // 쓰러뜨릴 만큼 맞힘: 큰 X (상대 확인을 기다리지 않고 바로)
+      p.flash = now + 150;
       if (window.Sound) (head ? Sound.headshot() : Sound.hitmark());   // 명중 확인음
     }
+    if (this.pops.length > 12) this.pops.splice(0, this.pops.length - 12);
   }
+  // 화면 가운데 조준선 (카메라와 같게): 시작점 = 눈(걸음 흔들림 · 착지 반동 포함), 방향 = 시선 + 반동으로 튄 만큼 + 산탄
+  viewBobY() { return (this.moving ? Math.sin(this.bob) * 0.03 : 0) - Math.sin(Math.min(1, this.landDip || 0) * Math.PI) * 0.12; }
+  viewRay(sy, sp) {
+    const fl = this.zoomFlinch || 0;
+    const yaw = this.yaw - Math.sin(fl * 40) * fl * 0.02 + (sy || 0), pitch = this.pitch + (this.kickVis || 0) + Math.cos(fl * 33) * fl * 0.015 + (sp || 0);
+    const r = this._ray || (this._ray = {});
+    r.ox = this.x; r.oy = this.y; r.oz = this.eyeZ + this.viewBobY();
+    r.dx = Math.cos(yaw) * Math.cos(pitch); r.dy = Math.sin(yaw) * Math.cos(pitch); r.dz = Math.sin(pitch);
+    return r;
+  }
+  // 조준선이 처음 닿는 것 { t: 거리, id: 병사(없으면 null), head, prot }. 판정 거리 = 병사가 그려지는 거리(안개 끝)
+  rayHit(r) {
+    const far = this.viewFar(), wt = this.rayWorld(r.ox, r.oy, r.oz, r.dx, r.dy, r.dz, far);
+    const out = this._rh || (this._rh = {}); out.t = wt; out.id = null; out.head = false; out.prot = false;
+    // 1차: 그려진 크기 그대로 · 2차: 가장자리 여유(화면 약 2.5px)를 두고 — 몸에 겹친 쪽이 늘 먼저
+    for (let pass = 0; pass < 2 && !out.id; pass++) {
+      let bt = wt;
+      for (const id in this.peers) {
+        const p = this.peers[id];
+        if (p.tx == null || p.dead || (this.teamMode && p.team === this.team)) continue;   // 쓰러진 상대 · 같은 팀은 지나감
+        const ddx = p.x - r.ox, ddy = p.y - r.oy, along = ddx * r.dx + ddy * r.dy;
+        if (along < -1.5 || along > bt + 1.5) continue;
+        if (Math.abs(ddx * r.dy - ddy * r.dx) > 2.2 + along * 0.01) continue;   // 조준선에서 멀리 떨어진 병사는 건너뜀
+        const h = this.raySoldier(p, r, pass ? 0.02 + F3_PAD_PX * Math.max(1, along) : 0);
+        if (h && h.t < bt) { bt = h.t; out.t = h.t; out.id = id; out.head = h.head; out.prot = !!p.prot; }
+      }
+    }
+    return out;
+  }
+  viewFar() { return Math.min(70, (this.theme && this.theme.fog) ? this.theme.fog[2] : 60); }
+  // 병사 자세 (그리기와 판정이 같은 값을 씀): 발 위치 · 몸 회전(앞구르기 rx · 방향 ry · 걷기 rz) · 다리 흔들림 · 오른팔
+  soldierPose(p, now, o) {
+    o = o || {};
+    let rx = 0, rz = 0, y = p.z || 0;
+    if (p.rollPlaying || p.roll) {
+      // 재생 중이면 시계 기준으로만 진행 — 늦게 도착한 신호 때문에 동작이 뒤로 가지 않습니다
+      const k = Math.max(0, Math.min(1, p.rollPlaying ? (now - p.rollAt) / 640 : Math.max(0, p.rollT)));   // 640ms 에 한 바퀴를 마치고 마지막은 착지 자세
+      rx = k * Math.PI * 2; y += Math.sin(k * Math.PI) * 0.55;
+    } else {
+      rx = p.fallRx || 0;
+      if (p.moving && !p.dead) { y += Math.abs(Math.sin(p.walk)) * 0.05; rz = Math.sin(p.walk) * 0.03; }
+    }
+    o.x = p.x; o.y = y; o.z = p.y; o.rx = rx; o.ry = -p.angle - Math.PI / 2; o.rz = rz;
+    o.sw = p.moving && !p.dead ? Math.sin(p.walk) * 0.5 : 0; o.arm = -(p.pitch || 0) - (p.fire ? 0.35 : 0);
+    return o;
+  }
+  // 조준선 vs 병사 부위 상자 (몸 기준 좌표로 옮겨 상자마다 검사). pad = 가장자리 여유
+  raySoldier(p, r, pad) {
+    const P = this.soldierPose(p, this.clock(), this._pose || (this._pose = {}));
+    // 세계(지도 x, 높이, 지도 y) → 몸 기준: 이동 → Y 회전 반대로 → X 회전 반대로 → Z 회전 반대로 (그리기: Euler YXZ)
+    const inv = (x, y, z, out, pos) => {
+      if (pos) { x -= P.x; y -= P.y; z -= P.z; }
+      let c = Math.cos(-P.ry), s = Math.sin(-P.ry), x1 = x * c + z * s, z1 = -x * s + z * c;
+      c = Math.cos(-P.rx); s = Math.sin(-P.rx); const y2 = y * c - z1 * s, z2 = y * s + z1 * c;
+      c = Math.cos(-P.rz); s = Math.sin(-P.rz); out[0] = x1 * c - y2 * s; out[1] = x1 * s + y2 * c; out[2] = z2; return out;
+    };
+    const o = inv(r.ox, r.oz, r.oy, this._ro || (this._ro = [0, 0, 0]), true), d = inv(r.dx, r.dz, r.dy, this._rd || (this._rd = [0, 0, 0]), false);
+    let best = null;
+    for (const q of F3_PARTS) {
+      let ox = o[0] - q[0], oy = o[1] - q[1], oz = o[2] - q[2], dx = d[0], dy = d[1], dz = d[2];
+      const a = q[6] === 2 ? P.sw : q[6] === 3 ? -P.sw : q[6] === 4 ? P.arm : 0;   // 다리 흔들림 · 팔 각도: 상자 가운데를 축으로 X 회전
+      if (a) { const c = Math.cos(-a), s = Math.sin(-a), y1 = oy * c - oz * s, z1 = oy * s + oz * c, y2 = dy * c - dz * s, z2 = dy * s + dz * c; oy = y1; oz = z1; dy = y2; dz = z2; }
+      let t0 = -1e9, t1 = 1e9;
+      const slab = (o1, d1, h) => { h += pad; if (Math.abs(d1) < 1e-9) return Math.abs(o1) <= h; let a1 = (-h - o1) / d1, b1 = (h - o1) / d1; if (a1 > b1) { const k = a1; a1 = b1; b1 = k; } if (a1 > t0) t0 = a1; if (b1 < t1) t1 = b1; return t0 <= t1; };
+      if (!slab(ox, dx, q[3]) || !slab(oy, dy, q[4]) || !slab(oz, dz, q[5]) || t1 < 0) continue;
+      const t = Math.max(0, t0);
+      if (!best || t < best.t) best = { t, head: q[6] === 1 };
+    }
+    return best;
+  }
+  // 지형에 처음 닿는 거리 — 그려진 모양 그대로: 벽·상자·방벽·창문벽은 상자(높이까지), 기둥·나무줄기는 원기둥, 나뭇잎은 원뿔, 바위는 타원체, 소품, 바닥
+  rayWorld(ox, oy, oz, dx, dy, dz, maxT) {
+    let best = maxT;
+    if (dz < -1e-6) best = Math.min(best, -oz / dz);
+    let cx = Math.floor(ox), cy = Math.floor(oy);
+    const sx = dx > 0 ? 1 : -1, sy = dy > 0 ? 1 : -1, tdx = Math.abs(dx) > 1e-9 ? Math.abs(1 / dx) : 1e9, tdy = Math.abs(dy) > 1e-9 ? Math.abs(1 / dy) : 1e9;
+    let tx = Math.abs(dx) > 1e-9 ? (sx > 0 ? cx + 1 - ox : ox - cx) * tdx : 1e9, ty = Math.abs(dy) > 1e-9 ? (sy > 0 ? cy + 1 - oy : oy - cy) * tdy : 1e9, t0 = 0;
+    for (let n = 0; n < 400 && t0 < best; n++) {
+      const t1 = Math.min(tx, ty, best), row = this.map[cy], c = (row && row[cx]) || '#';
+      if (c !== '.') { const th = this.rayCell(c, cx, cy, ox, oy, oz, dx, dy, dz, t0, t1); if (th < best) best = th; }
+      if (tx < ty) { cx += sx; t0 = tx; tx += tdx; } else { cy += sy; t0 = ty; ty += tdy; }
+    }
+    if (this._props) for (const q of this._props) { const t = this.rayCyl(q[0], q[1], q[2], q[3], q[4], ox, oy, oz, dx, dy, dz, 0, best); if (t < best) best = t; }
+    return best;
+  }
+  // 한 칸 안 [ta, tb] 구간에서 그 칸 구조물에 처음 닿는 거리 (없으면 1e9)
+  rayCell(c, cx, cy, ox, oy, oz, dx, dy, dz, ta, tb) {
+    const h = F3_BOXH[c];
+    if (h) { const za = oz + dz * ta; if (za <= h && za >= -0.01) return ta; if (za > h && dz < 0) { const th = (h - oz) / dz; if (th <= tb) return th; } return 1e9; }
+    const mx = cx + 0.5, my = cy + 0.5;
+    if (c === 'P') return Math.min(this.rayCyl(mx, my, 0.29, 0, 2.4, ox, oy, oz, dx, dy, dz, ta, tb), this.rayCyl(mx, my, 0.46, 0, 0.2, ox, oy, oz, dx, dy, dz, ta, tb));   // 10각 기둥 ≈ 원기둥
+    if (c === 'T') {
+      let best = this.rayCyl(mx, my, 0.14, 0, 1.2, ox, oy, oz, dx, dy, dz, ta, tb);
+      const cone = (r, z0, z1, t) => { const z = oz + dz * t; if (z < z0 || z > z1) return false; return Math.hypot(ox + dx * t - mx, oy + dy * t - my) <= r * (z1 - z) / (z1 - z0); };
+      for (let t = ta; t <= Math.min(tb, best); t += 0.03) if (cone(0.86, 0.8, 2.4, t) || cone(0.62, 1.85, 3.15, t)) { best = Math.min(best, t); break; }
+      return best;
+    }
+    if (c === 'R') {   // 바위: 눌린 다면체 ≈ 타원체 (가로 0.55·0.5, 높이 0.35), 칸마다 돌려 놓음
+      const a = -((cx * 7 + cy * 3) % 6), ca = Math.cos(a), sa = Math.sin(a);
+      const px = ox - mx, py = oy - my, lx = px * ca - py * sa, ly = px * sa + py * ca, vx = dx * ca - dy * sa, vy = dx * sa + dy * ca;
+      const qx = lx / 0.54, qy = ly / 0.49, qz = (oz - 0.35) / 0.34, ux = vx / 0.54, uy = vy / 0.49, uz = dz / 0.34;
+      const A = ux * ux + uy * uy + uz * uz, B = 2 * (qx * ux + qy * uy + qz * uz), C = qx * qx + qy * qy + qz * qz - 1, D = B * B - 4 * A * C;
+      if (D < 0) return 1e9; const t = (-B - Math.sqrt(D)) / (2 * A); return t >= ta - 0.6 && t <= tb + 0.6 && t >= 0 ? t : 1e9;
+    }
+    return 1e9;
+  }
+  // 세운 원기둥 (가운데 x,y · 반지름 r · 높이 z0~z1) 에 처음 닿는 거리
+  rayCyl(mx, my, r, z0, z1, ox, oy, oz, dx, dy, dz, ta, tb) {
+    const px = ox - mx, py = oy - my, A = dx * dx + dy * dy, B = 2 * (px * dx + py * dy), C = px * px + py * py - r * r;
+    let lo, hi;
+    if (A < 1e-12) { if (C > 0) return 1e9; lo = -1e9; hi = 1e9; } else { const D = B * B - 4 * A * C; if (D < 0) return 1e9; const q = Math.sqrt(D); lo = (-B - q) / (2 * A); hi = (-B + q) / (2 * A); }
+    if (Math.abs(dz) > 1e-9) { let a = (z0 - oz) / dz, b = (z1 - oz) / dz; if (a > b) { const k = a; a = b; b = k; } lo = Math.max(lo, a); hi = Math.min(hi, b); } else if (oz < z0 || oz > z1) return 1e9;
+    lo = Math.max(lo, 0); if (lo > hi || lo > tb) return 1e9; return lo;
+  }
+  // 상대에게 보냈지만 아직 상대 체력 신호에 반영되지 않은 피해
+  pendDmg(p) { let s = 0; if (p && p.pend) for (const q of p.pend) s += q[1]; return s; }
   // 명중 신호 묶기: 같은 상대에게 0.2초 안에 여러 발 맞히면 피해를 합쳐 한 번에 보냄 (연사 30명이면 신호가 폭주하던 것)
-  // 첫 발은 바로 보내고, 쓰러뜨릴 만큼 쌓이면 기다리지 않고 바로 보냄
-  queueHit(target, dmg, head) {
+  // 첫 발은 바로 보내고, 쓰러뜨릴 만큼 쌓이면 기다리지 않고 바로 보냄 + 그 자리에서 쓰러지는 모습을 먼저 보여 줌 (돌려줌: 쓰러뜨렸는지)
+  queueHit(target, dmg, head, hx, hy) {
     const now = this.clock(), h = this._hitQ[target] || (this._hitQ[target] = { dmg: 0, head: 0, n: 0, last: -1e9 }), p = this.peers[target];
-    h.dmg += dmg; h.head = h.head || (head ? 1 : 0); h.n++;
-    const lethal = p && !p.hitKill && h.dmg >= (p.hp || 0) - (p.hitSent || 0);   // 쓰러뜨릴 만큼이면 바로 (한 번만 — 상대 신호가 늦어도 계속 쏟아내지 않게)
+    h.dmg += dmg; h.head = h.head || (head ? 1 : 0); h.n++; h.at = now; if (hx != null) { h.hx = hx; h.hy = hy; }
+    const lethal = p && !p.hitKill && h.dmg >= (p.hp || 0) - this.pendDmg(p);   // 쓰러뜨릴 만큼이면 바로 (한 번만 — 상대 신호가 늦어도 계속 쏟아내지 않게)
     if (lethal) p.hitKill = true;
     if (now - h.last >= F3_HIT_GAP || lethal) this.flushHit(target, now);
+    if (lethal) { p.dead = true; p.downPred = true; p.downUntil = now + 1200 + (p.iv || 200); p.downDeaths = (p.deaths || 0) + 1; }   // 확인 신호(다운·킬)가 이 시간 안에 안 오면 되돌림 (팀전 라운드 판정엔 확인 전까지 안 셈)
+    return !!lethal;
   }
   flushHit(target, now) {
     const h = this._hitQ[target]; if (!h || !h.n) return;
+    const p = this.peers[target];
     const pay = { dmg: h.dmg, head: h.head }; if (h.n > 1) pay.n = h.n; if (this.matchMode) pay.m = this.match;
+    // 맞은 쪽이 거를 수 있게: 몇 번째 목숨에 쏜 것인지(데스 수) · 맞은 자리 · 마지막 발 뒤 지난 시간
+    if (p) pay.l = p.deaths || 0; if (h.hx != null) { pay.hx = Math.round(h.hx * 10) / 10; pay.hy = Math.round(h.hy * 10) / 10; } if (now - (h.at || now) > 20) pay.a = Math.round(now - h.at);
     if (this.opts.onAttack) this.opts.onAttack('hit', target, pay);
-    const p = this.peers[target]; if (p) p.hitSent = (p.hitSent || 0) + h.dmg;   // 상대 체력 신호가 오기 전까지 이미 보낸 피해
+    if (p) { (p.pend || (p.pend = [])).push([now, h.dmg]); if (p.pend.length > 12) p.pend.shift(); }   // 상대 체력 신호에 반영될 때까지 기억
     h.dmg = 0; h.head = 0; h.n = 0; h.last = now;
   }
   flushHits(now) { for (const id in this._hitQ) { const h = this._hitQ[id]; if (h.n && now - h.last >= F3_HIT_GAP) this.flushHit(id, now); } }
@@ -961,6 +1076,7 @@ class Fps3DGame {
     if (this.matchMode && e.m != null && +e.m !== this.match) return;            // 다른 경기의 사건은 무시
     if (e.type === 'hit' && e.target === this.myId) {
       if (this.isDead || this.mEnd || this.spawnSafe) return;   // 부활 직후 무적: 받은 명중 무시 (쏜 쪽이 무적 신호를 아직 못 받았을 때)
+      if (!this.hitOk(e)) { this.hitRejected = (this.hitRejected || 0) + 1; return; }
       this.hp = Math.max(0, this.hp - (e.dmg || 26)); this.hurt = 1;
       if (window.Haptic) Haptic.hit();
       const p = this.peers[e.by];
@@ -973,7 +1089,12 @@ class Fps3DGame {
         if (this.opts.onAttack) this.opts.onAttack('kill', e.by, Object.assign({ victim: this.myId, head: e.head ? 1 : 0 }, this.matchMode ? { m: this.match } : {}));
         if (window.Sound) Sound.death();
       }
-    } else if (e.type === 'kill' && e.target === this.myId) {
+    }
+    // 킬 소식: 쓰러진 학생을 다음 위치 신호를 기다리지 않고 바로 쓰러뜨려 보여 줌 (위치 신호보다 먼저 올 때가 많음)
+    if (e.type === 'kill' && e.victim && e.victim !== this.myId) { const v = this.peers[e.victim];
+      if (v && (!v.dead || v.downUntil)) { v.downDeaths = v.downUntil ? v.downDeaths : (v.deaths || 0) + 1; v.dead = true; v.downPred = false; v.downUntil = Math.max(v.downUntil || 0, this.clock() + 1500); } }
+    if (e.type === 'hit') return;
+    if (e.type === 'kill' && e.target === this.myId) {
       if (this.mEnd) return;
       this.kills++; this.streak++; this.score += 100 + (e.head ? 50 : 0) + (this.streak >= 3 ? 50 : 0);
       if (window.Haptic) Haptic.good();
@@ -981,6 +1102,18 @@ class Fps3DGame {
       this.showToast(e.head ? '🎯 헤드샷!  +150' : (this.streak >= 3 ? this.streak + '연속 킬  +150' : this.nameOf(e.victim) + ' 처치  +100'), e.head || this.streak >= 3 ? '#FFD166' : '#06D6A0');
       if (window.Sound) Sound.levelUp();
     } else if (e.type === 'kill') this.pushFeed(this.nameOf(e.by), this.nameOf(e.victim), '#9AA3B2', !!e.head);
+  }
+  // 받은 명중 거르기 — 쏜 사람 화면이 기준이지만, 너무 오래된 것 · 이전 목숨에 쏜 것 · 내가 그 근처에 간 적이 없는 것(불가능)만 버림
+  hitOk(e) {
+    if (e.l != null && +e.l !== this.deaths) return false;                       // 내가 쓰러지기 전(이전 목숨)에 쏜 것
+    let age = 0;
+    if (e.t && this.opts.serverNow) { age = this.opts.serverNow() - e.t + (+e.a || 0); if (age > F3_HIT_OLD) return false; }
+    if (e.hx != null && this._hist && this._hist.length) {                       // 쏜 순간 근처(최근 위치 기록)에 내가 있었나 — 예측·지연 오차를 넉넉히 3칸
+      const since = this.clock() - Math.max(0, age) - 400; let ok = Math.hypot(this.x - e.hx, this.y - e.hy) < 3;
+      for (let i = this._hist.length - 1; i >= 0 && !ok; i -= 3) { const h = this._hist[i]; if (h[0] < since) break; ok = Math.hypot(h[1] - e.hx, h[2] - e.hy) < 3; }
+      if (!ok) return false;
+    }
+    return true;
   }
   nameOf(id) { if (this.peers[id] && this.peers[id].name) return this.peers[id].name; if (this.opts.nameOf) return this.opts.nameOf(id) || '?'; return '?'; }
   pushFeed(a, b, color, head) { this.feed.unshift({ a, b, color, head, until: this.clock() + 5000 }); this.feed = this.feed.slice(0, 5); }
@@ -1035,8 +1168,14 @@ class Fps3DGame {
     // 도착 간격(이동 평균, 멈춰 서서 안 보낸 틈은 뺌) → 보정 시간: 간격 165ms 0.1초 · 235ms 약 0.14초 (간격이 길면 한 번에 고칠 양이 커서, 같은 0.1초면 출렁임이 1.2배 — 모의 실험)
     { const iv = p.iv || this.opts.sendMs || 165; p.iv = p.at == null ? iv : (now - p.at < iv * 2.5 ? iv + (Math.max(40, now - p.at) - iv) * 0.15 : iv); p.tau = Math.max(100, Math.min(150, 100 * p.iv / 165)); }
     p.at = now;
-    const shownX = p.x, shownY = p.y, had = p.tx != null;
-    Object.assign(p, { tx: d.x, ty: d.y, tz: d.z, vx: d.vx, vy: d.vy, vz: d.vz, sAt: now - age, tangle: d.angle, hp: d.hp, kills: d.kills, deaths: d.deaths, team: d.team, fire: d.fire, dead: d.dead, moving: d.moving, pitch: d.pitch, roll: d.roll, rollT: d.rollT, round: d.round, wr: d.wr, wb: d.wb, match: d.match, prot: d.prot, hitSent: 0, hitKill: false });
+    const shownX = p.x, shownY = p.y, had = p.tx != null, prevHp = p.hp, prevDeaths = p.deaths;
+    Object.assign(p, { tx: d.x, ty: d.y, tz: d.z, vx: d.vx, vy: d.vy, vz: d.vz, sAt: now - age, tangle: d.angle, hp: d.hp, kills: d.kills, deaths: d.deaths, team: d.team, fire: d.fire, dead: d.dead, sigDead: d.dead, moving: d.moving, pitch: d.pitch, roll: d.roll, rollT: d.rollT, round: d.round, wr: d.wr, wb: d.wb, match: d.match, prot: d.prot });
+    // 내가 보낸 피해 중 이 체력 신호에 이미 반영된 것은 지움 (줄어든 체력만큼 앞에서부터 · 1초 지나면 버림) — 남은 것 = 아직 반영 안 된 피해
+    if (p.pend) { if (d.deaths !== prevDeaths) p.pend.length = 0; else { let drop = Math.max(0, (prevHp || 0) - d.hp); while (p.pend.length && p.pend[0][1] <= drop + 0.5) { drop -= p.pend[0][1]; p.pend.shift(); } }
+      while (p.pend.length && now - p.pend[0][0] > 1000) p.pend.shift(); }
+    // 먼저 보여 준 다운(내가 쓰러뜨림 · 킬 소식): 다운 신호가 오거나 데스 수가 늘면 확정, 그 전 신호(맞기 전에 보낸 것)로는 일어나지 않음
+    if (p.downUntil) { if (d.dead || d.deaths >= p.downDeaths || now >= p.downUntil) p.downUntil = 0; else p.dead = true; }
+    if (!p.downUntil) { p.hitKill = false; p.downPred = false; }
     // 보정: 새 신호로 계산한 '지금 위치' 와 화면에 있던 위치의 차이를 0.1초에 걸쳐 줄임 (순간이동처럼 튀지 않게). 3칸 넘게 차이 나면(부활 등) 바로 옮김
     const g = this.predict(p, now);
     if (had && !d.dead && Math.hypot(shownX - g.x, shownY - g.y) < 3) { p.cx = shownX - g.x; p.cy = shownY - g.y; }
@@ -1086,7 +1225,8 @@ class Fps3DGame {
       const kc = 1 - Math.exp(-dt / (p.tau || 100)); p.cx -= p.cx * kc; p.cy -= p.cy * kc;   // p.tau: 신호 간격에 맞춘 보정 시간 (applyPeerRaw)
       const g = this.predict(p, now); p.x = g.x + p.cx; p.y = g.y + p.cy; p.z = p.z == null ? g.z : p.z + (g.z - p.z) * kz;
       let da = p.tangle - p.angle; while (da > Math.PI) da -= Math.PI * 2; while (da < -Math.PI) da += Math.PI * 2; p.angle += da * sa;
-      p.walk = (p.walk || 0) + (p.moving ? 0.22 * f : 0); }
+      p.walk = (p.walk || 0) + (p.moving ? 0.22 * f : 0);
+      if (p.downUntil && now >= p.downUntil) { p.downUntil = 0; p.dead = p.sigDead; p.hitKill = false; p.downPred = false; this.downUndo = (this.downUndo || 0) + 1; } }   // 먼저 보여 준 다운이 확인되지 않음 → 신호대로 되돌림
     this.flushHits(now);
     this.tracers = this.tracers.filter(t => t.until > now);
     this.muzzle = Math.max(0, this.muzzle - (this.flashBig ? 0.12 : 0.2) * f); this.recoil = Math.max(0, this.recoil - (this.weapon === 'sniper' ? 0.035 : 0.06) * f);
@@ -1102,6 +1242,7 @@ class Fps3DGame {
     if (this.boltT > 0) this.boltT = Math.max(0, this.boltT - 0.022 * f);                   // 볼트액션: 0.75초
     for (let i = this.shells.length - 1; i >= 0; i--) { const sh = this.shells[i]; sh.t += 0.05 * f; if (sh.t > 1) this.shells.splice(i, 1); }
     this.hurt = Math.max(0, this.hurt - 0.04 * f); this.hitMarker = Math.max(0, this.hitMarker - 0.08 * f);
+    this.killMark = Math.max(0, (this.killMark || 0) - 0.04 * f); this.protMark = Math.max(0, (this.protMark || 0) - 0.06 * f);
 
     if (this.spectator) {
       const p = this.peers[this.followId];
@@ -1113,6 +1254,7 @@ class Fps3DGame {
     if (this.matchMode) this.stepMatch(now); else this.stepRounds(now);
     if (this.mEnd) { this.moving = 0; this.firing = false; this.draw(); return; }      // 매칭전 판 끝: 결과 화면 (움직이지 않음)
     if (this.isDead) {
+      this.aimOn = 0;
       if (!this._respawned && this.deadUntil - now < 50) { this._respawned = true; this.hp = 100; this.spawnAt(Math.floor(Math.random() * 12)); this.dmgDir = null; }
       this.draw(); return;
     }
@@ -1159,6 +1301,10 @@ class Fps3DGame {
     this.svz = this.onGround ? 0 : this.vz * 59.9;
     this.updateFov();
     if (this.firing) this.shoot();
+    // 내 위치 기록 (0.05초마다 1.6초) — 받은 명중이 '그때 내가 있던 곳' 근처인지 확인용
+    const hs = this._hist || (this._hist = []); if (!hs.length || now - hs[hs.length - 1][0] >= 50) { hs.push([now, this.x, this.y]); if (hs.length > 32) hs.shift(); }
+    // 조준점 색: 지금 쏘면 맞는 상대 위면 빨강 · 보호 중인 상대면 하늘색 (판정과 같은 계산)
+    { const h = this.rayHit(this.viewRay(0, 0)); this.aimOn = h.id ? (h.prot ? 2 : 1) : 0; }
     this.draw();
   }
 
@@ -1176,7 +1322,7 @@ class Fps3DGame {
     const c = { red: { total: 0, alive: 0 }, blue: { total: 0, alive: 0 } };
     const add = (team, dead) => { if (!c[team]) return; c[team].total++; if (!dead) c[team].alive++; };
     if (!this.spectator) add(this.team, this.isDead);
-    Object.keys(this.peers).forEach(id => { const p = this.peers[id]; if (p.team) add(p.team, !!p.dead); });
+    Object.keys(this.peers).forEach(id => { const p = this.peers[id]; if (p.team) add(p.team, !!p.dead && !p.downPred); });   // 내가 먼저 보여 준 다운(확인 전)은 살아 있는 것으로
     return c;
   }
   // 새 판 시작: 전원 부활 · 위치 초기화 · 탄약 가득
@@ -1267,7 +1413,7 @@ class Fps3DGame {
       const hs = this.hud.style; hs.left = this.canvas.offsetLeft + 'px'; hs.top = this.canvas.offsetTop + 'px'; hs.width = W + 'px'; hs.height = H + 'px'; hs.right = 'auto'; hs.bottom = 'auto'; }
     // 카메라
     this.landDip = Math.max(0, (this.landDip || 0) - 0.03 * (this.lastF || 1));
-    const bobY = (this.moving ? Math.sin(this.bob) * 0.03 : 0) - Math.sin(Math.min(1, this.landDip) * Math.PI) * 0.12;
+    const bobY = this.viewBobY();                         // 명중 판정의 조준선도 같은 높이에서 출발
     const shake = this.hurt > 0.5 ? (this.hurt - 0.5) * 0.06 : 0;
     this.camera.position.set(this.x + (Math.random() - 0.5) * shake, this.eyeZ + bobY + (Math.random() - 0.5) * shake, this.y + (Math.random() - 0.5) * shake);
     this.updateFov();
@@ -1321,24 +1467,15 @@ class Fps3DGame {
       if (hide) continue;
       if (p.prot && !p.dead && Math.floor(now / 110) % 2) continue;   // 부활 직후 무적: 깜빡임 (아래에서 하늘색으로도 칠함)
       if (p.rollPlaying && now - (p.rollAt || 0) >= 700) { p.rollPlaying = false; p.roll = false; p.rollT = -1; }   // 재생이 끝나면 정리
-      const rolling = p.rollPlaying || p.roll;
-      let rx = 0, rz = 0, y = p.z || 0;
-      if (rolling) {
-        // 재생 중이면 시계 기준으로만 진행 — 늦게 도착한 신호 때문에 동작이 뒤로 가지 않습니다
-        const k = Math.max(0, Math.min(1, p.rollPlaying ? (now - p.rollAt) / 640 : Math.max(0, p.rollT)));   // 640ms 에 한 바퀴를 마치고 마지막은 착지 자세
-        rx = k * Math.PI * 2; y += Math.sin(k * Math.PI) * 0.55; p.fallRx = 0;
-      } else {
-        // 다운: 서서히 뒤로 쓰러짐
-        p.fallRx = (p.fallRx || 0) + ((p.dead ? -Math.PI / 2 : 0) - (p.fallRx || 0)) * 0.2; rx = p.fallRx;
-        if (p.moving && !p.dead) { y += Math.abs(Math.sin(p.walk)) * 0.05; rz = Math.sin(p.walk) * 0.03; }
-      }
+      // 다운: 서서히 뒤로 쓰러짐 (구르는 중엔 0) — 자세 계산은 명중 판정과 같은 soldierPose
+      if (p.rollPlaying || p.roll) p.fallRx = 0; else p.fallRx = (p.fallRx || 0) + ((p.dead ? -Math.PI / 2 : 0) - (p.fallRx || 0)) * 0.2;
+      const P = this.soldierPose(p, now, S.pose || (S.pose = {}));
       // 몸 전체 변환 (방향(y) 을 먼저 적용해야 앞으로 구르는 회전이 자연스럽습니다)
-      S.e.set(rx, -p.angle - Math.PI / 2, rz, 'YXZ'); S.q.setFromEuler(S.e); S.R.compose(S.v.set(p.x, y, p.y), S.q, S.one);
+      S.e.set(P.rx, P.ry, P.rz, 'YXZ'); S.q.setFromEuler(S.e); S.R.compose(S.v.set(P.x, P.y, P.z), S.q, S.one);
       this.sBody.setMatrixAt(i, S.R); this.sTrim.setMatrixAt(i, S.R);
-      const sw = p.moving && !p.dead ? Math.sin(p.walk) * 0.5 : 0;
-      S.L.makeRotationX(sw).setPosition(-0.11, 0.35, 0); this.sLegs.setMatrixAt(i * 2, S.M.multiplyMatrices(S.R, S.L));
-      S.L.makeRotationX(-sw).setPosition(0.11, 0.35, 0); this.sLegs.setMatrixAt(i * 2 + 1, S.M.multiplyMatrices(S.R, S.L));
-      S.L.makeRotationX(-(p.pitch || 0) - (p.fire ? 0.35 : 0)).setPosition(0.3, 1.05, -0.15); this.sArm.setMatrixAt(i, S.M.multiplyMatrices(S.R, S.L));
+      S.L.makeRotationX(P.sw).setPosition(-0.11, 0.35, 0); this.sLegs.setMatrixAt(i * 2, S.M.multiplyMatrices(S.R, S.L));
+      S.L.makeRotationX(-P.sw).setPosition(0.11, 0.35, 0); this.sLegs.setMatrixAt(i * 2 + 1, S.M.multiplyMatrices(S.R, S.L));
+      S.L.makeRotationX(P.arm).setPosition(0.3, 1.05, -0.15); this.sArm.setMatrixAt(i, S.M.multiplyMatrices(S.R, S.L));
       // 색: 팀 색 장식 · 피격 순간 하얗게 번쩍
       const fl = p.flash && now < p.flash ? 2.6 : 1;
       if (p.prot && !p.dead && fl === 1) S.c.setRGB(0.75, 1.55, 1.9); else S.c.setScalar(fl); this.sBody.setColorAt(i, S.c); this.sArm.setColorAt(i, S.c); this.sLegs.setColorAt(i * 2, S.c); this.sLegs.setColorAt(i * 2 + 1, S.c);
@@ -1368,7 +1505,7 @@ class Fps3DGame {
         ctx.globalAlpha = Math.min(1, k * 2);
         ctx.font = '800 ' + (p.head ? 22 : 17) + 'px Pretendard, sans-serif'; ctx.textAlign = 'center';
         ctx.shadowColor = 'rgba(0,0,0,0.8)'; ctx.shadowBlur = 4;
-        ctx.fillStyle = p.head ? '#FFD166' : '#FFFFFF'; ctx.fillText((p.head ? '🎯 ' : '') + '-' + p.val, sx, sy);
+        ctx.fillStyle = p.text ? '#7FE7FF' : p.head ? '#FFD166' : '#FFFFFF'; ctx.fillText(p.text || ((p.head ? '🎯 ' : '') + '-' + p.val), sx, sy);
         ctx.shadowBlur = 0; ctx.globalAlpha = 1; ctx.textAlign = 'left';
       });
     }
@@ -1408,13 +1545,18 @@ class Fps3DGame {
     const gap = 6 + this.recoil * 10 + (this.moving ? 5 : 0);
     if (this.zoomK > 0.5) { /* 스코프 중엔 십자선이 대신함 */ }
     if (this.zoomK < 0.5) {
-      ctx.strokeStyle = 'rgba(255,255,255,0.95)'; ctx.lineWidth = 2; ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 3;
+      // 지금 쏘면 맞는 상대 위: 빨강 · 보호 중인 상대 위: 하늘색 (명중 판정과 같은 계산)
+      ctx.strokeStyle = this.aimOn === 1 ? 'rgba(255,92,122,0.98)' : this.aimOn === 2 ? 'rgba(127,231,255,0.98)' : 'rgba(255,255,255,0.95)'; ctx.lineWidth = 2; ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 3;
       const g2 = this.weapon === 'sniper' ? gap + 10 : gap;   // 스나이퍼는 줌 없이 쏘면 산탄이 큼을 표시
       [[-1, 0], [1, 0], [0, -1], [0, 1]].forEach(([ax, ay]) => { ctx.beginPath(); ctx.moveTo(W / 2 + ax * g2, hy + ay * g2); ctx.lineTo(W / 2 + ax * (g2 + 8), hy + ay * (g2 + 8)); ctx.stroke(); });
       ctx.shadowBlur = 0;
     }
     if (this.hitMarker > 0) { const hm = Math.min(1, this.hitMarker); ctx.strokeStyle = this.hitMarker > 1 ? 'rgba(255,214,102,' + hm + ')' : 'rgba(255,80,80,' + hm + ')'; ctx.lineWidth = 3;
       [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([ax, ay]) => { ctx.beginPath(); ctx.moveTo(W / 2 + ax * 6, hy + ay * 6); ctx.lineTo(W / 2 + ax * 16, hy + ay * 16); ctx.stroke(); }); }
+    // 쓰러뜨릴 만큼 맞힘: 크고 굵은 빨간 X · 보호 중인 상대를 맞힘: 하늘색 방패 고리 (피해 없음)
+    if (this.killMark > 0) { ctx.strokeStyle = 'rgba(255,60,80,' + Math.min(1, this.killMark * 1.5).toFixed(2) + ')'; ctx.lineWidth = 5; const r0 = 9, r1 = 24;
+      [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([ax, ay]) => { ctx.beginPath(); ctx.moveTo(W / 2 + ax * r0, hy + ay * r0); ctx.lineTo(W / 2 + ax * r1, hy + ay * r1); ctx.stroke(); }); }
+    if (this.protMark > 0) { ctx.strokeStyle = 'rgba(127,231,255,' + Math.min(1, this.protMark * 1.5).toFixed(2) + ')'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(W / 2, hy, 15, 0, Math.PI * 2); ctx.stroke(); }
     if (this.dmgDir && now < this.dmgDir.until) { const k = (this.dmgDir.until - now) / 900; ctx.save(); ctx.translate(W / 2, hy); ctx.rotate(this.dmgDir.a); ctx.strokeStyle = 'rgba(255,60,80,' + (k * 0.9).toFixed(2) + ')'; ctx.lineWidth = 8; ctx.lineCap = 'round'; ctx.beginPath(); ctx.arc(0, 0, Math.min(W, H) * 0.22, -0.35, 0.35); ctx.stroke(); ctx.restore(); }
     if (this.hurt > 0 || (this.hp <= 30 && !this.isDead)) { const a = Math.max(this.hurt * 0.6, this.hp <= 30 && !this.isDead ? 0.25 + Math.sin(now / 180) * 0.12 : 0); const g = ctx.createRadialGradient(W / 2, hy, H * 0.25, W / 2, hy, H * 0.85); g.addColorStop(0, 'rgba(255,40,70,0)'); g.addColorStop(1, 'rgba(255,40,70,' + a.toFixed(2) + ')'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); }
     // 부활 직후 무적: 하늘색 테두리 + 남은 시간 막대

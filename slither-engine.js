@@ -5,8 +5,11 @@
 //   · 슈퍼 지렁이: 부활할 때 가끔(판에 한 마리까지) 태어남. 1등과 부딪혀도 죽지 않고, 1등의 머리를 먹으면 1등의 길이를 이어받아 새 1등 (60초)
 //   네트워크: 머리 + 최근 마디 8개(방향 2글자씩)와 마디 번호(seq)를 보내고, 받는 쪽이 번호대로 이어 붙여 '보낸 쪽과 똑같은 몸'을 만듭니다.
 //            처음 받았거나 신호가 크게 빠져 몸이 모자라면 'need' 사건을 보내 전체 몸을 한 번 받아 옵니다.
-//   판정: 내 머리는 내 기기가 '내 화면에 그려진 몸 그대로'(선분 거리) 판정합니다. 몸 주인 기기도 깊게 파고든 머리를 보면 'ko' 로 알려 줍니다.
-//         머리끼리·슈퍼 사건은 먼저 본 쪽이 결과를 정해 'clash' 로 상대에게 보내고, 같은 두 목숨 사이에서는 한 번만 처리합니다.
+//   판정: 내 머리는 내 기기가 판정합니다. ① 내 화면에서 그려진 상대 몸에 닿으면 바로 탈락(선분 거리)
+//         ② 상대는 D ms 전 모습(네트워크 + 보간 지연, 보낸 시각은 서버 시계)으로 그려지므로 내 머리도 D ms 전 위치로 같은 순간을 비교 (지연 보상)
+//            — 머리끼리는 '같은 순간에 만났을 때'만 (큰 뱀 머리 앞을 먼저 지나간 작은 뱀이 삼켜지지 않음), 지난 머리가 몸에 들어갔으면 그 자리로 되감고 탈락
+//         몸 주인 기기도 그 순간에 이미 있던 몸에 깊게 파고든 머리를 보면 'ko' 로 알려 줍니다(보조).
+//         머리끼리·슈퍼 사건은 먼저 본 쪽이 결과를 정해 'clash'(만난 순간 at 포함)로 상대에게 보내고, 같은 두 목숨 사이에서는 한 번만 처리합니다.
 
 const SL_R = 144;              // 경기장 반지름(칸) — 지름 2배(72→144), 30명 기준 1인당 약 2,170칸²
 const SL_PELLETS = 5200;       // 먹이 수 — 넓이가 4배라 먹이도 4배(밀도 유지)
@@ -124,6 +127,7 @@ class SlitherGame {
   get radius() { return 0.28 + Math.min(1.1, Math.sqrt(this.len) * 0.07); }
   static radiusOf(len) { return 0.28 + Math.min(1.1, Math.sqrt(len) * 0.07); }
   clock() { return this.now || performance.now(); }
+  srvNow() { return this.opts.serverNow ? this.opts.serverNow() : this.clock(); }   // 보낸 시각은 서버 시계로 (모든 기기가 같은 시계 → 받는 쪽이 한쪽 지연을 바로 앎)
   toast(t, c) { this.toasts.push({ text: t, color: c || '#fff', until: this.clock() + 1800 }); }
   say(t, s, c, ms) { this.banner = { t, s: s || '', c: c || '#FFD166', until: this.clock() + (ms || 3000), at: this.clock() }; }
   nameOf(id) { const p = this.peers[id]; return (p && p.name) || (this.opts.nameOf && this.opts.nameOf(id)) || '친구'; }
@@ -138,7 +142,7 @@ class SlitherGame {
     let dirs = ''; for (let i = 1; i < K; i++) dirs += slEnc(Math.atan2(t[i][1] - t[i - 1][1], t[i][0] - t[i - 1][0]));
     const fl = (this.invul > 0 ? 1 : 0) | (this.isSuper ? 2 : 0);
     const s = [this.x.toFixed(2), this.y.toFixed(2), this.angle.toFixed(2), Math.round(this.len), (this.boost && this.len > 8 && !this.isDead) ? 1 : 0, this.isDead ? 1 : 0, this.skin, this.kills,
-      fl, this.life, this.seq, (Math.round(this.clock()) % SL_TSM).toString(36), nb, Math.round((t[0][0] - this.x) * 100), Math.round((t[0][1] - this.y) * 100), dirs].join(',');
+      fl, this.life, this.seq, (Math.round(this.srvNow()) % SL_TSM).toString(36), nb, Math.round((t[0][0] - this.x) * 100), Math.round((t[0][1] - this.y) * 100), dirs].join(',');
     if (this.isDead) { this._deadSer = s; this._deadKey = this.life + ':' + this.kills; }
     return s;
   }
@@ -154,17 +158,20 @@ class SlitherGame {
     let p = this.peers[id];
     if (!p) p = this.peers[id] = { id, pts: [], seq0: -1, lag: 0, life: d.life, dead: d.dead, hx: d.x, hy: d.y, ang: d.angle, rx: d.x, ry: d.y, ra: d.angle, vs: 0, vn: 0, d0: 0, minOff: null, late: 0, len: d.len, name: '', seen: now, sup: false };
     // 다시 태어남(목숨 번호가 바뀜) → 자취 새로
-    if (d.life !== p.life || (p.dead && !p.dying && !d.dead)) { p.pts = []; p.seq0 = -1; p.lag = 0; p.dying = false; p.koAt = 0; p.hideUntil = 0; p.rx = d.x; p.ry = d.y; p.ra = d.angle; }
+    if (d.life !== p.life || (p.dead && !p.dying && !d.dead)) { p.pts = []; p.seq0 = -1; p.lag = 0; p.dying = false; p.koAt = 0; p.hideUntil = 0; p.hz = 0; p.rx = d.x; p.ry = d.y; p.ra = d.angle; }
     // 죽음: 그리던 머리가 죽은 자리까지 마저 간 뒤 먹이로 바뀜 (stepPeers)
     if (!p.dead && d.dead) { p.dying = p.pts.length > 0; p.dyingAt = now; }
     if (!d.dead || p.dying) this.mergePts(p, d);
     // 늦음 추정: (받은 시각 - 보낸 시각) 이 가장 작았던 때보다 얼마나 더 걸렸나
     if (d.ts >= 0 && isFinite(d.ts)) { const off = ((now - d.ts) % SL_TSM + SL_TSM) % SL_TSM; if (p.minOff == null) p.minOff = off;
-      let df = off - p.minOff; if (df > SL_TSM / 2) df -= SL_TSM; if (df < -SL_TSM / 2) df += SL_TSM; if (df < 0) { p.minOff = off; df = 0; } p.late = df; }
+      let df = off - p.minOff; if (df > SL_TSM / 2) df -= SL_TSM; if (df < -SL_TSM / 2) df += SL_TSM; if (df < 0) { p.minOff = off; df = 0; } p.late = df;
+      // 한쪽 지연(ms): 서버 시계면 (지금 - 보낸 시각), 아니면 '가장 빨랐던 때 + 80ms' 로 어림 — 판정의 같은 순간 비교에 씀 (lagMs)
+      let one = 80 + df; if (this.opts.serverNow) { one = ((this.srvNow() - d.ts) % SL_TSM + SL_TSM) % SL_TSM; if (one > SL_TSM / 2) one = 0; }
+      one = Math.max(20, Math.min(600, one)); p.net = p.net == null ? one : p.net + (one - p.net) * 0.3; }
     const wasSup = p.sup, N = SL_SKINS.length;
     p.hx = d.x; p.hy = d.y; p.ang = d.angle; p.len = Math.max(1, Math.min(3000, d.len)); p.boost = d.boost; p.dead = d.dead;
     p.skin = ((Math.round(d.ci) % N) + N) % N; p.kills = d.kills; p.sup = !!(d.fl & 2) && !d.dead; p.inv = !!(d.fl & 1); p.life = d.life; p.nb = d.nb;
-    p.name = name || p.name || ''; p.seen = now;
+    p.name = name || p.name || ''; p.seen = now; if (d.ts >= 0 && isFinite(d.ts)) p.ts = d.ts;
     // 도착 간격(이동 평균) — 보내는 간격이 인원에 따라 165~235ms 로 달라짐. 다음 신호가 올 때쯤 받은 길 끝 '조금 앞'에 닿는 속도로 정해 그 사이를 고르게 감 (stepPeers)
     { const iv = p.iv || this.opts.sendMs || 165; p.iv = p.rcv == null ? iv : (now - p.rcv < iv * 2.5 ? iv + (Math.max(40, now - p.rcv) - iv) * 0.15 : iv); p.rcv = now;
       const N = Math.max(3, p.iv / 16.7), v = SL_SPEED * (p.boost ? 1.7 : 1), M = 1 + N * 0.15; p.spd = Math.max(v * 0.5, Math.min(v * 2.5, (p.lag - v * M) / N)); p.mg = v * M; }
@@ -180,6 +187,9 @@ class SlitherGame {
     let x = d.x + d.ax, y = d.y + d.ay; q[0] = [x, y];
     for (let i = 1; i < K; i++) { const a = slDec(d.dirs, (i - 1) * 2); x += Math.cos(a) * SL_SEG; y += Math.sin(a) * SL_SEG; q[i] = [x, y]; }
     const newN = p.seq0 < 0 ? -1 : d.seq - p.seq0;
+    if (d.dead && newN < 0 && -newN < p.pts.length - 1) {          // 쓰러지며 머리를 닿은 자리로 되감음 (die 의 rewind) → 그 뒤 마디를 지우고 그 자리까지만 감
+      const k = -newN, s0 = p.lag - oldH0 - k * SL_SEG; p.pts.splice(0, k); p.seq0 = d.seq;
+      p.lag = Math.max(0, Math.hypot(p.pts[0][0] - d.x, p.pts[0][1] - d.y) + s0); return; }
     if (p.seq0 < 0 || newN < -2 || Math.hypot(d.x - p.hx, d.y - p.hy) > 20) { p.pts = q; p.lag = 0; }      // 처음 · 다시 시작한 기기 · 순간이동
     else if (newN >= 0 && K > p.pts.length + newN) { p.pts = q; p.lag += newN * SL_SEG + Math.hypot(q[0][0] - d.x, q[0][1] - d.y) - oldH0; }   // 전체 몸이 실려 옴
     else if (newN > 0) {
@@ -211,11 +221,11 @@ class SlitherGame {
     if (!e || e.by === this.myId) return;
     const now = this.clock(), nm = this.nameOf(e.by), me = e.target === this.myId;
     if (e.type === 'need') { this.fullUntil = now + 400; return; }                 // 누가 내 몸 전체를 원함 → 다음 신호에 통째로
-    if (e.type === 'eaten') { if (me && !this.isDead) this.die(nm + '에게 삼켜졌다', e.by, 'eat'); return; }   // 예전 형식 호환
+    if (e.type === 'eaten') { if (me && !this.isDead) this.die('머리끼리 부딪혀 ' + nm + '에게 먹혔어요', e.by, 'eat'); return; }   // 예전 형식 호환
     if (e.type === 'ko') {                                                          // 몸 주인 기기가 '내 머리가 자기 몸에 깊게 들어왔다'고 알려 옴
       if (!me || this.isDead || this.invul > 0 || (e.life != null && e.life !== this.life)) return;
       if (this.isSuper && e.by === this.leader) return;                            // 슈퍼는 1등 몸에 안 죽음
-      this.die(nm + '의 몸에 부딪혔다', e.by, 'body', true); return;
+      this.die(nm + ' 몸에 닿았어요', e.by, 'body', true); return;
     }
     if (e.type === 'crash') {                                                       // 누가 내 몸에 부딪혀 탈락함 (알림만)
       if (!me) return; const key = 'c' + e.by + ':' + e.life; if (this.credit[key]) return; this.credit[key] = 1;
@@ -229,9 +239,10 @@ class SlitherGame {
       }
       if (e.life != null && e.life !== this.life) return;                          // 이미 다시 태어난 뒤의 소식
       const key = e.by + ':' + e.ml + ':' + this.life; if (this.resolved[key]) return; this.resolved[key] = now;   // 같은 두 목숨 사이는 한 번만
-      const p = this.peers[e.by];
-      if (e.res === 'eat') { if (!this.isDead) this.die(nm + '에게 삼켜졌다', e.by, 'eat'); }
-      else if (e.res === 'both') { if (!this.isDead) this.die(slJosa(nm, '과', '와') + ' 정면 충돌', e.by, 'head'); }
+      const p = this.peers[e.by] && this.live(this.peers[e.by]) ? this.peers[e.by] : null;
+      if (!this.isDead && (e.res === 'eat' || e.res === 'both' || e.res === 'crown') && e.at > 0) this.rewindTo(now - (this.srvNow() - e.at), p);   // 머리끼리 만난 순간 자리에서 쓰러짐
+      if (e.res === 'eat') { if (!this.isDead) this.die('머리끼리 부딪혀 ' + nm + '에게 먹혔어요', e.by, 'eat'); }
+      else if (e.res === 'both') { if (!this.isDead) this.die(slJosa(nm, '과', '와') + ' 머리끼리 부딪혔어요', e.by, 'head'); }
       else if (e.res === 'eaten') { if (!this.isDead) this.gain(e.by, e.ml, Math.round((+e.len || 6) / 2), nm, p); }
       else if (e.res === 'crown') { if (!this.isDead) { this.die('슈퍼 지렁이 ' + nm + '에게 1등을 빼앗겼다', e.by, 'crown'); this.say('1등을 빼앗겼어요', '슈퍼 지렁이 ' + slJosa(nm, '이', '가') + ' 내 머리를 먹었어요', '#FF5C7A', 2600); } }
       else if (e.res === 'crowned') { if (!this.isDead) this.takeCrown(e.by, e.ml, +e.len || 6, nm, p); }
@@ -304,7 +315,7 @@ class SlitherGame {
       this.x += Math.cos(this.angle) * sp; this.y += Math.sin(this.angle) * sp;
       const R = this.radius;
       // 경기장 벽: 머리 가장자리가 경계선에 닿으면 탈락 (화면에 보이는 대로)
-      if (Math.hypot(this.x, this.y) + R * 0.8 > this.R) this.die('경기장 벽에 부딪혔다');
+      if (Math.hypot(this.x, this.y) + R * 0.8 > this.R) this.die('경기장 벽에 닿았어요');
       // 자취: 정확히 마디 간격마다 점을 찍음 (받는 쪽이 같은 점을 복원)
       let h = this.trail[0], dx = this.x - h[0], dy = this.y - h[1], dd = Math.sqrt(dx * dx + dy * dy);
       while (dd >= SL_SEG) { const k = SL_SEG / dd; h = [h[0] + dx * k, h[1] + dy * k]; this.trail.unshift(h); this.seq++; this.tAt[this.seq & 63] = now; dx = this.x - h[0]; dy = this.y - h[1]; dd = Math.sqrt(dx * dx + dy * dy); }
@@ -366,37 +377,79 @@ class SlitherGame {
     for (const id in this.peers) { const p = this.peers[id]; if (!this.live(p)) continue; const L = Math.round(p.len); if (L > bl || (L === bl && id < best)) { bl = L; best = id; } }
     return best;
   }
-  // 충돌 — ① 내 머리 ↔ 상대 (내 화면에 그려진 그대로) ② 상대 머리가 내 몸 깊숙이 들어옴 (내 진짜 몸 기준, 상대에게 알림)
+  // 상대 p 가 내 화면에 그려진 모습은 몇 ms 전 모습인가 = 받은 뒤 지난 시간 + 한쪽 지연 + 보간으로 늦게 그리는 만큼
+  lagMs(p, now) {
+    const v = SL_SPEED * (p.boost ? 1.7 : 1); let base = (now - (p.rcv || now)) + (p.net == null ? 120 : p.net);
+    if (this.opts.serverNow && p.ts >= 0) { const b = ((this.srvNow() - p.ts) % SL_TSM + SL_TSM) % SL_TSM; if (b < 3000) base = b; }   // 서버 시계: 마지막 신호를 보낸 뒤 지난 시간 (도착 흔들림에 안 튐)
+    return Math.max(0, Math.min(1500, base + p.lag / v * 16.7));
+  }
+  // 내 머리가 t 시각에 있던 곳 (마디가 찍힌 시각으로 보간) → [x, y, 그 뒤에 찍힌 마디 수] · 기록이 없으면 null
+  pastHead(t) {
+    const tr = this.trail, n = Math.min(tr.length, 64); let nx = this.x, ny = this.y, tn = this.now;
+    if (t >= tn) return [nx, ny, 0];
+    for (let i = 0; i < n; i++) { const ti = this.tAt[(this.seq - i) & 63], q = tr[i];
+      if (ti <= t) { const k = tn > ti ? (t - ti) / (tn - ti) : 0; return [q[0] + (nx - q[0]) * k, q[1] + (ny - q[1]) * k, i]; }
+      nx = q[0]; ny = q[1]; tn = ti; }
+    return null;
+  }
+  // 머리끼리 미리 보기: 상대가 그려진 순간(D ms 전)부터 지금까지 '같은 순간'의 두 머리가 닿는가
+  //   내 머리 = 마디 기록 · 상대 머리 = 그려진 머리에서 받은 길 끝(hx)까지 같은 속도로, 그 뒤는 곧게
+  headsMeet(p, rs, D, now) {
+    const step = SL_SPEED * (p.boost ? 1.7 : 1), lim = rs * rs * 0.96, path = [];
+    for (let k = p.vs - 1; k >= 0; k--) path.push(p.pts[k]); path.push([p.hx, p.hy]);
+    let cx = p.rx, cy = p.ry, k = 0;
+    for (let t = 0; ; t = Math.min(D, t + 16.7)) {
+      const me = this.pastHead(now - D + t); if (me) { const ex = me[0] - cx, ey = me[1] - cy; if (ex * ex + ey * ey < lim) return now - D + t; }
+      if (t >= D) return -1;
+      let d = step;
+      while (d > 1e-9) { if (k < path.length) { const q = path[k], ex = q[0] - cx, ey = q[1] - cy, l = Math.hypot(ex, ey); if (l <= d) { cx = q[0]; cy = q[1]; d -= l; k++; } else { cx += ex / l * d; cy += ey / l * d; d = 0; } }
+        else { cx += Math.cos(p.ang) * d; cy += Math.sin(p.ang) * d; d = 0; } }
+    }
+  }
+  // 쓰러진 자리를 '닿은 자리'(지난 머리 위치)로 되감음 — 내 화면에서도 상대 몸 위에서 터지고, 받는 쪽도 그 자리까지만 그림
+  // 머리끼리 진 쪽: 만난 순간의 내 머리 자리가 지금 자리보다 (내 화면의) 상대 머리에 가까우면 그 자리에서 쓰러짐
+  rewindTo(t, p) { if (!(t > this.now - 1500) || !p) return; const ph = this.pastHead(t); if (ph && Math.hypot(ph[0] - p.rx, ph[1] - p.ry) < Math.hypot(this.x - p.rx, this.y - p.ry)) this.rewind(ph); }
+  rewind(ph) { const k = Math.min(ph[2], this.trail.length - 2); if (k > 0) { this.trail.splice(0, k); this.seq -= k; } this.x = ph[0]; this.y = ph[1]; }
+  // 충돌 — 내 머리는 내 기기가 판정 (판정 주체 한 곳)
+  //   ① 내 화면: 내 머리가 그려진 상대 몸에 닿음 → 바로 탈락 (그려진 몸 마디는 상대가 실제로 지나간 자리)
+  //   ② 같은 순간 비교(지연 보상): 상대는 D ms 전 모습으로 그려짐 → 내 머리도 D ms 전 위치로 비교. 머리끼리면 크기 비교, 몸이면 탈락
+  //      (내 화면에서 머리끼리 닿아 보여도 같은 순간에 만나지 않았으면 머리끼리가 아님 — 큰 뱀 머리 앞을 지나간 경우 등)
+  //   ③ 몸 주인 기기: 상대 머리가 내 몸 깊숙이 (그 순간에 이미 있던 마디만) → 'ko' 로 알림 (상대 기기가 멈췄을 때 등의 보조)
   collide(R, now) {
     const lead = this.leader;
     for (const id in this.peers) { const p = this.peers[id]; if (!this.live(p) || p.dying) continue;
-      const pr = SlitherGame.radiusOf(p.len), rs = R + pr, dx = p.rx - this.x, dy = p.ry - this.y, d2 = dx * dx + dy * dy, reach = p.len + rs + 1;
-      if (d2 > reach * reach) continue;                                                // 몸은 머리에서 길이만큼 안에 있음
+      const pr = SlitherGame.radiusOf(p.len), rs = R + pr, dx = p.rx - this.x, dy = p.ry - this.y, d2 = dx * dx + dy * dy, D = this.lagMs(p, now), reach = p.len + rs + 1 + D * SL_SPEED * 1.7 / 16.7;
+      if (d2 > reach * reach) continue;                                                // 몸은 머리에서 길이만큼 안에 있음 (+ 지연 동안 내가 간 거리)
       if (this.invul <= 0) {
-        if (d2 < rs * rs * 0.96) { this.headOn(id, p); if (this.isDead) return; continue; }
-        if (!(this.isSuper && id === lead) && slNear(this.x, this.y, rs * 0.98, p.rx, p.ry, p.pts, p.vs, p.vn)) { this.die((p.name || '친구') + '의 몸에 부딪혔다', id, 'body'); return; }
+        const immune = this.isSuper && id === lead, body = (x, y) => !immune && slNear(x, y, rs * 0.98, p.rx, p.ry, p.pts, p.vs, p.vn);
+        if (d2 < rs * rs * 0.96) { if (!p.hz) { p.hz = 1; const tc = this.headsMeet(p, rs, D, now); if (tc >= 0) { this.headOn(id, p, tc); if (this.isDead) return; continue; } } }
+        else { p.hz = 0; if (body(this.x, this.y)) { this.die((p.name || '친구') + ' 몸에 닿았어요', id, 'body'); return; } }
+        const ph = this.pastHead(now - D);
+        if (ph) { const ex = p.rx - ph[0], ey = p.ry - ph[1];
+          if (ex * ex + ey * ey < rs * rs * 0.96) { this.headOn(id, p, now - D); if (this.isDead) return; continue; }
+          if (body(ph[0], ph[1])) { this.rewind(ph); this.die((p.name || '친구') + ' 몸에 닿았어요', id, 'body'); return; } }
       }
-      // ② 몸 주인 판정 — 최근 0.7초 안에 생긴 목 부분은 빼고(그곳은 상대 화면이 더 정확), 신호가 늦은 상대도 빼고
       if (p.inv || now - p.seen > 500 || p.late > 300 || d2 < rs * rs || (p.sup && lead === this.myId)) continue;
       const key = id + ':' + p.life; if (this.koSent[key]) continue;
-      const t = this.trail, n = Math.min(t.length, Math.ceil(this.len / SL_SEG) + 1); let i0 = 0;
-      while (i0 < 63 && i0 < n - 1 && now - this.tAt[(this.seq - i0) & 63] < 700) i0++;
+      const t = this.trail, n = Math.min(t.length, Math.ceil(this.len / SL_SEG) + 1), old = this.lagMs(p, now) + 60; let i0 = 0;
+      while (i0 < 63 && i0 < n - 1 && now - this.tAt[(this.seq - i0) & 63] < old) i0++;   // 상대가 그려진 순간에 아직 없던 목 부분은 뺌
       if (n - i0 > 1 && slNear(p.rx, p.ry, rs * 0.75, t[i0][0], t[i0][1], t, i0 + 1, n - i0 - 1)) {
         this.koSent[key] = now; p.koAt = now; this.send('ko', id, { life: p.life }); }
     }
   }
   // 머리끼리: 결과를 정해 상대에게도 같은 결과를 보냄
-  headOn(id, p) {
+  headOn(id, p, tc) {
     const key = id + ':' + p.life + ':' + this.life; if (this.resolved[key]) return; this.resolved[key] = this.now;
     const lead = this.leader, a = Math.round(this.len), b = Math.round(p.len), nm = p.name || '친구';
     let res;
     if (this.isSuper && id === lead) res = 'crown';                                    // 슈퍼가 1등 머리를 먹음
     else if (p.sup && lead === this.myId) res = 'crowned';                             // 내가 1등인데 슈퍼에게 먹힘
     else res = a >= b * 1.2 ? 'eat' : b >= a * 1.2 ? 'eaten' : 'both';
-    this.send('clash', id, { res, life: p.life, ml: this.life, len: a, pl: b });
+    this.send('clash', id, { res, life: p.life, ml: this.life, len: a, pl: b, at: Math.round(this.srvNow() - (this.now - tc)) });   // at: 머리끼리 만난 순간(서버 시계)
+    if (res === 'eaten' || res === 'both' || res === 'crowned') this.rewindTo(tc, p);
     if (res === 'eat') { this.gain(id, p.life, Math.round(b / 2), nm, p); p.hideUntil = this.now + 1500; }   // 신호가 오기 전까지 내 화면에서 미리 치움
-    else if (res === 'eaten') this.die(nm + '에게 삼켜졌다', id, 'eat');
-    else if (res === 'both') { this.die(slJosa(nm, '과', '와') + ' 정면 충돌', id, 'head'); p.hideUntil = this.now + 1500; }
+    else if (res === 'eaten') this.die('머리끼리 부딪혀 ' + nm + '에게 먹혔어요', id, 'eat');
+    else if (res === 'both') { this.die(slJosa(nm, '과', '와') + ' 머리끼리 부딪혔어요', id, 'head'); p.hideUntil = this.now + 1500; }
     else if (res === 'crown') { this.takeCrown(id, p.life, b, nm, p); p.hideUntil = this.now + 1500; }
     else if (res === 'crowned') { this.die('슈퍼 지렁이 ' + nm + '에게 1등을 빼앗겼다', id, 'crown'); this.say('1등을 빼앗겼어요', '슈퍼 지렁이 ' + slJosa(nm, '이', '가') + ' 내 머리를 먹었어요', '#FF5C7A', 2600); }
   }
