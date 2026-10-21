@@ -15,8 +15,8 @@
 <link rel="apple-touch-icon" href="icon-180.png">
 <meta name="theme-color" content="#1B2027">
 <title>아케이드</title>
-<link rel="stylesheet" href="platform.css?v=2026-10-21a">
-<link rel="stylesheet" href="style.css?v=2026-10-21a">
+<link rel="stylesheet" href="platform.css?v=2026-10-21b">
+<link rel="stylesheet" href="style.css?v=2026-10-21b">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nanum+Myeongjo:wght@700;800&display=swap" rel="stylesheet">
 </head>
@@ -136,19 +136,20 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script src="firebase-config.js?v=2026-10-21a"></script>
-<script src="sound.js?v=2026-10-21a"></script>
-<script src="shared.js?v=2026-10-21a"></script>
-<script src="fx.js?v=2026-10-21a"></script>
+<script src="firebase-config.js?v=2026-10-21b"></script>
+<script src="sound.js?v=2026-10-21b"></script>
+<script src="shared.js?v=2026-10-21b"></script>
+<script src="fx.js?v=2026-10-21b"></script>
 <!-- 게임 엔진(*-engine.js · three.min.js · 울산 · 카트 3D 파일)은 아래 ENGINE_FILES 표대로 고른 게임에 필요한 것만 불러옵니다 -->
-<script src="games.js?v=2026-10-21a"></script>
-<script src="app.js?v=2026-10-21a"></script>
+<script src="games.js?v=2026-10-21b"></script>
+<script src="app.js?v=2026-10-21b"></script>
 <script>
 (function () {
 
-  const BUILD = '2026-10-21a';   // 화면 아래에 표시됩니다
+  const BUILD = '2026-10-21b';   // 화면 아래에 표시됩니다
 
   const gameId = getGameId();
+  const inLobby = new URLSearchParams(location.search).get('game') === 'lobby';   // 초기 대기실: 선생님이 게임을 고르면 그 게임 대기실로 옮겨 감 (gameId 는 자리표시 · 게임은 시작하지 않음)
   const def = GAMES[gameId];
   const isHtml = (def.type === 'html');      // 자체 화면을 가진 학습 게임
   const isTetris = (gameId === 'tetris');
@@ -199,7 +200,7 @@
     engineP["catch"](() => { engineP = null; });                        // 실패하면 다음 부를 때 남은 파일부터 다시
     return engineP;
   }
-  loadEngine()["catch"](() => {});
+  if (!inLobby) loadEngine()["catch"](() => {});
 
   applyAccent(gameId);
   document.getElementById('join-chip').textContent = def.name;
@@ -209,6 +210,13 @@
   document.getElementById('howto-name').textContent = def.name;   // 팀 표시는 playerId 가 정해진 뒤 paintTeamLabel() 에서
   document.getElementById('howto-desc').textContent = def.desc || '';
   document.getElementById('howto-keys').textContent = def.howto ? '조작: ' + def.howto : '';
+  if (inLobby) {                                                  // 초기 대기실 화면 글자
+    ['join-chip', 'howto-name'].forEach(id => { document.getElementById(id).textContent = '대기실'; });
+    document.getElementById('howto-desc').textContent = '선생님이 게임을 고르면 자동으로 그 게임 대기실로 넘어가요';
+    document.getElementById('howto-keys').textContent = '';
+    const wh = document.querySelector('#screen-wait h1'), wm = document.querySelector('#screen-wait .muted');
+    if (wh) wh.textContent = '게임을 기다리는 중'; if (wm) wm.textContent = '선생님이 게임을 고르면 자동으로 넘어갑니다';
+  }
   // 점수 옆 보조 수치 두 칸 — 게임마다 무엇을 보여 줄지 정합니다
   const stats = def.stats || [];
   [['chip-a','k-a'],['chip-b','k-b']].forEach(([chip, k], i) => {
@@ -576,6 +584,7 @@
     const r = snap.val() || {};
     const ids = Object.keys(r);
     ids.forEach(id => { names[id] = r[id] || ''; });
+    if (game && game.syncRoster) game.syncRoster(r);       // 뱀 아레나: 명단에서 빠진(나간) 친구만 지움 — 잠깐 끊긴 친구는 흐리게 남김
     { const wc = document.getElementById('wait-count'); if (wc.textContent !== String(ids.length)) { wc.textContent = ids.length; wc.classList.remove('bump'); void wc.offsetWidth; wc.classList.add('bump'); } }
     if (started) return;                                  // 게임 화면에서는 명단을 다시 그리지 않습니다
     const roster = document.getElementById('roster');
@@ -602,7 +611,9 @@
 
     // 선생님이 다른 게임을 골랐으면 그 게임으로 옮겨 갑니다.
     // 게임마다 엔진이 달라 주소를 바꿔 다시 여는 방식이며, 닉네임은 그대로 유지됩니다.
-    if (s.game && s.game !== gameId && GAMES[s.game]) {
+    // 초기 대기실에 있으면 선생님이 고른 게임으로, 선생님이 '초기 대기실로 이동'을 누르면(게임 없음 · idle) 초기 대기실로 옮겨 갑니다.
+    const dest = (s.game && GAMES[s.game] && (inLobby || s.game !== gameId)) ? s.game : (!s.game && s.status === 'idle' && !inLobby) ? 'lobby' : null;
+    if (dest) {
       if (switching) return;
       switching = true;
       try { sessionStorage.setItem('autoJoin', joined ? '1' : '0'); } catch (e) {}
@@ -610,7 +621,7 @@
       // (일부 학생이 명단에서 사라져 '튕긴' 것처럼 보이던 원인). 의도한 이동이므로 예약을 먼저 취소합니다.
       const cancels = [];
       try { if (myRosterRef) cancels.push(myRosterRef.onDisconnect().cancel()); if (playerRef) cancels.push(playerRef.onDisconnect().cancel()); if (myPosRef) cancels.push(myPosRef.onDisconnect().cancel()); if (screenRef) cancels.push(screenRef.onDisconnect().cancel()); } catch (e) {}
-      const url = location.pathname + '?game=' + encodeURIComponent(s.game);
+      const url = location.pathname + '?game=' + encodeURIComponent(dest);
       Promise.all(cancels).then(() => location.replace(url), () => location.replace(url));
       setTimeout(() => location.replace(url), 1500);         // 취소 응답이 늦어도 이동은 합니다
       return;
