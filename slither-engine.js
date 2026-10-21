@@ -606,13 +606,14 @@ class SlitherGame {
     s = { cv, w, h }; this.labels.set(key, s); return s;
   }
   // 점 무늬: 몸을 따라 r×2.1 간격으로 점 그림을 찍음 (머리에서 재는 위치는 예전 점선과 같음 — 움직이면 점도 함께 흐름)
-  //   예전: 길이 0 점선 + 둥근 끝 → 점마다 곡선 도형을 만들어 칠해 긴 뱀 여럿이면 그리기 시간의 약 1/4 (bench8: 27 → 20ms)
-  drawDots(ctx, vx, vy, vn, r, dOff, col, dpr) {
+  //   예전: 길이 0 점선 + 둥근 끝 → 점마다 곡선 도형을 만들어 칠함 — 긴 뱀 8마리 장면에서 칠하기 시간의 약 1/4 (bench8 CPU 4배 느리게: 프레임 126 → 92ms)
+  drawDots(ctx, vx, vy, vn, r, dOff, col, dpr, W, H) {
     if (vn < 2) return;
     const P = r * 2.1, rd = r * 0.4, spr = this.dotSprite(col, rd, dpr), S = spr.size;
     let need = ((r - dOff) % P + P) % P;                         // 첫 점까지 남은 거리 (점선 시작 위치 dOff - r 과 같게)
     for (let i = 1; i < vn; i++) { const ax = vx[i - 1], ay = vy[i - 1], ex = vx[i] - ax, ey = vy[i] - ay, L = Math.sqrt(ex * ex + ey * ey);
       if (L < 1e-6) continue; let d = need;
+      if ((ax < -S && vx[i] < -S) || (ay < -S && vy[i] < -S) || (ax > W + S && vx[i] > W + S) || (ay > H + S && vy[i] > H + S)) d += Math.max(0, Math.ceil((L - d) / P)) * P;   // 화면 밖 구간은 건너뜀
       while (d <= L) { const t = d / L; ctx.drawImage(spr.cv, ax + ex * t - S / 2, ay + ey * t - S / 2, S, S); d += P; }
       need = d - L; }
   }
@@ -657,7 +658,7 @@ class SlitherGame {
     ctx.strokeStyle = sk.edge; ctx.lineWidth = r * 2; ctx.stroke(path);                                                    // 테두리 (바깥 = 판정 반지름)
     ctx.strokeStyle = sk.c; ctx.lineWidth = inner; ctx.stroke(path);                                                       // 본색
     // 무늬
-    if (dots) this.drawDots(ctx, vx, vy, vn, r, dOff, sk.c2, dpr);
+    if (dots) this.drawDots(ctx, vx, vy, vn, r, dOff, sk.c2, dpr, W, H);
     else if (sk.pat === 1 || sk.pat === 2) { ctx.lineCap = 'butt'; ctx.setLineDash(sk.pat === 1 ? [r * 0.75, r * 1.3] : [r * 1.25, r * 1.45]); ctx.lineDashOffset = dOff - r * 1.6; ctx.strokeStyle = sk.c2; ctx.lineWidth = inner; ctx.stroke(path); }
     else if (sk.pat === 3) { ctx.strokeStyle = sk.c2; ctx.lineWidth = r * 0.5; ctx.stroke(path); }
     else { ctx.lineCap = 'butt'; ctx.setLineDash([r * 0.7, r * 2.2]); ctx.lineDashOffset = dOff - now * 0.06; ctx.strokeStyle = sk.c2; ctx.lineWidth = inner * 0.8; ctx.stroke(path); }   // 슈퍼: 반짝이 띠가 흐름

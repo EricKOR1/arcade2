@@ -261,18 +261,23 @@ class KartGame3D extends KartGame {
     const dt = new T.CanvasTexture(dc); dt.wrapS = dt.wrapT = T.RepeatWrapping;
     const kc = document.createElement('canvas'); kc.width = 8; kc.height = 32; const kg = kc.getContext('2d'); kg.fillStyle = '#FFD166'; kg.fillRect(0, 0, 8, 16); kg.fillStyle = '#23262E'; kg.fillRect(0, 16, 8, 16);
     const kt = new T.CanvasTexture(kc); kt.wrapS = kt.wrapT = T.RepeatWrapping;
-    const dm = new T.MeshLambertMaterial({ map: dt, side: T.DoubleSide }), km = new T.MeshLambertMaterial({ map: kt, side: T.DoubleSide }), wm = new T.MeshLambertMaterial({ color: this.night ? 0x3A3F55 : 0x7A6248, side: T.DoubleSide });
+    const dm = new T.MeshLambertMaterial({ map: dt, side: T.DoubleSide, polygonOffset: true, polygonOffsetFactor: 3, polygonOffsetUnits: 6 }),   // (본선과 겹치는 입구에서 본선 도로가 늘 위에 보이게 — 깊이 정밀도가 낮은 기기에서 얼룩지지 않게)
+           km = new T.MeshLambertMaterial({ map: kt, side: T.DoubleSide }), wm = new T.MeshLambertMaterial({ color: this.night ? 0x3A3F55 : 0x7A6248, side: T.DoubleSide });
     tr.shortcuts.forEach(s => {
       const P = s.pts, m = P.length;
-      const strip = (a, b, yA, yB, vLen, mat) => { const pos = [], uv = [], idx = []; let v = 0;
+      // 연석은 본선 도로 밖에 있는 곳만 (입구·출구에서 본선 도로 위로 튀어나오지 않게)
+      const outM = side => Array.from(P, (p, k) => { const mo = (s.wr[k] - s.wl[k]) / 2, w = (s.wr[k] + s.wl[k]) / 2, o = mo + w * 1.08 * side, x = p[0] - s.tan[k][1] * o, y = p[1] + s.tan[k][0] * o;
+        return tr.nearestIndex(x, y, (Math.round(s.idx[k]) % tr.n + tr.n) % tr.n).dist > tr.halfW * 1.03; });
+      const okR = outM(1), okL = outM(-1);
+      const strip = (a, b, yA, yB, vLen, mat, ok) => { const pos = [], uv = [], idx = []; let v = 0;
         for (let k = 0; k < m; k++) { const [tx, ty] = s.tan[k], nx = -ty, ny = tx, e = s.e[k] * S; if (k) v += Math.hypot(P[k][0] - P[k - 1][0], P[k][1] - P[k - 1][1]) * S / vLen;
           const mo = (s.wr[k] - s.wl[k]) / 2, w = (s.wr[k] + s.wl[k]) / 2;   // (갈림목은 본선 쪽으로 넓게: 가운데를 옮기고 폭을 늘림)
           pos.push((P[k][0] + nx * (mo + w * a)) * S, e + yA, (P[k][1] + ny * (mo + w * a)) * S, (P[k][0] + nx * (mo + w * b)) * S, e + yB, (P[k][1] + ny * (mo + w * b)) * S); uv.push(0, v, 1, v);
-          if (k < m - 1) { const q = k * 2; idx.push(q, q + 2, q + 1, q + 1, q + 2, q + 3); } }
+          if (k < m - 1 && (!ok || (ok[k] && ok[k + 1]))) { const q = k * 2; idx.push(q, q + 2, q + 1, q + 1, q + 2, q + 3); } }
         const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new T.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
         const mesh = new T.Mesh(g, mat); mesh.receiveShadow = true; this.scene.add(mesh); return mesh; };
-      strip(1, -1, -0.03, -0.03, s.hw * 2 * S, dm);
-      strip(1.16, 1, 0.06, -0.03, 3, km); strip(-1, -1.16, -0.03, 0.06, 3, km);
+      strip(1, -1, -0.06, -0.06, s.hw * 2 * S, dm);
+      strip(1.16, 1, 0.06, -0.06, 3, km, okR); strip(-1, -1.16, -0.06, 0.06, 3, km, okL);
       // 옆벽: 길 가장자리에서 땅까지 (떠 보이지 않게)
       [1.16, -1.16].forEach(off => { const pos = [], idx = [];
         for (let k = 0; k < m; k++) { const [tx, ty] = s.tan[k], mo = (s.wr[k] - s.wl[k]) / 2, w = (s.wr[k] + s.wl[k]) / 2, x = (P[k][0] - ty * (mo + w * off)) * S, z = (P[k][1] + tx * (mo + w * off)) * S; pos.push(x, s.e[k] * S - 0.04, z, x, this.groundY, z);
