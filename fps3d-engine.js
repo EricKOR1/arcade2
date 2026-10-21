@@ -349,6 +349,7 @@ const F3_WEAPONS = {
   rifle:  { name: '라이플',  mag: 30, reload: 1400, rate: 110, dmgBody: 34, dmgHead: 60,  dmgFar: 26, spread: 1.0, zoomFov: 72 },
   sniper: { name: '스나이퍼', mag: 5,  reload: 2600, rate: 900, dmgBody: 90, dmgHead: 150, dmgFar: 90, spread: 0.15, zoomFov: 22 }   // 줌 상태에서만 정확
 };
+const F3_NOSCOPE = 0.16;   // 스나이퍼를 줌 없이 쏠 때 탄이 흩어지는 반지름(라디안 ≈ 9°): 3칸 약 85% · 6칸 약 40% · 10칸 약 15% 명중 (줌·라이플은 100%)
 const F3_MAG = 30;
 const F3_EYE = 1.6;
 const F3_HIT_GAP = 200;          // 명중 신호를 묶는 간격(ms)
@@ -812,7 +813,8 @@ class Fps3DGame {
     this.weapon = this.weapon === 'rifle' ? 'sniper' : 'rifle';
     if (this.rifleModel && this.sniperModel) { this.rifleModel.visible = this.weapon === 'rifle'; this.sniperModel.visible = this.weapon === 'sniper'; this.weaponModel = this.weapon === 'sniper' ? this.sniperModel : this.rifleModel; this.swapT = 1; }
     this.zoomed = false; this.ammo = this.magSize; this.reloadUntil = 0; this.readyUntil = this.clock() + 800;
-    this.showToast(this.wpn.name + (this.weapon === 'sniper' ? ' — 🔍 줌으로 조준하세요' : ''), '#FFD166');
+    this.showToast(this.wpn.name + (this.weapon === 'sniper' ? ' — 🔍 줌을 당겨야 정확해요' : ''), '#FFD166');
+    this.noScopeHint = this.weapon === 'sniper' ? this.clock() + 3500 : 0;
     if (window.Sound) Sound.rotate();
   }
   // 줌 토글 (스나이퍼 전용): 시야 72° → 22°, 이동 느려짐, 조준 감도 낮아짐
@@ -856,8 +858,14 @@ class Fps3DGame {
     if (now - this.lastFire < this.wpn.rate) return;
     // 조준선 = 지금 화면 가운데 (카메라와 같은 위치·방향: 걸음 흔들림 · 반동으로 튄 시선 포함). 산탄만큼 살짝 흩어짐
     const base = 0.01 * this.recoil + (this.moving ? 0.012 : 0);
-    const spread = this.weapon === 'sniper' ? (this.zoomed ? base * 0.15 : 0.06) : base;
-    const ray = this.viewRay((Math.random() - 0.5) * spread * 2, (Math.random() - 0.5) * spread);
+    let ray;
+    if (this.weapon === 'sniper') {
+      // 스나이퍼: 줌(스코프)을 다 당겨야 정확. 줌 없이 쏘면 화면 가운데에서 크게(최대 약 9°, 걸으면 11°) 흩어짐 — 코앞이 아니면 잘 안 맞음
+      const zk = this.zoomed ? Math.min(1, this.zoomK) : 0, sc = base * 0.15 * zk;
+      const ns = (1 - zk) * (F3_NOSCOPE + (this.moving ? 0.035 : 0)), r = ns * Math.sqrt(Math.random()), a = Math.random() * Math.PI * 2;
+      ray = this.viewRay(Math.cos(a) * r + (Math.random() - 0.5) * sc * 2, Math.sin(a) * r + (Math.random() - 0.5) * sc);
+      if (zk < 0.5) this.noScopeHint = now + 1500;           // 줌 없이 쐈음: 잠깐 '🔍 줌' 안내
+    } else ray = this.viewRay((Math.random() - 0.5) * base * 2, (Math.random() - 0.5) * base);
     this.lastFire = now; this.muzzle = 1; this.ammo--; this.protUntil = 0;   // 쏘면 무적이 바로 풀림 (무적으로 공격만 하는 꼼수 막기)
     if (this.ammo <= 0) this.reload();
     if (window.Sound) { if (this.weapon === 'sniper') { Sound.sniper(); Sound.bolt(0.32); } else Sound.rifle(); }   // 총소리 · 스나이퍼는 이어서 볼트 철컥
@@ -1304,7 +1312,9 @@ class Fps3DGame {
     // 내 위치 기록 (0.05초마다 1.6초) — 받은 명중이 '그때 내가 있던 곳' 근처인지 확인용
     const hs = this._hist || (this._hist = []); if (!hs.length || now - hs[hs.length - 1][0] >= 50) { hs.push([now, this.x, this.y]); if (hs.length > 32) hs.shift(); }
     // 조준점 색: 지금 쏘면 맞는 상대 위면 빨강 · 보호 중인 상대면 하늘색 (판정과 같은 계산)
-    { const h = this.rayHit(this.viewRay(0, 0)); this.aimOn = h.id ? (h.prot ? 2 : 1) : 0; }
+    // 스나이퍼는 줌 없이는 조준점·표적 표시가 없습니다 (줌을 당겨야 스코프 가운데가 빨갛게)
+    if (this.weapon === 'sniper' && !this.zoomed) this.aimOn = 0;
+    else { const h = this.rayHit(this.viewRay(0, 0)); this.aimOn = h.id ? (h.prot ? 2 : 1) : 0; }
     this.draw();
   }
 
@@ -1538,16 +1548,24 @@ class Fps3DGame {
       ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1.2;
       ctx.beginPath(); ctx.moveTo(W / 2 - R, hy); ctx.lineTo(W / 2 + R, hy); ctx.moveTo(W / 2, hy - R); ctx.lineTo(W / 2, hy + R); ctx.stroke();
       for (let i = 1; i <= 4; i++) { const d = R * i / 5; ctx.beginPath(); ctx.moveTo(W / 2 - 8, hy + d); ctx.lineTo(W / 2 + 8, hy + d); ctx.moveTo(W / 2 - d, hy - 6); ctx.lineTo(W / 2 - d, hy + 6); ctx.moveTo(W / 2 + d, hy - 6); ctx.lineTo(W / 2 + d, hy + 6); ctx.stroke(); }
-      ctx.strokeStyle = 'rgba(255,60,80,0.9)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(W / 2, hy, 6, 0, Math.PI * 2); ctx.stroke();
+      // 가운데 표적: 지금 쏘면 맞는 상대 위 = 빨강(가운데 점까지) · 보호 중 = 하늘색 · 그 밖 = 흰색
+      const ac = this.aimOn === 1 ? 'rgba(255,60,80,0.98)' : this.aimOn === 2 ? 'rgba(127,231,255,0.95)' : 'rgba(255,255,255,0.85)';
+      ctx.strokeStyle = ac; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(W / 2, hy, this.aimOn ? 8 : 6, 0, Math.PI * 2); ctx.stroke();
+      if (this.aimOn) { ctx.fillStyle = ac; ctx.beginPath(); ctx.arc(W / 2, hy, 2.5, 0, Math.PI * 2); ctx.fill(); }
       ctx.restore();
     }
     // 조준점 + 히트마커
     const gap = 6 + this.recoil * 10 + (this.moving ? 5 : 0);
     if (this.zoomK > 0.5) { /* 스코프 중엔 십자선이 대신함 */ }
-    if (this.zoomK < 0.5) {
+    const noScope = this.weapon === 'sniper' && !this.spectator && !this.isDead && !this.mEnd;
+    if (noScope && this.zoomK < 0.5) {
+      // 스나이퍼 줌 없음: 조준점 없음. 무기를 막 바꿨거나 줌 없이 쐈으면 줌 버튼 안내
+      if (now < (this.noScopeHint || 0)) FX.text(ctx, '🔍 줌을 눌러야 조준점이 생겨요', W / 2, hy + 46, { size: 14, weight: 800, color: '#FFD166', align: 'center', stroke: 'rgba(8,10,16,0.8)' });
+      ctx.textAlign = 'left';
+    } else if (this.zoomK < 0.5) {
       // 지금 쏘면 맞는 상대 위: 빨강 · 보호 중인 상대 위: 하늘색 (명중 판정과 같은 계산)
       ctx.strokeStyle = this.aimOn === 1 ? 'rgba(255,92,122,0.98)' : this.aimOn === 2 ? 'rgba(127,231,255,0.98)' : 'rgba(255,255,255,0.95)'; ctx.lineWidth = 2; ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 3;
-      const g2 = this.weapon === 'sniper' ? gap + 10 : gap;   // 스나이퍼는 줌 없이 쏘면 산탄이 큼을 표시
+      const g2 = gap;
       [[-1, 0], [1, 0], [0, -1], [0, 1]].forEach(([ax, ay]) => { ctx.beginPath(); ctx.moveTo(W / 2 + ax * g2, hy + ay * g2); ctx.lineTo(W / 2 + ax * (g2 + 8), hy + ay * (g2 + 8)); ctx.stroke(); });
       ctx.shadowBlur = 0;
     }

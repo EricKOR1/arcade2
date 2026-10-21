@@ -81,7 +81,7 @@ const GAMES = {
     type: 'canvas',
     name: '레이저 태그 3D (개인전)',
     desc: '낮의 야외 훈련장에서 1인칭 3D 대전. 조이스틱 이동, 화면을 끌어 조준(상하 포함), 헤드샷은 2발',
-    howto: '왼쪽 짚고 끌면 이동 · 오른쪽 끌면 조준 · ● 꾹 누르면 연사 · 30발 뒤 자동 재장전 · 다시 태어나면 1.2초 보호(쏘면 풀림)',
+    howto: '왼쪽 짚고 끌면 이동 · 오른쪽 끌면 조준 · ● 꾹 누르면 연사(누른 채 끌면 쏘면서 조준) · 🎯 스나이퍼는 🔍 줌을 당겨야 조준점이 생기고 정확 · 30발 뒤 자동 재장전 · 다시 태어나면 1.2초 보호(쏘면 풀림)',
     meta: '실시간 대전 · 개인전 · 3D',
     primary: '75% 0.18 25', primaryContent: '100% 0 0', hex: '#FF8A56',
     fullBleed: true, grid: { cols: 24, rows: 24 },
@@ -99,7 +99,7 @@ const GAMES = {
     type: 'canvas',
     name: '레이저 태그 3D (팀전)',
     desc: '레드 팀과 블루 팀. 같은 팀은 못 맞히고, 미니맵에는 우리 편만 보입니다',
-    howto: '왼쪽 짚고 끌면 이동 · 오른쪽 끌면 조준 · ● 꾹 누르면 연사 · 같은 팀은 안 맞음 · 다시 태어나면 1.2초 보호(쏘면 풀림)',
+    howto: '왼쪽 짚고 끌면 이동 · 오른쪽 끌면 조준 · ● 꾹 누르면 연사(누른 채 끌면 쏘면서 조준) · 🎯 스나이퍼는 🔍 줌을 당겨야 조준점이 생기고 정확 · 같은 팀은 안 맞음 · 다시 태어나면 1.2초 보호(쏘면 풀림)',
     meta: '실시간 대전 · 팀전 · 3D',
     primary: '70% 0.2 350', primaryContent: '100% 0 0', hex: '#FF5C7A',
     fullBleed: true, grid: { cols: 24, rows: 24 },
@@ -117,7 +117,7 @@ const GAMES = {
     type: 'canvas',
     name: '레이저 태그 3D (매칭전)',
     desc: '선생님이 고른 1:1 ~ 5:5 로 반 전체를 자동으로 짝지어, 경기마다 작은 맵에서 겨룹니다. 같은 경기 친구만 보이고 맞힐 수 있어요',
-    howto: '왼쪽 짚고 끌면 이동 · 오른쪽 끌면 조준 · ● 꾹 누르면 연사 · 먼저 목표 킬에 닿는 팀이 승리 (3분) · 끝나면 같은 경기에서 다음 판 · 다시 태어나면 1.2초 보호(쏘면 풀림)',
+    howto: '왼쪽 짚고 끌면 이동 · 오른쪽 끌면 조준 · ● 꾹 누르면 연사(누른 채 끌면 쏘면서 조준) · 🎯 스나이퍼는 🔍 줌을 당겨야 조준점이 생기고 정확 · 먼저 목표 킬에 닿는 팀이 승리 (3분) · 끝나면 같은 경기에서 다음 판 · 다시 태어나면 1.2초 보호(쏘면 풀림)',
     meta: '실시간 대전 · N:N 자동 매칭 · 3D',
     primary: '72% 0.17 290', primaryContent: '100% 0 0', hex: '#9B7CFF',
     fullBleed: true, grid: { cols: 24, rows: 24 },
@@ -204,8 +204,8 @@ const GAMES = {
   slither: {
     type: 'canvas',
     name: '뱀 아레나',
-    desc: '큰 뱀이 작은 뱀을 삼키며 자라는 실시간 대전. 먹이를 먹어 길이를 키우고, 머리끼리 부딪히면 1.2배 이상 큰 쪽이 삼켜요. 가끔 태어나는 슈퍼 지렁이는 1등의 머리를 먹으면 1등 자리를 이어받아요. 누군가 길이 2000에 닿으면 경기 끝 — 그 순간 점수로 순위를 매겨요',
-    howto: '조이스틱으로 방향 · 부스트 버튼(꾹)으로 가속(길이 소모) · 내 머리가 다른 뱀 몸에 닿으면 내가 탈락 · 머리끼리는 1.2배 이상 큰 쪽이 삼킴 · 경기장 벽에 닿으면 탈락 · 슈퍼 지렁이는 1등과 부딪혀도 안 죽음 · 길이 2000에 먼저 닿으면 1등으로 경기 끝',
+    desc: '큰 뱀이 작은 뱀을 삼키며 자라는 실시간 대전. 먹이를 먹어 길이를 키우고, 머리끼리 마주 부딪히면 조금이라도 긴 쪽이 삼켜 먹힌 뱀의 길이만큼 커져요(길이가 같으면 튕겨 나와요). 가끔 태어나는 슈퍼 지렁이는 1등의 머리를 먹으면 1등의 길이만큼 커져 1등 자리를 이어받아요. 누군가 길이 2000에 닿으면 경기 끝 — 그 순간 점수로 순위를 매겨요',
+    howto: '조이스틱으로 방향 · 부스트 버튼(꾹)으로 가속(길이 소모) · 내 머리로 다른 뱀 몸(목·옆구리 포함)을 박으면 나만 탈락 — 남이 내 몸을 박으면 그 친구가 탈락 · 머리끼리 마주 부딪히면 조금이라도 긴 쪽이 삼키고 먹힌 길이만큼 커짐 · 길이가 같으면 튕김 · 경기장 벽에 닿으면 탈락 · 슈퍼 지렁이는 1등과 부딪혀도 안 죽고 1등 머리를 먹으면 그 길이만큼 커짐 · 길이 2000에 먼저 닿으면 1등으로 경기 끝',
     meta: '실시간 대전 · 최대 30명 · 개인전 · 맵 5종(인원별 크기)',
     primary: '75% 0.19 160', primaryContent: '100% 0 0', hex: '#06D6A0',
     grid: { cols: 30, rows: 30 },
@@ -230,7 +230,7 @@ const GAMES = {
     adminView: 'grid', fullBleed: true,
     needsPeers: true, realtime: true, hasNext: false,
     stats: [{ key: 'pct', label: '내 땅(%)' }, { key: 'kills', label: '자르기' }],
-    detail: function (g) { return '최고 ' + (Math.round(g.best / 3136 * 1000) / 10) + '% · 꼬리 자르기 ' + g.kills + '번'; },
+    detail: function (g) { return '최고 ' + (Math.round(g.best / ((g.N || 56) * (g.N || 56)) * 1000) / 10) + '% · 꼬리 자르기 ' + g.kills + '번'; },
     controls: [], padLayout: 'drag',   // 방향 버튼 대신 화면 전체를 밀기 — 게임판을 크게
     create: function (canvas, opts) { return new TerritoryGame(canvas, opts); },
     sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.best, pct: g.pct, kills: g.kills }; }
@@ -611,7 +611,8 @@ const GAMES = {
     adminView: 'shared',
     needsPeers: true, hasNext: false, hasTracks: true,
     detail: function (g) { const fmt = ms => { const s2 = ms / 1000; return Math.floor(s2 / 60) + ':' + (s2 % 60).toFixed(1).padStart(4, '0'); };
-      return (g.finishRank ? g.finishRank + '위로 완주' : Math.max(1, g.lap + 1) + '바퀴째') + (g.bestLap ? ' · 최고 랩 ' + fmt(g.bestLap) : ''); },
+      const fin = g.finished && (g.finishMs || g.raceMs) ? ' · 완주 시간 ' + (window.fmtRaceMs ? fmtRaceMs(g.finishMs || g.raceMs) : fmt(g.finishMs || g.raceMs)) : '';   // 완주 시간 (순위를 정한 시간)
+      return (g.finishRank ? g.finishRank + '위로 완주' : g.finished ? '완주' : Math.max(1, g.lap + 1) + '바퀴째') + fin + (g.bestLap ? ' · 최고 랩 ' + fmt(g.bestLap) : ''); },
     controls: [], padLayout: 'kart3dx',
     create: function (canvas, opts) { return new KartGame(canvas, opts); },
     sync: function (g) { return { score: g.score }; }
@@ -628,7 +629,8 @@ const GAMES = {
     adminView: 'shared',
     needsPeers: true, hasNext: false, hasTracks: true,
     detail: function (g) { const fmt = ms => { const s2 = ms / 1000; return Math.floor(s2 / 60) + ':' + (s2 % 60).toFixed(1).padStart(4, '0'); };
-      return (g.finishRank ? g.finishRank + '위로 완주' : Math.max(1, g.lap + 1) + '바퀴째') + (g.bestLap ? ' · 최고 랩 ' + fmt(g.bestLap) : ''); },
+      const fin = g.finished && (g.finishMs || g.raceMs) ? ' · 완주 시간 ' + (window.fmtRaceMs ? fmtRaceMs(g.finishMs || g.raceMs) : fmt(g.finishMs || g.raceMs)) : '';   // 완주 시간 (순위를 정한 시간)
+      return (g.finishRank ? g.finishRank + '위로 완주' : g.finished ? '완주' : Math.max(1, g.lap + 1) + '바퀴째') + fin + (g.bestLap ? ' · 최고 랩 ' + fmt(g.bestLap) : ''); },
     controls: [], padLayout: 'kart3dx',
     create: function (canvas, opts) { return new KartGame3D(canvas, Object.assign({ maxDpr: 1.25 }, opts)); },
     sync: function (g) { return { score: g.score }; }
@@ -646,7 +648,8 @@ const GAMES = {
     adminView: 'shared',
     needsPeers: true, hasNext: false, hasTracks: true,
     detail: function (g) { const fmt = ms => { const s2 = ms / 1000; return Math.floor(s2 / 60) + ':' + (s2 % 60).toFixed(1).padStart(4, '0'); };
-      return (g.finishRank ? g.finishRank + '위로 완주' : Math.max(1, g.lap + 1) + '바퀴째') + (g.bestLap ? ' · 최고 랩 ' + fmt(g.bestLap) : ''); },
+      const fin = g.finished && (g.finishMs || g.raceMs) ? ' · 완주 시간 ' + (window.fmtRaceMs ? fmtRaceMs(g.finishMs || g.raceMs) : fmt(g.finishMs || g.raceMs)) : '';   // 완주 시간 (순위를 정한 시간)
+      return (g.finishRank ? g.finishRank + '위로 완주' : g.finished ? '완주' : Math.max(1, g.lap + 1) + '바퀴째') + fin + (g.bestLap ? ' · 최고 랩 ' + fmt(g.bestLap) : ''); },
     controls: [], padLayout: 'kart3dx',
     create: function (canvas, opts) { return new KartGame(canvas, Object.assign({ noItems: true }, opts)); },
     sync: function (g) { return { score: g.score }; }
@@ -663,7 +666,8 @@ const GAMES = {
     adminView: 'shared',
     needsPeers: true, hasNext: false, hasTracks: true,
     detail: function (g) { const fmt = ms => { const s2 = ms / 1000; return Math.floor(s2 / 60) + ':' + (s2 % 60).toFixed(1).padStart(4, '0'); };
-      return (g.finishRank ? g.finishRank + '위로 완주' : Math.max(1, g.lap + 1) + '바퀴째') + (g.bestLap ? ' · 최고 랩 ' + fmt(g.bestLap) : ''); },
+      const fin = g.finished && (g.finishMs || g.raceMs) ? ' · 완주 시간 ' + (window.fmtRaceMs ? fmtRaceMs(g.finishMs || g.raceMs) : fmt(g.finishMs || g.raceMs)) : '';   // 완주 시간 (순위를 정한 시간)
+      return (g.finishRank ? g.finishRank + '위로 완주' : g.finished ? '완주' : Math.max(1, g.lap + 1) + '바퀴째') + fin + (g.bestLap ? ' · 최고 랩 ' + fmt(g.bestLap) : ''); },
     controls: [], padLayout: 'kart3dx',
     create: function (canvas, opts) { return new KartGame3D(canvas, Object.assign({ noItems: true, maxDpr: 1.25 }, opts)); },
     sync: function (g) { return { score: g.score }; }

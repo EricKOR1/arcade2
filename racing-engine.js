@@ -115,7 +115,9 @@ const TRACKS = {
     sky: { top: '#2A1439', mid: '#8B3A5E', low: '#F2A05A', sun: '#FFE3A8', stars: 0.15, haze: '#E6A070' },
     elev: [[0,0],[0.12,260],[0.3,-180],[0.45,340],[0.6,-120],[0.78,420],[0.9,60]],
     desc: '가장 꼬불꼬불한 코스. 굴곡 여섯 개가 좁은 도로에서 연달아 옵니다',
-    tag: '★★★★★ 최고 난이도 · 15~25명', difficulty: 5,
+    tag: '★★★★★ 최고 난이도 · 15~25명 · 지름길 1', difficulty: 5,
+    // 지름길: 위쪽 꽃잎 굽이의 밑동을 가로지름 (좁은 흙길 · 들어갈 때 급하게 꺾임 · 물웅덩이 3개)
+    shortcuts: [{ a: 0.645, b: 0.778, via: [[1170, 640], [1450, 610], [1730, 620]], w: 0.45, puddles: [[0.36, -0.4], [0.5, 0], [0.64, 0.4]] }],   // (짧은 코스라 이득이 커서 웅덩이 3개 지그재그)
     scale: 6, width: 1160, laps: 2, speed: 20.2,
     bg: '#2B1A14', grass: '#6E482E', road: '#9C9CA2',
     pts: [[3016,1700],[3232,2026],[3010,2283],[2605,2358],[2417,2496],[2370,2860],[2175,3162],[1847,3096],[1581,2836],[1358,2752],[1038,2847],[697,2814],[559,2529],[620,2181],[617,1930],[416,1700],[243,1390],[377,1111],[730,995],[982,903],[1070,609],[1231,255],[1545,229],[1823,531],[2021,713],[2338,595],[2742,543],[2890,835],[2738,1238],[2714,1484]]
@@ -125,7 +127,9 @@ const TRACKS = {
     sky: { top: '#0E2A55', mid: '#2F7BD0', low: '#CFEAFF', sun: '#FFFAE0', stars: 0, haze: '#B5D6F0' },
     elev: [[0,0],[0.2,260],[0.38,-120],[0.55,380],[0.72,60],[0.88,220]],
     desc: '아주 넓고 긴 대회전 코스. 헤어핀 하나와 협곡 점프 하나가 있습니다',
-    tag: '★★★ 중간 · 가장 긴 코스(약 2분 30초) · 점프 1', difficulty: 3, jumps: [0.62],
+    tag: '★★★ 중간 · 가장 긴 코스(약 2분 30초) · 점프 1 · 지름길 1', difficulty: 3, jumps: [0.62],
+    // 지름길: D자 큰 굽이 안쪽을 곧게 (좁은 흙길 · 들어가고 나올 때 급커브 · 물웅덩이 3개)
+    shortcuts: [{ a: 0.642, b: 0.802, via: [[7900, 22350], [8500, 20800], [8550, 17400], [8350, 14400], [7700, 12900]], w: 0.45, puddles: [[0.35, -0.35], [0.5, 0], [0.65, 0.35]] }],
     scale: 1, width: 1760, laps: 2, speed: 19.0,
     bg: '#0F1E2E', grass: '#326248', road: '#9DA0A4',
     pts: [[4932,300],[5412,300],[5892,300],[6372,300],[6852,300],[7332,300],[7812,300],[8292,300],[8772,300],[9252,300],[9732,300],[10212,300],[10692,300],[11172,300],[11652,300],[12132,300],[12612,300],[13092,300],[13572,300],[14053,302],[14533,343],[15006,434],[15467,574],[15910,761],[16332,994],[16727,1269],[17092,1585],[17421,1936],[17712,2320],[17961,2733],[18165,3169],[18323,3624],[18432,4093],[18492,4571],[18504,5052],[18504,5532],[18504,6011],[18504,6491],[18504,6970],[18504,7450],[18504,7929],[18504,8409],[18504,8889],[18504,9368],[18504,9848],[18504,10327],[18504,10807],[18504,11286],[18504,11766],[18504,12246],[18504,12725],[18504,13205],[18504,13684],[18504,14164],[18504,14643],[18504,15123],[18504,15603],[18504,16082],[18504,16562],[18504,17041],[18504,17521],[18504,18000],[18504,18480],[18504,18960],[18504,19439],[18504,19919],[18504,20398],[18504,20878],[18504,21357],[18504,21837],[18504,22317],[18496,22797],[18443,23276],[18339,23746],[18188,24203],[17989,24642],[17745,25058],[17459,25446],[17135,25802],[16775,26122],[16383,26402],[15964,26640],[15523,26833],[15064,26979],[14592,27076],[14113,27123],[13631,27128],[13150,27128],[12669,27128],[12187,27128],[11706,27128],[11225,27128],[10743,27128],[10262,27128],[9781,27128],[9299,27128],[8818,27128],[8337,27128],[7855,27128],[7374,27128],[6892,27128],[6411,27128],[5930,27128],[5448,27128],[4967,27128],[4486,27128],[4004,27128],[3523,27128],[3043,27118],[2578,27013],[2149,26804],[1781,26500],[1494,26119],[1304,25682],[1220,25212],[1248,24736],[1386,24279],[1627,23867],[1956,23523],[2357,23264],[2808,23106],[3282,23057],[3762,23057],[4242,23057],[4722,23057],[5202,23057],[5682,23057],[6162,23057],[6643,23041],[7120,22975],[7588,22859],[8041,22696],[8474,22485],[8883,22231],[9264,21935],[9611,21601],[9921,21233],[10191,20834],[10419,20409],[10600,19963],[10734,19500],[10818,19026],[10853,18546],[10854,18065],[10854,17585],[10854,17105],[10854,16625],[10849,16145],[10802,15665],[10705,15193],[10559,14734],[10366,14293],[10128,13874],[9847,13483],[9527,13123],[9171,12798],[8784,12512],[8368,12269],[7929,12070],[7472,11918],[7002,11815],[6523,11761],[6046,11754],[5576,11754],[5107,11754],[4631,11746],[4152,11692],[3682,11589],[3225,11437],[2786,11238],[2370,10995],[1982,10709],[1627,10384],[1307,10024],[1026,9633],[788,9214],[595,8773],[449,8314],[352,7842],[305,7362],[300,6885],[300,6411],[300,5937],[300,5464],[300,4990],[317,4511],[383,4033],[498,3566],[662,3113],[872,2679],[1126,2270],[1422,1890],[1756,1543],[2124,1232],[2523,962],[2948,735],[3394,554],[3857,420],[4331,335]]
@@ -145,7 +149,9 @@ const TRACKS = {
     sky: { top: '#2A1439', mid: '#8B3A5E', low: '#F2A05A', sun: '#FFE3A8', stars: 0.15, haze: '#E6A070' },
     elev: [[0,0],[0.08,380],[0.22,-200],[0.36,520],[0.5,-140],[0.64,600],[0.78,-60],[0.9,300]],
     desc: '가장 길고 복잡한 코스. 헤어핀 두 개, 대회전, 이중 시케인, 협곡 점프 두 번',
-    tag: '★★★★★ 최고 난이도 · 점프 2', difficulty: 5, jumps: [0.3, 0.86],
+    tag: '★★★★★ 최고 난이도 · 점프 2 · 지름길 1', difficulty: 5, jumps: [0.3, 0.86],
+    // 지름길: 두 번째 점프 구간 옆을 곧게 지나는 좁은 흙길 (점프·드리프트 구간을 건너뜀 · 물웅덩이 2개)
+    shortcuts: [{ a: 0.762, b: 0.912, via: [[2120, 12500], [2140, 10400], [2100, 8000], [1950, 6600]], w: 0.45, puddles: [[0.4, 0], [0.55, 0.4]] }],
     scale: 1, width: 1440, laps: 2, speed: 19.4,
     bg: '#2B1A14', grass: '#6E482E', road: '#9C9CA2',
     pts: [[5987,300],[6467,300],[6947,300],[7427,300],[7907,300],[8387,300],[8867,300],[9347,300],[9827,300],[10307,300],[10787,300],[11267,300],[11747,300],[12227,300],[12707,300],[13187,300],[13667,300],[14143,344],[14589,518],[14969,808],[15253,1193],[15418,1642],[15452,2119],[15351,2586],[15124,3008],[14789,3349],[14372,3583],[13906,3692],[13427,3698],[12947,3698],[12467,3698],[11987,3698],[11507,3698],[11027,3698],[10547,3698],[10067,3698],[9588,3719],[9131,3861],[8732,4124],[8421,4488],[8225,4924],[8157,5397],[8225,5871],[8421,6307],[8732,6671],[9131,6934],[9588,7075],[10067,7096],[10547,7096],[11027,7096],[11507,7096],[11987,7096],[12467,7096],[12947,7096],[13427,7105],[13904,7162],[14372,7273],[14824,7437],[15255,7650],[15658,7911],[16030,8215],[16365,8560],[16659,8940],[16908,9351],[17109,9788],[17260,10245],[17358,10715],[17402,11194],[17405,11675],[17405,12157],[17405,12639],[17405,13121],[17405,13602],[17405,14084],[17405,14566],[17405,15048],[17405,15530],[17399,16011],[17349,16489],[17244,16958],[17087,17412],[16880,17846],[16625,18254],[16326,18630],[15986,18970],[15610,19269],[15202,19524],[14768,19731],[14314,19888],[13845,19993],[13367,20044],[12887,20049],[12407,20049],[11927,20049],[11447,20049],[10967,20049],[10487,20049],[10007,20049],[9527,20049],[9047,20049],[8567,20049],[8087,20049],[7607,20049],[7127,20049],[6647,20049],[6167,20049],[5687,20039],[5212,19977],[4747,19856],[4302,19680],[3881,19450],[3492,19170],[3140,18844],[2831,18477],[2569,18076],[2359,17645],[2203,17191],[2104,16722],[2063,16245],[2063,15765],[2063,15285],[2059,14804],[1996,14323],[1856,13860],[1644,13424],[1365,13029],[1037,12672],[750,12282],[529,11851],[380,11390],[307,10912],[300,10435],[300,9965],[300,9496],[318,9017],[410,8542],[578,8087],[815,7665],[1118,7287],[1441,6926],[1704,6520],[1898,6076],[2019,5607],[2063,5125],[2063,4644],[2063,4164],[2096,3686],[2187,3215],[2336,2760],[2540,2326],[2796,1920],[3099,1549],[3446,1218],[3831,932],[4248,695],[4691,512],[5153,384],[5627,314]]
@@ -212,6 +218,7 @@ class Track {
     });
 
     this.buildElevation();
+    this.buildShortcuts();
 
     // 아이템 상자 — 넓으면 5줄, 좁으면 3줄. 코스가 길수록 더 자주 배치
     this.itemSpots = [];
@@ -316,6 +323,88 @@ class Track {
     }
   }
 
+  // ── 지름길: def.shortcuts = [{ a, b: 갈라지는·합류하는 진행 비율, via: [[x, y], ...] 지나는 점(트랙 좌표), w: 반폭(본선 반폭 배수), puddles: [[길 위 비율, 옆 오프셋], ...] }]
+  //   지름길 위의 점마다 '본선 몇 번째 구간에 해당하는지(idx)' 를 미리 정해 둡니다 → 진행도·바퀴·순위·역주행이 본선과 똑같이 셈해짐
+  //   높이는 그 구간의 본선 높이 (idx 로 높이를 읽는 모든 곳 — 카메라·상대 카트·장애물 — 이 그대로 맞음)
+  buildShortcuts() {
+    this.shortcuts = [];
+    const n = this.n, sc = this.def.scale || 1, wrap = i => ((i % n) + n) % n;
+    (this.def.shortcuts || []).forEach(d => {
+      const A = wrap(Math.round(d.a * n)), B = wrap(Math.round(d.b * n)), span = wrap(B - A);
+      const ctrl = [this.center[wrap(A - 8)], this.center[A]].concat(d.via.map(p => [p[0] * sc, p[1] * sc]), [this.center[B], this.center[wrap(B + 8)]]);
+      // 제어점을 부드러운 곡선(캣멀롬)으로 → 거의 같은 간격(구간 길이의 절반)으로 다시 찍음
+      const raw = [];
+      for (let i = 1; i < ctrl.length - 2; i++) {
+        const p0 = ctrl[i - 1], p1 = ctrl[i], p2 = ctrl[i + 1], p3 = ctrl[i + 2], m = Math.max(8, Math.ceil(Math.hypot(p2[0] - p1[0], p2[1] - p1[1]) / (this.stepLen * 0.2)));
+        for (let k = 0; k < m; k++) { const s = k / m, s2 = s * s, s3 = s2 * s;
+          raw.push([0, 1].map(c => 0.5 * ((2 * p1[c]) + (-p0[c] + p2[c]) * s + (2 * p0[c] - 5 * p1[c] + 4 * p2[c] - p3[c]) * s2 + (-p0[c] + 3 * p1[c] - 3 * p2[c] + p3[c]) * s3))); }
+      }
+      raw.push(ctrl[ctrl.length - 2]);
+      const step = this.stepLen * 0.5, pts = [raw[0]]; let acc = 0;
+      for (let i = 1; i < raw.length; i++) { const a = raw[i - 1], b = raw[i], l = Math.hypot(b[0] - a[0], b[1] - a[1]); acc += l;
+        while (acc >= step) { acc -= step; const u = 1 - acc / (l || 1); pts.push([a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u]); } }
+      const last = raw[raw.length - 1]; if (Math.hypot(last[0] - pts[pts.length - 1][0], last[1] - pts[pts.length - 1][1]) > step * 0.3) pts.push(last); else pts[pts.length - 1] = last;
+      const m = pts.length, hw = this.halfW * (d.w || 0.45);
+      const tan = pts.map((p, k) => { const q = pts[Math.min(m - 1, k + 1)], o = pts[Math.max(0, k - 1)], dx = q[0] - o[0], dy = q[1] - o[1], l = Math.hypot(dx, dy) || 1; return [dx / l, dy / l]; });
+      // 본선 구간 번호: 본선 도로 위(겹치는 입구·출구)는 가장 가까운 본선 구간, 그 사이는 길이에 비례해 이어 붙임 (늘 앞으로만)
+      const near = new Float32Array(m), onMain = new Uint8Array(m), dm = new Float32Array(m); let hint = 0;
+      // (본선 구간 찾기는 지난 점 근처만 — 지름길은 앞으로만 나아감)
+      for (let k = 0; k < m; k++) { let best = 1e18, bi = hint;
+        for (let q = Math.max(-6, hint - 40), qe = Math.min(span + 6, hint + 120); q <= qe; q++) { const i = wrap(A + q), dx = this.center[i][0] - pts[k][0], dy = this.center[i][1] - pts[k][1], dd = dx * dx + dy * dy; if (dd < best) { best = dd; bi = q; } }
+        hint = bi; near[k] = Math.max(0, Math.min(span, bi + this.fracAt(A + bi, pts[k][0], pts[k][1]))); dm[k] = Math.sqrt(best); onMain[k] = dm[k] < this.halfW * 0.98 ? 1 : 0; }   // (구간 사이 위치까지 — 입구에서 높이가 본선 도로와 딱 맞게)
+      let k0 = 0; while (k0 + 1 < m && onMain[k0 + 1]) k0++;
+      let k1 = m - 1; while (k1 - 1 > k0 && onMain[k1 - 1]) k1--;
+      const cum = [0]; for (let k = 1; k < m; k++) cum.push(cum[k - 1] + Math.hypot(pts[k][0] - pts[k - 1][0], pts[k][1] - pts[k - 1][1]));
+      const idx = new Float32Array(m);
+      for (let k = 0; k < m; k++) idx[k] = A + (k <= k0 || k >= k1 ? near[k] : near[k0] + (near[k1] - near[k0]) * (cum[k] - cum[k0]) / ((cum[k1] - cum[k0]) || 1));
+      for (let k = 1; k < m; k++) if (idx[k] < idx[k - 1]) idx[k] = idx[k - 1];
+      idx[0] = A; idx[m - 1] = A + span;
+      const e = Array.from(idx, f => this.elevAtF(f));
+      let minX = 1e18, minY = 1e18, maxX = -1e18, maxY = -1e18; pts.forEach(p => { minX = Math.min(minX, p[0]); minY = Math.min(minY, p[1]); maxX = Math.max(maxX, p[0]); maxY = Math.max(maxY, p[1]); });
+      // 갈림목(입구·출구 근처에서 본선과 지름길 가장자리 사이가 살짝 벌어진 곳)은 본선 쪽으로만 지름길 폭을 넓혀 메움
+      //   — 좁은 틈이 '보이지 않는 벽'이 되지 않게. 틈이 넓어질수록(지름길이 본선과 확실히 떨어지면) 원래 폭으로. wl·wr: 왼쪽·오른쪽 폭 (오른쪽 = 법선 (-ty, tx) 쪽)
+      const cl = this.carLen, wl = new Float32Array(m), wr = new Float32Array(m), forkLen = this.halfW * 3;
+      for (let k = 0; k < m; k++) { wl[k] = wr[k] = hw;
+        const fz = Math.min(Math.abs(cum[k] - cum[k0]), Math.abs(cum[k1] - cum[k])), raw = dm[k] - this.halfW - hw;
+        if (fz > forkLen || raw <= -cl) continue;
+        const g = Math.max(0, raw), add = (g + cl * 1.2) * Math.max(0, Math.min(1, (hw * 1.6 - g) / (hw * 0.6))) * Math.min(1, (forkLen - fz) / (this.halfW));   // 틈이 좁을 때(지름길 폭 1배까지)만 메움 · 그보다 넓으면 갈림목(양쪽 가드레일)
+        const c = this.center[wrap(A + Math.round(near[k]))], sd = (c[0] - pts[k][0]) * -tan[k][1] + (c[1] - pts[k][1]) * tan[k][0];
+        if (sd >= 0) wr[k] += add; else wl[k] += add; }
+      for (let r = 0; r < 3; r++) for (let k = 1; k < m - 1; k++) { wl[k] = Math.max(wl[k], (wl[k - 1] + wl[k + 1]) / 2 * 0.97); wr[k] = Math.max(wr[k], (wr[k - 1] + wr[k + 1]) / 2 * 0.97); }   // 폭이 툭 바뀌지 않게
+      const pad = hw * 3;
+      const kq = Math.min(m - 1, k0 + 8), tA = this.tangent[A], side = Math.sign(tA[0] * (pts[kq][1] - this.center[A][1]) - tA[1] * (pts[kq][0] - this.center[A][0])) || 1;   // +1 오른쪽으로 갈라짐
+      this.shortcuts.push({ A, B, span, pts, tan, idx, e, hw, wl, wr, dm, k0, k1, side, len: cum[m - 1], mainLen: span * this.stepLen, puddles: d.puddles || [], cum,
+        box: [minX - pad, minY - pad, maxX + pad, maxY + pad] });
+    });
+  }
+  // 점 (x, y) 에서 가장 가까운 지름길 점 — 지름길 근처가 아니면 null. { s: 지름길, k: 점 번호, d: 중심선까지 거리 }
+  scAt(x, y) {
+    let res = null;
+    for (let j = 0; j < this.shortcuts.length; j++) { const s = this.shortcuts[j], b = s.box;
+      if (x < b[0] || x > b[2] || y < b[1] || y > b[3]) continue;
+      let best = 1e18, bk = 0; const P = s.pts, m = P.length;
+      for (let k = 0; k < m; k += 8) { const dx = P[k][0] - x, dy = P[k][1] - y, dd = dx * dx + dy * dy; if (dd < best) { best = dd; bk = k; } }   // 성기게 찾고
+      for (let k = Math.max(0, bk - 8), e = Math.min(m - 1, bk + 8); k <= e; k++) { const dx = P[k][0] - x, dy = P[k][1] - y, dd = dx * dx + dy * dy; if (dd < best) { best = dd; bk = k; } }   // 그 근처를 촘촘히
+      const d = Math.sqrt(best), w = ((x - P[bk][0]) * -s.tan[bk][1] + (y - P[bk][1]) * s.tan[bk][0]) >= 0 ? s.wr[bk] : s.wl[bk];   // 점이 있는 쪽의 폭
+      if (!res || d - w < res.d - res.w) res = { s, k: bk, d, w }; }
+    return res;
+  }
+  // 지금 위치가 본선 도로인지 지름길인지 → 진행도에 쓸 구간 번호 i (지름길이면 sc 에 지름길 정보)
+  //   hint 가 엉뚱하면(순간이동 직후) 본선 전체에서 다시 찾음
+  locate(x, y, hint) {
+    let m = this.nearestIndex(x, y, hint);
+    if (m.dist > this.halfW * 0.9 && this.shortcuts.length) {
+      const s = this.scAt(x, y);
+      if (s && s.d < s.w * 1.2 && s.d - s.w < m.dist - this.halfW) { const f = s.s.idx[s.k]; return { i: ((Math.round(f) % this.n) + this.n) % this.n, f, dist: m.dist, sc: s }; }
+    }
+    if (hint !== undefined && m.dist > this.halfW * 2.5) m = this.nearestIndex(x, y);
+    return { i: m.index, f: m.index, dist: m.dist, sc: null };
+  }
+  // 그 자리의 노면 높이 (지름길이면 지름길 높이)
+  surfaceE(L, x, y) { return L.sc ? L.sc.s.e[L.sc.k] : this.elevAtF(L.i + this.fracAt(L.i, x, y)); }
+  // 그 자리의 도로 방향(라디안)
+  roadDir(L) { const tg = L.sc ? L.sc.s.tan[L.sc.k] : this.tangent[L.i]; return Math.atan2(tg[1], tg[0]); }
+
   elevAt(i) { return this.elev[((i % this.n) + this.n) % this.n]; }
   // 소수점 인덱스(예: 12.4)의 높이 — 구간 사이를 선형 보간 (카메라·카트가 계단처럼 튀지 않게)
   elevAtF(fi) {
@@ -401,6 +490,29 @@ class Track {
         x: this.center[i][0] + nx * this.halfW * off, y: this.center[i][1] + ny * this.halfW * off,
         hitUntil: 0, r: orand() });
     }
+    if (this.shortcuts.length) this.addShortcutScenery(rnd, railStep);
+  }
+  // 지름길: 입구·길 위에 걸리는 가드레일·지물은 치우고, 지름길 가운데 부분(본선과 떨어진 곳)에 낮은 가드레일 + 물웅덩이
+  addShortcutScenery(rnd, railStep) {
+    const n = this.n, wrap = i => ((i % n) + n) % n;
+    this.scenery = this.scenery.filter(o => { const s = this.scAt(o.x, o.y), s2 = o.x2 != null ? this.scAt(o.x2, o.y2) : null;
+      const pad = o.kind === 'rail' ? this.carLen * 0.6 : this.halfW * 0.75;   // 가드레일은 지름길 노면에 걸리는 것만 치움 (갈림목 사이에는 남아 벽이 보이게)
+      return !((s && s.d < s.w + pad) || (s2 && s2.d < s2.w + pad)); });
+    // 본선 길가(반폭 1.16배 · 3D 광고판 띠 자리)가 지름길 입구에 걸리는 구간 표시 [구간*2 + (오른쪽 1 · 왼쪽 0)]
+    this.scCut = new Uint8Array(n * 2);
+    for (let j = 0; j < n; j++) [-1, 1].forEach(side => { const c = this.center[j], [tx, ty] = this.tangent[j], s = this.scAt(c[0] - ty * this.halfW * 1.16 * side, c[1] + tx * this.halfW * 1.16 * side);
+      if (s && s.d < s.w + this.halfW * 0.3) this.scCut[j * 2 + (side > 0 ? 1 : 0)] = 1; });
+    this.shortcuts.forEach(s => {
+      const P = s.pts, st = Math.max(2, Math.round(railStep * 2));
+      const clear = (x, y) => this.nearestIndex(x, y).dist > this.halfW * 1.12;   // 본선 도로 밖이면 (갈림목 사이 풀밭에도 세워 '벽'이 보이게)
+      for (let k = 0; k + st < P.length; k += st) { const j = k + st, a = s.tan[k], b = s.tan[j];
+        [-1, 1].forEach(side => { const o1 = (side > 0 ? s.wr[k] : s.wl[k]) * 1.12, o2 = (side > 0 ? s.wr[j] : s.wl[j]) * 1.12;
+          const x = P[k][0] - a[1] * o1 * side, y = P[k][1] + a[0] * o1 * side, x2 = P[j][0] - b[1] * o2 * side, y2 = P[j][1] + b[0] * o2 * side;
+          if (!clear(x, y) || !clear(x2, y2)) return;
+          this.scenery.push({ kind: 'rail', i: wrap(Math.round(s.idx[k])), x, y, x2, y2, e: s.e[k], e2: s.e[j], side, r: rnd(), sc: true }); }); }
+      s.puddles.forEach(([u, o2]) => { const k = Math.max(0, Math.min(P.length - 1, Math.round(u * (P.length - 1)))), a = s.tan[k];
+        this.obstacles.push({ kind: 'puddle', i: wrap(Math.round(s.idx[k])), x: P[k][0] - a[1] * s.hw * o2, y: P[k][1] + a[0] * s.hw * o2, hitUntil: 0, r: rnd(), sc: true, e0: s.e[k] }); });
+    });
   }
 
   // 테마의 지물 비율표에서 하나 고르기 (약간의 빈자리 포함)
@@ -567,6 +679,10 @@ const SPEED_MUL = 1.2;     // 기본 속도 배율 (선생님 요청: 예전보�
 const PHYS_STEP = 1000 / 120;   // 물리 한 걸음(ms) — 화면 주사율과 상관없이 같은 간격으로 계산하고 그리기는 사이를 보간
 const DRIFT_MAX = 1.1;     // 드리프트 한 번의 최대 길이(초) — 그 뒤엔 타이어가 노면을 잡아 저절로 끝남
 const DRIFT_SLIP = 0.62;   // 미끄러짐 각도 상한(라디안, 약 35°)
+// 경기 시간 표시 m:ss.s (완주 시간 · 결과 화면 · 교사 화면이 같은 모양으로)
+function fmtRaceMs(ms) { ms = Math.max(0, +ms || 0); const t = Math.floor(ms / 100), m = Math.floor(t / 600), s = (t % 600) / 10; return m + ':' + s.toFixed(1).padStart(4, '0'); }
+if (typeof window !== 'undefined') window.fmtRaceMs = fmtRaceMs;
+const SLIDE_MS = 1300;     // 물웅덩이·기름에 미끄러지는 시간 (예전 1초 · 핸들만 살짝 돌아 거의 티가 안 났음)
 
 const ITEMS = {
   banana:  { icon: '🍌', name: '바나나',   hint: '뒤에 떨어뜨립니다 — 밟으면 빙글' },
@@ -833,13 +949,15 @@ class KartGame {
 
     } else if (it === 'swap') {
       const target = this.nextAhead();
-      const p = this.peers[target];
-      const mine = { x: this.x, y: this.y, a: this.angle, i: this.segIdx, l: this.lap };
-      // 나는 앞 주자 자리로 (보간 중인 값이 아니라 마지막으로 받은 실제 위치)
-      this.x = (p.tx != null ? p.tx : p.x); this.y = (p.ty != null ? p.ty : p.y); this.angle = (p.tangle != null ? p.tangle : p.angle);
-      this.segIdx = ((Math.round(p.progress) % this.track.n) + this.track.n) % this.track.n;
-      this.lap = Math.floor(p.progress / this.track.n);
-      this.camX = this.x; this.camY = this.y; this.camAngle = undefined;
+      const p = this.peers[target], n = this.track.n;
+      // 상대에게 넘길 내 자리도 도로 위로 정리 (점프 중 허공·벽 밖이면 착지 쪽 도로 위로)
+      const ms = this.safeSpot(this.x, this.y, this.segIdx);
+      const mine = { x: Math.round(ms.x), y: Math.round(ms.y), a: +ms.a.toFixed(3), i: ms.i, l: this.lap };
+      // 나는 앞 주자 자리로 (보간 중인 값이 아니라 마지막으로 받은 실제 위치) — 그 자리를 본선·지름길 도로 위로 정리하고, 높이·방향은 그 도로를 따름
+      //   (예전: 위치만 옮기고 3D 높이 찾기는 옛 자리 근처만 찾아 엉뚱한 구간 높이 → 도로 밑으로 꺼져 보였음 · 상대가 점프 중이면 끊긴 도로 위로)
+      const pi = ((Math.round(p.progress) % n) + n) % n, d = this.safeSpot(p.tx != null ? p.tx : p.x, p.ty != null ? p.ty : p.y, pi);
+      this.lap = Math.floor(p.progress / n);
+      this.placeAt(d);
       this.speed *= 0.8;
       if (this.opts.onAttack) this.opts.onAttack('swap', target, mine);
       if (window.Sound) Sound.clear(3);
@@ -898,12 +1016,39 @@ class KartGame {
   teleportTo(s, byId) {
     if (this.finished) return;
     this.showHit('🌀', byId, '이(가) 자리를 바꿔 버렸다', '#B15DFF');
-    this.x = s.x; this.y = s.y; this.angle = s.a; this.camAngle = undefined; this.moveA = this.angle; this.drifting = false;
-    this.segIdx = s.i; this.lap = s.l;
-    this.camX = this.x; this.camY = this.y;
+    const n = this.track.n, d = this.safeSpot(+s.x, +s.y, (((s.i | 0) % n) + n) % n);   // 받은 자리도 한 번 더 도로 위로 정리 (옛 버전 학생이 보낸 값 대비)
+    this.lap = s.l | 0;
+    this.placeAt(d);
     this.speed *= 0.6;
     if (window.Sound) Sound.clear(2);
     this.showToast('자리를 빼앗겼다!', '#B15DFF');
+  }
+
+  // 순간이동 목적지 정리: 늘 도로(본선 또는 지름길) 위 · 끊긴 점프 구간이면 착지 쪽 도로로 · 방향은 그 자리 도로 방향 · 구간 번호는 그 자리 것
+  safeSpot(x, y, hint) {
+    const t = this.track, n = t.n, cl = t.carLen;
+    if (!isFinite(x) || !isFinite(y)) { const c = t.center[hint | 0] || t.center[0]; x = c[0]; y = c[1]; }
+    let L = t.locate(x, y, hint);
+    if (L.sc) {                                                     // 지름길 위: 지름길 폭 안으로
+      const s = L.sc.s, c = s.pts[L.sc.k], lim = Math.max(0, L.sc.w - cl * 0.6), dx = x - c[0], dy = y - c[1], dd = Math.hypot(dx, dy);
+      if (dd > lim) { x = c[0] + dx / (dd || 1) * lim; y = c[1] + dy / (dd || 1) * lim; }
+    } else {
+      let j = L.i;
+      const jp = t.jumps.find(q => { const r = ((j - q.gapFrom) % n + n) % n; return r < q.gapLen + 2; });
+      if (jp || t.gapSeg[j]) { j = ((jp ? jp.gapTo : j) + 3) % n; const c = t.center[j]; x = c[0]; y = c[1]; }   // 허공(점프 틈) → 착지 쪽 도로 가운데
+      const c = t.center[j], lim = t.halfW - cl * 0.6, dx = x - c[0], dy = y - c[1], dd = Math.hypot(dx, dy);
+      if (dd > lim) { x = c[0] + dx / (dd || 1) * lim; y = c[1] + dy / (dd || 1) * lim; }
+    }
+    L = t.locate(x, y, L.i);
+    return { x, y, i: L.i, a: t.roadDir(L), sc: L.sc };
+  }
+  // 정리한 자리로 옮김 (위치 교환 · 쓴 사람과 당한 사람 모두) — 공중·드리프트·미끄러짐은 끝내고 카메라도 새 자리에서 다시 시작
+  placeAt(d) {
+    const n = this.track.n;
+    this.x = d.x; this.y = d.y; this.angle = d.a; this.moveA = d.a; this.segIdx = d.i; this.scNow = d.sc;
+    this.airborne = false; this.airZ = 0; this.airVz = 0; this.drifting = false; this.slideUntil = 0; this.recoverUntil = 0;
+    if (!this.finished) this.progress = this.lap * n + this.segIdx;
+    this.camX = this.x; this.camY = this.y; this.camAngle = undefined; this._camYaw = null; this._prev = null;
   }
 
   spinOut() {
@@ -914,14 +1059,22 @@ class KartGame {
     this.showToast('미끄러졌다!', '#FFD166');
   }
 
-  // 미끄러짐 — 1초 동안 핸들이 안 듣고 속도는 유지
-  slide() {
+  // 미끄러짐 — 1.3초 동안 차체가 한 바퀴 빙글 돌며 옆으로 흐르고(핸들 30%), 조금 느려짐 (updateCar)
+  slide(kind) {
     const now = this.clock();
     if (now < this.slideUntil || this.finished || this.guarded()) return;
-    this.slideUntil = now + 1000;
-    this.slideDrift = (Math.random() < 0.5 ? -1 : 1) * 0.02;
-    if (window.Sound) Sound.bump();
-    this.showToast('미끄러진다!', '#9AA3B2');
+    this.slideUntil = now + SLIDE_MS; this.slideAt = now;
+    this.slideDir = Math.random() < 0.5 ? -1 : 1;
+    this.slideDrift = this.slideDir * 0.0055;                       // 진행 방향이 한쪽으로 흐르는 빠르기 (1.3초에 약 25°)
+    if (this.moveA == null) this.moveA = this.angle;
+    this.drifting = false; this.speed *= 0.9;
+    this.shakeT = Math.max(this.shakeT || 0, 0.25);
+    const cl = this.track.carLen, water = kind !== 'oil';
+    this.spawn(18, this.x, this.y, cl * 0.1, { speed: 4, up: 3.2, size: 7, spread: cl * 0.5, colors: water ? ['#9BD3FF', '#E6F4FF', '#3B82F6'] : ['#2B2B38', '#6A4CFF', '#9AA3B2'], decay: 1.8, gravity: 3 });
+    if (window.Sound) { if (Sound.splash) Sound.splash(); else Sound.bump(); }
+    if (window.Haptic && Haptic.hit) Haptic.hit();
+    this.slideBanner = { water, until: now + SLIDE_MS };
+    this.showToast(water ? '💦 물웅덩이! 미끄러진다' : '🛢 기름! 미끄러진다', water ? '#7CC4FF' : '#9AA3B2');
   }
 
   // 폭발 — 크게 빙글 + 감속
@@ -1039,16 +1192,21 @@ class KartGame {
       pr.x = ip.x + pr._ox; pr.y = ip.y + pr._oy; pr.angle = ip.a + pr._oa;
       // 높이도 실제 위치로 보간 (반올림하면 언덕에서 계단처럼 튐)
       const pi = ((Math.floor(pr.progress || 0) % t.n) + t.n) % t.n;
-      pr.e = t.elevAtF(pi + t.fracAt(pi, pr.x, pr.y)) + (pr.z || 0);
+      let onSc = false; for (let j = 0; j < t.shortcuts.length; j++) { const b = t.shortcuts[j].box; if (pr.x > b[0] && pr.x < b[2] && pr.y > b[1] && pr.y < b[3]) onSc = true; }
+      if (onSc) { const L = t.locate(pr.x, pr.y, pi); pr.e = t.surfaceE(L, pr.x, pr.y) + (pr.z || 0); pr.sc = !!L.sc; }   // 지름길 근처만 자세히 (지름길 위면 그 길 높이)
+      else { pr.e = t.elevAtF(pi + t.fracAt(pi, pr.x, pr.y)) + (pr.z || 0); pr.sc = false; }
     }
   }
 
   serialize() {
     const now = this.clock();
-    const flags = (now < this.spinUntil || now < this.stunUntil ? 1 : 0)
+    const sliding = now < this.slideUntil && this.moveA != null;
+    // 미끄러지는 중: 다른 학생 화면에도 빙글 도는 모습(spin 표시) + 차체 대신 실제로 미끄러져 가는 방향을 보냄 (빙글 연출은 받는 쪽이 그림)
+    const flags = (now < this.spinUntil || now < this.stunUntil || sliding ? 1 : 0)
                 | (now < this.shieldUntil ? 2 : 0)
                 | (now < this.boostUntil ? 4 : 0);
-    return [Math.round(this.x), Math.round(this.y), this.angle.toFixed(2),
+    let sa = sliding ? this.moveA : this.angle; sa = Math.atan2(Math.sin(sa), Math.cos(sa));   // (-π~π 로 — 빙글 돈 만큼 각도 값이 커지지 않게)
+    return [Math.round(this.x), Math.round(this.y), sa.toFixed(2),
             this.lap, Math.round(this.progress), flags, this.finished ? 1 : 0, Math.round(this.airZ || 0)].join(',');
   }
 
@@ -1102,7 +1260,7 @@ class KartGame {
 
   // 교사 관전: 특정 학생 시점으로 봅니다. 그 학생은 peers 에 있어야 하며 '나'로 그려집니다.
   spectate(followId) {
-    this.spectator = true;
+    this.spectator = true; if (this.followId !== followId) this.finishMs = null;
     this.followId = followId;
     this.countdown = 0;
     this.items = [];
@@ -1142,7 +1300,7 @@ class KartGame {
         // 그 학생의 위치는 stepPeers 가 시간 기준으로 이미 부드럽게 옮겨 둠 (예전엔 여기서 한 번 더 늦게 따라가 프레임 간격에 따라 흔들렸음)
         if (tgt.x != null) { this.x = tgt.x; this.y = tgt.y; this.angle = tgt.angle; this.moveA = tgt.angle; }
         this.speed = tgt.speed != null ? tgt.speed : this.maxSpeed * 0.8;
-        this.segIdx = this.track.nearestIndex(this.x, this.y, this.segIdx).index;
+        { const n = this.track.n, L = this.track.locate(this.x, this.y, (((Math.floor(tgt.progress || 0)) % n) + n) % n); this.segIdx = L.i; this.scNow = L.sc; }   // 진행도 근처에서 찾음 (순간이동·지름길도 맞게)
         this.lap = Math.floor((tgt.progress || 0) / this.track.n);
         this.progress = tgt.progress || 0;
         const wasFin = this.finished; this.finished = !!tgt.finished; this.airZ = tgt.z || 0;
@@ -1211,8 +1369,8 @@ class KartGame {
     const cx = this.x, cy = this.y, ca = this.angle, cm = this.moveA, cz = this.airZ, cs = this.segIdx;
     const lerpA = (u, v) => { let d = v - u; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return u + d * a; };
     this.x = p.x + (cx - p.x) * a; this.y = p.y + (cy - p.y) * a; this.angle = lerpA(p.a, ca); this.moveA = lerpA(p.m, cm == null ? ca : cm); this.airZ = p.z + ((cz || 0) - p.z) * a;
-    this.segIdx = t.nearestIndex(this.x, this.y, cs).index; this._rx = this.x; this._ry = this.y;
-    try { this.draw(); } finally { this.x = cx; this.y = cy; this.angle = ca; this.moveA = cm; this.airZ = cz; this.segIdx = cs; }
+    const cl0 = this.scNow, L = t.locate(this.x, this.y, cs); this.segIdx = L.i; this.scNow = L.sc; this._rx = this.x; this._ry = this.y;
+    try { this.draw(); } finally { this.x = cx; this.y = cy; this.angle = ca; this.moveA = cm; this.airZ = cz; this.segIdx = cs; this.scNow = cl0; }
   }
 
   updateCar(now, f) {
@@ -1269,12 +1427,20 @@ class KartGame {
     }
     // 드리프트 구간(미끄러운 급커브)에서 드리프트 없이 꺾으면 타이어가 미끄러져 크게 감속 → 이 구간은 드리프트해야 빠름
     //   (드리프트가 끝난 뒤 0.6초는 봐 줌 — 짧은 드리프트 한 번으로 구간 대부분을 지날 수 있게)
-    else if (this.track.driftZone && this.track.driftZone[this.segIdx] && Math.abs(this.steer) > 0.3 && !this.airborne && now - (this.driftEndAt || -1e9) > 600) { target *= 0.72; this.zoneSkid = now; }
+    else if (!this.scNow && this.track.driftZone && this.track.driftZone[this.segIdx] && Math.abs(this.steer) > 0.3 && !this.airborne && now - (this.driftEndAt || -1e9) > 600) { target *= 0.72; this.zoneSkid = now; }
+    if (sliding) target *= 0.82;                                                       // 물웅덩이·기름: 미끄러지는 동안 조금 느려짐
 
     this.speed += (target - this.speed) * (stunned ? 0.3 : 0.055) * f;
 
     if (spinning)      this.angle += 0.34 * f;
-    else if (sliding)  this.angle += (this.slideDrift || 0.02) * f;                 // 핸들이 안 듣고 슬슬 밀림
+    else if (sliding && !this.airborne) {
+      // 물웅덩이·기름: 타이어가 물 위에 떠서 ① 달리는 방향(moveA)은 그대로 미끄러지며 한쪽으로 흐르고(핸들은 30% 만 먹음)
+      // ② 차체는 한 바퀴 빙글 돌다(처음엔 빠르게, 끝날수록 천천히) 끝나는 순간 다시 진행 방향을 봄 → 그립이 돌아와도 툭 꺾이지 않음
+      if (this.moveA == null) this.moveA = this.angle;
+      const u = Math.min(1, (now - this.slideAt) / SLIDE_MS);
+      this.moveA += ((this.slideDrift || 0) + this.steer * this.turnRate * 0.3 * Math.min(1, this.speed / 3)) * f;
+      this.angle = this.moveA + this.slideDir * Math.PI * 2 * (1 - (1 - u) * (1 - u));
+    }
     else if (this.drifting) {
       // 드리프트 회전: 같은 쪽으로 꺾으면 약 1.5배 빠르게 · 놓으면 완만하게 · 반대로 꺾으면(카운터) 거의 곧게 미끄러짐
       // 들어가는 순간 0.16초 동안 뒤가 확 돌아 나가는 힘을 더함
@@ -1285,12 +1451,12 @@ class KartGame {
       // 속도 감응 조향(카트라이더식): 최고 속도의 60% 까지는 그대로, 그 이상은 점점 무뎌져 최고 속도에서 hiSpeedSteer 배
       // → 완만한 코너는 보통 조향으로 충분하지만 급한 코너는 드리프트를 써야 바깥으로 밀려나지 않음 (드리프트 회전은 그대로)
       const hs = this.hiSpeedSteer != null ? this.hiSpeedSteer : 0.62, sr = Math.max(0, Math.min(1, (this.speed / this.maxSpeed - 0.6) / 0.4));
-      const zk = (this.track.driftZone && this.track.driftZone[this.segIdx]) ? 0.6 : 1;   // 드리프트 구간(미끄러운 노면): 보통 조향 60%
+      const zk = (!this.scNow && this.track.driftZone && this.track.driftZone[this.segIdx]) ? 0.6 : 1;   // 드리프트 구간(미끄러운 노면): 보통 조향 60%
       this.angle += this.steer * this.turnRate * (1 - (1 - hs) * sr) * zk * Math.min(1, this.speed/3) * f;
     }
     // 자석: 상대를 '직선으로' 향하면 코너에서 벽에 박습니다.
     // 대신 ① 도로를 따라가도록 진행 방향을 잡아 주고 ② 상대가 달리는 도로 옆쪽(안/바깥)으로만 조금씩 옮깁니다.
-    if (now < this.magnetUntil && this.magnetTarget && this.peers[this.magnetTarget]) {
+    if (now < this.magnetUntil && this.magnetTarget && this.peers[this.magnetTarget] && !this.scNow) {   // (지름길 위에서는 본선 쪽으로 끌지 않음)
       const tp = this.peers[this.magnetTarget], t = this.track;
       // ① 코스 방향 따라가기 — 조금 앞 구간을 바라봅니다 (코너를 미리 돌게)
       const look = Math.round(this.speed * 3 / t.stepLen) + 3;
@@ -1312,8 +1478,8 @@ class KartGame {
       this.x += nx * move; this.y += ny * move;
     }
 
-    // 점프대: 지나는 순간 도약 (속도에 비례해 멀리)
-    if (!this.airborne) {
+    // 점프대: 지나는 순간 도약 (속도에 비례해 멀리) — 지름길 위(본선 점프대 옆을 지나는 길)에서는 뛰지 않음
+    if (!this.airborne && !this.scNow) {
       for (let j = 0; j < this.track.jumps.length; j++) {
         const jp = this.track.jumps[j];
         const dseg = ((this.segIdx - jp.i) % this.track.n + this.track.n) % this.track.n;
@@ -1334,8 +1500,8 @@ class KartGame {
       this.airZ += this.airVz * f; this.airVz -= 0.42 * f;
       if (this.airZ <= 0) {
         this.airborne = false; this.airZ = 0;
-        const idx = this.track.nearestIndex(this.x, this.y, this.segIdx).index;
-        if (this.track.gapSeg[idx]) {
+        const land = this.track.locate(this.x, this.y, this.segIdx), idx = land.i;
+        if (!land.sc && this.track.gapSeg[idx]) {
           // 추락: 점프대 조금 앞으로 되돌림
           const back = ((this.jumpFrom.i - 10) % this.track.n + this.track.n) % this.track.n;
           const c = this.track.center[back], [tx, ty] = this.track.tangent[back];
@@ -1356,7 +1522,8 @@ class KartGame {
     // 달리는 방향(moveA): 평소엔 보는 방향과 같고, 드리프트 중엔 늦게 따라와 차가 옆으로 미끄러짐
     if (this.moveA == null) this.moveA = this.angle;
     { let dm = this.angle - this.moveA; while (dm > Math.PI) dm -= Math.PI * 2; while (dm < -Math.PI) dm += Math.PI * 2;
-      if (this.drifting) {
+      if (sliding && !this.airborne) { /* 미끄러지는 중: 진행 방향은 위에서 따로 (차체만 돎) */ }
+      else if (this.drifting) {
         // 처음엔 미끄럽고, 0.6초가 지나면 타이어가 점점 노면을 잡음 · 미끄러짐 각도는 35° 까지
         const grip = (0.08 + 0.2 * Math.max(0, Math.min(1, (this.driftT - 0.6) / 0.5))) * SPEED_MUL;   // (빨라진 회전만큼 그립도 — 미끄러지는 각도는 예전과 같게)
         this.moveA += dm * this.smooth(grip, f);
@@ -1366,7 +1533,7 @@ class KartGame {
         // 그립 회복: 진행 방향이 차 방향으로 빠르게 붙고, 차체도 조금 되돌아옴 (약 0.1~0.15초)
         this.moveA += dm * this.smooth(0.22 * SPEED_MUL, f); this.angle -= dm * this.smooth(0.06 * SPEED_MUL, f);
       }
-      else if (this.track.driftZone && this.track.driftZone[this.segIdx] && this.steer) this.moveA += dm * this.smooth(0.22 * SPEED_MUL, f);   // 미끄러운 구간: 드리프트 없이 꺾으면 바깥으로 밀림
+      else if (!this.scNow && this.track.driftZone && this.track.driftZone[this.segIdx] && this.steer) this.moveA += dm * this.smooth(0.22 * SPEED_MUL, f);   // 미끄러운 구간: 드리프트 없이 꺾으면 바깥으로 밀림
       else this.moveA = this.angle; }
     // 타이어 연기 · 스키드: '실제로 옆으로 미끄러지는 동안'만 (그립을 되찾으면 바로 멈춤)
     { let sd = this.angle - this.moveA; while (sd > Math.PI) sd -= Math.PI * 2; while (sd < -Math.PI) sd += Math.PI * 2;
@@ -1374,7 +1541,7 @@ class KartGame {
       const sa = Math.abs(sd), cl = this.track.carLen;
       if (sa > 0.1 && Math.random() < Math.min(0.9, sa * 1.8) * Math.min(1, f)) {
         const sd2 = Math.random() < 0.5 ? 1 : -1, bx = this.x - Math.cos(this.angle) * cl * 0.45 - Math.sin(this.angle) * sd2 * cl * 0.3, by = this.y - Math.sin(this.angle) * cl * 0.45 + Math.cos(this.angle) * sd2 * cl * 0.3;
-        this.spawn(1, bx, by, 0, { colors: ['#E6E6E6', '#C9C9C9'], speed: 1.2, up: 0.8, decay: 2.2, size: 10, spread: cl * 0.2 }); }
+        this.spawn(1, bx, by, 0, { colors: sliding ? ['#9BD3FF', '#E6F4FF', '#4C9BE8'] : ['#E6E6E6', '#C9C9C9'], speed: sliding ? 2.4 : 1.2, up: sliding ? 2.2 : 0.8, decay: 2.2, size: sliding ? 7 : 10, spread: cl * 0.2 }); }   // 물웅덩이: 물보라
       // 부스터 충전 불꽃 (파랑 → 주황) — 지금 놓으면 부스터가 나간다는 신호
       if (this.drifting && this.driftCharge >= 0.25 && Math.random() < 0.5 * Math.min(1, f)) {
         const sd3 = Math.random() < 0.5 ? 1 : -1, bx = this.x - Math.cos(this.angle) * cl * 0.5 - Math.sin(this.angle) * sd3 * cl * 0.32, by = this.y - Math.sin(this.angle) * cl * 0.5 + Math.cos(this.angle) * sd3 * cl * 0.32;
@@ -1385,12 +1552,15 @@ class KartGame {
     // ── 트랙 벽: 밖으로 못 나감 ──
     const near = this.track.nearestIndex(this.x, this.y, this.segIdx);
     const limit = this.track.halfW - this.track.carLen * 0.45;
-    if (near.dist > limit) {
-      const c = this.track.center[near.index];
+    // 지름길: 본선 도로 밖이어도 지름길 위면 벽이 아님. 둘 다 밖이면 덜 벗어난 쪽 길 안으로 되돌림
+    const scw = near.dist > limit && this.track.shortcuts.length ? this.track.scAt(this.x, this.y) : null, scLim = scw ? scw.w - this.track.carLen * 0.45 : 0;
+    if (near.dist > limit && !(scw && scw.d <= scLim)) {
+      const toSc = scw && scw.d - scLim < near.dist - limit;
+      const c = toSc ? scw.s.pts[scw.k] : this.track.center[near.index], lim = toSc ? scLim : limit;
       const dx = this.x - c[0], dy = this.y - c[1];
       const d = Math.hypot(dx, dy) || 1;
-      this.x = c[0] + dx/d * limit;
-      this.y = c[1] + dy/d * limit;
+      this.x = c[0] + dx/d * lim;
+      this.y = c[1] + dy/d * lim;
       this.speed *= Math.pow(0.62, Math.min(1, f));                // (걸음이 잘아져도 벽에 닿은 시간만큼만 감속)
       if (now - this.wallUntil > 400) {
         this.wallUntil = now;
@@ -1402,9 +1572,10 @@ class KartGame {
     }
 
     // 진행도
-    const cur = this.track.nearestIndex(this.x, this.y, this.segIdx);
+    const cur = this.track.locate(this.x, this.y, this.segIdx);   // 지름길 위면 그 점에 정해 둔 본선 구간 번호
+    this.scNow = cur.sc;
     const n = this.track.n;
-    let delta = cur.index - this.segIdx;
+    let delta = cur.i - this.segIdx;
     if (delta >  n/2) delta -= n;
     if (delta < -n/2) delta += n;
     if (Math.abs(delta) < n/4) {
@@ -1415,7 +1586,7 @@ class KartGame {
         if (this.lap >= 0) this.lapStartAt = now;
       }
       if (this.segIdx + delta < 0)  this.lap--;
-      this.segIdx = cur.index;
+      this.segIdx = cur.i;
     }
     // (예전엔 핸들만 꺾어도 뒷바퀴 연기가 나서 드리프트가 끝나지 않은 것처럼 보였음 — 이제 연기는 실제로 미끄러질 때만, 위에서)
 
@@ -1429,9 +1600,10 @@ class KartGame {
     this.score = Math.max(0, Math.round(this.progress/4));
 
     // 역주행 · 다음 코너 방향
-    const tg = this.track.tangent[this.segIdx];
-    const dot = Math.cos(this.angle)*tg[0] + Math.sin(this.angle)*tg[1];
-    this.wrongWay = dot < -0.15 && this.speed > 1;
+    const tg = this.scNow ? this.scNow.s.tan[this.scNow.k] : this.track.tangent[this.segIdx];   // 지름길 위면 지름길 방향
+    const hd = now < this.slideUntil && this.moveA != null ? this.moveA : this.angle;            // 미끄러져 도는 중엔 차체 대신 진행 방향으로
+    const dot = Math.cos(hd)*tg[0] + Math.sin(hd)*tg[1];
+    this.wrongWay = dot < -0.15 && this.speed > 1 && now >= this.spinUntil;
     const ahead = this.track.curve[(this.segIdx + 26) % n];
     this.cornerHint = Math.abs(ahead) > 0.5 ? (ahead > 0 ? 1 : -1) : 0;
 
@@ -1482,7 +1654,7 @@ class KartGame {
       if (Math.hypot(h.x - this.x, h.y - this.y) < reach) {
         if (this.opts.onHitHazard) this.opts.onHitHazard(hid);
         const g = this.guarded();
-        if (kind === 'oil') this.slide();
+        if (kind === 'oil') this.slide('oil');
         else if (kind === 'bomb') this.explode(h.x, h.y);
         else this.spinOut();
         if (!g && h.by && h.by !== this.myId) {
@@ -1500,11 +1672,11 @@ class KartGame {
       const odx = this.x - o.x, ody = this.y - o.y, odd = Math.hypot(odx, ody) || 1;
       if (odd < this.track.carLen * size.r) {
         o.hitUntil = now + 2500;
-        // 어떤 장애물이든 일단 밖으로 밀어냅니다 — 제자리에서 계속 부딪히는 일이 없도록
-        const out = this.track.carLen * size.r - odd + this.track.carLen * 0.35;
-        this.x += odx / odd * out; this.y += ody / odd * out;
+        // 부딪히는 장애물은 일단 밖으로 밀어냅니다 — 제자리에서 계속 부딪히는 일이 없도록 (물웅덩이는 밟고 지나가므로 밀지 않음)
+        if (size.effect !== 'slide') { const out = this.track.carLen * size.r - odd + this.track.carLen * 0.35;
+          this.x += odx / odd * out; this.y += ody / odd * out; }
         if (this.guarded()) { this.showToast('방어막이 막았다', '#06D6A0'); return; }
-        if (size.effect === 'slide') this.slide();
+        if (size.effect === 'slide') this.slide('water');
         else if (size.effect === 'spin') this.spinOut();
         else {                                       // bump — 감속
           this.speed *= 0.55;
@@ -1629,7 +1801,7 @@ class KartGame {
     const W = this.canvas.clientWidth || this.canvas.width;
     const H = this.canvas.clientHeight || this.canvas.height;
     const now = this.clock();
-    const cam = this.setupCamera(W, H);
+    const cam = this.setupCamera(W, H); this._cam2d = cam;
 
     ctx.save();
     // 코너에서 화면이 살짝 기웁니다 (조작 방향과 속도에 비례, 부드럽게 따라감)
@@ -1661,9 +1833,10 @@ class KartGame {
   setupCamera(W, H) {
     const t = this.track;
     const boosting = this.clock() < this.boostUntil;
-    const fi0 = this.segIdx + t.fracAt(this.segIdx, this.x, this.y);
-    const roadDir = t.headingAtF(fi0);                     // 보간된 트랙 방향
-    const offNow = (() => { let o = this.angle - roadDir;
+    const fi0 = this.scNow ? this.segIdx : this.segIdx + t.fracAt(this.segIdx, this.x, this.y);
+    const roadDir = this.scNow ? t.roadDir({ sc: this.scNow }) : t.headingAtF(fi0);   // 보간된 트랙 방향 (지름길 위면 지름길 방향)
+    const viewA = this.clock() < this.slideUntil && this.moveA != null ? this.moveA : this.angle;   // 미끄러져 도는 동안은 진행 방향을 봄 (화면이 같이 돌면 어지러움)
+    const offNow = (() => { let o = viewA - roadDir;
       while (o > Math.PI) o -= Math.PI * 2; while (o < -Math.PI) o += Math.PI * 2; return Math.abs(o); })();
     const wide = Math.min(1, Math.max(0, (offNow - 0.5) / 1.2));       // 옆·뒤를 볼수록 카메라를 물림
     // 카메라 거리는 목표값으로 '서서히' — 부스터를 밟는 순간 화면이 즉시 줌되어 튀던 원인
@@ -1689,7 +1862,7 @@ class KartGame {
     // 카메라 방향: 카트가 옆·뒤로 돌아도 트랙 진행 방향을 크게 벗어나지 않게 제한합니다.
     // (제한이 없으면 옆을 본 순간 앞쪽 도로가 전부 카메라 뒤로 밀려나 화면에서 사라졌습니다)
     const road = roadDir;
-    let off = this.angle - road;
+    let off = viewA - road;
     while (off > Math.PI) off -= Math.PI * 2;
     while (off < -Math.PI) off += Math.PI * 2;
     const LIMIT = 0.5;                                   // 트랙 방향에서 최대 ±29° — 도로가 늘 화면 안에 남습니다
@@ -2056,11 +2229,15 @@ class KartGame {
     };
 
     const kw = 0.058, kerb = t.theme.kerb[1], roadBed = this.shade(d.road, -0.28);
+    // 지름길: 본선 갓길 다음, 본선 도로 전에 그려 입구가 본선 도로 밑으로 깔끔하게 이어짐 (지름길 위에 있으면 본선 다음에 — 내 발밑 길이 덮이지 않게)
+    const onSc = !!this.scNow, scDraw = t.shortcuts.length ? this.scRuns(cam) : null;
+    if (onSc) runs.forEach((run, ri) => stripe(run, 1.35, -1.35, grassDark, false));
+    else if (scDraw) { runs.forEach((run, ri) => stripe(run, 1.35, -1.35, grassDark, ri === 0)); scDraw.forEach(r => this.drawScRun(stripe, r, false)); }
     runs.forEach((run, ri) => {
-      const toBottom = ri === 0;                       // 카메라에 가장 가까운 덩어리만 아래로 연장
+      const toBottom = ri === 0 && !onSc;              // 카메라에 가장 가까운 덩어리만 아래로 연장
       // 갓길은 지평선 아래 바탕과 같은 색이라 대부분 겹칩니다 — 도로 폭의 1.35배까지만 칠해
       // 언덕에서 도로가 지평선 위로 뜰 때만 받쳐 줍니다 (화면 덧칠 3.1배 → 1.6배)
-      stripe(run, 1.35, -1.35, grassDark, toBottom);
+      if (!onSc && !scDraw) stripe(run, 1.35, -1.35, grassDark, toBottom);
       // 노반 — 도로보다 아주 조금 넓은 어두운 바탕.
       // 혹시 경계에 머리카락 같은 틈이 남더라도 흰 지면 대신 이 어두운 색이 비칩니다.
       stripe(run, 1.10, -1.10, roadBed, toBottom);
@@ -2068,6 +2245,7 @@ class KartGame {
       stripe(run, -1, -1 - kw, kerb, toBottom);        // 오른쪽 연석
       stripe(run, 1, -1, d.road, toBottom);            // 도로
     });
+    if (onSc && scDraw) scDraw.forEach((r, ri) => this.drawScRun(stripe, r, ri === 0));
 
     // 드리프트 구간: 노면에 주황·흰 줄무늬 (가까운 구간만)
     if (t.driftZones && t.driftZones.length) {
@@ -2126,6 +2304,37 @@ class KartGame {
     });
 
     this.drawRoadMarks(ctx, cam, segs, now);
+  }
+
+  // 지름길 2D: 가까운 지름길의 점들을 본선 구간처럼(cx·cy·nx·ny·e) 만들어 같은 띠 그리기로 칠함. 내 근처 점부터 앞으로 (멀수록 성기게)
+  scRuns(cam) {
+    const t = this.track, out = [], far = t.stepLen * 400, hwR = 1 / t.halfW;
+    t.shortcuts.forEach(s => {
+      const b = s.box; if (this.x < b[0] - far || this.x > b[2] + far || this.y < b[1] - far || this.y > b[3] + far) return;
+      const m = s.pts.length; let k0 = 0;
+      if (this.scNow && this.scNow.s === s) k0 = Math.max(0, this.scNow.k - 30);
+      const pool = s._seg2d || (s._seg2d = s.pts.map((p, k) => { const ux = -s.tan[k][1], uy = s.tan[k][0], mo = (s.wr[k] - s.wl[k]) / 2, r = (s.wr[k] + s.wl[k]) / 2 / s.hw;
+        return { cx: p[0] + ux * mo, cy: p[1] + uy * mo, nx: ux * r, ny: uy * r, ux, uy, px: p[0], py: p[1], e: s.e[k] - 0.5, k }; }));   // (갈림목에서 본선 쪽으로 넓힌 폭: 가운데를 옮기고 법선 길이로)
+      const run = []; let k = k0;
+      while (k < m) { const sg = pool[k], dd = Math.hypot(sg.cx - this.x, sg.cy - this.y); run.push(sg); k += dd < 3000 ? 2 : dd < 9000 ? 4 : 8; }
+      if (run[run.length - 1] !== pool[m - 1]) run.push(pool[m - 1]);
+      out.push({ s, run, w: s.hw * hwR });
+    });
+    return out.length ? out : null;
+  }
+  drawScRun(stripe, r, toBottom) {
+    const w = r.w, kerbW = w * 0.14;
+    stripe(r.run, w * 1.35, -w * 1.35, this.shade(this.track.def.grass, -0.12), toBottom);   // 길섶
+    stripe(r.run, w + kerbW, -w - kerbW, '#FFD166', toBottom);                             // 노란 연석 (지름길 표시)
+    stripe(r.run, w, -w, '#8A6A4A', toBottom);                                            // 흙길
+    // 가운데 흰 화살표(진행 방향) — 가까운 곳만
+    const ctx = this.ctx, cam = this._cam2d, s = r.s, pool = s._seg2d; if (!cam || !pool) return;
+    ctx.fillStyle = 'rgba(255,240,200,0.75)';
+    for (let k = 12; k < pool.length - 12; k += 24) { const a = pool[k]; if (Math.hypot(a.cx - this.x, a.cy - this.y) > 4500) continue;
+      const tx = a.uy, ty = -a.ux, L = s.hw * 0.55, W = s.hw * 0.42;
+      const P = [[L, 0], [-L * 0.1, W], [-L * 0.45, W], [L * 0.3, 0], [-L * 0.45, -W], [-L * 0.1, -W]].map(([u, v]) => this.project(cam, a.px + tx * u + a.ux * v, a.py + ty * u + a.uy * v, a.e));
+      if (P.some(q => !q)) continue;
+      ctx.beginPath(); P.forEach((q, i) => i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)); ctx.closePath(); ctx.fill(); }
   }
 
   edge(cam, seg, off) {
@@ -2347,7 +2556,7 @@ class KartGame {
 
     Object.keys(this.hazards).forEach(id => {
       const h = this.hazards[id];
-      if (h.e === undefined) h.e = t.elevAt(t.nearestIndex(h.x, h.y).index);
+      if (h.e === undefined) { const L = t.locate(h.x, h.y); h.e = t.surfaceE(L, h.x, h.y); }   // (지름길 위에 놓인 것도 그 길 높이)
       const p = this.project(cam, h.x, h.y, h.e);
       if (!p || p.x < -200 || p.x > W + 200) return;
       list.push(push(p.z, 'banana', h));
@@ -2356,9 +2565,10 @@ class KartGame {
     // 장애물
     t.obstacles.forEach(o => {
       if (Math.hypot(o.x - this.x, o.y - this.y) > t.stepLen * 160) return;
-      const p = this.project(cam, o.x, o.y, t.elevAt(o.i));
+      const oe = o.e0 != null ? o.e0 : t.elevAt(o.i);                // (지름길 위 물웅덩이는 그 길 높이)
+      const p = this.project(cam, o.x, o.y, oe);
       if (!p) return;
-      o.e = t.elevAt(o.i); list.push(push(p.z, 'obst', o));
+      o.e = oe; list.push(push(p.z, 'obst', o));
     });
 
     // 상대 위치(pr.x·y·angle·e)는 stepPeers 가 매 프레임 이미 옮겨 둠
@@ -3127,6 +3337,9 @@ class KartGame {
       for (let i = 4; i < c.length; i += 4) g.lineTo(lx(c[i][0]), ly(c[i][1]));
       g.closePath(); g.stroke();
       g.strokeStyle = this.rgba(t.theme.kerb[1], 0.55); g.lineWidth = 1.5; g.stroke();
+      // 지름길: 가는 노란 점선
+      t.shortcuts.forEach(s2 => { g.strokeStyle = 'rgba(255,209,102,0.85)'; g.lineWidth = 2.5; if (g.setLineDash) g.setLineDash([3, 2]);
+        g.beginPath(); s2.pts.forEach((q, k) => { if (k % 6 && k !== s2.pts.length - 1) return; k ? g.lineTo(lx(q[0]), ly(q[1])) : g.moveTo(lx(q[0]), ly(q[1])); }); g.stroke(); if (g.setLineDash) g.setLineDash([]); });
       g.fillStyle = '#F4F6FA'; g.beginPath(); g.arc(lx(c[0][0]), ly(c[0][1]), 3.5, 0, Math.PI * 2); g.fill();
       this._mmTrack = cv; this._mmSize = size;
     }
@@ -3179,6 +3392,25 @@ class KartGame {
       ctx.restore();
     }
 
+    // 물웅덩이·기름에 미끄러지는 중: 화면 가장자리 물빛 + 큰 글자 + 남은 시간 막대
+    if (this.slideBanner && now < this.slideBanner.until && !this.finished) {
+      const sb = this.slideBanner, life = (sb.until - now) / SLIDE_MS, col = sb.water ? '124,196,255' : '154,163,178';
+      ctx.save();
+      ctx.strokeStyle = 'rgba(' + col + ',' + (0.35 * life).toFixed(2) + ')'; ctx.lineWidth = 22; ctx.strokeRect(0, 0, W, H);
+      ctx.textAlign = 'center'; ctx.font = '900 ' + Math.round(Math.min(34, W * 0.06)) + 'px Pretendard, sans-serif';
+      const txt = sb.water ? '💦 미끄러짐!' : '🛢 미끄러짐!', y = H * 0.36 + Math.sin(now / 60) * 2;
+      ctx.lineWidth = 6; ctx.strokeStyle = 'rgba(5,20,40,0.75)'; ctx.strokeText(txt, W / 2, y); ctx.fillStyle = 'rgb(' + col + ')'; ctx.fillText(txt, W / 2, y);
+      ctx.fillStyle = 'rgba(5,20,40,0.55)'; ctx.fillRect(W / 2 - 60, y + 12, 120, 6); ctx.fillStyle = 'rgb(' + col + ')'; ctx.fillRect(W / 2 - 60, y + 12, 120 * life, 6);
+      ctx.restore();
+    }
+    // 지름길 안내: 갈림길에 다가가면 어느 쪽인지 · 지름길 위에서는 작은 표시
+    if (this.track.shortcuts.length && this.countdown <= 0 && !this.finished && !this.spectator) {
+      const t = this.track; let msg = null;
+      if (this.scNow) msg = '지름길';
+      else t.shortcuts.forEach(s2 => { const d = ((s2.A - this.segIdx) % t.n + t.n) % t.n; if (d * t.stepLen < 3200 && d > 0) msg = s2.side > 0 ? '지름길 ➜' : '⬅ 지름길'; });
+      if (msg) { ctx.save(); ctx.textAlign = 'center'; ctx.font = '900 ' + Math.round(Math.min(22, W * 0.042)) + 'px Pretendard, sans-serif';
+        const y = H * 0.25; ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(30,20,0,0.75)'; ctx.strokeText(msg, W / 2, y); ctx.fillStyle = '#FFD166'; ctx.fillText(msg, W / 2, y); ctx.restore(); }
+    }
     // 역주행 경고
     if (this.wrongWay) {
       ctx.save();
@@ -3389,8 +3621,11 @@ class KartGame {
       ctx.font = '800 64px Pretendard, sans-serif';
       ctx.fillStyle = rk === 1 ? '#FFD166' : (rk === 2 ? '#E6EAF0' : (rk === 3 ? '#F5A524' : '#4CC9F0'));
       ctx.fillText(rk ? rk + '위' : '완주', 0, -4);
-      ctx.font = '600 14px Pretendard, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.75)';
-      ctx.fillText(this.track.def.name + ' · ' + this.track.laps + '바퀴 완주', 0, ch/2 - 32);
+      // 완주 시간 (순위를 정한 것과 같은 시간: 학생 화면이 finishMs 로 넣어 줌 · 없으면 기기 안에서 잰 주행 시간)
+      const fms = this.finishMs || this.raceMs;
+      if (fms) { ctx.font = '800 17px Pretendard, sans-serif'; ctx.fillStyle = '#FFFFFF'; ctx.fillText('완주 시간 ' + fmtRaceMs(fms), 0, ch/2 - 46); }
+      ctx.font = '600 13px Pretendard, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.65)';
+      ctx.fillText(this.track.def.name + ' · ' + this.track.laps + '바퀴 완주', 0, ch/2 - 22);
       ctx.restore();
 
       // 전체 결과판 — 완주한 순서대로 (상대의 순위는 진행도에 실린 값에서 읽음)

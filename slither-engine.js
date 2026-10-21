@@ -1,15 +1,19 @@
 // 뱀 아레나 — 큰 뱀이 작은 뱀을 삼키며 자라는 실시간 대전 (넓은 원형 경기장 · 카메라가 내 머리를 따라감)
 //   · 조이스틱 방향으로 미끄러지듯 회전, 부스트(길이 소모)로 가속
 //   · 먹이를 먹으면 길이 +1. 내 머리가 다른 뱀 몸에 닿으면 크기와 상관없이 내가 탈락
-//   · 머리끼리 부딪히면 1.2배 이상 큰 쪽이 삼킴(길이 절반 흡수), 비슷하면 둘 다 탈락. 죽으면 몸을 따라 먹이를 떨어뜨리고 3초 뒤 작은 뱀으로 부활
-//   · 슈퍼 지렁이: 부활할 때 가끔(판에 한 마리까지) 태어남. 1등과 부딪혀도 죽지 않고, 1등의 머리를 먹으면 1등의 길이를 이어받아 새 1등 (60초)
+//   · 머리끼리 마주 부딪히면 조금이라도 긴 쪽이 삼키고 먹힌 뱀의 길이만큼 커짐(상한 2000), 길이가 같으면 둘 다 튕겨 나옴.
+//     머리로 남의 목·옆구리를 박은 것은 머리끼리가 아님 — 박은 쪽만 탈락. 죽으면 몸을 따라 먹이를 떨어뜨리고 3초 뒤 작은 뱀으로 부활
+//   · 슈퍼 지렁이: 부활할 때 가끔(판에 한 마리까지) 태어남. 1등과 부딪혀도 죽지 않고, 1등의 머리를 먹으면 1등의 길이만큼 커져 새 1등 (60초)
 //   네트워크: 머리 + 최근 마디 8개(방향 2글자씩)와 마디 번호(seq)를 보내고, 받는 쪽이 번호대로 이어 붙여 '보낸 쪽과 똑같은 몸'을 만듭니다.
-//            처음 받았거나 신호가 크게 빠져 몸이 모자라면 'need' 사건을 보내 전체 몸을 한 번 받아 옵니다.
+//            처음 받았거나 신호가 크게 빠져 몸이 모자라면 그 친구에게만 'need' 를 보내 전체 몸을 한 번 받아 옵니다.
+//            잠깐 끊겨(테더링 등) pos 가 지워져도 바로 지우지 않고 몸을 들고 기다렸다가 신호가 다시 오면 이어 그립니다.
 //   판정: 내 머리는 내 기기가 판정합니다. ① 내 화면에서 그려진 상대 몸에 닿으면 바로 탈락(선분 거리)
 //         ② 상대는 D ms 전 모습(네트워크 + 보간 지연, 보낸 시각은 서버 시계)으로 그려지므로 내 머리도 D ms 전 위치로 같은 순간을 비교 (지연 보상)
 //            — 머리끼리는 '같은 순간에 만났을 때'만 (큰 뱀 머리 앞을 먼저 지나간 작은 뱀이 삼켜지지 않음), 지난 머리가 몸에 들어갔으면 그 자리로 되감고 탈락
 //         몸 주인 기기도 그 순간에 이미 있던 몸에 깊게 파고든 머리를 보면 'ko' 로 알려 줍니다(보조).
-//         머리끼리·슈퍼 사건은 먼저 본 쪽이 결과를 정해 'clash'(만난 순간 at 포함)로 상대에게 보내고, 같은 두 목숨 사이에서는 한 번만 처리합니다.
+//         머리끼리인지는 '서로 상대 쪽으로 가고 있었나'(방향)로 가림 — 한쪽만 상대에게 가고 있었으면 그쪽이 박은 것(그쪽만 탈락)
+//         머리끼리 결과는 두 뱀 중 id 가 앞선 기기 한 곳(정하는 쪽)이 정해 'clash'(만난 순간 at 포함)로 알림 — 다른 쪽이 먼저 보면 'ask' 로 물어봄.
+//         같은 두 목숨 사이에서는 한 번만 처리 → 두 기기가 늘 같은 결론 (예전: 양쪽이 각자 정해 서로 '먹었다'거나 한쪽만 죽음)
 
 const SL_R = 144;              // 경기장 반지름(칸) — 지름 2배(72→144), 30명 기준 1인당 약 2,170칸²
 const SL_PELLETS = 5200;       // 먹이 수 — 넓이가 4배라 먹이도 4배(밀도 유지)
@@ -38,6 +42,7 @@ const SL_SPEED = 0.11;         // 한 프레임(16.7ms) 이동 칸 · 부스트�
 const SL_K = 8;                // 신호마다 싣는 최근 마디 수
 const SL_TSM = 1679616;        // 보낸 시각(ms)을 36진 4글자로 — 이 값으로 나눈 나머지
 const SL_WIN = 2000;           // 길이 2000에 먼저 닿으면 경기 끝 (그 순간 점수로 모두의 순위)
+const SL_FACE = 0.3;            // 머리끼리: 두 뱀 모두 상대 머리 쪽(±73° 안)으로 가고 있어야 함 — 한쪽만이면 그쪽이 박은 것
 const SL_SUPER_P = 0.09, SL_SUPER_MS = 60000, SL_SUPER_GAP = 15000;   // 슈퍼: 부활 때 9% · 60초 · 끝난 뒤 15초는 새로 안 나옴
 const SL_COLORS = ['#06D6A0', '#4CC9F0', '#FFD166', '#FF5C7A', '#B15DFF', '#FF9F43', '#7DF58F', '#F78FB3'];   // 먹이 색
 
@@ -94,8 +99,8 @@ class SlitherGame {
     this.mx = 0; this.my = 0; this.boost = false; this.quality = 2;
     this.life = 0; this.seq = 0; this.tAt = new Float64Array(64);   // 내 마디가 찍힌 시각 (최근 64개)
     this.superUntil = 0; this.superCool = 0; this.leader = null; this.leadSince = 0; this.frameN = 0;
-    this.credit = {}; this.resolved = {}; this.koSent = {}; this.noted = {}; this.fullUntil = 0; this.needAt = -1e9;
-    this.labels = new Map(); this.pelletSpr = new Map(); this.bgCache = null;
+    this.credit = {}; this.resolved = {}; this.applied = {}; this.tieKeys = {}; this.koSent = {}; this.noted = {}; this.fullUntil = 0; this.needAt = -1e9;
+    this.labels = new Map(); this.pelletSpr = new Map(); this.dotSpr = new Map(); this.bgCache = null;
     this.reset(6, this.opts.slot);
     this.pellets = []; this.seed = 12345; for (let i = 0; i < this.pelletN; i++) this.spawnPellet();
   }
@@ -133,7 +138,8 @@ class SlitherGame {
   say(t, s, c, ms) { this.banner = { t, s: s || '', c: c || '#FFD166', until: this.clock() + (ms || 3000), at: this.clock() }; }
   nameOf(id) { const p = this.peers[id]; return (p && p.name) || (this.opts.nameOf && this.opts.nameOf(id)) || '친구'; }
   send(type, target, payload) { if (this.opts.onAttack) this.opts.onAttack(type, target, payload || {}); }
-  live(p) { return !p.dead && p.pts.length > 0 && this.now - p.seen < 6000 && !(p.hideUntil > this.now); }
+  // 살아 있는 상대: 신호가 6초 안에 옴 (pos 가 지워진 뒤 = 끊김 → 4초까지 몸을 들고 기다림)
+  live(p) { return !p.dead && p.pts.length > 0 && this.now - p.seen < (p.gone ? 4000 : 6000) && !(p.hideUntil > this.now); }
 
   // ── 신호 ──
   // x,y,각도,길이,부스트,죽음,겉모습,삼킴 (앞 8칸은 예전 형식과 같음) · 표시(1 무적 2 슈퍼),목숨,마디번호,보낸시각,몸마디수,첫마디x,y(1/100칸),방향들
@@ -157,6 +163,7 @@ class SlitherGame {
     const d = SlitherGame.parse(raw), now = this.clock();
     if (!isFinite(d.x) || !isFinite(d.y) || !isFinite(d.angle) || !isFinite(d.len) || !isFinite(d.seq)) return;   // 숫자가 아니면 무시
     let p = this.peers[id];
+    if (p) p.gone = 0;                                          // 끊겼다 다시 옴 → 들고 있던 몸에 이어 붙임
     if (!p) p = this.peers[id] = { id, pts: [], seq0: -1, lag: 0, life: d.life, dead: d.dead, hx: d.x, hy: d.y, ang: d.angle, rx: d.x, ry: d.y, ra: d.angle, vs: 0, vn: 0, d0: 0, minOff: null, late: 0, len: d.len, name: '', seen: now, sup: false };
     // 다시 태어남(목숨 번호가 바뀜) → 자취 새로
     if (d.life !== p.life || (p.dead && !p.dying && !d.dead)) { p.pts = []; p.seq0 = -1; p.lag = 0; p.dying = false; p.koAt = 0; p.hideUntil = 0; p.hz = 0; p.rx = d.x; p.ry = d.y; p.ra = d.angle; }
@@ -174,13 +181,14 @@ class SlitherGame {
     p.skin = ((Math.round(d.ci) % N) + N) % N; p.kills = d.kills; p.sup = !!(d.fl & 2) && !d.dead; p.inv = !!(d.fl & 1); p.life = d.life; p.nb = d.nb;
     p.best = Math.max(p.best || 0, d.best || 0, d.dead ? 0 : p.len);
     if (p.best >= SL_WIN && !this.gameOver) this.finish(id, p.name || name);   // 끝 소식을 놓쳐도 상대 길이가 2000이면 끝
-    p.name = name || p.name || ''; p.seen = now; if (d.ts >= 0 && isFinite(d.ts)) p.ts = d.ts;
+    p.name = name || p.name || ''; p.seen = now; p.raw = raw; if (d.ts >= 0 && isFinite(d.ts)) p.ts = d.ts;
     // 도착 간격(이동 평균) — 보내는 간격이 인원에 따라 165~235ms 로 달라짐. 다음 신호가 올 때쯤 받은 길 끝 '조금 앞'에 닿는 속도로 정해 그 사이를 고르게 감 (stepPeers)
     { const iv = p.iv || this.opts.sendMs || 165; p.iv = p.rcv == null ? iv : (now - p.rcv < iv * 2.5 ? iv + (Math.max(40, now - p.rcv) - iv) * 0.15 : iv); p.rcv = now;
       const N = Math.max(3, p.iv / 16.7), v = SL_SPEED * (p.boost ? 1.7 : 1), M = 1 + N * 0.15; p.spd = Math.max(v * 0.5, Math.min(v * 2.5, (p.lag - v * M) / N)); p.mg = v * M; }
     if (p.sup && !wasSup) { this.superCool = Math.max(this.superCool, now + SL_SUPER_GAP); this.toast(slJosa(p.name || '친구', '이', '가') + ' 슈퍼 지렁이로 태어났다!', '#FFD447'); }
     // 몸이 모자라면 (처음 받음 · 신호가 크게 빠짐) 전체 몸을 한 번 요청 — 3초에 한 번까지
-    if (d.seq >= 0 && !d.dead && p.pts.length + 8 < Math.min(d.nb, Math.ceil(p.len / SL_SEG) + 1) && now - this.needAt > 3000) { this.needAt = now; this.send('need', '*', {}); }
+    //   그 친구에게만 요청 (예전: '*' → 모든 친구가 전체 몸(길이 2000이면 약 9KB)을 2~3번씩 보내 테더링이 막힘)
+    if (d.seq >= 0 && !d.dead && p.pts.length + 8 < Math.min(d.nb, Math.ceil(p.len / SL_SEG) + 1) && !(now - p.needAt < 2500)) { p.needAt = now; this.send('need', id, {}); }
   }
   // 받은 마디를 번호대로 이어 붙임
   mergePts(p, d) {
@@ -216,15 +224,17 @@ class SlitherGame {
     p.lag = Math.max(0, Math.min(15, p.lag + n * SL_SEG + dd - before));
     const keep = Math.ceil(p.len / SL_SEG) + 40; if (p.pts.length > keep) p.pts.length = keep;
   }
-  setPeers(map) { Object.keys(map).forEach(id => { const d = map[id]; if (d.raw) this.applyPeerRaw(id, d.raw, d.name); }); Object.keys(this.peers).forEach(id => { if (!map[id]) delete this.peers[id]; }); }
-  removePeer(id) { delete this.peers[id]; }
+  // 페이지가 넘기는 전체 목록: 이미 받은 신호는 다시 넣지 않음 (예전: 누가 나갈 때마다 모든 친구의 지난 신호를 다시 넣어 도착 간격·'마지막 신호' 시각이 틀어짐)
+  setPeers(map) { Object.keys(map).forEach(id => { const d = map[id], p = this.peers[id]; if (d.raw && !(p && p.raw === d.raw)) this.applyPeerRaw(id, d.raw, d.name); }); Object.keys(this.peers).forEach(id => { if (!map[id]) this.removePeer(id); }); }
+  // pos 가 지워짐(끊김 · 나감): 바로 지우지 않고 표시만 — 잠깐 끊긴 것이면(테더링·와이파이) 다시 온 신호를 들고 있던 몸에 이어 그림 (예전: 그 순간 뱀이 사라졌다가 짧은 몸으로 다시 나타남)
+  removePeer(id) { const p = this.peers[id]; if (p && !p.gone) p.gone = this.clock(); }
 
   // ── 사건 ──
   onEvent(e) {
     if (!e || e.by === this.myId) return;
     const now = this.clock(), nm = this.nameOf(e.by), me = e.target === this.myId;
     if (e.type === 'win') { this.finish(e.by, e.name || nm); return; }            // 누가 2000 달성 → 경기 끝
-    if (e.type === 'need') { this.fullUntil = now + 400; return; }                 // 누가 내 몸 전체를 원함 → 다음 신호에 통째로
+    if (e.type === 'need') { if (e.target === this.myId || e.target === '*') this.fullUntil = now + 400; return; }   // 누가 내 몸 전체를 원함 → 다음 신호에 통째로
     if (e.type === 'eaten') { if (me && !this.isDead) this.die('머리끼리 부딪혀 ' + nm + '에게 먹혔어요', e.by, 'eat'); return; }   // 예전 형식 호환
     if (e.type === 'ko') {                                                          // 몸 주인 기기가 '내 머리가 자기 몸에 깊게 들어왔다'고 알려 옴
       if (!me || this.isDead || this.invul > 0 || (e.life != null && e.life !== this.life)) return;
@@ -242,14 +252,13 @@ class SlitherGame {
         return;
       }
       if (e.life != null && e.life !== this.life) return;                          // 이미 다시 태어난 뒤의 소식
-      const key = e.by + ':' + e.ml + ':' + this.life; if (this.resolved[key]) return; this.resolved[key] = now;   // 같은 두 목숨 사이는 한 번만
-      const p = this.peers[e.by] && this.live(this.peers[e.by]) ? this.peers[e.by] : null;
-      if (!this.isDead && (e.res === 'eat' || e.res === 'both' || e.res === 'crown') && e.at > 0) this.rewindTo(now - (this.srvNow() - e.at), p);   // 머리끼리 만난 순간 자리에서 쓰러짐
-      if (e.res === 'eat') { if (!this.isDead) this.die('머리끼리 부딪혀 ' + nm + '에게 먹혔어요', e.by, 'eat'); }
-      else if (e.res === 'both') { if (!this.isDead) this.die(slJosa(nm, '과', '와') + ' 머리끼리 부딪혔어요', e.by, 'head'); }
-      else if (e.res === 'eaten') { if (!this.isDead) this.gain(e.by, e.ml, Math.round((+e.len || 6) / 2), nm, p); }
-      else if (e.res === 'crown') { if (!this.isDead) { this.die('슈퍼 지렁이 ' + nm + '에게 1등을 빼앗겼다', e.by, 'crown'); this.say('1등을 빼앗겼어요', '슈퍼 지렁이 ' + slJosa(nm, '이', '가') + ' 내 머리를 먹었어요', '#FF5C7A', 2600); } }
-      else if (e.res === 'crowned') { if (!this.isDead) this.takeCrown(e.by, e.ml, +e.len || 6, nm, p); }
+      const key = e.by + ':' + e.ml + ':' + this.life;
+      if (e.res === 'ask') {                                                        // 상대가 '머리끼리 만났다'고 물어 옴 → 내가 정하는 쪽
+        if (this.isDead || this.clashDone(this.resolved, key)) return; this.resolved[key] = now;   // 이미 정해 보냈으면 그 결과가 가는 중
+        this.decide(e.by, e.ml, Math.round(this.len), Math.round(+e.len || 6), !!e.sup, +e.at || 0); return; }
+      if (e.res === 'both') { if (!this.isDead && !this.resolved[key]) { this.resolved[key] = now; this.die(slJosa(nm, '과', '와') + ' 머리끼리 부딪혔어요', e.by, 'head'); } return; }   // 예전 판 호환
+      const mine = { eat: 'eaten', eaten: 'eat', crown: 'crowned', crowned: 'crown', tie: 'tie' }[e.res];   // 정하는 쪽 결과 → 내 쪽에서 본 결과
+      if (mine) this.clashResult(mine, e.by, e.ml, Math.round(+e.len || 6), +e.at || 0);
     }
   }
   setMove(x, y) { this.mx = x; this.my = y; }
@@ -292,20 +301,20 @@ class SlitherGame {
   }
   becomeSuper() {
     const now = this.clock(); this.superUntil = now + SL_SUPER_MS; this.superCool = now + SL_SUPER_MS + SL_SUPER_GAP;
-    this.say('슈퍼 지렁이!', '1등과 부딪혀도 안 죽어요 · 1등의 머리를 먹으면 1등 자리를 이어받아요', '#FFD447', 3600);
+    this.say('슈퍼 지렁이!', '1등과 부딪혀도 안 죽어요 · 1등의 머리를 먹으면 1등의 길이만큼 커져요', '#FFD447', 3600);
     if (window.Sound && Sound.levelUp) Sound.levelUp(); if (typeof Haptic !== 'undefined') Haptic.good();
   }
   gain(id, life, n, nm, p) {
     const key = id + ':' + life; if (this.credit[key]) return false; this.credit[key] = 1;
-    this.len += n; this.kills++; this.score = Math.max(this.score, Math.round(this.len));
+    this.len += n; this.kills++; this.score = Math.max(this.score, Math.round(Math.min(SL_WIN, this.len)));
     this.toast(slJosa(nm, '을', '를') + ' 삼켰다! +' + n, '#FFD166'); if (p) this.burst(p.rx, p.ry, 20, SL_SKINS[p.skin || 0].c);
     if (window.Sound) Sound.kill(); if (typeof Haptic !== 'undefined') Haptic.good();
     return true;
   }
   takeCrown(id, life, len, nm, p) {
     const key = id + ':' + life; if (this.credit[key]) return; this.credit[key] = 1;
-    this.len = Math.max(this.len, len); this.kills++; this.score = Math.max(this.score, Math.round(this.len)); this.superUntil = 0;
-    this.say('1등을 잡았다!', nm + '의 길이 ' + Math.round(len) + '을(를) 이어받아 이제 내가 1등', '#FFD447', 3600);
+    this.len += len; this.kills++; this.score = Math.max(this.score, Math.round(Math.min(SL_WIN, this.len))); this.superUntil = 0;   // 1등의 길이만큼 커짐 (머리끼리 규칙과 같게)
+    this.say('1등을 잡았다!', nm + '의 길이 ' + Math.round(len) + '만큼 커져 이제 내가 1등', '#FFD447', 3600);
     this.burst(this.x, this.y, 36, '#FFD447'); if (p) this.burst(p.rx, p.ry, 20, '#FFF6C8');
     if (window.Sound) { Sound.kill(); if (Sound.levelUp) Sound.levelUp(); } if (typeof Haptic !== 'undefined') Haptic.big();
   }
@@ -386,6 +395,7 @@ class SlitherGame {
       p.rx = a[0] + (b[0] - a[0]) * t; p.ry = a[1] + (b[1] - a[1]) * t; vs = i + 1; d0 = SL_SEG * (1 - t); }
     p.vs = vs; p.d0 = d0; p.vn = Math.max(0, Math.min(n - vs, Math.ceil(Math.max(0, p.len - d0) / SL_SEG) + 1));
     let a = p.ang; if (p.lag > 0.05 && vs < n) { const dx = p.rx - pts[vs][0], dy = p.ry - pts[vs][1]; if (dx * dx + dy * dy > 1e-4) a = Math.atan2(dy, dx); }
+    p.ma = a;                                                    // 그려진 머리가 지금 가는 방향 (머리끼리 · 박은 쪽 가리기)
     let da = a - p.ra; while (da > Math.PI) da -= Math.PI * 2; while (da < -Math.PI) da += Math.PI * 2; p.ra += da * 0.4;
   }
   // 1등: 살아 있는 뱀 중 (신호의) 길이가 가장 긴 뱀 · 같으면 id 가 앞선 쪽 — 모든 기기가 같은 규칙
@@ -404,9 +414,9 @@ class SlitherGame {
   // 내 머리가 t 시각에 있던 곳 (마디가 찍힌 시각으로 보간) → [x, y, 그 뒤에 찍힌 마디 수] · 기록이 없으면 null
   pastHead(t) {
     const tr = this.trail, n = Math.min(tr.length, 64); let nx = this.x, ny = this.y, tn = this.now;
-    if (t >= tn) return [nx, ny, 0];
+    if (t >= tn) return [nx, ny, 0, this.angle];
     for (let i = 0; i < n; i++) { const ti = this.tAt[(this.seq - i) & 63], q = tr[i];
-      if (ti <= t) { const k = tn > ti ? (t - ti) / (tn - ti) : 0; return [q[0] + (nx - q[0]) * k, q[1] + (ny - q[1]) * k, i]; }
+      if (ti <= t) { const k = tn > ti ? (t - ti) / (tn - ti) : 0; return [q[0] + (nx - q[0]) * k, q[1] + (ny - q[1]) * k, i, i > 0 ? Math.atan2(tr[i - 1][1] - q[1], tr[i - 1][0] - q[0]) : this.angle]; }
       nx = q[0]; ny = q[1]; tn = ti; }
     return null;
   }
@@ -415,10 +425,10 @@ class SlitherGame {
   headsMeet(p, rs, D, now) {
     const step = SL_SPEED * (p.boost ? 1.7 : 1), lim = rs * rs * 0.96, path = [];
     for (let k = p.vs - 1; k >= 0; k--) path.push(p.pts[k]); path.push([p.hx, p.hy]);
-    let cx = p.rx, cy = p.ry, k = 0;
+    let cx = p.rx, cy = p.ry, k = 0, over = 0;
     for (let t = 0; ; t = Math.min(D, t + 16.7)) {
       const me = this.pastHead(now - D + t); if (me) { const ex = me[0] - cx, ey = me[1] - cy; if (ex * ex + ey * ey < lim) return now - D + t; }
-      if (t >= D) return -1;
+      if (t >= D || (k >= path.length && ++over > 5)) return -1;  // 받은 길이 끝난 뒤(아직 모르는 앞날)는 0.08초까지만 어림 — 예전: 끝까지 곧게 어림해 방향을 튼 뱀도 '만남'
       let d = step;
       while (d > 1e-9) { if (k < path.length) { const q = path[k], ex = q[0] - cx, ey = q[1] - cy, l = Math.hypot(ex, ey); if (l <= d) { cx = q[0]; cy = q[1]; d -= l; k++; } else { cx += ex / l * d; cy += ey / l * d; d = 0; } }
         else { cx += Math.cos(p.ang) * d; cy += Math.sin(p.ang) * d; d = 0; } }
@@ -428,55 +438,90 @@ class SlitherGame {
   // 머리끼리 진 쪽: 만난 순간의 내 머리 자리가 지금 자리보다 (내 화면의) 상대 머리에 가까우면 그 자리에서 쓰러짐
   rewindTo(t, p) { if (!(t > this.now - 1500) || !p) return; const ph = this.pastHead(t); if (ph && Math.hypot(ph[0] - p.rx, ph[1] - p.ry) < Math.hypot(this.x - p.rx, this.y - p.ry)) this.rewind(ph); }
   rewind(ph) { const k = Math.min(ph[2], this.trail.length - 2); if (k > 0) { this.trail.splice(0, k); this.seq -= k; } this.x = ph[0]; this.y = ph[1]; }
+  // 머리가 닿았을 때 누가 박았나: 내 머리 → 상대 머리 방향(dx,dy) · 내 방향 a · 상대 방향 b
+  //   'meet' 서로 상대 쪽으로 가는 중 = 머리끼리 · 'me' 나만 상대 쪽으로 감 = 내가 박음(나만 탈락) · '' 상대가 내 옆·뒤를 박음/스침 → 상대 기기가 판정 (몸 주인은 안 죽음)
+  //   (예전: 두 머리 반지름 합 안이면 모두 머리끼리 → 남의 목을 옆에서 박아도 '머리끼리'가 되어 몸 주인이 먹히거나 같이 죽음)
+  static headKind(dx, dy, a, b) {
+    const l = Math.hypot(dx, dy) || 1e-6, ux = dx / l, uy = dy / l, cm = Math.cos(a) * ux + Math.sin(a) * uy, ct = -(Math.cos(b) * ux + Math.sin(b) * uy);
+    return cm > SL_FACE && ct > SL_FACE ? 'meet' : (cm > SL_FACE && cm > ct ? 'me' : '');
+  }
   // 충돌 — 내 머리는 내 기기가 판정 (판정 주체 한 곳)
-  //   ① 내 화면: 내 머리가 그려진 상대 몸에 닿음 → 바로 탈락 (그려진 몸 마디는 상대가 실제로 지나간 자리)
-  //   ② 같은 순간 비교(지연 보상): 상대는 D ms 전 모습으로 그려짐 → 내 머리도 D ms 전 위치로 비교. 머리끼리면 크기 비교, 몸이면 탈락
+  //   ① 내 화면: 내 머리가 그려진 상대 몸에 닿음 → 바로 탈락 (그려진 몸 마디는 상대가 실제로 지나간 자리) · 머리끼리 닿으면 방향으로 가림(headKind)
+  //   ② 같은 순간 비교(지연 보상): 상대는 D ms 전 모습으로 그려짐 → 내 머리도 D ms 전 위치·방향으로 비교. 머리끼리면 결과 정하기, 몸이면 탈락
   //      (내 화면에서 머리끼리 닿아 보여도 같은 순간에 만나지 않았으면 머리끼리가 아님 — 큰 뱀 머리 앞을 지나간 경우 등)
   //   ③ 몸 주인 기기: 상대 머리가 내 몸 깊숙이 (그 순간에 이미 있던 마디만) → 'ko' 로 알림 (상대 기기가 멈췄을 때 등의 보조)
+  //   머리끼리 결과를 기다리는 중 · 같은 길이로 튕긴 직후(calmUntil)에는 그 뱀과 판정을 쉼
   collide(R, now) {
     const lead = this.leader;
     for (const id in this.peers) { const p = this.peers[id]; if (!this.live(p) || p.dying) continue;
       const pr = SlitherGame.radiusOf(p.len), rs = R + pr, dx = p.rx - this.x, dy = p.ry - this.y, d2 = dx * dx + dy * dy, D = this.lagMs(p, now), reach = p.len + rs + 1 + D * SL_SPEED * 1.7 / 16.7;
       if (d2 > reach * reach) continue;                                                // 몸은 머리에서 길이만큼 안에 있음 (+ 지연 동안 내가 간 거리)
-      if (this.invul <= 0) {
+      if (p.tieUntil > now && p.calmUntil <= now + 200) { const ph = this.pastHead(now - D);   // 튕긴 뒤: 아직 서로 겹쳐 있으면(지금 · 같은 순간) 떨어질 때까지(최대 3초) 판정 쉼
+        if (slNear(this.x, this.y, rs * 1.1, p.rx, p.ry, p.pts, p.vs, p.vn) || (ph && slNear(ph[0], ph[1], rs * 1.1, p.rx, p.ry, p.pts, p.vs, p.vn))) p.calmUntil = now + 200; }
+      const calm = p.calmUntil > now, nm = p.name || '친구', pa = p.ma != null ? p.ma : p.ra;
+      if (this.invul <= 0 && !calm) {
         const immune = this.isSuper && id === lead, body = (x, y) => !immune && slNear(x, y, rs * 0.98, p.rx, p.ry, p.pts, p.vs, p.vn);
-        if (d2 < rs * rs * 0.96) { if (!p.hz) { p.hz = 1; const tc = this.headsMeet(p, rs, D, now); if (tc >= 0) { this.headOn(id, p, tc); if (this.isDead) return; continue; } } }
-        else { p.hz = 0; if (body(this.x, this.y)) { this.die((p.name || '친구') + ' 몸에 닿았어요', id, 'body'); return; } }
+        if (d2 < rs * rs * 0.96) {
+          const k = SlitherGame.headKind(dx, dy, this.angle, pa);
+          if (k === 'meet') { if (!p.hz) { p.hz = 1; const tc = this.headsMeet(p, rs, D, now); if (tc >= 0) { this.headOn(id, p, tc); if (this.isDead) return; continue; } p.waitUntil = now + D + 100; } }   // 아직 모름 → D ms 동안은 ②(같은 순간)로만 판정
+          else if (k === 'me' && !immune) { this.die(nm + ' 몸에 닿았어요', id, 'body'); return; }
+        } else { p.hz = 0; if (!(p.waitUntil > now) && body(this.x, this.y)) { this.die(nm + ' 몸에 닿았어요', id, 'body'); return; } }   // (머리끼리 마주친 직후 내 화면에서 상대 목에 닿는 것은 ②가 가림)
         const ph = this.pastHead(now - D);
         if (ph) { const ex = p.rx - ph[0], ey = p.ry - ph[1];
-          if (ex * ex + ey * ey < rs * rs * 0.96) { this.headOn(id, p, now - D); if (this.isDead) return; continue; }
-          if (body(ph[0], ph[1])) { this.rewind(ph); this.die((p.name || '친구') + ' 몸에 닿았어요', id, 'body'); return; } }
+          if (ex * ex + ey * ey < rs * rs * 0.96) { const k = SlitherGame.headKind(ex, ey, ph[3], pa);
+            if (k === 'meet') { this.headOn(id, p, now - D); if (this.isDead) return; continue; }
+            if (k === 'me' && !immune) { this.rewind(ph); this.die(nm + ' 몸에 닿았어요', id, 'body'); return; } }
+          else if (body(ph[0], ph[1])) { this.rewind(ph); this.die(nm + ' 몸에 닿았어요', id, 'body'); return; } }
       }
-      if (p.inv || now - p.seen > 500 || p.late > 300 || d2 < rs * rs || (p.sup && lead === this.myId)) continue;
+      if (calm || p.waitUntil > now || this.resolved[id + ':' + p.life + ':' + this.life] || p.inv || now - p.seen > 500 || p.late > 300 || d2 < rs * rs || (p.sup && lead === this.myId)) continue;   // 머리끼리 중이던 상대는 'ko' 안 함
       const key = id + ':' + p.life; if (this.koSent[key]) continue;
-      const t = this.trail, n = Math.min(t.length, Math.ceil(this.len / SL_SEG) + 1), old = this.lagMs(p, now) + 60; let i0 = 0;
+      const t = this.trail, n = Math.min(t.length, Math.ceil(this.len / SL_SEG) + 1), old = D + 60; let i0 = 0;
       while (i0 < 63 && i0 < n - 1 && now - this.tAt[(this.seq - i0) & 63] < old) i0++;   // 상대가 그려진 순간에 아직 없던 목 부분은 뺌
       if (n - i0 > 1 && slNear(p.rx, p.ry, rs * 0.75, t[i0][0], t[i0][1], t, i0 + 1, n - i0 - 1)) {
         this.koSent[key] = now; p.koAt = now; this.send('ko', id, { life: p.life }); }
     }
   }
-  // 머리끼리: 결과를 정해 상대에게도 같은 결과를 보냄
+  // 상대 몸(그려진 머리부터)에서 (x,y) 에 가장 가까운 점 — 같은 길이로 튕길 때 그 반대쪽으로
+  nearestOn(p, x, y) {
+    let bx = p.rx, by = p.ry, bd = (x - bx) ** 2 + (y - by) ** 2, px = p.rx, py = p.ry; const end = Math.min(p.pts.length, p.vs + p.vn);
+    for (let i = p.vs; i < end; i++) { const qx = p.pts[i][0], qy = p.pts[i][1], vx = qx - px, vy = qy - py, vv = vx * vx + vy * vy;
+      let t = vv > 1e-9 ? ((x - px) * vx + (y - py) * vy) / vv : 0; t = t < 0 ? 0 : t > 1 ? 1 : t;
+      const cx = px + vx * t, cy = py + vy * t, d = (x - cx) ** 2 + (y - cy) ** 2; if (d < bd) { bd = d; bx = cx; by = cy; } px = qx; py = qy; }
+    return [bx, by];
+  }
+  // 같은 두 목숨 사이 머리끼리는 한 번만 — 같은 길이로 튕긴 뒤(0.9초 지나면)는 다시 만날 수 있음
+  clashDone(m, key) { const r = m[key]; return !!r && !(this.tieKeys[key] && this.now - r > 900); }
+  // 머리끼리 만남(tc: 만난 순간 · 내 시계): 정하는 쪽(id 가 앞선 쪽)이면 결과를 정해 알리고, 아니면 정하는 쪽에 물어봄
   headOn(id, p, tc) {
-    const key = id + ':' + p.life + ':' + this.life; if (this.resolved[key]) return; this.resolved[key] = this.now;
-    const lead = this.leader, a = Math.round(this.len), b = Math.round(p.len), nm = p.name || '친구';
-    let res;
-    if (this.isSuper && id === lead) res = 'crown';                                    // 슈퍼가 1등 머리를 먹음
-    else if (p.sup && lead === this.myId) res = 'crowned';                             // 내가 1등인데 슈퍼에게 먹힘
-    else res = a >= b * 1.2 ? 'eat' : b >= a * 1.2 ? 'eaten' : 'both';
-    this.send('clash', id, { res, life: p.life, ml: this.life, len: a, pl: b, at: Math.round(this.srvNow() - (this.now - tc)) });   // at: 머리끼리 만난 순간(서버 시계)
-    if (res === 'eaten' || res === 'both' || res === 'crowned') this.rewindTo(tc, p);
-    if (res === 'eat') { this.gain(id, p.life, Math.round(b / 2), nm, p); p.hideUntil = this.now + 1500; }   // 신호가 오기 전까지 내 화면에서 미리 치움
-    else if (res === 'eaten') this.die('머리끼리 부딪혀 ' + nm + '에게 먹혔어요', id, 'eat');
-    else if (res === 'both') { this.die(slJosa(nm, '과', '와') + ' 머리끼리 부딪혔어요', id, 'head'); p.hideUntil = this.now + 1500; }
-    else if (res === 'crown') { this.takeCrown(id, p.life, b, nm, p); p.hideUntil = this.now + 1500; }
-    else if (res === 'crowned') { this.die('슈퍼 지렁이 ' + nm + '에게 1등을 빼앗겼다', id, 'crown'); this.say('1등을 빼앗겼어요', '슈퍼 지렁이 ' + slJosa(nm, '이', '가') + ' 내 머리를 먹었어요', '#FF5C7A', 2600); }
+    const key = id + ':' + p.life + ':' + this.life; if (this.clashDone(this.resolved, key)) return; this.resolved[key] = this.now;
+    const at = Math.round(this.srvNow() - (this.now - tc));                          // at: 머리끼리 만난 순간(서버 시계)
+    if (this.myId < id) this.decide(id, p.life, Math.round(this.len), Math.round(p.len), p.sup, at);
+    else { this.send('clash', id, { res: 'ask', life: p.life, ml: this.life, len: Math.round(this.len), sup: this.isSuper ? 1 : 0, at }); p.calmUntil = this.now + 1000; }   // 답이 올 때까지(최대 1초) 이 뱀과는 판정 쉼
+  }
+  // 결과 정하기 (a: 내 길이 · b: 상대 길이, 같은 순간 값) — 조금이라도 긴 쪽이 먹음 · 같으면 튕김 · 슈퍼가 1등 머리를 먹으면 크기와 상관없이 슈퍼 승
+  decide(id, life, a, b, pSup, at) {
+    const lead = this.leader;
+    const res = this.isSuper && id === lead ? 'crown' : (pSup && lead === this.myId ? 'crowned' : (a > b ? 'eat' : a < b ? 'eaten' : 'tie'));
+    this.send('clash', id, { res, life, ml: this.life, len: a, pl: b, at });
+    this.clashResult(res, id, life, b, at);
+  }
+  // 결과 반영 (res: 내 쪽에서 본 결과 · n: 상대 길이) — 먹은 쪽은 먹힌 뱀의 길이만큼 커짐 (2000 넘으면 2000 에서 경기 끝: tick)
+  clashResult(res, id, life, n, at) {
+    const now = this.now, q = this.peers[id], p = q && q.life === life ? q : null, nm = (p && p.name) || this.nameOf(id), key = id + ':' + life + ':' + this.life;
+    if (this.clashDone(this.applied, key) || this.isDead) return; this.applied[key] = now; this.resolved[key] = now;
+    if (res === 'tie') { this.tieKeys[key] = now; if (p) { const q2 = this.nearestOn(p, this.x, this.y); this.angle = Math.atan2(this.y - q2[1], this.x - q2[0]); p.calmUntil = now + 900; p.tieUntil = now + 3000; p.hz = 0; } this.toast(slJosa(nm, '과', '와') + ' 길이가 같아 튕겨 나왔어요', '#4CC9F0'); return; }
+    if (res === 'eat' || res === 'crown') { if (res === 'eat') this.gain(id, life, n, nm, p); else this.takeCrown(id, life, n, nm, p); if (p) p.hideUntil = now + 1500; return; }   // 신호가 오기 전까지 내 화면에서 미리 치움
+    if (at > 0) this.rewindTo(now - (this.srvNow() - at), p);                         // 머리끼리 만난 순간 자리에서 쓰러짐
+    if (res === 'eaten') this.die('머리끼리 부딪혀 ' + nm + '에게 먹혔어요', id, 'eat');
+    else { this.die('슈퍼 지렁이 ' + nm + '에게 1등을 빼앗겼다', id, 'crown'); this.say('1등을 빼앗겼어요', '슈퍼 지렁이 ' + slJosa(nm, '이', '가') + ' 내 머리를 먹었어요', '#FF5C7A', 2600); }
   }
   // 1초마다: 겹친 겉모습 바꾸기 · 오래된 기록 지우기
   housekeep(now) {
     const used = {}; let clash = false;
     for (const id in this.peers) { const p = this.peers[id]; if (now - p.seen > 6000) continue; used[p.skin] = 1; if (p.skin === this.skin && id < this.myId) clash = true; }
     if (clash) { for (let k = 0; k < SL_SKINS.length; k++) if (!used[k]) { this.skin = k; break; } }
-    for (const m of [this.resolved, this.koSent, this.noted]) for (const k in m) if (now - m[k] > 20000) delete m[k];
+    for (const m of [this.resolved, this.koSent, this.noted, this.applied, this.tieKeys]) for (const k in m) if (now - m[k] > 20000) delete m[k];
+    for (const id in this.peers) { const p = this.peers[id]; if ((p.gone && now - p.seen > 10000) || now - p.seen > 60000) delete this.peers[id]; }   // 끊긴 뒤 오래 안 옴 → 정리
     if (this.labels.size > 300) this.labels.clear();
   }
 
@@ -526,9 +571,9 @@ class SlitherGame {
     // 뱀들 (작은 순서로 그려 큰 뱀이 위에) — 화면 근처만
     const lead = this.leader, list = [], hw = W / 2 / sc, hh = H / 2 / sc;
     for (const id in this.peers) { const p = this.peers[id];
-      if ((p.dead && !p.dying) || !p.pts.length || p.hideUntil > now || now - p.seen > 6000) continue;
+      if ((p.dead && !p.dying) || !p.pts.length || p.hideUntil > now || now - p.seen > (p.gone ? 4000 : 6000)) continue;
       const reach = p.len + 3; if (Math.abs(p.rx - camX) > hw + reach || Math.abs(p.ry - camY) > hh + reach) continue;
-      list.push({ x: p.rx, y: p.ry, pts: p.pts, vs: p.vs, vn: p.vn, d0: p.d0, len: p.len, skin: p.sup ? SL_SUPER_SKIN : SL_SKINS[p.skin || 0], ang: p.ra, name: p.name, boost: p.boost, me: false, inv: p.inv, sup: p.sup, lead: id === lead, alpha: p.dying ? 0.45 : 1 }); }
+      list.push({ x: p.rx, y: p.ry, pts: p.pts, vs: p.vs, vn: p.vn, d0: p.d0, len: p.len, skin: p.sup ? SL_SUPER_SKIN : SL_SKINS[p.skin || 0], ang: p.ra, name: p.name, boost: p.boost, me: false, inv: p.inv, sup: p.sup, lead: id === lead, alpha: p.dying ? 0.45 : (now - p.seen > 1200 ? 0.6 : 1) }); }   // 신호가 1.2초 넘게 안 옴(끊김) → 흐리게 (사라지지 않고 기다림)
     if (!this.isDead) { const t = this.trail;
       list.push({ x: this.x, y: this.y, pts: t, vs: 0, vn: Math.min(t.length, Math.ceil(this.len / SL_SEG) + 1), d0: Math.hypot(t[0][0] - this.x, t[0][1] - this.y), len: this.len, skin: this.isSuper ? SL_SUPER_SKIN : SL_SKINS[this.skin], ang: this.angle, name: this.myName, boost: this.boost && this.len > 8, me: true, inv: this.invul > 0, sup: this.isSuper, lead: lead === this.myId, alpha: 1 }); }
     list.sort((a, b) => a.len - b.len);
@@ -560,6 +605,25 @@ class SlitherGame {
     g.lineWidth = 3; g.strokeStyle = 'rgba(0,0,0,0.6)'; g.strokeText(text, w / 2, h / 2); g.fillStyle = color; g.fillText(text, w / 2, h / 2);
     s = { cv, w, h }; this.labels.set(key, s); return s;
   }
+  // 점 무늬: 몸을 따라 r×2.1 간격으로 점 그림을 찍음 (머리에서 재는 위치는 예전 점선과 같음 — 움직이면 점도 함께 흐름)
+  //   예전: 길이 0 점선 + 둥근 끝 → 점마다 곡선 도형을 만들어 칠함 — 긴 뱀 8마리 장면에서 칠하기 시간의 약 1/4 (bench8 CPU 4배 느리게: 프레임 126 → 92ms)
+  drawDots(ctx, vx, vy, vn, r, dOff, col, dpr, W, H) {
+    if (vn < 2) return;
+    const P = r * 2.1, rd = r * 0.4, spr = this.dotSprite(col, rd, dpr), S = spr.size;
+    let need = ((r - dOff) % P + P) % P;                         // 첫 점까지 남은 거리 (점선 시작 위치 dOff - r 과 같게)
+    for (let i = 1; i < vn; i++) { const ax = vx[i - 1], ay = vy[i - 1], ex = vx[i] - ax, ey = vy[i] - ay, L = Math.sqrt(ex * ex + ey * ey);
+      if (L < 1e-6) continue; let d = need;
+      if ((ax < -S && vx[i] < -S) || (ay < -S && vy[i] < -S) || (ax > W + S && vx[i] > W + S) || (ay > H + S && vy[i] > H + S)) d += Math.max(0, Math.ceil((L - d) / P)) * P;   // 화면 밖 구간은 건너뜀
+      while (d <= L) { const t = d / L; ctx.drawImage(spr.cv, ax + ex * t - S / 2, ay + ey * t - S / 2, S, S); d += P; }
+      need = d - L; }
+  }
+  dotSprite(col, rd, dpr) {
+    const key = col + '|' + Math.round(rd * 4) + '|' + dpr; let s = this.dotSpr.get(key); if (s) return s;
+    if (this.dotSpr.size > 80) this.dotSpr.clear();
+    const R = Math.round(rd * 4) / 4, S = Math.max(2, Math.ceil((R * 2 + 2) * dpr)), cv = document.createElement('canvas'); cv.width = S; cv.height = S;
+    const g = cv.getContext('2d'); g.fillStyle = col; g.beginPath(); g.arc(S / 2, S / 2, R * dpr, 0, Math.PI * 2); g.fill();
+    s = { cv, size: S / dpr }; this.dotSpr.set(key, s); return s;
+  }
   drawSnake(ctx, sn, sc, ox, oy, W, H, now, dpr, q, tags) {
     const sk = sn.skin, r = SlitherGame.radiusOf(sn.len) * sc, pts = sn.pts, vs = sn.vs, ve = vs + sn.vn, m = r * 1.6 + 6;
     const hx = sn.x * sc + ox, hy = sn.y * sc + oy;
@@ -572,25 +636,29 @@ class SlitherGame {
     const path = new Path2D();
     let kx, ky; if (first < vs) { kx = sn.x; ky = sn.y; } else { kx = pts[first][0]; ky = pts[first][1]; }
     path.moveTo(kx * sc + ox, ky * sc + oy);
+    const dots = sk.pat === 0, vx = this._vx || (this._vx = []), vy = this._vy || (this._vy = []); let vn = 0;   // 점 무늬: 남긴 꼭짓점(화면 좌표)을 모아 둠
+    if (dots) { vx[0] = kx * sc + ox; vy[0] = ky * sc + oy; vn = 1; }
     let dxk = 0, dyk = 0, px = kx, py = ky;                   // 마지막으로 남긴 점에서 나가는 방향
     for (let i = Math.max(vs, first + 1); i <= last; i++) {
       const x = pts[i][0], y = pts[i][1];
       if (dxk === 0 && dyk === 0) { dxk = x - kx; dyk = y - ky; const l = Math.hypot(dxk, dyk) || 1; dxk /= l; dyk /= l; px = x; py = y; continue; }
       const ex = x - kx, ey = y - ky, dev = ex * dyk - ey * dxk;   // 방향선에서 벗어난 거리
-      if (dev * dev > tol2) { path.lineTo(px * sc + ox, py * sc + oy); kx = px; ky = py; dxk = x - kx; dyk = y - ky; const l = Math.hypot(dxk, dyk) || 1; dxk /= l; dyk /= l; }
+      if (dev * dev > tol2) { path.lineTo(px * sc + ox, py * sc + oy); if (dots) { vx[vn] = px * sc + ox; vy[vn++] = py * sc + oy; } kx = px; ky = py; dxk = x - kx; dyk = y - ky; const l = Math.hypot(dxk, dyk) || 1; dxk /= l; dyk /= l; }
       px = x; py = y;
     }
-    if (last >= vs && last > first) path.lineTo(px * sc + ox, py * sc + oy);
+    if (last >= vs && last > first) { path.lineTo(px * sc + ox, py * sc + oy); if (dots) { vx[vn] = px * sc + ox; vy[vn++] = py * sc + oy; } }
     const dOff = first < vs ? 0 : (sn.d0 + (first - vs) * SL_SEG) * sc;     // 무늬가 머리에서 시작하도록
     const bw = Math.max(1.2, r * 0.17), inner = r * 2 - bw * 2;
     ctx.lineJoin = 'round'; ctx.lineCap = 'round';
     if (sn.alpha < 1) ctx.globalAlpha = sn.alpha;
     if (sn.sup) { ctx.strokeStyle = sk.glow; ctx.lineWidth = r * (3 + 0.5 * Math.sin(now / 140)); ctx.stroke(path); }        // 슈퍼: 금빛 광채
-    else if (sn.boost && (q > 0 || sn.me)) { ctx.strokeStyle = sk.glow; ctx.lineWidth = r * 2.9; ctx.stroke(path); }                          // 부스트 광채
+    else if (sn.boost && (q > 0 || sn.me)) {                                                                                              // 부스트 광채: 머리 쪽 60칸만 (예전: 몸 전체 — 길이 2000이면 가장 넓은 층을 화면 가득 한 번 더 칠함)
+      const gp = new Path2D(), ge = Math.min(ve, vs + 134); gp.moveTo(hx, hy); for (let i = vs; i < ge; i++) gp.lineTo(pts[i][0] * sc + ox, pts[i][1] * sc + oy);
+      ctx.strokeStyle = sk.glow; ctx.lineWidth = r * 2.9; ctx.stroke(gp); }
     ctx.strokeStyle = sk.edge; ctx.lineWidth = r * 2; ctx.stroke(path);                                                    // 테두리 (바깥 = 판정 반지름)
     ctx.strokeStyle = sk.c; ctx.lineWidth = inner; ctx.stroke(path);                                                       // 본색
     // 무늬
-    if (sk.pat === 0) { ctx.setLineDash([0.01, r * 2.1]); ctx.lineDashOffset = dOff - r; ctx.strokeStyle = sk.c2; ctx.lineWidth = r * 0.8; ctx.stroke(path); }
+    if (dots) this.drawDots(ctx, vx, vy, vn, r, dOff, sk.c2, dpr, W, H);
     else if (sk.pat === 1 || sk.pat === 2) { ctx.lineCap = 'butt'; ctx.setLineDash(sk.pat === 1 ? [r * 0.75, r * 1.3] : [r * 1.25, r * 1.45]); ctx.lineDashOffset = dOff - r * 1.6; ctx.strokeStyle = sk.c2; ctx.lineWidth = inner; ctx.stroke(path); }
     else if (sk.pat === 3) { ctx.strokeStyle = sk.c2; ctx.lineWidth = r * 0.5; ctx.stroke(path); }
     else { ctx.lineCap = 'butt'; ctx.setLineDash([r * 0.7, r * 2.2]); ctx.lineDashOffset = dOff - now * 0.06; ctx.strokeStyle = sk.c2; ctx.lineWidth = inner * 0.8; ctx.stroke(path); }   // 슈퍼: 반짝이 띠가 흐름

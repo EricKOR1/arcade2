@@ -176,6 +176,7 @@ class KartGame3D extends KartGame {
   hitByMissile(byId, kind) { const blocked = this.finished || this.guarded(); const r = super.hitByMissile(byId, kind); if (!blocked) { this.fxExplode(this.karts.__me && this.karts.__me.g.position, kind === 'turtle' ? 0x06D6A0 : 0xFF7A1A); this.shake3d = 0.5; } return r; }   // 방어막으로 막으면 폭발 없음
   hitByBolt(byId) { const r = super.hitByBolt(byId); this.fxLightning(this.karts.__me && this.karts.__me.g.position); this.flash = 0.8; return r; }
   hitByMagnet(byId) { const r = super.hitByMagnet(byId); const kg = this.kartObj(byId); if (kg && this.karts.__me) this.fxBeam(kg, this.karts.__me.g, 1200); return r; }
+  teleportTo(s, byId) { const r = super.teleportTo(s, byId); this._camYaw = null; try { if (this.karts.__me) { this.placeKart('__me', this.x, this.y, this.angle, 0, this.look, true, {}, this.segIdx); this.fxSwirl(this.karts.__me.g); } } catch (e) {} return r; }   // 자리를 빼앗긴 쪽도 소용돌이
   explode(x, y) { const r = super.explode(x, y); const loc = this.elevAtXY(x, y, this.segIdx), p = this.P(x, y, loc.e); p.y += 1; this.fxExplode(p, 0xFF5C2A, 1.6); this.shake3d = Math.max(this.shake3d, 0.3); return r; }
 
   // 2D 세계 → 3D
@@ -211,7 +212,7 @@ class KartGame3D extends KartGame {
     const b = tr.bounds, cx = (b.minX + b.maxX) / 2, cy = (b.minY + b.maxY) / 2, span = Math.max(b.maxX - b.minX, b.maxY - b.minY) * this.S * 2.2 + 600;
     const ground = new T.Mesh(new T.PlaneGeometry(span, span), new T.MeshLambertMaterial({ color: this.lighten(d.grass || '#1E3427', night ? 0.08 : 0.32), side: T.DoubleSide }));
     ground.rotation.x = -Math.PI / 2; ground.position.set(cx * this.S, this.groundY, cy * this.S); this.scene.add(ground); this.ground = ground;
-    this.buildRoad(); this.buildRails(); this.buildDeco(); this.buildArches(); this.buildTrackItems();
+    this.buildRoad(); this.buildShortcuts3D(); this.buildRails(); this.buildDeco(); this.buildArches(); this.buildTrackItems();
     { const before = this.scene.children.length; this.buildFar(cx, cy, span); this.scene.children.slice(before).forEach(o => { o.userData.far = true; }); }
     this.karts = {}; this.hazMeshes = {}; this._camYaw = null;
     this.partMesh = new T.InstancedMesh(new T.BoxGeometry(0.25, 0.25, 0.25), new T.MeshBasicMaterial({ color: 0xffffff }), 160); this.partMesh.count = 0; this.scene.add(this.partMesh);
@@ -249,9 +250,58 @@ class KartGame3D extends KartGame {
       this.scene.add(new T.Mesh(g, new T.MeshLambertMaterial({ color: this.night ? 0x3A3F55 : 0x9C8A6A, side: T.DoubleSide }))); };
     skirt(1.07); skirt(-1.07);
   }
+  // ── 지름길: 흙길 + 노란·검정 연석 + 옆벽(땅까지) + 입구 아치 '지름길' · 길 위 화살표 ──
+  //   본선 도로보다 살짝 낮게 깔아 입구(본선과 겹치는 곳)는 본선 도로가 덮음
+  buildShortcuts3D() {
+    const T = THREE, tr = this.track, S = this.S; if (!tr.shortcuts.length) return;
+    const dc = document.createElement('canvas'); dc.width = 64; dc.height = 128; const dg = dc.getContext('2d');
+    dg.fillStyle = '#8A6A4A'; dg.fillRect(0, 0, 64, 128);
+    for (let i = 0; i < 700; i++) { dg.fillStyle = Math.random() < 0.5 ? 'rgba(60,40,20,0.22)' : 'rgba(255,230,190,0.12)'; dg.fillRect(Math.random() * 64, Math.random() * 128, 2, 2); }
+    dg.fillStyle = 'rgba(255,240,200,0.7)'; dg.beginPath(); dg.moveTo(32, 20); dg.lineTo(50, 44); dg.lineTo(42, 44); dg.lineTo(32, 32); dg.lineTo(22, 44); dg.lineTo(14, 44); dg.closePath(); dg.fill();   // 진행 방향 화살표 (v 가 앞으로 커짐)
+    const dt = new T.CanvasTexture(dc); dt.wrapS = dt.wrapT = T.RepeatWrapping;
+    const kc = document.createElement('canvas'); kc.width = 8; kc.height = 32; const kg = kc.getContext('2d'); kg.fillStyle = '#FFD166'; kg.fillRect(0, 0, 8, 16); kg.fillStyle = '#23262E'; kg.fillRect(0, 16, 8, 16);
+    const kt = new T.CanvasTexture(kc); kt.wrapS = kt.wrapT = T.RepeatWrapping;
+    const dm = new T.MeshLambertMaterial({ map: dt, side: T.DoubleSide, polygonOffset: true, polygonOffsetFactor: 3, polygonOffsetUnits: 6 }),   // (본선과 겹치는 입구에서 본선 도로가 늘 위에 보이게 — 깊이 정밀도가 낮은 기기에서 얼룩지지 않게)
+           km = new T.MeshLambertMaterial({ map: kt, side: T.DoubleSide }), wm = new T.MeshLambertMaterial({ color: this.night ? 0x3A3F55 : 0x7A6248, side: T.DoubleSide });
+    tr.shortcuts.forEach(s => {
+      const P = s.pts, m = P.length;
+      // 연석은 본선 도로 밖에 있는 곳만 (입구·출구에서 본선 도로 위로 튀어나오지 않게)
+      const outM = side => Array.from(P, (p, k) => { const mo = (s.wr[k] - s.wl[k]) / 2, w = (s.wr[k] + s.wl[k]) / 2, o = mo + w * 1.08 * side, x = p[0] - s.tan[k][1] * o, y = p[1] + s.tan[k][0] * o;
+        return tr.nearestIndex(x, y, (Math.round(s.idx[k]) % tr.n + tr.n) % tr.n).dist > tr.halfW * 1.03; });
+      const okR = outM(1), okL = outM(-1);
+      const strip = (a, b, yA, yB, vLen, mat, ok) => { const pos = [], uv = [], idx = []; let v = 0;
+        for (let k = 0; k < m; k++) { const [tx, ty] = s.tan[k], nx = -ty, ny = tx, e = s.e[k] * S; if (k) v += Math.hypot(P[k][0] - P[k - 1][0], P[k][1] - P[k - 1][1]) * S / vLen;
+          const mo = (s.wr[k] - s.wl[k]) / 2, w = (s.wr[k] + s.wl[k]) / 2;   // (갈림목은 본선 쪽으로 넓게: 가운데를 옮기고 폭을 늘림)
+          pos.push((P[k][0] + nx * (mo + w * a)) * S, e + yA, (P[k][1] + ny * (mo + w * a)) * S, (P[k][0] + nx * (mo + w * b)) * S, e + yB, (P[k][1] + ny * (mo + w * b)) * S); uv.push(0, v, 1, v);
+          if (k < m - 1 && (!ok || (ok[k] && ok[k + 1]))) { const q = k * 2; idx.push(q, q + 2, q + 1, q + 1, q + 2, q + 3); } }
+        const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new T.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
+        const mesh = new T.Mesh(g, mat); mesh.receiveShadow = true; this.scene.add(mesh); return mesh; };
+      strip(1, -1, -0.06, -0.06, s.hw * 2 * S, dm);
+      strip(1.16, 1, 0.06, -0.06, 3, km, okR); strip(-1, -1.16, -0.06, 0.06, 3, km, okL);
+      // 옆벽: 길 가장자리에서 땅까지 (떠 보이지 않게)
+      [1.16, -1.16].forEach(off => { const pos = [], idx = [];
+        for (let k = 0; k < m; k++) { const [tx, ty] = s.tan[k], mo = (s.wr[k] - s.wl[k]) / 2, w = (s.wr[k] + s.wl[k]) / 2, x = (P[k][0] - ty * (mo + w * off)) * S, z = (P[k][1] + tx * (mo + w * off)) * S; pos.push(x, s.e[k] * S - 0.04, z, x, this.groundY, z);
+          if (k < m - 1) { const q = k * 2; idx.push(q, q + 2, q + 1, q + 1, q + 2, q + 3); } }
+        const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals(); this.scene.add(new T.Mesh(g, wm)); });
+      // 입구 아치: 본선에서 갈라진 직후 (멀리서도 보이게 노란 현수막)
+      let k = s.k0; while (k < s.k1 && tr.nearestIndex(P[k][0], P[k][1], (Math.round(s.idx[k]) % tr.n + tr.n) % tr.n).dist < tr.halfW + s.hw * 1.4) k++;   // 기둥이 본선 도로에 서지 않게: 본선과 충분히 떨어진 첫 자리
+      const c = P[k], [tx, ty] = s.tan[k], w = s.hw * 2.3 * S, g = new T.Group(), post = new T.MeshLambertMaterial({ color: 0x23262E });
+      [-1, 1].forEach(sd => { const p = new T.Mesh(new T.BoxGeometry(0.6, 7, 0.6), post); p.position.set(sd * w / 2, 3.5, 0); g.add(p); });
+      const bc = document.createElement('canvas'); bc.width = 256; bc.height = 48; const b = bc.getContext('2d'); b.fillStyle = '#FFD166'; b.fillRect(0, 0, 256, 48); b.fillStyle = '#23262E'; b.font = '900 30px Pretendard, sans-serif'; b.textAlign = 'center'; b.fillText('지름길 ▲', 128, 35);
+      const banner = new T.Mesh(new T.BoxGeometry(w, 1.8, 0.4), new T.MeshLambertMaterial({ map: new T.CanvasTexture(bc) })); banner.position.y = 7; g.add(banner);
+      g.position.copy(this.P(c[0], c[1], s.e[k])); g.rotation.y = -Math.atan2(ty, tx) + Math.PI / 2; this.scene.add(g);
+      // 본선 쪽 안내 표지판: 갈림길 조금 앞, 지름길이 갈라지는 쪽 길가
+      const ai = (s.A - Math.round(900 / tr.stepLen) + tr.n) % tr.n, ac = tr.center[ai], [ax, ay] = tr.tangent[ai], side = s.side, sg = new T.Group();
+      const sc2 = document.createElement('canvas'); sc2.width = 256; sc2.height = 96; const sx = sc2.getContext('2d'); sx.fillStyle = '#23262E'; sx.fillRect(0, 0, 256, 96); sx.fillStyle = '#FFD166'; sx.font = '900 34px Pretendard, sans-serif'; sx.textAlign = 'center';
+      sx.fillText(side > 0 ? '지름길 ➜' : '⬅ 지름길', 128, 44); sx.font = '700 20px Pretendard, sans-serif'; sx.fillStyle = '#9BD3FF'; sx.fillText('좁음 · 물웅덩이 주의', 128, 78);
+      const board = new T.Mesh(new T.BoxGeometry(6, 2.25, 0.3), new T.MeshLambertMaterial({ map: new T.CanvasTexture(sc2) })); board.position.y = 3.2; sg.add(board);
+      const pole = new T.Mesh(new T.BoxGeometry(0.3, 3.2, 0.3), post); pole.position.y = 1.6; sg.add(pole);
+      sg.position.copy(this.P(ac[0] - ay * tr.halfW * 1.2 * side, ac[1] + ax * tr.halfW * 1.2 * side, tr.elev[ai])); sg.rotation.y = -Math.atan2(ay, ax) - Math.PI / 2; this.scene.add(sg);
+    });
+  }
   // ── 가드레일: 2D 판의 레일 조각 목록을 그대로 (인스턴스 한 번) ──
   buildRails() {
-    const T = THREE, rails = this.track.scenery.filter(o => o.kind === 'rail' && !this.track.gapSeg[o.i]);
+    const T = THREE, rails = this.track.scenery.filter(o => o.kind === 'rail' && (o.sc || !this.track.gapSeg[o.i]));
     const mesh = new T.InstancedMesh(new T.BoxGeometry(1, 0.55, 0.18), new T.MeshLambertMaterial({ color: this.night ? 0x8A93B8 : 0xE9ECF2 }), rails.length);
     const m = new T.Matrix4(), q = new T.Quaternion(), sc = new T.Vector3(), up = new T.Vector3(0, 1, 0);
     rails.forEach((o, k) => { const a = this.P(o.x, o.y, o.e), b = this.P(o.x2, o.y2, o.e2), mid = a.clone().add(b).multiplyScalar(0.5); mid.y += 0.55;
@@ -330,9 +380,9 @@ class KartGame3D extends KartGame {
     tr.boostPads.forEach(bp => { const m = new T.Mesh(new T.PlaneGeometry(tr.halfW * 0.3 * this.S, tr.halfW * 0.4 * this.S), new T.MeshBasicMaterial({ map: aTex, transparent: true }));
       m.rotation.x = -Math.PI / 2; m.rotation.z = Math.atan2(-Math.cos(bp.angle), -Math.sin(bp.angle)); m.position.copy(this.P(bp.x, bp.y, tr.elev[bp.i])); m.position.y += 0.08; this.scene.add(m); this.pads.push(m); });
     // 장애물 (2D 판과 같은 자리 · 맞으면 잠시 사라짐)
-    const OBS = { cone: [new T.ConeGeometry(0.55, 1.4, 10), 0xFF7A1A, 0.7], barrel: [new T.CylinderGeometry(0.7, 0.7, 1.5, 12), 0x4CC9F0, 0.75], rock: [new T.DodecahedronGeometry(1.2, 0), 0x8A8F98, 0.8], puddle: [new T.CircleGeometry(1.8, 16), 0x3B82F6, 0.05] };
+    const OBS = { cone: [new T.ConeGeometry(0.55, 1.4, 10), 0xFF7A1A, 0.7], barrel: [new T.CylinderGeometry(0.7, 0.7, 1.5, 12), 0x4CC9F0, 0.75], rock: [new T.DodecahedronGeometry(1.2, 0), 0x8A8F98, 0.8], puddle: [new T.CircleGeometry(2.3, 20), 0x3B82F6, 0.07] };   // (물웅덩이: 밟는 판정 반지름(카트 0.9대)과 같은 크기)
     this.obsMeshes = tr.obstacles.map(o => { const spec = OBS[o.kind] || OBS.barrel; const m = new T.Mesh(spec[0], new T.MeshLambertMaterial(o.kind === 'puddle' ? { color: spec[1], transparent: true, opacity: 0.7 } : { color: spec[1] }));
-      if (o.kind === 'puddle') m.rotation.x = -Math.PI / 2; m.position.copy(this.P(o.x, o.y, tr.elev[o.i])); m.position.y += spec[2]; this.scene.add(m); return { o, m }; });
+      if (o.kind === 'puddle') m.rotation.x = -Math.PI / 2; m.position.copy(this.P(o.x, o.y, o.e0 != null ? o.e0 : tr.elev[o.i])); m.position.y += spec[2]; this.scene.add(m); return { o, m }; });
     // 드리프트 구간: 노면에 주황·흰 줄무늬 띠 + 코너 바깥쪽에 화살표 표지판(도는 방향)
     if (tr.driftZones && tr.driftZones.length) {
       const zc = document.createElement('canvas'); zc.width = 16; zc.height = 32; const zg = zc.getContext('2d'); zg.fillStyle = 'rgba(255,140,30,0.55)'; zg.fillRect(0, 0, 16, 16); zg.fillStyle = 'rgba(255,255,255,0.28)'; zg.fillRect(0, 16, 16, 16);
@@ -474,18 +524,20 @@ class KartGame3D extends KartGame {
     else { const m = new T.Mesh(new T.SphereGeometry(0.8, 10, 8), new T.MeshLambertMaterial({ color: 0xFFD166 })); m.position.y = 0.8; g.add(m); }
     return g;
   }
-  placeKart(id, x, y, a, air, look, isMe, opts) {
+  placeKart(id, x, y, a, air, look, isMe, opts, hint) {
     let k = this.karts[id];
     const lk = (look ? look.color + look.style : '') + '|' + (this.makeKartStyled && this.hq !== 'low' ? 0 : (this.assetsVer || 0));   // 운전자 카트는 Kenney 모델을 쓰지 않으므로 모델이 도착해도 다시 만들지 않음
     if (k && k.lk !== lk) { this.scene.remove(k.g); delete this.karts[id]; k = null; }          // 관전 학생이 바뀌면 카트 모양·색도 새로
     if (!k) k = this.karts[id] = { g: this.makeKart(look, isMe), hint: isMe ? this.segIdx : undefined, lk };
     k.g.visible = true;
-    const loc = this.elevAtXY(x, y, k.hint); k.hint = loc.i;
+    // 높이 찾기: 나는 물리의 구간 번호(segIdx), 친구는 진행도 근처에서 — 예전엔 지난 프레임 자리(k.hint) ±45구간만 찾아,
+    //   위치 교환으로 순간이동하면 엉뚱한 구간의 높이를 써서 카트가 도로 밑(또는 위)에 떠 있었음. 지름길 위면 지름길 높이
+    const loc = this.track.locate(x, y, hint != null ? hint : k.hint); k.hint = loc.i;
     // 높이는 구간 사이를 보간 (예전엔 가장 가까운 점 하나의 높이라 언덕에서 구간마다 계단처럼 툭툭 오르내렸고, 카메라도 같이 흔들렸음)
-    const ev = this.track.elevAtF(loc.i + this.track.fracAt(loc.i, x, y));
+    const ev = this.track.surfaceE(loc, x, y);
     // 점프 구간에서 떨어질 때도 땅 밑으로는 내려가지 않게 (카메라가 땅 밑으로 들어가 하늘만 보이던 문제)
     const S = this.S, px = x * S, pz = y * S, py = ev * S, lift = Math.max((air || 0) * S, this.groundY + 0.2 - py); k.g.position.set(px, py + lift, pz);
-    k.g.userData.shadow.position.y = 0.05 - lift; k.g.userData.shadow.visible = !this.track.gapSeg[loc.i];
+    k.g.userData.shadow.position.y = 0.05 - lift; k.g.userData.shadow.visible = !!loc.sc || !this.track.gapSeg[loc.i];
     const spin = opts && opts.spin ? (this.clock() / 70) : 0;
     k.g.rotation.set(0, Math.PI / 2 - a + spin, 0); k.g.userData.shield.visible = !!(opts && opts.shield); k.seen = true;
     if (k.g.userData.wheels) { const d = k.lastP ? Math.hypot(px - k.lastP.x, pz - k.lastP.z) : 0; if (!k.lastP) k.lastP = { x: 0, z: 0 }; k.lastP.x = px; k.lastP.z = pz; k.g.userData.wheels.forEach(w => { w.rotation.x += Math.min(1.2, d * 1.4); }); }
@@ -538,7 +590,7 @@ class KartGame3D extends KartGame {
       const d = Math.sqrt(pr._d2), k = this.karts[id];
       const o = po[id] || (po[id] = new T.Object3D()); o.position.set(pr.x * S, Math.max((pr.e || 0) * S, this.groundY + 0.2), pr.y * S);
       const lim = (k && k.g.visible) ? NEAR * 1.25 : NEAR;                      // 경계에서 모델이 깜박이지 않게
-      if (d < lim && nNear < nearN && !pr._back) { nNear++; this.placeKart(id, pr.x, pr.y, pr.angle, pr.z, pr.look, false, { spin: pr.spin, shield: pr.shield, boost: pr.boost }); continue; }
+      if (d < lim && nNear < nearN && !pr._back) { nNear++; this.placeKart(id, pr.x, pr.y, pr.angle, pr.z, pr.look, false, { spin: pr.spin, shield: pr.shield, boost: pr.boost }, ((Math.floor(pr.progress || 0) % this.track.n) + this.track.n) % this.track.n); continue; }
       if (k) { k.g.visible = false; k.seen = true; }                           // 자세한 모델은 숨겨 두었다가 다시 가까워지면 그대로 씀 (다시 만들지 않음)
       if (d > FAR || nFar >= 64) continue;                                     // (안개 끝까지 그림 — 예전엔 안개가 덜 낀 거리에서 갑자기 나타났음)
       q.setFromAxisAngle(up, Math.PI / 2 - pr.angle + (pr.spin ? now / 70 : 0)); m4.compose(o.position, q, one); fm.setMatrixAt(nFar, m4);
@@ -556,7 +608,7 @@ class KartGame3D extends KartGame {
     if (!this.spectator || this.opts.minDpr == null) { this.resStep(now); this.applyRes3D(); }   // 적응형 해상도 (그리기 바로 전에 바꾸므로 깜빡이지 않음)
     Object.keys(this.karts).forEach(id => { this.karts[id].seen = false; });
     // 나
-    this.placeKart('__me', this.x, this.y, this.angle, this.airZ, this.look, true, { spin: now < this.spinUntil || now < this.stunUntil, shield: now < this.shieldUntil, boost: now < this.boostUntil || now < this.starUntil, star: now < this.starUntil });
+    this.placeKart('__me', this.x, this.y, this.angle, this.airZ, this.look, true, { spin: now < this.spinUntil || now < this.stunUntil, shield: now < this.shieldUntil, boost: now < this.boostUntil || now < this.starUntil, star: now < this.starUntil }, this.segIdx);
     // 드리프트: 미끄러지는 동안 차체가 바깥으로 살짝 기울고, 그립을 되찾으면 바로 돌아옴
     { const meK = this.karts.__me, rt = this.spectator ? 0 : -Math.max(-0.09, Math.min(0.09, (this.slip || 0) * 0.25));
       this._roll = (this._roll || 0) + (rt - (this._roll || 0)) * this.smooth(0.3, this.lastF); if (meK) meK.g.rotation.z = this._roll; }
@@ -566,7 +618,7 @@ class KartGame3D extends KartGame {
     const tmp = this._tmp || (this._tmp = { m4: new T.Matrix4(), q: new T.Quaternion(), e: new T.Euler(), sc: new T.Vector3(), v: new T.Vector3(), v2: new T.Vector3() });   // 매 프레임 새 객체를 만들지 않음 (쓰레기 수거로 순간 멈칫하던 것)
     if (this.boxMesh) { const m4 = tmp.m4, q = tmp.q.setFromEuler(tmp.e.set(now / 1400, now / 900, 0)), sc = tmp.sc;
       tr.itemSpots.forEach((sp, k) => { const on = !(sp.takenUntil > now); sc.setScalar(on ? 1 : 0.001); m4.compose(this.boxBase[k], q, sc); this.boxMesh.setMatrixAt(k, m4); }); this.boxMesh.instanceMatrix.needsUpdate = true; }
-    this.obsMeshes.forEach(({ o, m }) => { m.visible = !(o.hitUntil > now); });
+    this.obsMeshes.forEach(({ o, m }) => { m.visible = o.kind === 'puddle' || !(o.hitUntil > now); });   // (물웅덩이는 밟아도 그대로)
     this.pads.forEach(p => { p.material.opacity = 0.75 + Math.sin(now / 150) * 0.2; });
     // 위험물 (다른 학생이 놓은 바나나·기름·폭탄 등)
     const seenH = {};
@@ -591,6 +643,7 @@ class KartGame3D extends KartGame {
     //   카트 바로 뒤 일정한 자리에 붙이고, 방향·높이·거리만 '시간 기준'으로 부드럽게 따라감
     //   (예전엔 카메라 위치를 매 프레임 15%씩 따라가게 해, 프레임 간격이 들쭉날쭉하거나 빠를수록 카트가 화면에서 앞뒤로 흔들렸음 — 고무줄처럼)
     const base = this.moveA != null && !this.spectator ? this.moveA : this.angle; let dca = this.angle - base; while (dca > Math.PI) dca -= Math.PI * 2; while (dca < -Math.PI) dca += Math.PI * 2;
+    if (now < this.slideUntil) dca = 0;                              // 물웅덩이에 빙글 도는 동안은 미끄러져 가는 방향만 따라감 (카메라가 같이 돌면 어지러움)
     const me = this.karts.__me.g.position, ca = base + dca * 0.35;   // 드리프트 중엔 미끄러져 가는 방향을 따라가 옆모습이 보임
     const cdt = Math.max(0, Math.min(100, now - (this._camT != null ? this._camT : now))) / 16.7; this._camT = now;   // 지난 그리기 뒤 흐른 시간 (60fps 한 프레임 = 1)
     if (this._camYaw == null) { this._camYaw = ca; this._camY = me.y; this._camBack = 8.4; }
