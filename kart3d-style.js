@@ -126,7 +126,7 @@
       [1.16, -1.16].forEach(off => { const pos = [], uv = [], idx = []; let dist = 0, q = 0, prev = null;
         for (let i = 0; i <= n; i++) { const j = i % n; const a = at(j, off, 0.25), b = at(j, off, 1.55);
           if (prev) dist += a.distanceTo(prev); prev = a; pos.push(a.x, a.y, a.z, b.x, b.y, b.z); const u = dist / 16; uv.push(u, 0, u, 1);
-          if (i < n && !(tr.gapSeg[j] || tr.gapSeg[(j + 1) % n]) && !(tr.driftZone && tr.driftZone[j])) { idx.push(q, q + 2, q + 1, q + 1, q + 2, q + 3); } q += 2; }
+          if (i < n && !(tr.gapSeg[j] || tr.gapSeg[(j + 1) % n]) && !(tr.driftZone && tr.driftZone[j]) && !(tr.scCut && (tr.scCut[j * 2 + (off > 0 ? 1 : 0)] || tr.scCut[((j + 1) % n) * 2 + (off > 0 ? 1 : 0)]))) { idx.push(q, q + 2, q + 1, q + 1, q + 2, q + 3); } q += 2; }   // (지름길 입구는 비움)
         const geo = new T.BufferGeometry(); geo.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); geo.setAttribute('uv', new T.Float32BufferAttribute(uv, 2)); geo.setIndex(idx); geo.computeVertexNormals();
         const m = new T.Mesh(geo, mat); m.receiveShadow = true; this.scene.add(m); }); }
 

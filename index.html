@@ -1369,7 +1369,8 @@
     // 늦게 들어온 학생·준비가 느렸던 기기의 시계가 늦게 출발해, 나중에 들어오고도 더 짧은 기록이 되어 먼저 들어온 학생을 밀어냈습니다.
     const ms = sessionStartAt ? Math.max(1, Math.round(serverNow() - sessionStartAt)) : ((game && game.raceMs) || 1);
     db.ref('finishes/' + playerId).set({ ms: ms, n: myNickname || '' });   // (예전엔 없는 변수 nickname 을 써서 완주 순간 오류 → 순위가 저장되지 않았습니다)
-    playerRef.update({ status: 'finished' });
+    if (game) game.finishMs = ms;                        // 완주 시간 = 순위를 정한 그 시간 (완주 카드 · 결과 화면 · 교사 화면이 같은 값)
+    playerRef.update({ status: 'finished', finishMs: ms });
     syncDue = true;                                      // 완주 표시가 실린 위치 신호를 다음 프레임에 바로 (교사 순위표·관전 · 다른 학생 결과판)
     // 결과 화면은 결승 뒤 잠깐(FINISH_CARD_MS) 게임 화면의 '완주! n위' 카드를 보여 준 다음에 — 예전엔 곧바로 결과 화면이 덮어 카드가 안 보였고,
     // 결과 화면이 위치 신호 타이머까지 꺼서 완주 신호가 대부분 나가지 못했음(교사 화면에 '완주' 가 안 뜸)

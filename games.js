@@ -230,7 +230,7 @@ const GAMES = {
     adminView: 'grid', fullBleed: true,
     needsPeers: true, realtime: true, hasNext: false,
     stats: [{ key: 'pct', label: '내 땅(%)' }, { key: 'kills', label: '자르기' }],
-    detail: function (g) { return '최고 ' + (Math.round(g.best / 3136 * 1000) / 10) + '% · 꼬리 자르기 ' + g.kills + '번'; },
+    detail: function (g) { return '최고 ' + (Math.round(g.best / ((g.N || 56) * (g.N || 56)) * 1000) / 10) + '% · 꼬리 자르기 ' + g.kills + '번'; },
     controls: [], padLayout: 'drag',   // 방향 버튼 대신 화면 전체를 밀기 — 게임판을 크게
     create: function (canvas, opts) { return new TerritoryGame(canvas, opts); },
     sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.best, pct: g.pct, kills: g.kills }; }
@@ -611,7 +611,8 @@ const GAMES = {
     adminView: 'shared',
     needsPeers: true, hasNext: false, hasTracks: true,
     detail: function (g) { const fmt = ms => { const s2 = ms / 1000; return Math.floor(s2 / 60) + ':' + (s2 % 60).toFixed(1).padStart(4, '0'); };
-      return (g.finishRank ? g.finishRank + '위로 완주' : Math.max(1, g.lap + 1) + '바퀴째') + (g.bestLap ? ' · 최고 랩 ' + fmt(g.bestLap) : ''); },
+      const fin = g.finished && (g.finishMs || g.raceMs) ? ' · 완주 시간 ' + (window.fmtRaceMs ? fmtRaceMs(g.finishMs || g.raceMs) : fmt(g.finishMs || g.raceMs)) : '';   // 완주 시간 (순위를 정한 시간)
+      return (g.finishRank ? g.finishRank + '위로 완주' : g.finished ? '완주' : Math.max(1, g.lap + 1) + '바퀴째') + fin + (g.bestLap ? ' · 최고 랩 ' + fmt(g.bestLap) : ''); },
     controls: [], padLayout: 'kart3dx',
     create: function (canvas, opts) { return new KartGame(canvas, opts); },
     sync: function (g) { return { score: g.score }; }
@@ -628,7 +629,8 @@ const GAMES = {
     adminView: 'shared',
     needsPeers: true, hasNext: false, hasTracks: true,
     detail: function (g) { const fmt = ms => { const s2 = ms / 1000; return Math.floor(s2 / 60) + ':' + (s2 % 60).toFixed(1).padStart(4, '0'); };
-      return (g.finishRank ? g.finishRank + '위로 완주' : Math.max(1, g.lap + 1) + '바퀴째') + (g.bestLap ? ' · 최고 랩 ' + fmt(g.bestLap) : ''); },
+      const fin = g.finished && (g.finishMs || g.raceMs) ? ' · 완주 시간 ' + (window.fmtRaceMs ? fmtRaceMs(g.finishMs || g.raceMs) : fmt(g.finishMs || g.raceMs)) : '';   // 완주 시간 (순위를 정한 시간)
+      return (g.finishRank ? g.finishRank + '위로 완주' : g.finished ? '완주' : Math.max(1, g.lap + 1) + '바퀴째') + fin + (g.bestLap ? ' · 최고 랩 ' + fmt(g.bestLap) : ''); },
     controls: [], padLayout: 'kart3dx',
     create: function (canvas, opts) { return new KartGame3D(canvas, Object.assign({ maxDpr: 1.25 }, opts)); },
     sync: function (g) { return { score: g.score }; }
@@ -646,7 +648,8 @@ const GAMES = {
     adminView: 'shared',
     needsPeers: true, hasNext: false, hasTracks: true,
     detail: function (g) { const fmt = ms => { const s2 = ms / 1000; return Math.floor(s2 / 60) + ':' + (s2 % 60).toFixed(1).padStart(4, '0'); };
-      return (g.finishRank ? g.finishRank + '위로 완주' : Math.max(1, g.lap + 1) + '바퀴째') + (g.bestLap ? ' · 최고 랩 ' + fmt(g.bestLap) : ''); },
+      const fin = g.finished && (g.finishMs || g.raceMs) ? ' · 완주 시간 ' + (window.fmtRaceMs ? fmtRaceMs(g.finishMs || g.raceMs) : fmt(g.finishMs || g.raceMs)) : '';   // 완주 시간 (순위를 정한 시간)
+      return (g.finishRank ? g.finishRank + '위로 완주' : g.finished ? '완주' : Math.max(1, g.lap + 1) + '바퀴째') + fin + (g.bestLap ? ' · 최고 랩 ' + fmt(g.bestLap) : ''); },
     controls: [], padLayout: 'kart3dx',
     create: function (canvas, opts) { return new KartGame(canvas, Object.assign({ noItems: true }, opts)); },
     sync: function (g) { return { score: g.score }; }
@@ -663,7 +666,8 @@ const GAMES = {
     adminView: 'shared',
     needsPeers: true, hasNext: false, hasTracks: true,
     detail: function (g) { const fmt = ms => { const s2 = ms / 1000; return Math.floor(s2 / 60) + ':' + (s2 % 60).toFixed(1).padStart(4, '0'); };
-      return (g.finishRank ? g.finishRank + '위로 완주' : Math.max(1, g.lap + 1) + '바퀴째') + (g.bestLap ? ' · 최고 랩 ' + fmt(g.bestLap) : ''); },
+      const fin = g.finished && (g.finishMs || g.raceMs) ? ' · 완주 시간 ' + (window.fmtRaceMs ? fmtRaceMs(g.finishMs || g.raceMs) : fmt(g.finishMs || g.raceMs)) : '';   // 완주 시간 (순위를 정한 시간)
+      return (g.finishRank ? g.finishRank + '위로 완주' : g.finished ? '완주' : Math.max(1, g.lap + 1) + '바퀴째') + fin + (g.bestLap ? ' · 최고 랩 ' + fmt(g.bestLap) : ''); },
     controls: [], padLayout: 'kart3dx',
     create: function (canvas, opts) { return new KartGame3D(canvas, Object.assign({ noItems: true, maxDpr: 1.25 }, opts)); },
     sync: function (g) { return { score: g.score }; }

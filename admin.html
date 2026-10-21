@@ -1667,7 +1667,7 @@
       const [r, nm, lp] = li.children;
       r.textContent = (i + 1) + '.'; nm.textContent = names[id] || '?';
       lp.textContent = arena ? (p.match != null ? '경기 ' + (p.match + 1) + ' · ' : '') + (p.kills || 0) + '킬 ' + (p.deaths || 0) + '데스' + (p.team ? (p.team === 'red' ? ' · 🔴' : ' · 🔵') : '')
-        : p.finished ? '완주' : (Math.max(1, Math.min((p.lap || 0) + 1, totalLaps)) + '/' + totalLaps + '바퀴' + (p.shield ? ' 🛡' : '') + (p.boost ? ' ⚡' : ''));
+        : p.finished ? '완주' + kartFinTime(id) : (Math.max(1, Math.min((p.lap || 0) + 1, totalLaps)) + '/' + totalLaps + '바퀴' + (p.shield ? ' 🛡' : '') + (p.boost ? ' ⚡' : ''));
     });
     while (ul.children.length > ids.length) ul.removeChild(ul.lastChild);
   }
