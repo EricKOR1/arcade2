@@ -487,7 +487,7 @@
     db.ref('finishes').remove();   // 카트 완주 기록 — 예전엔 남아서 2판의 완주 순위가 1판 기록(나간 학생 포함)과 섞여 밀렸음
     playersRef.once('value').then(snap => {
       const ps = snap.val() || {}, up = {};
-      Object.keys(ps).forEach(id => { up[id + '/status'] = 'waiting'; up[id + '/score'] = 0; up[id + '/rank'] = null; });
+      Object.keys(ps).forEach(id => { up[id + '/status'] = 'waiting'; up[id + '/score'] = 0; up[id + '/rank'] = null; up[id + '/finishMs'] = null; });
       return Object.keys(up).length ? playersRef.update(up) : null;
     })["catch"](() => {}).then(() => {
       // 캐릭터를 고르는 게임(젬 아레나): 먼저 10초 캐릭터 선택 → 모두 고르거나 시간이 끝나면 시작 (selectWatch)
@@ -539,6 +539,8 @@
 
   // 카트 순위 정렬: 완주자(서버의 완주 순위 rank)가 먼저, 그 안에서 rank 오름차순 → 달리는 중이면 트랙 진행도.
   // 예전엔 진행도만 봐서, 완주 뒤 카트 위치에 따라 교사 화면 순위가 학생 화면과 달랐습니다.
+  // 카트 완주 시간 ' 1:23.4' (학생이 완주 순간 players/<id>/finishMs 에 올림 — 순위를 정한 그 시간) · 없으면 빈 글자
+  function kartFinTime(id) { const pl = focusPlayers[id], ms = pl && +pl.finishMs; if (!ms || !(pl.status === 'finished')) return ''; const t = Math.floor(ms / 100); return ' ' + Math.floor(t / 600) + ':' + ((t % 600) / 10).toFixed(1).padStart(4, '0'); }
   function kartRankSort(ids) {
     const rk = id => { const pl = focusPlayers[id]; return (pl && pl.rank) ? pl.rank : 0; };
     return ids.sort((a, b) => { const ra = rk(a), rb = rk(b);
@@ -709,7 +711,8 @@
       }
       const p = peerPos[focusId] || {};
       $('focus-name').textContent = names[focusId] || '';
-      $('focus-meta').textContent = (p.finished ? '완주' : ('랩 ' + (Math.max(1, Math.min((p.lap || 0) + 1, focusKart.track.laps))) + '/' + focusKart.track.laps)) +
+      if (focusKart.finished && !focusKart.finishMs) { const fp = focusPlayers[focusId]; if (fp && +fp.finishMs && fp.status === 'finished') focusKart.finishMs = +fp.finishMs; }   // 관전 완주 카드에도 완주 시간
+      $('focus-meta').textContent = (p.finished ? '완주' + kartFinTime(focusId) : ('랩 ' + (Math.max(1, Math.min((p.lap || 0) + 1, focusKart.track.laps))) + '/' + focusKart.track.laps)) +
                                     ' · ' + focusKart.rank + '위 / ' + focusKart.total + '명';
       return;
     }

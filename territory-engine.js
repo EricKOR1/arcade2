@@ -39,9 +39,15 @@ function trPatFill(ctx, sk, cells, s) {   // cells: [x, y] 화면 좌표 목록
 }
 // 이름표·순위표용 작은 견본 (색+무늬)
 function trSwatch(ctx, sk, x, y, s) {
-  ctx.fillStyle = sk.c; FX.rr(ctx, x, y, s, s, s * 0.25); ctx.fill();
-  ctx.save(); FX.rr(ctx, x, y, s, s, s * 0.25); ctx.clip(); trPatFill(ctx, sk, [[x, y]], s); ctx.restore();
-  ctx.strokeStyle = '#1B2135'; ctx.lineWidth = 1.5; FX.rr(ctx, x, y, s, s, s * 0.25); ctx.stroke();
+  ctx.fillStyle = sk.c; ctx.fillRect(x, y, s, s); trPatFill(ctx, sk, [[x, y]], s);
+  ctx.strokeStyle = '#1B2135'; ctx.lineWidth = 1.5; ctx.strokeRect(x, y, s, s);
+}
+// 땅 무늬는 32px 타일 그림을 반복 채우기로 (칸마다 따로 그리면 저사양에서 프레임당 3ms 넘게 듦)
+const _trTile = {};
+function trTile(ctx, sk) {
+  if (!sk.pat || typeof document === 'undefined') return null; const k = TR_SKINS.indexOf(sk); if (_trTile[k] !== undefined) return _trTile[k];
+  const c = document.createElement('canvas'); c.width = c.height = 32; const g = c.getContext('2d'); trPatFill(g, sk, [[0, 0]], 32);
+  const p = ctx.createPattern(c, 'repeat'); return (_trTile[k] = p && p.setTransform ? p : null);
 }
 const TR_DIRS = [[1, 0], [0, 1], [-1, 0], [0, -1]];      // 0 오른쪽 · 1 아래 · 2 왼쪽 · 3 위
 // 아이템 상자: 경기장 곳곳에 무작위로 생기고, 먼저 밟은 사람이 가져가요
@@ -386,7 +392,8 @@ class TerritoryGame {
     // 땅 (주인 색 + 무늬 · 아래쪽 그림자로 입체감) — 주인별로 모아 한 번에
     const lands = new Map(); for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) { const o = this.own[this.idx(x, y)]; if (!o) continue; let L = lands.get(o); if (!L) lands.set(o, L = []); L.push([sx(x), sy(y)]); }
     lands.forEach((L, o) => { const k = this.skinOf(o) || { c: '#8B93A7', dk: '#646B7D', lt: '#A9AFBE', pat: 0 };
-      ctx.fillStyle = k.dk; L.forEach(q => ctx.fillRect(q[0], q[1] + u * 0.12, u + 0.5, u + 0.5)); ctx.fillStyle = k.lt; L.forEach(q => ctx.fillRect(q[0], q[1], u + 0.5, u * 0.92)); trPatFill(ctx, k, L, u); });
+      ctx.fillStyle = k.dk; L.forEach(q => ctx.fillRect(q[0], q[1] + u * 0.12, u + 0.5, u + 0.5)); ctx.fillStyle = k.lt; L.forEach(q => ctx.fillRect(q[0], q[1], u + 0.5, u * 0.92));
+      const tp = k.pat && trTile(ctx, k); if (tp) { tp.setTransform(new DOMMatrix([u / 32, 0, 0, u / 32, sx(0), sy(0)])); ctx.fillStyle = tp; ctx.beginPath(); L.forEach(q => ctx.rect(q[0], q[1], u, u * 0.92)); ctx.fill(); } else trPatFill(ctx, k, L, u); });
     // 경기장 테두리
     ctx.strokeStyle = '#FF5C7A'; ctx.lineWidth = Math.max(2, u * 0.12); ctx.strokeRect(sx(0), sy(0), this.N * u, this.N * u);
     // 꼬리 (친구 · 나)
