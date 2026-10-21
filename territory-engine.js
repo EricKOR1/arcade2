@@ -8,8 +8,12 @@ const TR_GRID_C = 12, TR_GRID_R = 18;                     // games.js 의 grid �
 const TR_COLORS = ['#4CC9F0', '#FF5C7A', '#FFD166', '#06D6A0', '#B15DFF', '#FF9F43', '#4361EE', '#F78FB3', '#7DF58F', '#E0B860'];
 const TR_CELLC = [1, 7, 4, 5, 6, 3, 2, 19, 13, 23];      // 교사 미니보드 색 번호
 const TR_DIRS = [[1, 0], [0, 1], [-1, 0], [0, -1]];      // 0 오른쪽 · 1 아래 · 2 왼쪽 · 3 위
-// 아이템 상자: 경기장 곳곳에 생기고(모든 기기에서 같은 자리·같은 때 — 판 시작 시각으로 정함), 먼저 밟은 사람이 가져가요
-const TR_ITEM_SLOTS = 10, TR_ITEM_PERIOD = 18000;          // 동시에 최대 10개 · 자리마다 18초마다 새 상자
+// 아이템 상자: 경기장 곳곳에 무작위로 생기고, 먼저 밟은 사람이 가져가요
+//   나오는 때·머무는 시간·종류 = (판 시작 시각, 자리 s, 차례 g) 해시 → 모든 기기가 같고 판마다 다름 (예전: 1.8초마다 한 개씩 똑같은 박자)
+//   놓을 칸 = 그 상자를 맡은 한 기기(차례마다 바뀜)가 빈 땅·머리/꼬리에서 먼 곳·다른 상자와 먼 곳을 골라 'ipos' 로 알림 → 모두 같은 칸
+//   (예전: 해시 칸 그대로 — 30%가 이미 차지된 땅 위, 10%는 다른 상자 바로 옆)
+const TR_ITEM_SLOTS = 10, TR_ITEM_LIFE = [11000, 19000], TR_ITEM_GAP = [1500, 6000];   // 동시에 최대 10개 · 상자마다 11~19초 머묾 · 사라지고(먹히고) 1.5~6초 뒤 다른 곳에
+const TR_ITEM_LEAD = 700, TR_ITEM_WAIT = 1500, TR_ITEM_CAND = 24;                      // 0.7초 먼저 칸을 정해 알림 · 알림이 1.5초 안 오면 해시 칸 · 후보 24칸 중 가장 좋은 곳
 const TR_ITEMS = {
   speed:   { name: '번개',          color: '#FFD166', good: true,  desc: '5초 동안 빨라져요',             ms: 5000 },
   shield:  { name: '방패',          color: '#4CC9F0', good: true,  desc: '6초 동안 꼬리를 밟혀도 안 잘려요', ms: 6000 },
@@ -33,7 +37,7 @@ class TerritoryGame {
     this.trail = []; this.trailSet = new Set(); this.capAt = new Map(); this.mini = null; this.miniDirty = true; this._full = 0; this.run = 0;
     this.clock = () => (this.opts.serverNow ? this.opts.serverNow() : Date.now());   // 서버 시계 (기기 시계가 달라도 상자가 같은 때 나옴)
     this.itemT0 = this.opts.seed || this.clock(); this.itemSeed = Math.floor(this.itemT0 / 7) | 0; this.joinAt = this.clock();
-    this.taken = new Set(); this.items = []; this.fx = {};
+    this.taken = new Set(); this.items = []; this.fx = {}; this.sched = []; this.ipos = new Map(); this.isent = new Set(); this.picked = [];
     this.spawn(this.opts.slot);
   }
   get pct() { return Math.round(this.cells / (TR_N * TR_N) * 1000) / 10; }
@@ -75,7 +79,7 @@ class TerritoryGame {
   serialize() {
     const hx = this.cx + TR_DIRS[this.dir][0] * this.p, hy = this.cy + TR_DIRS[this.dir][1] * this.p, now = this.now || 0;
     const fl = (this.has('shield') ? 1 : 0) | (this.has('speed') ? 2 : 0) | (this.has('slow') ? 4 : 0);   // 효과 (친구 화면에 방패 고리 · 번개 꼬리)
-    let s = [hx.toFixed(2), hy.toFixed(2), this.dir, this.isDead ? 1 : 0, this.ci, this.kills, this.cells, fl].join(',') + '|' + this.corners();
+    let s = [hx.toFixed(2), hy.toFixed(2), this.dir, this.isDead ? 1 : 0, this.ci, this.kills, this.cells, fl, this.itemNote(), this.picked.filter(q => now - q.at < 4000).map(q => q.k).join(';')].join(',') + '|' + this.corners();   // 8: 내가 정한 상자 칸 · 9: 방금 먹은 상자 — 소식(events)이 빠져도 다음 위치 신호로 맞춰짐
     if (now - this._full > ((this.opts.sendMs || 165) > 200 ? 4000 : 2000)) { this._full = now; s += '|' + this.terrRle(); }   // 2초마다 내 땅 전체 (늦게 들어온 친구도 땅을 보게) — 21명 이상(전송 간격이 길 때)은 4초마다: 땅이 넓어지면 이 부분이 신호의 대부분이라
     return s;
   }
@@ -90,6 +94,8 @@ class TerritoryGame {
     const p = this.peers[id] || (this.peers[id] = { x, y, trailKey: null, trail: new Set(), trailPts: [] }), dead = a[3] === '1';
     if (!p.dead && dead) { this.clearOwner(id); p.trail = new Set(); p.trailPts = [];   // 친구가 탈락: 그 땅이 비어요
       if (p.pcut > 0 && (this.now || 0) - p.pcut < 1500) { p.pcut = 0; this.kills++; this.toast('✂️ ' + (name || p.name || '친구') + '의 꼬리를 잘랐어요!', '#FFE38A'); if (window.Sound) (Sound.kill || Sound.levelUp).call(Sound); } }   // 머리 너머를 자른 뒤 1.5초 안에 탈락
+    if (a[8]) a[8].split(';').forEach(q => { const m = q.split('.'); if (m.length === 3) this.setIpos(m[0], +m[1], +m[2], id); });
+    if (a[9]) a[9].split(';').forEach(k => { if (k && !this.taken.has(k)) { this.taken.add(k); this.items = this.items.filter(q => q.key !== k); } });
     if (Math.hypot(p.x - x, p.y - y) > 3) { p.x = x; p.y = y; }
     Object.assign(p, { tx: x, ty: y, dir: +a[2] || 0, dead, ci: (+a[4] || 0) % TR_COLORS.length, kills: +a[5] || 0, cells: +a[6] || 0, fl: +a[7] || 0, name: name || p.name || '' });
     // 도착 간격(이동 평균)으로 '다음 신호가 올 때쯤 받은 위치 조금 앞에 닿는' 속도를 정함 → 그 사이를 고른 속도로 감 (tick). 보내는 간격은 인원에 따라 165~235ms
@@ -121,6 +127,7 @@ class TerritoryGame {
     if (e.type === 'cap') { const cells = TerritoryGame.rleCells(e.rle); let lost = 0; cells.forEach(i => { if (this.own[i] === this.myId) lost++; this.own[i] = e.by; }); this.recount(); this.miniDirty = true;
       if (lost >= 8 && !this.isDead) this.toast('😮 ' + ((this.peers[e.by] || {}).name || '친구') + '가 내 땅 ' + lost + '칸을 가져갔어요', '#FFB3BF'); }
     if (e.type === 'item' && e.k) { this.taken.add(e.k); this.items = this.items.filter(q => q.key !== e.k); }
+    if (e.type === 'ipos' && e.k) this.setIpos(String(e.k), +e.x, +e.y, String(e.by || ''));
     if (e.type === 'cut' && e.target === this.myId && !this.isDead && this.trail.length) { if (e.c != null && (!this.trailSet.has(+e.c) || (e.ct && this.trailAt && this.trailAt.get(+e.c) > e.ct))) return;   // 그 칸이 지금 내 꼬리가 아니거나(벌써 땅으로 돌아옴 · 예측이 빗나감) 친구가 지나간 뒤에 내가 들어갔으면 무시
       if (this.has('shield')) { this.toast('🛡 방패가 꼬리를 지켰어요!', '#9BE7FF'); return; } this.die(((this.peers[e.by] || {}).name || '친구') + '가 내 꼬리를 밟았어요', e.by); }
   }
@@ -162,7 +169,7 @@ class TerritoryGame {
     const { dt, f } = FX.frame(this, now), k = dt / 1000; this.run += k;
     if (this.deadUntil && now >= this.deadUntil) { this.spawn(); this.toast('다시 시작!', '#7DF58F'); }
     if (this.softDropping) this.turn(1);   // 키보드 ↓ (누르는 동안 표시만 옴)
-    this.items = this.currentItems();
+    this.placeItems(); this.items = this.currentItems();
     if (this.has('speed') && Math.random() < 0.5) this.parts.push({ x: this.cx + TR_DIRS[this.dir][0] * this.p + 0.5 + (Math.random() - 0.5) * 0.4, y: this.cy + TR_DIRS[this.dir][1] * this.p + 0.5 + (Math.random() - 0.5) * 0.4, vx: 0, vy: 0, l: 0.7, c: '#FFE38A' });
     if (!this.isDead && !this.gameOver) {
       this.p += TR_SPEED * (this.has('speed') ? 1.5 : 1) * (this.has('slow') ? 0.6 : 1) * k;
@@ -186,20 +193,77 @@ class TerritoryGame {
   }
   // ── 아이템 ──
   has(k) { return !this.isDead && (this.fx[k] || 0) > (this.now || 0); }
-  // 지금 경기장에 있는 상자: 자리(s)마다 18초 창(g) 하나에 상자 하나 — 자리·종류는 (판 시작 시각, s, g) 로 정해 모든 기기가 같음
+  // 자리 s 의 상자 차례표: g 번째 상자가 st 에 나와 life 동안 머물고, gap 뒤 다음 상자 (모두 해시 — 모든 기기가 같음)
+  slotAt(s, t) {
+    const H = (b, g) => trHash(this.itemSeed, b, g), life = g => TR_ITEM_LIFE[0] + H(s + 300, g) * (TR_ITEM_LIFE[1] - TR_ITEM_LIFE[0]), gap = g => TR_ITEM_GAP[0] + H(s + 400, g) * (TR_ITEM_GAP[1] - TR_ITEM_GAP[0]);
+    let c = this.sched[s];
+    if (!c || t < c.st) c = { g: 0, st: 2500 + H(s + 500, 0) * 8000 };   // 첫 상자: 시작 2.5~10.5초 사이 제각각
+    if (c.life == null) c.life = life(c.g);
+    while (t >= c.st + c.life + gap(c.g)) { c.st += c.life + gap(c.g); c.g++; c.life = life(c.g); }
+    return (this.sched[s] = c);
+  }
+  // 후보 칸 j (벽에서 3칸 안쪽)
+  itemCand(s, g, j) { return [3 + Math.floor(trHash(this.itemSeed, 1000 + s * 40 + j, g) * (TR_N - 6)), 3 + Math.floor(trHash(this.itemSeed, 3000 + s * 40 + j, g) * (TR_N - 6))]; }
+  setIpos(k, x, y, by) {
+    if (!(x >= 0 && y >= 0 && x < TR_N && y < TR_N)) return; const c = this.ipos.get(k);
+    if (!c || by < c.by) this.ipos.set(k, { x: x | 0, y: y | 0, by });   // 두 기기가 같이 정했으면 id 가 작은 쪽 (모든 기기가 같은 답)
+  }
+  // 이 상자를 맡을 기기: 지금 신호가 오는 친구 + 나를 id 순으로 세우고 해시로 고른 사람(0순위), 그 다음 사람(1순위 · 1초 뒤에도 소식이 없으면)
+  itemDealer(s, g) {
+    const now = this.now || 0, ids = Object.keys(this.peers).filter(id => this.peers[id].rcv != null && now - this.peers[id].rcv < 4000).concat([this.myId]).sort();
+    const i0 = Math.floor(trHash(this.itemSeed, s + 200, g) * ids.length) % ids.length, me = ids.indexOf(this.myId);
+    return (me - i0 + ids.length) % ids.length;   // 내 순위
+  }
+  // 위치 신호에 붙이는 '내가 정한 상자 칸' (아직 있는 것만 · 'ipos' 소식을 놓친 기기도 맞춤)
+  itemNote() {
+    const out = []; this.ipos.forEach((v, k) => { if (v.by !== this.myId || this.taken.has(k)) return; const [ks, kg] = k.split(':').map(Number), c = this.sched[ks]; if (c && (kg === c.g || kg === c.g + 1)) out.push(k + '.' + v.x + '.' + v.y); });
+    return out.join(';');
+  }
+  // 곧 나올 상자의 칸을 정해 알리기 (맡은 기기만)
+  placeItems() {
+    const t = this.clock() - this.itemT0;
+    if (this.ipos.size > 60) this.ipos.forEach((v, k) => { const [ks, kg] = k.split(':').map(Number), c = this.sched[ks]; if (c && kg < c.g - 1) { this.ipos.delete(k); this.isent.delete(k); } });   // 지난 상자 정리
+    for (let s = 0; s < TR_ITEM_SLOTS; s++) {
+      const c = this.slotAt(s, t); let g = c.g, st = c.st;
+      if (t >= c.st + c.life) { g = c.g + 1; st = c.st + c.life + TR_ITEM_GAP[0] + trHash(this.itemSeed, s + 400, c.g) * (TR_ITEM_GAP[1] - TR_ITEM_GAP[0]); }   // 쉬는 중: 다음 상자
+      const key = s + ':' + g; if (this.ipos.has(key) || this.isent.has(key) || this.taken.has(key)) continue;
+      const rank = t >= st - TR_ITEM_LEAD ? this.itemDealer(s, g) : 9; if (rank > 1 || t < st - TR_ITEM_LEAD + rank * 1000) continue;
+      this.isent.add(key); const [x, y] = this.pickSpot(s, g, key); this.setIpos(key, x, y, this.myId);
+      if (this.opts.onAttack) this.opts.onAttack('ipos', null, { k: key, x, y });
+    }
+  }
+  // 후보 중 가장 좋은 칸: 빈 땅 · 꼬리 아님 · 머리(나·친구)에서 3칸 넘게 · 다른 상자와 멀리 (땅이 다 찼으면 그중 덜 나쁜 곳)
+  pickSpot(s, g, key) {
+    const heads = [], others = [], ahead = (x, y, d) => { const D = TR_DIRS[d | 0] || TR_DIRS[0]; heads.push([x, y], [x + D[0] * 2, y + D[1] * 2], [x + D[0] * 4, y + D[1] * 4]); };   // 머리 + 가는 방향 2·4칸 앞 (0.7초 뒤 나올 때쯤 있을 곳)
+    if (!this.isDead) ahead(this.cx, this.cy, this.dir);
+    Object.values(this.peers).forEach(p => { if (!p.dead && p.tx != null) ahead(p.tx, p.ty, p.dir); });
+    this.ipos.forEach((v, k) => { if (k !== key && !this.taken.has(k)) { const [ks, kg] = k.split(':').map(Number), c = this.sched[ks]; if (c && (kg === c.g || kg === c.g + 1)) others.push([v.x, v.y]); } });
+    let best = null, bs = -1e9;
+    for (let j = 0; j < TR_ITEM_CAND; j++) {
+      const [x, y] = this.itemCand(s, g, j), i = this.idx(x, y); let sc = 0;
+      if (this.own[i]) sc -= 100; if (this.trailSet.has(i) || Object.values(this.peers).some(p => !p.dead && p.trail.has(i))) sc -= 150;
+      for (let b = -1; b <= 1; b++) for (let a = -1; a <= 1; a++) if (this.own[this.idx(x + a, y + b)]) sc -= 4;   // 둘레도 빈 땅이면 더 좋음
+      const hd = heads.reduce((m, h) => Math.min(m, Math.max(Math.abs(h[0] - x), Math.abs(h[1] - y))), 99); sc += hd <= 3 ? -120 : Math.min(hd, 10) * 2;
+      const od = others.reduce((m, o) => Math.min(m, Math.hypot(o[0] - x, o[1] - y)), 99); sc += od < 5 ? -80 : Math.min(od, 16) * 3;
+      if (sc > bs) { bs = sc; best = [x, y]; }
+    }
+    return best;
+  }
+  // 지금 경기장에 있는 상자 (정해진 칸이 있으면 그 칸 · 알림이 늦으면 해시 칸)
   currentItems() {
     const t = this.clock() - this.itemT0, out = [];
     for (let s = 0; s < TR_ITEM_SLOTS; s++) {
-      const off = 3000 + s * TR_ITEM_PERIOD / TR_ITEM_SLOTS, ph = t - off; if (ph < 0) continue;
-      const g = Math.floor(ph / TR_ITEM_PERIOD), key = s + ':' + g; if (this.taken.has(key)) continue;
-      if (this.itemT0 + off + g * TR_ITEM_PERIOD < this.joinAt - 4000) continue;   // 내가 들어오기 전에 생긴 상자 — 누가 이미 가져갔을 수 있어 안 보임
-      const x = 3 + Math.floor(trHash(this.itemSeed, s, g) * (TR_N - 6)), y = 3 + Math.floor(trHash(this.itemSeed, s + 50, g) * (TR_N - 6));
-      out.push({ s, g, key, x, y, type: TR_DROP[Math.floor(trHash(this.itemSeed, s + 100, g) * TR_DROP.length)], age: ph - g * TR_ITEM_PERIOD });
+      const c = this.slotAt(s, t), ph = t - c.st; if (ph < 0 || ph >= c.life) continue;
+      const g = c.g, key = s + ':' + g; if (this.taken.has(key)) continue;
+      const at = this.itemT0 + c.st; if (at < this.joinAt - 4000) continue;   // 내가 들어오기 전에 생긴 상자 — 누가 이미 가져갔을 수 있어 안 보임
+      let p = this.ipos.get(key);
+      if (!p) { if (ph < TR_ITEM_WAIT || at < this.joinAt + 300) continue; const [x, y] = this.itemCand(s, g, 0); p = { x, y }; }   // 알림이 안 옴(맡은 기기가 꺼짐 등)
+      out.push({ s, g, key, x: p.x, y: p.y, type: TR_DROP[Math.floor(trHash(this.itemSeed, s + 100, g) * TR_DROP.length)], age: ph, life: c.life });
     }
     return out;
   }
   pickup(it) {
-    this.taken.add(it.key); this.items = this.items.filter(q => q !== it);
+    this.taken.add(it.key); this.items = this.items.filter(q => q !== it); this.picked = this.picked.filter(q => (this.now || 0) - q.at < 4000).concat([{ k: it.key, at: this.now || 0 }]);
     if (this.opts.onAttack) this.opts.onAttack('item', null, { k: it.key });
     let type = it.type, pre = '';
     if (type === 'mystery') { const r = Math.random(), pick = a => a[Math.floor(Math.random() * a.length)]; type = r < 0.5 ? pick(['speed', 'shield', 'grow']) : pick(['slow', 'reverse', 'fog']); pre = '수수께끼 상자 → '; }
@@ -219,7 +283,7 @@ class TerritoryGame {
   // 상자 그림 (도형만 — 이모지는 기기마다 안 보일 수 있음)
   drawItem(ctx, it, X, Y, u, t) {
     const d = TR_ITEMS[it.type], r = u * 0.42, cx = X + u / 2, cy = Y + u / 2 + Math.sin(t / 260 + it.s) * u * 0.06;
-    if (it.age > TR_ITEM_PERIOD - 2500 && Math.floor(t / 150) % 2) return;   // 곧 사라짐: 깜빡
+    if (it.age > it.life - 2500 && Math.floor(t / 150) % 2) return;   // 곧 사라짐: 깜빡
     ctx.fillStyle = 'rgba(0,0,0,.22)'; ctx.beginPath(); ctx.ellipse(cx, Y + u * 0.9, r * 0.8, r * 0.25, 0, 0, 7); ctx.fill();
     ctx.globalAlpha = 0.35 + 0.2 * Math.sin(t / 200 + it.s); ctx.fillStyle = d.color; ctx.beginPath(); ctx.arc(cx, cy, r * 1.35, 0, 7); ctx.fill(); ctx.globalAlpha = 1;
     ctx.fillStyle = d.color; FX.rr(ctx, cx - r, cy - r, r * 2, r * 2, r * 0.45); ctx.fill(); ctx.strokeStyle = '#1B2135'; ctx.lineWidth = Math.max(1.5, u * 0.07); ctx.stroke();
