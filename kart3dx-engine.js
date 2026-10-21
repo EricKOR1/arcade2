@@ -266,7 +266,8 @@ class KartGame3D extends KartGame {
       const P = s.pts, m = P.length;
       const strip = (a, b, yA, yB, vLen, mat) => { const pos = [], uv = [], idx = []; let v = 0;
         for (let k = 0; k < m; k++) { const [tx, ty] = s.tan[k], nx = -ty, ny = tx, e = s.e[k] * S; if (k) v += Math.hypot(P[k][0] - P[k - 1][0], P[k][1] - P[k - 1][1]) * S / vLen;
-          const w = s.hwk[k]; pos.push((P[k][0] + nx * w * a) * S, e + yA, (P[k][1] + ny * w * a) * S, (P[k][0] + nx * w * b) * S, e + yB, (P[k][1] + ny * w * b) * S); uv.push(0, v, 1, v);   // (갈림목은 넓게)
+          const mo = (s.wr[k] - s.wl[k]) / 2, w = (s.wr[k] + s.wl[k]) / 2;   // (갈림목은 본선 쪽으로 넓게: 가운데를 옮기고 폭을 늘림)
+          pos.push((P[k][0] + nx * (mo + w * a)) * S, e + yA, (P[k][1] + ny * (mo + w * a)) * S, (P[k][0] + nx * (mo + w * b)) * S, e + yB, (P[k][1] + ny * (mo + w * b)) * S); uv.push(0, v, 1, v);
           if (k < m - 1) { const q = k * 2; idx.push(q, q + 2, q + 1, q + 1, q + 2, q + 3); } }
         const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new T.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
         const mesh = new T.Mesh(g, mat); mesh.receiveShadow = true; this.scene.add(mesh); return mesh; };
@@ -274,7 +275,7 @@ class KartGame3D extends KartGame {
       strip(1.16, 1, 0.06, -0.03, 3, km); strip(-1, -1.16, -0.03, 0.06, 3, km);
       // 옆벽: 길 가장자리에서 땅까지 (떠 보이지 않게)
       [1.16, -1.16].forEach(off => { const pos = [], idx = [];
-        for (let k = 0; k < m; k++) { const [tx, ty] = s.tan[k], x = (P[k][0] - ty * s.hwk[k] * off) * S, z = (P[k][1] + tx * s.hwk[k] * off) * S; pos.push(x, s.e[k] * S - 0.04, z, x, this.groundY, z);
+        for (let k = 0; k < m; k++) { const [tx, ty] = s.tan[k], mo = (s.wr[k] - s.wl[k]) / 2, w = (s.wr[k] + s.wl[k]) / 2, x = (P[k][0] - ty * (mo + w * off)) * S, z = (P[k][1] + tx * (mo + w * off)) * S; pos.push(x, s.e[k] * S - 0.04, z, x, this.groundY, z);
           if (k < m - 1) { const q = k * 2; idx.push(q, q + 2, q + 1, q + 1, q + 2, q + 3); } }
         const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals(); this.scene.add(new T.Mesh(g, wm)); });
       // 입구 아치: 본선에서 갈라진 직후 (멀리서도 보이게 노란 현수막)

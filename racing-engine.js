@@ -360,13 +360,19 @@ class Track {
       idx[0] = A; idx[m - 1] = A + span;
       const e = Array.from(idx, f => this.elevAtF(f));
       let minX = 1e18, minY = 1e18, maxX = -1e18, maxY = -1e18; pts.forEach(p => { minX = Math.min(minX, p[0]); minY = Math.min(minY, p[1]); maxX = Math.max(maxX, p[0]); maxY = Math.max(maxY, p[1]); });
-      // 갈림목(본선과 지름길 가장자리 사이가 살짝 벌어진 곳)은 지름길 폭을 넓혀 메움 — 좁은 틈이 '보이지 않는 벽'이 되지 않게 (멀어질수록 원래 폭으로)
-      const cl = this.carLen, hwk = new Float32Array(m);
-      for (let k = 0; k < m; k++) { const g = Math.max(0, dm[k] - this.halfW - hw); hwk[k] = hw + (dm[k] - this.halfW - hw > -cl ? (g + cl * 1.2) * Math.max(0, Math.min(1, (hw * 3 - g) / (hw * 1.5))) : 0); }
-      for (let r = 0; r < 2; r++) for (let k = 1; k < m - 1; k++) hwk[k] = Math.max(hwk[k], (hwk[k - 1] + hwk[k + 1]) / 2 * 0.98);   // 폭이 툭 바뀌지 않게 살짝 고름
+      // 갈림목(입구·출구 근처에서 본선과 지름길 가장자리 사이가 살짝 벌어진 곳)은 본선 쪽으로만 지름길 폭을 넓혀 메움
+      //   — 좁은 틈이 '보이지 않는 벽'이 되지 않게. 틈이 넓어질수록(지름길이 본선과 확실히 떨어지면) 원래 폭으로. wl·wr: 왼쪽·오른쪽 폭 (오른쪽 = 법선 (-ty, tx) 쪽)
+      const cl = this.carLen, wl = new Float32Array(m), wr = new Float32Array(m), forkLen = this.halfW * 3;
+      for (let k = 0; k < m; k++) { wl[k] = wr[k] = hw;
+        const fz = Math.min(Math.abs(cum[k] - cum[k0]), Math.abs(cum[k1] - cum[k])), raw = dm[k] - this.halfW - hw;
+        if (fz > forkLen || raw <= -cl) continue;
+        const g = Math.max(0, raw), add = (g + cl * 1.2) * Math.max(0, Math.min(1, (hw * 1.6 - g) / (hw * 0.6))) * Math.min(1, (forkLen - fz) / (this.halfW));   // 틈이 좁을 때(지름길 폭 1배까지)만 메움 · 그보다 넓으면 갈림목(양쪽 가드레일)
+        const c = this.center[wrap(A + Math.round(near[k]))], sd = (c[0] - pts[k][0]) * -tan[k][1] + (c[1] - pts[k][1]) * tan[k][0];
+        if (sd >= 0) wr[k] += add; else wl[k] += add; }
+      for (let r = 0; r < 3; r++) for (let k = 1; k < m - 1; k++) { wl[k] = Math.max(wl[k], (wl[k - 1] + wl[k + 1]) / 2 * 0.97); wr[k] = Math.max(wr[k], (wr[k - 1] + wr[k + 1]) / 2 * 0.97); }   // 폭이 툭 바뀌지 않게
       const pad = hw * 3;
       const kq = Math.min(m - 1, k0 + 8), tA = this.tangent[A], side = Math.sign(tA[0] * (pts[kq][1] - this.center[A][1]) - tA[1] * (pts[kq][0] - this.center[A][0])) || 1;   // +1 오른쪽으로 갈라짐
-      this.shortcuts.push({ A, B, span, pts, tan, idx, e, hw, hwk, dm, k0, k1, side, len: cum[m - 1], mainLen: span * this.stepLen, puddles: d.puddles || [], cum,
+      this.shortcuts.push({ A, B, span, pts, tan, idx, e, hw, wl, wr, dm, k0, k1, side, len: cum[m - 1], mainLen: span * this.stepLen, puddles: d.puddles || [], cum,
         box: [minX - pad, minY - pad, maxX + pad, maxY + pad] });
     });
   }
@@ -377,7 +383,8 @@ class Track {
       if (x < b[0] || x > b[2] || y < b[1] || y > b[3]) continue;
       let best = 1e18, bk = 0; const P = s.pts;
       for (let k = 0; k < P.length; k++) { const dx = P[k][0] - x, dy = P[k][1] - y, dd = dx * dx + dy * dy; if (dd < best) { best = dd; bk = k; } }
-      const d = Math.sqrt(best), w = s.hwk[bk]; if (!res || d - w < res.d - res.w) res = { s, k: bk, d, w }; }
+      const d = Math.sqrt(best), w = ((x - P[bk][0]) * -s.tan[bk][1] + (y - P[bk][1]) * s.tan[bk][0]) >= 0 ? s.wr[bk] : s.wl[bk];   // 점이 있는 쪽의 폭
+      if (!res || d - w < res.d - res.w) res = { s, k: bk, d, w }; }
     return res;
   }
   // 지금 위치가 본선 도로인지 지름길인지 → 진행도에 쓸 구간 번호 i (지름길이면 sc 에 지름길 정보)
@@ -496,8 +503,9 @@ class Track {
     this.shortcuts.forEach(s => {
       const P = s.pts, st = Math.max(2, Math.round(railStep * 2));
       const clear = (x, y) => this.nearestIndex(x, y).dist > this.halfW * 1.12;   // 본선 도로 밖이면 (갈림목 사이 풀밭에도 세워 '벽'이 보이게)
-      for (let k = 0; k + st < P.length; k += st) { const j = k + st, a = s.tan[k], b = s.tan[j], o1 = s.hwk[k] * 1.12, o2 = s.hwk[j] * 1.12;
-        [-1, 1].forEach(side => { const x = P[k][0] - a[1] * o1 * side, y = P[k][1] + a[0] * o1 * side, x2 = P[j][0] - b[1] * o2 * side, y2 = P[j][1] + b[0] * o2 * side;
+      for (let k = 0; k + st < P.length; k += st) { const j = k + st, a = s.tan[k], b = s.tan[j];
+        [-1, 1].forEach(side => { const o1 = (side > 0 ? s.wr[k] : s.wl[k]) * 1.12, o2 = (side > 0 ? s.wr[j] : s.wl[j]) * 1.12;
+          const x = P[k][0] - a[1] * o1 * side, y = P[k][1] + a[0] * o1 * side, x2 = P[j][0] - b[1] * o2 * side, y2 = P[j][1] + b[0] * o2 * side;
           if (!clear(x, y) || !clear(x2, y2)) return;
           this.scenery.push({ kind: 'rail', i: wrap(Math.round(s.idx[k])), x, y, x2, y2, e: s.e[k], e2: s.e[j], side, r: rnd(), sc: true }); }); }
       s.puddles.forEach(([u, o2]) => { const k = Math.max(0, Math.min(P.length - 1, Math.round(u * (P.length - 1)))), a = s.tan[k];
@@ -1020,7 +1028,7 @@ class KartGame {
     if (!isFinite(x) || !isFinite(y)) { const c = t.center[hint | 0] || t.center[0]; x = c[0]; y = c[1]; }
     let L = t.locate(x, y, hint);
     if (L.sc) {                                                     // 지름길 위: 지름길 폭 안으로
-      const s = L.sc.s, c = s.pts[L.sc.k], lim = Math.max(0, s.hwk[L.sc.k] - cl * 0.6), dx = x - c[0], dy = y - c[1], dd = Math.hypot(dx, dy);
+      const s = L.sc.s, c = s.pts[L.sc.k], lim = Math.max(0, L.sc.w - cl * 0.6), dx = x - c[0], dy = y - c[1], dd = Math.hypot(dx, dy);
       if (dd > lim) { x = c[0] + dx / (dd || 1) * lim; y = c[1] + dy / (dd || 1) * lim; }
     } else {
       let j = L.i;
@@ -2303,7 +2311,8 @@ class KartGame {
       const b = s.box; if (this.x < b[0] - far || this.x > b[2] + far || this.y < b[1] - far || this.y > b[3] + far) return;
       const m = s.pts.length; let k0 = 0;
       if (this.scNow && this.scNow.s === s) k0 = Math.max(0, this.scNow.k - 30);
-      const pool = s._seg2d || (s._seg2d = s.pts.map((p, k) => { const r = s.hwk[k] / s.hw; return { cx: p[0], cy: p[1], nx: -s.tan[k][1] * r, ny: s.tan[k][0] * r, ux: -s.tan[k][1], uy: s.tan[k][0], e: s.e[k] - 0.5, k }; }));   // (갈림목에서 넓어지는 폭은 법선 길이로)
+      const pool = s._seg2d || (s._seg2d = s.pts.map((p, k) => { const ux = -s.tan[k][1], uy = s.tan[k][0], mo = (s.wr[k] - s.wl[k]) / 2, r = (s.wr[k] + s.wl[k]) / 2 / s.hw;
+        return { cx: p[0] + ux * mo, cy: p[1] + uy * mo, nx: ux * r, ny: uy * r, ux, uy, px: p[0], py: p[1], e: s.e[k] - 0.5, k }; }));   // (갈림목에서 본선 쪽으로 넓힌 폭: 가운데를 옮기고 법선 길이로)
       const run = []; let k = k0;
       while (k < m) { const sg = pool[k], dd = Math.hypot(sg.cx - this.x, sg.cy - this.y); run.push(sg); k += dd < 3000 ? 2 : dd < 9000 ? 4 : 8; }
       if (run[run.length - 1] !== pool[m - 1]) run.push(pool[m - 1]);
@@ -2321,7 +2330,7 @@ class KartGame {
     ctx.fillStyle = 'rgba(255,240,200,0.75)';
     for (let k = 12; k < pool.length - 12; k += 24) { const a = pool[k]; if (Math.hypot(a.cx - this.x, a.cy - this.y) > 4500) continue;
       const tx = a.uy, ty = -a.ux, L = s.hw * 0.55, W = s.hw * 0.42;
-      const P = [[L, 0], [-L * 0.1, W], [-L * 0.45, W], [L * 0.3, 0], [-L * 0.45, -W], [-L * 0.1, -W]].map(([u, v]) => this.project(cam, a.cx + tx * u + a.ux * v, a.cy + ty * u + a.uy * v, a.e));
+      const P = [[L, 0], [-L * 0.1, W], [-L * 0.45, W], [L * 0.3, 0], [-L * 0.45, -W], [-L * 0.1, -W]].map(([u, v]) => this.project(cam, a.px + tx * u + a.ux * v, a.py + ty * u + a.uy * v, a.e));
       if (P.some(q => !q)) continue;
       ctx.beginPath(); P.forEach((q, i) => i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)); ctx.closePath(); ctx.fill(); }
   }

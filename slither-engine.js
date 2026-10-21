@@ -473,7 +473,7 @@ class SlitherGame {
             if (k === 'me' && !immune) { this.rewind(ph); this.die(nm + ' 몸에 닿았어요', id, 'body'); return; } }
           else if (body(ph[0], ph[1])) { this.rewind(ph); this.die(nm + ' 몸에 닿았어요', id, 'body'); return; } }
       }
-      if (calm || p.inv || now - p.seen > 500 || p.late > 300 || d2 < rs * rs || (p.sup && lead === this.myId)) continue;
+      if (calm || p.waitUntil > now || this.resolved[id + ':' + p.life + ':' + this.life] || p.inv || now - p.seen > 500 || p.late > 300 || d2 < rs * rs || (p.sup && lead === this.myId)) continue;   // 머리끼리 중이던 상대는 'ko' 안 함
       const key = id + ':' + p.life; if (this.koSent[key]) continue;
       const t = this.trail, n = Math.min(t.length, Math.ceil(this.len / SL_SEG) + 1), old = D + 60; let i0 = 0;
       while (i0 < 63 && i0 < n - 1 && now - this.tAt[(this.seq - i0) & 63] < old) i0++;   // 상대가 그려진 순간에 아직 없던 목 부분은 뺌
@@ -509,7 +509,7 @@ class SlitherGame {
   clashResult(res, id, life, n, at) {
     const now = this.now, q = this.peers[id], p = q && q.life === life ? q : null, nm = (p && p.name) || this.nameOf(id), key = id + ':' + life + ':' + this.life;
     if (this.clashDone(this.applied, key) || this.isDead) return; this.applied[key] = now; this.resolved[key] = now;
-    if (res === 'tie') { this.tieKeys[key] = 1; if (p) { const q2 = this.nearestOn(p, this.x, this.y); this.angle = Math.atan2(this.y - q2[1], this.x - q2[0]); p.calmUntil = now + 900; p.tieUntil = now + 3000; p.hz = 0; } this.toast(slJosa(nm, '과', '와') + ' 길이가 같아 튕겨 나왔어요', '#4CC9F0'); return; }
+    if (res === 'tie') { this.tieKeys[key] = now; if (p) { const q2 = this.nearestOn(p, this.x, this.y); this.angle = Math.atan2(this.y - q2[1], this.x - q2[0]); p.calmUntil = now + 900; p.tieUntil = now + 3000; p.hz = 0; } this.toast(slJosa(nm, '과', '와') + ' 길이가 같아 튕겨 나왔어요', '#4CC9F0'); return; }
     if (res === 'eat' || res === 'crown') { if (res === 'eat') this.gain(id, life, n, nm, p); else this.takeCrown(id, life, n, nm, p); if (p) p.hideUntil = now + 1500; return; }   // 신호가 오기 전까지 내 화면에서 미리 치움
     if (at > 0) this.rewindTo(now - (this.srvNow() - at), p);                         // 머리끼리 만난 순간 자리에서 쓰러짐
     if (res === 'eaten') this.die('머리끼리 부딪혀 ' + nm + '에게 먹혔어요', id, 'eat');
@@ -651,7 +651,9 @@ class SlitherGame {
     ctx.lineJoin = 'round'; ctx.lineCap = 'round';
     if (sn.alpha < 1) ctx.globalAlpha = sn.alpha;
     if (sn.sup) { ctx.strokeStyle = sk.glow; ctx.lineWidth = r * (3 + 0.5 * Math.sin(now / 140)); ctx.stroke(path); }        // 슈퍼: 금빛 광채
-    else if (sn.boost && (q > 0 || sn.me)) { ctx.strokeStyle = sk.glow; ctx.lineWidth = r * 2.9; ctx.stroke(path); }                          // 부스트 광채
+    else if (sn.boost && (q > 0 || sn.me)) {                                                                                              // 부스트 광채: 머리 쪽 60칸만 (예전: 몸 전체 — 길이 2000이면 가장 넓은 층을 화면 가득 한 번 더 칠함)
+      const gp = new Path2D(), ge = Math.min(ve, vs + 134); gp.moveTo(hx, hy); for (let i = vs; i < ge; i++) gp.lineTo(pts[i][0] * sc + ox, pts[i][1] * sc + oy);
+      ctx.strokeStyle = sk.glow; ctx.lineWidth = r * 2.9; ctx.stroke(gp); }
     ctx.strokeStyle = sk.edge; ctx.lineWidth = r * 2; ctx.stroke(path);                                                    // 테두리 (바깥 = 판정 반지름)
     ctx.strokeStyle = sk.c; ctx.lineWidth = inner; ctx.stroke(path);                                                       // 본색
     // 무늬
