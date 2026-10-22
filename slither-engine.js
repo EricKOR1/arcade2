@@ -9,7 +9,7 @@
 //   판정 원칙: "내 죽음은 내 화면이 정한다"
 //     · 내 기기는 내 화면에 그려진 겹침이 있을 때만 나를 죽입니다(반지름 합의 0.8배 안). 남의 기기 소식만으로 죽는 길('ko' 등)은 없습니다.
 //     · 몸 박기는 '누가 먼저 그 자리에 있었나'를 마디가 놓인 서버 시각으로 가림 (여유 0.15초 안이면 둘 다 삶):
-//       ① 내 머리가 그려진 상대 몸에 닿음 → 상대 마디가 먼저 놓였으면 내가 박음  ② 상대 머리가 내 몸에 닿음 → 그 자리를 내가 늦게 지나갔으면 내가 박음(그 자리로 되감아 쓰러짐)
+//       내 머리가 내 화면에서 그려진 상대에 진행 방향 앞쪽으로 겹치고, 상대 마디가 그 자리에 먼저 놓였을 때만 내가 박음 (상대 머리가 내 몸에 닿는 것으로는 안 죽음)
 //       닿은 뒤 0.35초 확인: 그사이 그 친구가 이미 쓰러졌다는 소식이 오면 안 죽음
 //     · 머리끼리: 내 화면에서 두 머리가 겹치고 서로를 향해(±60°) 갈 때만. 본 기기가 상대에게 내 길이를 알리고('hh'),
 //       상대가 자기 화면에서도 두 머리가 닿는 것을 봤고 자기 실제 길이가 더 길면 '내가 더 길다'('hhr')고 답함 → 그 답을 받은 기기(= 자기 화면에서 닿음을 본 기기)만 쓰러짐.
@@ -489,20 +489,14 @@ class SlitherGame {
       if (p.hhUntil > now - 200 && now - p.hhStart < 3000 && slNear(this.x, this.y, rs, p.rx, p.ry, p.pts, p.vs, p.vn)) p.hhUntil = Math.max(p.hhUntil, now + 200);
       if (this.invul > 0 || p.hhUntil > now || (this.isSuper && id === lead)) { p.hitAt = 0; continue; }   // 슈퍼는 1등 몸에 안 죽음
       // 몸 박기 — '누가 먼저 그 자리에 있었나'(마디가 놓인 서버 시각)로 가림. 여유(SL_MARGIN) 안이면 둘 다 삼
-      //   ① 내 머리가 그려진 상대 몸에 닿음(0.8배 겹침 · 내가 그쪽으로 감): 상대 마디가 그 자리에 먼저 놓였으면 내가 이미 있던 몸을 박은 것
-      //   ② 상대 머리가 내 몸에 닿음(내 화면): 내 마디가 그 자리에 상대 머리보다 늦게 놓였으면(상대가 먼저 지나간 자리를 내가 지나감) 내가 박은 것 → 그 자리로 되감아 쓰러짐
+      //   내 머리가 그려진 상대 몸·머리에 닿음(0.8배 겹침 · 내가 그쪽으로 감) + 상대 마디가 그 자리에 먼저 놓였을 때만 내가 박은 것
+      //   (상대 머리가 내 몸에 닿는 것으로는 절대 안 죽음 — 박은 쪽 기기가 자기 화면에서 판정)
       if (!p.hitAt) {
         const sNow = this.srvNow(), tm = i => (i < 63 ? this.tAt[(this.seq - i) & 63] : -Infinity);
         const h1 = slHitT(this.x, this.y, rs * SL_HIT, ca, sa, p.rx, p.ry, p.rt, p.pts, p.vs, p.vn, null);
         // 시각은 '닿은 그 점'에서 비교: 내 머리가 그 점에 닿는 시각 = 지금 + (그 점까지 앞쪽 거리 ÷ 내 속도)
         if (h1) { const vme = SL_SPEED * (this.boost && this.len > 8 ? 1.7 : 1) / 16.7, myT = sNow + Math.max(0, (h1.x - this.x) * ca + (h1.y - this.y) * sa) / vme;
           if (h1.t < myT - SL_MARGIN) { p.hitAt = now; p.hitX = this.x; p.hitY = this.y; p.hitSeq = this.seq; } }
-        else if (n - i0 > 1 && isFinite(p.rt)) {
-          const h2 = slHitT(p.rx, p.ry, rs * SL_HIT, 0, 0, t[i0][0], t[i0][1], tm(i0), t, i0 + 1, n - i0 - 1, tm), vp = SL_SPEED * (p.boost ? 1.7 : 1) / 16.7;
-          // 상대 머리가 그 점(내 몸 위)에 닿는 시각 = 그려진 머리 시각 + (그 점까지 앞쪽 거리 ÷ 상대 속도)
-          const thT = h2 ? p.rt + ((h2.x - p.rx) * Math.cos(pa) + (h2.y - p.ry) * Math.sin(pa)) / vp : NaN;
-          if (h2 && h2.t > thT + SL_MARGIN && h2.t < thT + p.len / vp * 0.9) { p.hitAt = now; p.hitX = h2.x; p.hitY = h2.y; p.hitSeq = this.seq - h2.i; }
-        }
         if (p.hitAt) { p.hitLife = p.life; p.myLife = this.life; }                    // 확인 시간(0.35초) 동안 그 친구가 이미 쓰러졌다는 소식이 오면 안 죽음
       }
       if (p.hitAt && now - p.hitAt >= SL_CONFIRM) {                                  // 확인 시간 끝: 닿은 그 자리가 지금도 그려진 몸과 겹치면 그 자리에서 쓰러짐
