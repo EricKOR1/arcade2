@@ -239,10 +239,10 @@ class SlitherGame {
     else if (newN >= 0 && K > p.pts.length + newN) { p.pts = q; p.lag += newN * SL_SEG + Math.hypot(q[0][0] - d.x, q[0][1] - d.y) - oldH0; }   // 전체 몸이 실려 옴
     else if (newN > 0) {
       if (newN <= K) { for (let i = newN - 1; i >= 0; i--) p.pts.unshift(q[i]); }
-      else {                                                     // 신호가 빠짐: 받은 점 + 빈 곳은 곧은 선으로 메움
+      else {                                                     // 신호가 빠짐: 받은 점 + 빈 곳은 곧은 선으로 메움 (진짜 몸이 아니므로 시각 없음 → 여기에 닿아도 안 죽음)
         const miss = newN - K, a = q[K - 1], b = p.pts[0];
         if (miss > 160 || Math.hypot(a[0] - b[0], a[1] - b[1]) > (miss + 1) * SL_SEG + 1) p.pts = q;
-        else { const fill = []; for (let j = 1; j <= miss; j++) { const t = j / (miss + 1); fill.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]); } p.pts = q.concat(fill, p.pts); }
+        else { const fill = []; for (let j = 1; j <= miss; j++) { const t = j / (miss + 1); fill.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, NaN]); } p.pts = q.concat(fill, p.pts); }
       }
       p.lag += newN * SL_SEG + Math.hypot(p.pts[0][0] - d.x, p.pts[0][1] - d.y) - oldH0;
     } else if (newN === 0) p.lag += Math.hypot(p.pts[0][0] - d.x, p.pts[0][1] - d.y) - oldH0;
@@ -468,7 +468,7 @@ class SlitherGame {
     // 머리끼리 물음 다시 보내기: 답이 없으면 0.4초마다 (1.2초까지) — 사건이 빠져도 놓치지 않게
     for (const k in this.claims) { const c = this.claims[k]; if (c.msg && now - c.at < 1200 && now - c.last >= 400) { c.last = now; this.send('hh', c.id, c.msg); } }
     const lead = this.leader, ca = Math.cos(this.angle), sa = Math.sin(this.angle), t = this.trail, n = Math.min(t.length, Math.ceil(this.len / SL_SEG) + 1);
-    for (const id in this.peers) { const p = this.peers[id]; if (!this.live(p) || p.dying) continue;
+    for (const id in this.peers) { const p = this.peers[id]; if (!this.live(p) || p.dying) { p.hitAt = 0; continue; }   // 유령·쓰러짐 → 기다리던 닿음도 취소
       const pr = SlitherGame.radiusOf(p.len), rs = R + pr, dx = p.rx - this.x, dy = p.ry - this.y, d2 = dx * dx + dy * dy, reach = Math.max(p.len, this.len) + rs + 2;
       if (d2 > reach * reach) continue;
       const pa = p.ma != null ? p.ma : p.ra;
@@ -493,12 +493,14 @@ class SlitherGame {
       //   (상대 머리가 내 몸에 닿는 것으로는 절대 안 죽음 — 박은 쪽 기기가 자기 화면에서 판정)
       if (!p.hitAt) {
         const sNow = this.srvNow();
-        const h1 = slHitT(this.x, this.y, rs * SL_HIT, ca, sa, p.rx, p.ry, p.rt, p.pts, p.vs, p.vn, null);
+        // 꼬리 끝은 그려진 모습이 실제보다 (그려진 머리가 늦은 만큼) 길게 남아 있음 → 그만큼은 빼고 판정
+        const h1 = slHitT(this.x, this.y, rs * SL_HIT, ca, sa, p.rx, p.ry, p.rt, p.pts, p.vs, Math.max(0, p.vn - Math.ceil(p.lag / SL_SEG)), null);
         // 시각은 '닿은 그 점'에서 비교: 내 머리가 그 점에 닿는 시각 = 지금 + (그 점까지 앞쪽 거리 ÷ 내 속도)
         if (h1) { const vme = SL_SPEED * (this.boost && this.len > 8 ? 1.7 : 1) / 16.7, myT = sNow + Math.max(0, (h1.x - this.x) * ca + (h1.y - this.y) * sa) / vme;
           if (h1.t < myT - SL_MARGIN) { p.hitAt = now; p.hitX = this.x; p.hitY = this.y; p.hitSeq = this.seq; } }
         if (p.hitAt) { p.hitLife = p.life; p.myLife = this.life; }                    // 확인 시간(0.35초) 동안 그 친구가 이미 쓰러졌다는 소식이 오면 안 죽음
       }
+      if (p.hitAt && now - p.hitAt > SL_CONFIRM + 100) p.hitAt = 0;                 // 오래된 닿음(그사이 판정을 쉼) → 버림
       if (p.hitAt && now - p.hitAt >= SL_CONFIRM) {                                  // 확인 시간 끝: 닿은 그 자리가 지금도 그려진 몸과 겹치면 그 자리에서 쓰러짐
         const ok = p.hitLife === p.life && p.myLife === this.life && slNear(p.hitX, p.hitY, rs * SL_HIT, p.rx, p.ry, p.pts, p.vs, p.vn); p.hitAt = 0;
         if (ok) { const k = this.seq - p.hitSeq; if (k > 0 && k < this.trail.length - 2) { this.trail.splice(0, k); this.seq -= k; } this.x = p.hitX; this.y = p.hitY;
