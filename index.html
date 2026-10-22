@@ -15,8 +15,8 @@
 <link rel="apple-touch-icon" href="icon-180.png">
 <meta name="theme-color" content="#1B2027">
 <title>아케이드</title>
-<link rel="stylesheet" href="platform.css?v=2026-10-21b">
-<link rel="stylesheet" href="style.css?v=2026-10-21b">
+<link rel="stylesheet" href="platform.css?v=2026-10-21c">
+<link rel="stylesheet" href="style.css?v=2026-10-21c">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nanum+Myeongjo:wght@700;800&display=swap" rel="stylesheet">
 </head>
@@ -52,6 +52,17 @@
       <p class="howto-keys" id="howto-keys"></p>
     </div>
     <div class="roster" id="roster"></div>
+    <!-- 초기 대기실: 이름 바꾸기 -->
+    <div class="hidden" id="rename-box" style="margin-top:16px;display:flex;flex-direction:column;align-items:center;gap:8px">
+      <button id="rename-open" class="btn btn-ghost btn-sm">✏️ 이름 바꾸기</button>
+      <div class="hidden" id="rename-form" style="display:flex;gap:6px;align-items:center;justify-content:center;flex-wrap:wrap">
+        <input id="rename-input" type="text" maxlength="8" placeholder="새 이름 (8자 이내)"
+               class="input input-bordered text-center font-semibold" style="width:11em" autocomplete="off" autocapitalize="off">
+        <button id="rename-ok" class="btn btn-primary btn-sm">바꾸기</button>
+        <button id="rename-cancel" class="btn btn-ghost btn-sm">취소</button>
+      </div>
+      <p id="rename-msg" class="text-sm hidden"></p>
+    </div>
   </section>
 
   <!-- 게임 -->
@@ -136,17 +147,17 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script src="firebase-config.js?v=2026-10-21b"></script>
-<script src="sound.js?v=2026-10-21b"></script>
-<script src="shared.js?v=2026-10-21b"></script>
-<script src="fx.js?v=2026-10-21b"></script>
+<script src="firebase-config.js?v=2026-10-21c"></script>
+<script src="sound.js?v=2026-10-21c"></script>
+<script src="shared.js?v=2026-10-21c"></script>
+<script src="fx.js?v=2026-10-21c"></script>
 <!-- 게임 엔진(*-engine.js · three.min.js · 울산 · 카트 3D 파일)은 아래 ENGINE_FILES 표대로 고른 게임에 필요한 것만 불러옵니다 -->
-<script src="games.js?v=2026-10-21b"></script>
-<script src="app.js?v=2026-10-21b"></script>
+<script src="games.js?v=2026-10-21c"></script>
+<script src="app.js?v=2026-10-21c"></script>
 <script>
 (function () {
 
-  const BUILD = '2026-10-21b';   // 화면 아래에 표시됩니다
+  const BUILD = '2026-10-21c';   // 화면 아래에 표시됩니다
 
   const gameId = getGameId();
   const inLobby = new URLSearchParams(location.search).get('game') === 'lobby';   // 초기 대기실: 선생님이 게임을 고르면 그 게임 대기실로 옮겨 감 (gameId 는 자리표시 · 게임은 시작하지 않음)
@@ -216,6 +227,7 @@
     document.getElementById('howto-keys').textContent = '';
     const wh = document.querySelector('#screen-wait h1'), wm = document.querySelector('#screen-wait .muted');
     if (wh) wh.textContent = '게임을 기다리는 중'; if (wm) wm.textContent = '선생님이 게임을 고르면 자동으로 넘어갑니다';
+    document.getElementById('rename-box').classList.remove('hidden');   // 초기 대기실에서만 이름 바꾸기
   }
   // 점수 옆 보조 수치 두 칸 — 게임마다 무엇을 보여 줄지 정합니다
   const stats = def.stats || [];
@@ -578,6 +590,37 @@
       err.classList.remove('hidden');
     });
   }
+
+  // 초기 대기실: 이름 바꾸기 — 같은 이름이 살아 있으면 막고, 명단·교사 화면·다음 게임 자동 입장 이름까지 함께 바꿈
+  (function () {
+    const box = document.getElementById('rename-form'), inp = document.getElementById('rename-input'), msg = document.getElementById('rename-msg'), openBtn = document.getElementById('rename-open');
+    const say = (t, ok) => { msg.textContent = t; msg.className = 'text-sm ' + (ok ? 'text-success' : 'text-error'); };
+    const close = () => { box.classList.add('hidden'); openBtn.classList.remove('hidden'); };
+    openBtn.addEventListener('click', () => { inp.value = myNickname; box.classList.remove('hidden'); openBtn.classList.add('hidden'); msg.classList.add('hidden'); inp.focus(); inp.select(); });
+    document.getElementById('rename-cancel').addEventListener('click', () => { close(); msg.classList.add('hidden'); });
+    let busy = false;
+    function rename() {
+      const nn = inp.value.trim();
+      if (!nn) { say('새 이름을 입력해주세요'); return; }
+      if (nn === myNickname) { close(); msg.classList.add('hidden'); return; }
+      if (!joined || busy || switching) return;
+      busy = true;
+      playersRef.once('value').then(snap => {
+        const ps = snap.val() || {}, now = serverNow();
+        const taken = Object.keys(ps).some(id => id !== playerId && ps[id] && ps[id].nickname === nn && now - (ps[id].lastSeen || ps[id].joinedAt || 0) < 30000);
+        if (taken) throw new Error('DUP');
+        return playerRef.update({ nickname: nn });
+      }).then(() => {
+        myNickname = nn; myRosterRef.set(nn);
+        try { sessionStorage.setItem('nickname', nn); } catch (e) {}
+        document.getElementById('nickname-input').value = nn;
+        close(); say('이름을 ' + nn + '(으)로 바꿨어요', true);
+      })["catch"](e => { say(e && e.message === 'DUP' ? '이미 쓰고 있는 이름이에요 — 다른 이름을 넣어주세요' : '바꾸지 못했어요 — 다시 해 주세요'); })
+        .then(() => { busy = false; });
+    }
+    document.getElementById('rename-ok').addEventListener('click', rename);
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); rename(); } });
+  })();
 
   // 대기실 인원 — 닉네임만 있는 roster 노드 (전원의 보드·점수를 받지 않도록)
   rosterRef.on('value', snap => {
