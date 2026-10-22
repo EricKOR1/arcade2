@@ -280,7 +280,7 @@ class SlitherGame {
     // 머리끼리 물음: 상대 화면에서 머리끼리 닿음 → 상대 길이(e.len)를 알려 옴. 내 실제 길이가 더 길면 '내가 더 길다'고 답함 (나는 여기서 절대 안 죽음)
     if (e.type === 'hh') {
       if (!me || this.isDead || e.life !== this.life) return;
-      { const a = this.answered[e.by + ':' + e.ml]; if (a) { this.send('hhr', e.by, { life: e.ml, ml: this.life, k: a.k, len: Math.round(this.len) }); return; } }   // 같은 물음이 다시 옴(답이 빠졌을 수 있음) → 같은 답을 다시
+      { const a = this.answered[e.by + ':' + e.ml]; if (a) { if (now - (a.last || a.at) > 300) { a.last = now; this.send('hhr', e.by, { life: e.ml, ml: this.life, k: a.k, len: Math.round(this.len) }); } return; } }   // 같은 물음이 다시 옴(답이 빠졌을 수 있음) → 같은 답을 다시
       const lead = this.leader, k = this.isSuper && e.by === lead ? 'c' : (e.sup && lead === this.myId ? '' : (Math.round(this.len) > Math.round(+e.len || 0) ? 'e' : ''));
       if (!k) return;                                                               // 같거나 짧음 · 슈퍼가 1등(나)에게 물음 → 답 없음
       const q = this.peers[e.by];                                                   // 내 화면에서도 두 머리가 닿는 것을 봤을 때만 답함 (아직이면 1.5초까지 기다렸다가)
