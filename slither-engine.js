@@ -121,7 +121,7 @@ class SlitherGame {
     this.peers = {}; this.leftPeers = {}; this.parts = []; this.now = 0; this.lastTime = 0;
     this.score = 0; this.kills = 0; this.best = 0; this.gameOver = false; this.toasts = []; this.banner = null;
     this.mx = 0; this.my = 0; this.boost = false; this.quality = 2;
-    this.life = 0; this.seq = 0; this.tAt = new Float64Array(64);   // 내 마디가 놓인 시각(서버 시계, 최근 64개)
+    this.life = 0; this.seq = 0;
     this.superUntil = 0; this.superCool = 0; this.leader = null; this.leadSince = 0; this.frameN = 0;
     this.credit = {}; this.claims = {}; this.answered = {}; this.waiting = {}; this.noted = {}; this.dlog = []; this.killedBy = null; this.fullUntil = 0; this.needAt = -1e9;
     this.labels = new Map(); this.pelletSpr = new Map(); this.dotSpr = new Map(); this.bgCache = null;
@@ -149,7 +149,7 @@ class SlitherGame {
     this.x = best[0]; this.y = best[1]; this.angle = Math.atan2(-this.y, -this.x) + (Math.random() - 0.5);   // 가운데 쪽을 보고 출발
     this.len = len || 6; this.life++;
     this.trail = []; for (let i = 0; i < 40; i++) this.trail.push([this.x - Math.cos(this.angle) * i * SL_SEG, this.y - Math.sin(this.angle) * i * SL_SEG]);
-    this.seq += 40; this.killedBy = null; { const old = this.srvNow() - 1e6; for (let i = 0; i < 64; i++) this.tAt[i] = old; }
+    this.seq += 40; this.killedBy = null;
     this.deadUntil = 0; this.invul = 2000; this.boostAcc = 0; this.fullUntil = this.clock() + 700;   // 새 몸은 처음 몇 번 통째로 보냄
   }
   get isDead() { return this.now < this.deadUntil; }
@@ -394,7 +394,7 @@ class SlitherGame {
       if (Math.hypot(this.x, this.y) + R * 0.8 > this.R) this.die('경기장 벽에 닿았어요', '', 'wall', false, true);
       // 자취: 정확히 마디 간격마다 점을 찍음 (받는 쪽이 같은 점을 복원)
       let h = this.trail[0], dx = this.x - h[0], dy = this.y - h[1], dd = Math.sqrt(dx * dx + dy * dy);
-      while (dd >= SL_SEG) { const k = SL_SEG / dd; h = [h[0] + dx * k, h[1] + dy * k]; this.trail.unshift(h); this.seq++; this.tAt[this.seq & 63] = this.srvNow(); dx = this.x - h[0]; dy = this.y - h[1]; dd = Math.sqrt(dx * dx + dy * dy); }
+      while (dd >= SL_SEG) { const k = SL_SEG / dd; h = [h[0] + dx * k, h[1] + dy * k]; this.trail.unshift(h); this.seq++; dx = this.x - h[0]; dy = this.y - h[1]; dd = Math.sqrt(dx * dx + dy * dy); }
       const maxPts = Math.ceil(this.len / SL_SEG) + 3; if (this.trail.length > maxPts) this.trail.length = maxPts;
       if (this.len > SL_WIN) this.len = SL_WIN;                                       // 길이 상한 2000 (닿으면 경기 끝)
       if (this.invul > 0) this.invul -= dt;
@@ -492,7 +492,7 @@ class SlitherGame {
       //   내 머리가 그려진 상대 몸·머리에 닿음(0.8배 겹침 · 내가 그쪽으로 감) + 상대 마디가 그 자리에 먼저 놓였을 때만 내가 박은 것
       //   (상대 머리가 내 몸에 닿는 것으로는 절대 안 죽음 — 박은 쪽 기기가 자기 화면에서 판정)
       if (!p.hitAt) {
-        const sNow = this.srvNow(), tm = i => (i < 63 ? this.tAt[(this.seq - i) & 63] : -Infinity);
+        const sNow = this.srvNow();
         const h1 = slHitT(this.x, this.y, rs * SL_HIT, ca, sa, p.rx, p.ry, p.rt, p.pts, p.vs, p.vn, null);
         // 시각은 '닿은 그 점'에서 비교: 내 머리가 그 점에 닿는 시각 = 지금 + (그 점까지 앞쪽 거리 ÷ 내 속도)
         if (h1) { const vme = SL_SPEED * (this.boost && this.len > 8 ? 1.7 : 1) / 16.7, myT = sNow + Math.max(0, (h1.x - this.x) * ca + (h1.y - this.y) * sa) / vme;
