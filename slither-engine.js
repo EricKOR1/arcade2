@@ -353,8 +353,8 @@ class SlitherGame {
     }
     if (A !== this.myId) {                                                         // 상대 화면이 정한 결론: 닿은 자리로 되감아 쓰러짐 (결론이 늦게 와도)
       //   단, 너무 늦게 왔거나(끊김 뒤 · 1.2초 넘음) 그 친구가 내 화면에서 유령이거나, 그 자리가 내 자취에 없으면(상대 화면의 내가 틀림) → 받지 않음: 먹은 쪽이 되돌림
-      const k = this.trailNear(+c.px, +c.py), qa = this.peers[A];
-      if (this.srvNow() - (+c.ts) > SL_LATE || k < -1 || !qa || this.ghost(qa)) { st.void = true; this.send('hhx', A, { la, lb, cb: A, ct: B, cts: +c.ts, alive: 1 }); return; }
+      const k = this.trailNear(+c.px, +c.py), qa = this.peers[A], mh = k >= 0 ? this.trail[k] : [this.x, this.y], bh = qa && this.showBite(qa, +c.x, +c.y, true);
+      if (this.srvNow() - (+c.ts) > SL_LATE || k < -1 || !qa || this.ghost(qa) || Math.hypot(bh[0] - mh[0], bh[1] - mh[1]) > (SlitherGame.radiusOf(this.len) + SlitherGame.radiusOf(qa.len)) * 1.6) { st.void = true; this.send('hhx', A, { la, lb, cb: A, ct: B, cts: +c.ts, alive: 1 }); return; }
       this.rewindAt(k); this.showBite(qa, +c.x, +c.y);                            // 내 화면에서도 두 머리가 닿은 모습 (먹은 친구 머리를 닿은 자리까지 당겨 그림)
     }
     st.lost = true;
@@ -381,12 +381,16 @@ class SlitherGame {
   }
   rewindAt(k) { const t = this.trail; if (k < 0) return; if (k > 0) { t.splice(0, k); this.seq -= k; } this.x = t[0][0]; this.y = t[0][1]; }
   // 친구 머리를 (x,y) — 결론을 낸 화면에서 닿은 자리 — 까지 받은 길을 따라 당겨 그림 (앞으로만 · 1.5칸 안)
-  showBite(q, x, y) {
-    if (!q || !q.pts.length || !isFinite(x) || !isFinite(y)) return;
+  //   dry: 바꾸지 않고 그 뒤 그려질 머리 자리만 돌려줌
+  showBite(q, x, y, dry) {
+    if (!q || !q.pts.length || !isFinite(x) || !isFinite(y)) return [q ? q.rx : 0, q ? q.ry : 0];
     const pts = q.pts, h0 = Math.hypot(pts[0][0] - q.hx, pts[0][1] - q.hy); let L = null, bd = 2.25;
     { const dd = (q.hx - x) ** 2 + (q.hy - y) ** 2; if (dd < bd) { bd = dd; L = 0; } }
     for (let k = 0, e = Math.min(q.vs + 1, pts.length); k < e; k++) { const dd = (pts[k][0] - x) ** 2 + (pts[k][1] - y) ** 2; if (dd < bd) { bd = dd; L = h0 + k * SL_SEG; } }
-    if (L != null && L < q.lag) { q.lag = L; this.placeRender(q); }
+    let fx = false; if ((L == null || L === 0) && (q.hx - x) ** 2 + (q.hy - y) ** 2 < 9 && (x - q.hx) * Math.cos(q.ang) + (y - q.hy) * Math.sin(q.ang) > 0) { fx = true; L = 0; }   // 닿은 자리가 받은 머리보다 조금 앞(그 신호가 아직 안 옴) → 그 자리까지 (다음 신호가 이어 붙음)
+    if (L == null || L > q.lag + 1e-9) return [q.rx, q.ry];
+    if (dry) return fx ? [x, y] : (L === 0 ? [q.hx, q.hy] : [pts[Math.round((L - h0) / SL_SEG)][0], pts[Math.round((L - h0) / SL_SEG)][1]]);
+    if (fx) { q.hx = x; q.hy = y; } q.lag = L; this.placeRender(q); return [q.rx, q.ry];
   }
   // 먹은 친구: 내 화면에서 바로 쓰러지는 모습 (늦게 온 '살아 있는' 신호는 무시)
   markEaten(q, L) { q.eatenLife = L; q.deadLife = L; if (!q.dead) { q.dead = true; q.dying = q.pts.length > 0; q.dyingAt = this.clock(); } }
