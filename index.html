@@ -543,18 +543,20 @@
   function goFullscreen() {
     const d = document, el = d.documentElement;
     if (!isTouch() || isStandalone() || d.fullscreenElement || d.webkitFullscreenElement) return;
+    // 아이패드(사파리)는 전체 화면을 켜지 않음: ① 바뀌는 순간 누르던 터치가 취소돼 첫 조작이 먹히지 않고 ② 전체 화면에서 빠르게 연타하면 사파리가
+    //   '전체 화면에서 입력 중인 것 같습니다' 경고(피싱 방지)를 띄워 게임이 멈춤 ③ 위에서 쓸어내리면 전체 화면이 풀림 → 홈 화면 추가 안내(아래)로 대신
+    if (window.IS_IOS) return;
     const req = el.requestFullscreen || el.webkitRequestFullscreen; if (!req) return;
     try { const r = req.call(el, { navigationUI: 'hide' }); if (r && r.catch) r.catch(() => {}); } catch (e) {}
   }
   window.goFullscreen = goFullscreen;
-  // 아이패드: 누르는 순간 전체 화면으로 바뀌면 화면이 옮겨지며 그 터치가 취소돼 첫 조작(조이스틱·꾹 버튼)이 먹히지 않음 → 손을 뗄 때(touchend)에 켬 (안드로이드는 그대로)
-  document.addEventListener(window.IS_IOS ? 'touchend' : 'pointerdown', () => { if (joined) goFullscreen(); }, { passive: true, capture: true });
-  (function iphoneHint() {                           // 아이폰(사파리)은 홈 화면에 추가해야 주소창이 사라짐
+  document.addEventListener('pointerdown', () => { if (joined) goFullscreen(); }, { passive: true, capture: true });
+  (function iphoneHint() {                           // 아이폰·아이패드(사파리)는 홈 화면에 추가해야 주소창이 사라짐 (아이패드도 전체 화면을 켜지 않음 — goFullscreen)
     const ua = navigator.userAgent, iPhone = /iPhone|iPod/.test(ua) && !/iPad/.test(ua);
-    if (!iPhone || isStandalone() || (document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen)) return;
+    if (!(iPhone || window.IS_IOS) || isStandalone() || (!window.IS_IOS && (document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen))) return;
     const card = document.getElementById('join-btn'); if (!card) return;
     const tip = document.createElement('p'); tip.className = 'a2hs-tip';
-    tip.innerHTML = '📱 주소창 없이 크게 하려면: 아래 <b>공유 ⎋</b> → <b>홈 화면에 추가</b> → 홈 화면의 <b>아케이드</b> 아이콘으로 열기';
+    tip.innerHTML = '📱 주소창 없이 크게 하려면: ' + (iPhone ? '아래' : '위') + ' <b>공유 ⎋</b> → <b>홈 화면에 추가</b> → 홈 화면의 <b>아케이드</b> 아이콘으로 열기';
     card.parentElement.appendChild(tip);
   })();
   document.getElementById('join-btn').addEventListener('click', () => { goFullscreen(); join(); });
