@@ -228,12 +228,14 @@ const GAMES = {
     primary: '72% 0.15 230', primaryContent: '100% 0 0', hex: '#4CC9F0',
     grid: { cols: 12, rows: 18 },
     adminView: 'grid', fullBleed: true,
-    needsPeers: true, realtime: true, hasNext: false,
-    stats: [{ key: 'pct', label: '내 땅(%)' }, { key: 'kills', label: '자르기' }],
-    detail: function (g) { return '최고 ' + (Math.round(g.best / ((g.N || 56) * (g.N || 56)) * 1000) / 10) + '% · 꼬리 자르기 ' + g.kills + '번'; },
+    needsPeers: true, realtime: true, hasNext: false, timed: true,   // timed: 선생님이 시간 제한을 정함 → 끝나면 그 순간 % 로 순위 · 누가 50% 이상이면 바로 끝
+    // 점수 = 지금 차지한 땅 %(소수 한 자리) — 위쪽 점수 칸·게임 안 순위표·선생님 화면·결과가 모두 g.score 하나 (예전: 점수 = '최고' 칸 수, 화면 = 지금 % 로 서로 달랐음)
+    stats: [{ key: 'place', label: '순위' }, { key: 'kills', label: '자르기' }],
+    overText: function (g) { return g.endReason === 'goal' ? g.winner + ' 50% 달성!' : g.endReason === 'time' ? '시간 끝!' : 'GAME OVER'; },
+    detail: function (g) { return (g.endReason === 'goal' ? g.winner + ' 50% 달성 · ' : g.endReason === 'time' ? '시간 끝 · ' : '') + (g.rank && g.total ? g.total + '명 중 ' + g.rank + '등 · ' : '') + '내 땅 ' + g.score + '% · 꼬리 자르기 ' + g.kills + '번'; },
     controls: [], padLayout: 'drag',   // 방향 버튼 대신 화면 전체를 밀기 — 게임판을 크게
     create: function (canvas, opts) { return new TerritoryGame(canvas, opts); },
-    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.best, pct: g.pct, kills: g.kills }; }
+    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, pct: g.score, kills: g.kills }; }
   },
 
   fpsclassic: {
