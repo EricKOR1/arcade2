@@ -547,7 +547,8 @@
     try { const r = req.call(el, { navigationUI: 'hide' }); if (r && r.catch) r.catch(() => {}); } catch (e) {}
   }
   window.goFullscreen = goFullscreen;
-  document.addEventListener('pointerdown', () => { if (joined) goFullscreen(); }, { passive: true, capture: true });
+  // 아이패드: 누르는 순간 전체 화면으로 바뀌면 화면이 옮겨지며 그 터치가 취소돼 첫 조작(조이스틱·꾹 버튼)이 먹히지 않음 → 손을 뗄 때(touchend)에 켬 (안드로이드는 그대로)
+  document.addEventListener(window.IS_IOS ? 'touchend' : 'pointerdown', () => { if (joined) goFullscreen(); }, { passive: true, capture: true });
   (function iphoneHint() {                           // 아이폰(사파리)은 홈 화면에 추가해야 주소창이 사라짐
     const ua = navigator.userAgent, iPhone = /iPhone|iPod/.test(ua) && !/iPad/.test(ua);
     if (!iPhone || isStandalone() || (document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen)) return;
@@ -1142,7 +1143,10 @@
       window.addEventListener('devicemotion', gyroHandler);
     };
     if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
-      DeviceMotionEvent.requestPermission().then(st => { if (st === 'granted') attach(); else { fpsOpt.gyro = false; saveOpt(); const b = byId('fopt-gyro'); if (b) b.classList.remove('on'); } })["catch"](() => {});
+      DeviceMotionEvent.requestPermission().then(st => { if (st === 'granted') attach(); else { fpsOpt.gyro = false; saveOpt(); const b = byId('fopt-gyro'); if (b) b.classList.remove('on'); } })["catch"](() => {
+        // 아이폰·아이패드: 허락 요청은 '누른 순간'에만 됨 — 저장된 '자이로 켬'으로 판이 시작되면 거절돼 켜짐 표시인데 안 움직였음 → 다음 톡에 다시 요청
+        const once = () => { document.removeEventListener('touchend', once, true); if (fpsOpt.gyro && !gyroHandler && byId('fopt-gyro')) startGyro(); };
+        document.addEventListener('touchend', once, true); });
     } else attach();
   }
   function stopGyro() { if (gyroHandler) { window.removeEventListener('devicemotion', gyroHandler); gyroHandler = null; } }
