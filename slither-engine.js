@@ -327,6 +327,7 @@ class SlitherGame {
     if (!c || c.by == null || c.target == null || !isFinite(+c.ts)) return;
     const now = this.clock(), A = String(c.by), B = String(c.target), la = +c.la, lb = +c.lb, key = slPairKey(A, la, B, lb);
     let st = this.hhPairs[key];
+    if (st && st.void) { if (st.c && +c.ts === st.c.ts && A === st.c.by) return; delete this.hhPairs[key]; st = null; }   // 받지 않은(되돌린) 결론 뒤의 새 결론은 새로 셈
     if (st && st.c && !slEarlier({ ts: +c.ts, by: A }, st.c)) return;            // 이미 같은 결론이거나 더 먼저 낸 결론이 있음
     if (!st) st = this.hhPairs[key] = { at: now, grew: 0 };
     const prev = st.c; st.c = { ts: +c.ts, by: A };
@@ -586,6 +587,8 @@ class SlitherGame {
     if (je > j0 + 1 && slDist(this.x, this.y, p.pts, j0, je - j0) < d) return false;              // 내 머리가 상대 목·몸에 더 가까움
     return true;
   }
+  // 이 친구(이 목숨)와 아직 결론이 없음 (받지 않은 결론은 없는 것으로)
+  hhFree(id, p) { const st = this.hhPairs[slPairKey(this.myId, this.life, id, p.life)]; return !st || !!st.void; }
   // 누가 먹나: 보낸 신호의 길이로 비교 (내 길이 = 마지막으로 보낸 길이 · 상대 = 받은 길이) — 같으면 null(튕김)
   //   슈퍼 지렁이 ↔ 1등: 슈퍼가 1등의 길이만큼 먹음(k 'c')
   hhVerdict(id, p) {
@@ -626,7 +629,7 @@ class SlitherGame {
       const i0 = Math.min(n - 1, Math.ceil(R / SL_SEG) + 1);
       // 머리끼리 (넉넉하게): 두 머리 원이 (반지름 합 × 1.3) 안 + 목·옆구리가 아니라 머리끼리 → 내 화면에서 바로 결론
       { const hr = rs * SL_HHR;
-        if (this.invul <= 0 && !p.inv && d2 < hr * hr && !(p.hhUntil > now) && !this.hhPairs[slPairKey(this.myId, this.life, id, p.life)] && this.headOn(dx, dy, p, R, pr, n)) {
+        if (this.invul <= 0 && !p.inv && d2 < hr * hr && !(p.hhUntil > now) && this.hhFree(id, p) && this.headOn(dx, dy, p, R, pr, n)) {
           p.hhStart = now; const v = this.hhVerdict(id, p);
           if (!v) { this.angle = Math.atan2(-dy, -dx); p.hhUntil = now + 900; this.toast(slJosa(p.name || '친구', '과', '와') + ' 길이가 같아 튕겨 나왔어요', '#4CC9F0'); }   // 같은 길이: 나만 튕김
           else { this.claim(id, p, v, now); if (this.isDead) return; continue; }
