@@ -204,19 +204,21 @@ const GAMES = {
   slither: {
     type: 'canvas',
     name: '뱀 아레나',
-    desc: '큰 뱀이 작은 뱀을 삼키며 자라는 실시간 대전. 먹이를 먹어 길이를 키우고, 머리끼리 마주 부딪히면 조금이라도 긴 쪽이 삼켜 먹힌 뱀의 길이만큼 커져요(길이가 같으면 튕겨 나와요). 가끔 태어나는 슈퍼 지렁이는 1등의 머리를 먹으면 1등의 길이만큼 커져 1등 자리를 이어받아요. 누군가 길이 2000에 닿으면 경기 끝 — 그 순간 점수로 순위를 매겨요',
-    howto: '조이스틱으로 방향 · 부스트 버튼(꾹)으로 가속(길이 소모) · 내 머리로 다른 뱀 몸(목·옆구리 포함)을 박으면 나만 탈락 — 남이 내 몸을 박으면 그 친구가 탈락 · 머리끼리 마주 부딪히면 조금이라도 긴 쪽이 삼키고 먹힌 길이만큼 커짐 · 길이가 같으면 튕김 · 경기장 벽에 닿으면 탈락 · 슈퍼 지렁이는 1등과 부딪혀도 안 죽고 1등 머리를 먹으면 그 길이만큼 커짐 · 길이 2000에 먼저 닿으면 1등으로 경기 끝',
+    desc: '큰 뱀이 작은 뱀을 삼키며 자라는 실시간 대전. 먹이를 먹어 길이를 키우고, 머리끼리 부딪히면 조금이라도 긴 쪽이 그 순간 삼켜 먹힌 뱀의 길이만큼 커져요(길이가 같으면 튕겨 나와요). 가끔 태어나는 슈퍼 지렁이는 1등의 머리를 먹으면 1등의 길이만큼 커져 1등 자리를 이어받아요. 누군가 길이 2000에 닿거나 시간이 끝나면 경기 끝 — 그 순간 길이(점수)로 순위를 매겨요',
+    howto: '조이스틱으로 방향 · 부스트 버튼(꾹)으로 가속(길이 소모) · 내 머리로 다른 뱀 몸(목·옆구리 포함)을 박으면 나만 탈락 — 남이 내 몸을 박으면 그 친구가 탈락 · 머리끼리 부딪히면 조금이라도 긴 쪽이 삼키고 먹힌 길이만큼 커짐 · 길이가 같으면 튕김 · 경기장 벽에 닿으면 탈락 · 슈퍼 지렁이는 1등과 부딪혀도 안 죽고 1등 머리를 먹으면 그 길이만큼 커짐 · 길이 2000에 먼저 닿으면 1등으로 경기 끝 · 시간 제한이 있으면 끝나는 순간 길이로 순위',
     meta: '실시간 대전 · 최대 30명 · 개인전 · 맵 5종(인원별 크기)',
     primary: '75% 0.19 160', primaryContent: '100% 0 0', hex: '#06D6A0',
     grid: { cols: 30, rows: 30 },
     adminView: 'grid', fullBleed: true,
     needsPeers: true, realtime: true, hasNext: false, hasTracks: true, trackKind: 'map', mapRegistry: 'slither',   // 맵(인원별 크기) 선택
-    stats: [{ key: 'len', label: '길이' }, { key: 'kills', label: '삼킴' }],
-    overText: function (g) { return g.winner ? '경기 끝!' : 'GAME OVER'; },
-    detail: function (g) { return (g.rank ? g.winner + ' 2000 달성 · ' + g.total + '명 중 ' + g.rank + '등 · ' : '') + '길이 ' + Math.round(g.len) + ' · 최고 ' + Math.round(Math.max(g.best, g.len)) + ' · 삼킴 ' + g.kills; },
+    timed: true,                                                    // 시간 제한(선생님이 고름) — 엔진이 opts.endAt 으로 남은 시간 · 끝
+    stats: [{ key: 'score', label: '길이' }, { key: 'kills', label: '삼킴' }],
+    overText: function (g) { return g.endReason === 'time' ? '시간 끝!' : g.winner ? '경기 끝!' : 'GAME OVER'; },
+    // 점수 = 지금 길이 (끝난 뒤엔 끝난 순간 길이) — HUD · 순위표 · 선생님 화면 · 결과가 모두 같은 숫자
+    detail: function (g) { return (g.rank ? (g.endReason === 'time' ? '시간 끝 · 1등 ' + g.winner : g.winner + ' 2000 달성') + ' · ' + g.total + '명 중 ' + g.rank + '등 · ' : '') + '길이 ' + g.score + ' · 삼킴 ' + g.kills; },
     controls: [], padLayout: 'slither',
     create: function (canvas, opts) { return new SlitherGame(canvas, opts); },
-    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: Math.round(Math.max(g.best, g.len)), len: Math.round(g.len), kills: g.kills }; }
+    sync: function (g) { const s = g.curScore(); return { board: boardToRows(g.getSnapshot()), score: s, len: s, kills: g.kills }; }
   },
 
   territory: {
