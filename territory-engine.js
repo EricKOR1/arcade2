@@ -445,7 +445,7 @@ class TerritoryGame {
   // 끝 화면: 끝난 까닭 · 내 순위와 점수 · 1~5등
   drawEnd(ctx, W, H) {
     ctx.fillStyle = 'rgba(10,14,28,.62)'; ctx.fillRect(0, 0, W, H);
-    const pw = Math.min(W - 32, 380), ph = 132 + Math.min(5, this.board.length) * 24, px = (W - pw) / 2, py = Math.max(70, (H - ph) / 2);
+    const pw = Math.min(W - 32, 380), ph = 132 + Math.min(5, this.board.length) * 24, px = (W - pw) / 2, py = H >= 560 ? Math.min(H - ph - 12, H / 2 + 80) : Math.max(70, (H - ph) / 2);   // 키 큰 화면: 가운데 아래 (페이지의 '끝' 카드가 가운데에 잠깐 뜸)
     ctx.fillStyle = 'rgba(22,28,48,.94)'; FX.rr(ctx, px, py, pw, ph, 18); ctx.fill(); ctx.strokeStyle = '#FFD447'; ctx.lineWidth = 2; ctx.stroke();
     const title = this.endReason === 'goal' ? this.winner + ' ' + TR_GOAL + '% 달성!' : '시간 끝!';
     ctx.font = '900 28px Pretendard, sans-serif'; const tsz = Math.min(28, 28 * (pw - 24) / Math.max(1, ctx.measureText(title).width));
@@ -508,7 +508,7 @@ class TerritoryGame {
     if (!this.has('fog')) this.items.forEach(it => { ctx.fillStyle = TR_ITEMS[it.type].color; ctx.fillRect(mx + (it.x + 0.5) * mk - 1.5, my + (it.y + 0.5) * mk - 1.5, 3, 3); });
     ctx.fillStyle = '#fff'; ctx.fillRect(mx + hx * mk - 2, my + hy * mk - 2, 4, 4);
     FX.text(ctx, trFmt(this.score) + '%', 10, 30, { size: 24, weight: 900, color: trSkin(this.ci).c, stroke: 'rgba(20,24,40,.85)' });   // 점수 = 지금 내 땅 % (위쪽 점수 칸·선생님 화면과 같은 숫자)
-    FX.text(ctx, '✂ ' + this.kills + ' · ' + this.place + '등 · 50% 먼저면 승리', 10, 50, { size: 13, weight: 800, color: '#fff', stroke: 'rgba(20,24,40,.85)' });
+    FX.text(ctx, '✂ ' + this.kills + ' · ' + this.place + '위', 10, 50, { size: 13, weight: 800, color: '#fff', stroke: 'rgba(20,24,40,.85)' });
     let fy = 62; ['inv', 'speed', 'shield', 'slow', 'reverse', 'fog'].forEach(k => { if (!this.has(k)) return; const d = TR_ITEMS[k], left = (this.fx[k] - tn) / 1000, w = 112;
       ctx.fillStyle = 'rgba(10,14,28,.65)'; FX.rr(ctx, 8, fy, w, 22, 8); ctx.fill(); ctx.fillStyle = d.color; FX.rr(ctx, 8, fy + 18, w * Math.min(1, left * 1000 / d.ms), 4, 2); ctx.fill();
       FX.text(ctx, (d.good ? '▲ ' : '▼ ') + d.name + ' ' + left.toFixed(1) + '초', 16, fy + 15, { size: 12, weight: 900, color: d.good ? '#9BF6B5' : '#FFB3BF' }); fy += 27; });
@@ -519,13 +519,14 @@ class TerritoryGame {
       FX.text(ctx, t, W - 10, ry, { size: 12.5, weight: me ? 900 : 700, color: me ? '#FFE38A' : '#fff', align: 'right', stroke: 'rgba(20,24,40,.85)' });
       trSwatch(ctx, trSkin(me ? this.ci : e.ci), W - 10 - ctx.measureText(t).width - 16, ry - 11, 12); });   // 순위표에도 색+무늬 견본
     // 남은 시간 (위 가운데 · 마지막 10초는 빨갛게 크게)
-    if (this.endAt > 0) { const left = this.gameOver ? (this.endReason === 'time' ? 0 : Math.max(0, this.endAt - this.goalT)) : this.endAt - this.clock(), hot = left <= 10000, tt = '남은 시간 ' + trClock(left), fs = hot ? 22 + (this.gameOver ? 0 : 5 * Math.max(0, left % 1000) / 1000) : 17;   // 마지막 10초: 매초 커졌다 작아짐
+    if (this.endAt > 0) { const left = this.gameOver ? (this.endReason === 'time' ? 0 : Math.max(0, this.endAt - this.goalT)) : this.endAt - this.clock(), hot = left <= 10000, tt = '남은 시간 ' + trClock(left), fs = hot ? 20 + (this.gameOver ? 0 : 4 * Math.max(0, left % 1000) / 1000) : 16;   // 마지막 10초: 매초 커졌다 작아짐
       ctx.font = '900 ' + fs + 'px Pretendard, sans-serif'; const tw = ctx.measureText(tt).width + 22, tx = Math.min(W / 2, mx - 10 - tw / 2);
       ctx.fillStyle = hot ? 'rgba(120,10,30,.78)' : 'rgba(10,14,28,.62)'; FX.rr(ctx, tx - tw / 2, 8, tw, fs + 12, (fs + 12) / 2); ctx.fill();
       FX.text(ctx, tt, tx, 8 + (fs + 12) / 2 + fs * 0.36, { size: fs, weight: 900, color: hot ? '#FFD1D8' : '#fff', align: 'center', stroke: 'rgba(20,24,40,.6)' }); }
     this.toasts.forEach((t, i) => FX.text(ctx, t.t, W / 2, H * 0.2 + i * 24, { size: 15, weight: 900, color: t.c, align: 'center', stroke: 'rgba(20,24,40,.9)' }));
     if (this.run < 4) FX.text(ctx, '화면 아무 데나 밀어서 방향 바꾸기 (방향키도 됨)', W / 2, H * 0.62, { size: 15, weight: 900, color: '#FFE38A', align: 'center', stroke: 'rgba(20,24,40,.9)' });
     if (this.run < 4) FX.text(ctx, '내 땅 밖에 선을 긋고 돌아오면 그 안이 내 땅!', W / 2, H * 0.62 + 22, { size: 13, weight: 800, color: '#fff', align: 'center', stroke: 'rgba(20,24,40,.9)' });
+    if (this.run < 4) FX.text(ctx, '전체 땅의 ' + TR_GOAL + '%를 먼저 차지하면 승리!' + (this.endAt > 0 ? ' (시간이 끝나면 넓은 순)' : ''), W / 2, H * 0.62 + 62, { size: 13, weight: 800, color: '#9BF6B5', align: 'center', stroke: 'rgba(20,24,40,.9)' });
     if (this.run < 4) FX.text(ctx, '상자를 밟으면 아이템! (좋은 것도, 나쁜 것도)', W / 2, H * 0.62 + 42, { size: 13, weight: 800, color: '#D9C2FF', align: 'center', stroke: 'rgba(20,24,40,.9)' });
     if (this.gameOver) { this.drawEnd(ctx, W, H); return; }
     if (this.isDead) { ctx.fillStyle = 'rgba(10,14,28,.45)'; ctx.fillRect(0, 0, W, H); FX.text(ctx, Math.max(1, Math.ceil((this.deadUntil - (this.now || 0)) / 1000)) + '', W / 2, H * 0.48, { size: 56, weight: 900, color: '#fff', align: 'center', stroke: 'rgba(20,24,40,.9)' }); }
