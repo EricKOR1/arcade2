@@ -1389,10 +1389,11 @@
       if (!isKart) {
         // 교사 화면 점수·순위: 점수가 바뀌면 0.25초 안에 점수만 · 전체(미니 보드 등)는 1초에 한 번 · 끝나면 곧바로 최종값(status gameover)
         //   (예전: 1초에 한 번만 + 끝나도 'playing' — 교사 화면 점수가 학생 화면보다 최대 1.2초 늦고, 끝난 판의 최종 점수가 빠지기도 했음)
+        //   (sync() 는 신호 때마다 — 가장 무거운 3D 젬 아레나도 한 번에 1ms 남짓)
         const tn = Date.now(), pay = Object.assign({ status: game.gameOver ? 'gameover' : 'playing' }, def.sync ? def.sync(game) : { score: game.score });
         lastSync = pay;
         if (game.gameOver || tn - lastScoreSync > 1000) { lastScoreSync = tn; lastQuickAt = tn; lastQuickScore = pay.score; playerRef.update(pay); }
-        else if (pay.score !== lastQuickScore && tn - lastQuickAt >= 250) { lastQuickAt = tn; lastQuickScore = pay.score; playerRef.update({ score: pay.score }); }
+        else if (pay.score !== lastQuickScore && tn - lastQuickAt >= 200) { lastQuickAt = tn; lastQuickScore = pay.score; playerRef.update({ score: pay.score }); }
         const scoreEl = document.getElementById('game-score');
         if (String(game.score) !== scoreEl.textContent) scoreEl.textContent = game.score;
         if (stats[0]) document.getElementById('val-a').textContent = game[stats[0].key];

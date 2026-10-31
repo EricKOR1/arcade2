@@ -1015,7 +1015,7 @@
   }
 
   // ── 남은 시간 · 끝난 뒤 최종 순위 ──
-  let finalSig = '';
+  let finalSig = '', finalKind = '';
   function mmss(ms) { const t = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'); }
   function paintClock() {
     const fin = paintFinal();                        // 목표 달성 등으로 먼저 끝났으면 시계도 '종료'
@@ -1032,16 +1032,17 @@
   // 끝난 판의 최종 순위: 시간이 끝나고 2.5초 뒤(학생들 최종 점수가 써질 시간) 또는 이번 판 참여자가 모두 끝났을 때 (목표 달성 등)
   function paintFinal() {
     const box = $('final-board');
-    if (currentStatus !== 'playing') { if (!box.classList.contains('hidden')) { box.classList.add('hidden'); finalSig = ''; } return false; }
+    if (currentStatus !== 'playing') { if (!box.classList.contains('hidden')) { box.classList.add('hidden'); finalSig = ''; } finalKind = ''; return false; }
     const ps = focusPlayers || {}, ids = Object.keys(ps).filter(id => ps[id] && ps[id].nickname && inRound(ps[id]));
     const now = serverNow(), timeUp = currentEndAt > 0 && now >= currentEndAt + 2500;
     const gv = GAMES[currentGameId] || {}, view = gv.adminView || 'grid';
     const allDone = ids.length > 0 && ids.every(id => ['gameover', 'finished'].indexOf(ps[id].status) >= 0) && (view === 'grid' || view === 'list') && currentGameId !== 'ulsan';   // 모두 끝남 (목표 달성 · 개인전 모두 게임 오버)
-    if (!timeUp && !allDone) { if (!box.classList.contains('hidden')) { box.classList.add('hidden'); finalSig = ''; } return false; }
+    if (!timeUp && !allDone) { if (!box.classList.contains('hidden')) { box.classList.add('hidden'); finalSig = ''; } finalKind = ''; return false; }
+    if (!finalKind) finalKind = (allDone && !(currentEndAt > 0 && now >= currentEndAt)) ? 'done' : 'time';   // 처음 끝난 까닭을 기억 (목표 달성 뒤 시계가 지나도 '목표 달성')
     const sorted = rankSort(ps, ids.slice());
-    const sig = sorted.map(id => id + ':' + ps[id].score + ':' + ps[id].nickname).join('|') + (timeUp ? 'T' : 'G');
+    const sig = sorted.map(id => id + ':' + ps[id].score + ':' + ps[id].nickname).join('|') + finalKind;
     box.classList.remove('hidden'); if (sig === finalSig) return true; finalSig = sig;
-    $('final-why').textContent = timeUp ? '⏱ 시간 종료' : gv.timed ? '🏁 목표 달성으로 경기 끝' : '모두 끝났어요';
+    $('final-why').textContent = finalKind === 'time' ? '⏱ 시간 종료' : gv.timed ? '🏁 목표 달성으로 경기 끝' : '모두 끝났어요';
     const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     $('final-list').innerHTML = sorted.map((id, i) => '<li style="display:flex;gap:8px;font-weight:' + (i < 3 ? 800 : 600) + '"><span style="min-width:2.2em">' + (['🥇', '🥈', '🥉'][i] || (i + 1) + '.') + '</span><span style="flex:1">' + esc(ps[id].nickname) + '</span><b class="num">' + esc(+ps[id].score || 0) + '</b></li>').join('');
     return true;
