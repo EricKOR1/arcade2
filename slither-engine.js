@@ -451,6 +451,7 @@ class SlitherGame {
     const sub = '나는 ' + this.total + '명 중 ' + this.rank + '등 · 길이 ' + this.score;
     if (this.endReason === 'time') this.say('시간 끝!', sub + (this.rank === 1 ? ' · 1등!' : ' · 1등 ' + this.winner), '#FFD447', 9e9);
     else this.say(win === this.myId ? '2000 달성! 1등!' : slJosa(this.winner, '이', '가') + ' 2000 달성!', '경기 끝 · ' + sub, '#FFD447', 9e9);
+    this.banner.at -= 1000;                                                          // 끝난 뒤엔 시계(틱)가 멈춤 → 나타나는 효과 없이 바로 보이게
   }
   burst(x, y, n, c) { for (let i = 0; i < n; i++) { const a = Math.random() * Math.PI * 2, v = 0.04 + Math.random() * 0.1; this.parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, l: 1, c }); } }
   respawn() {
