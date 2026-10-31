@@ -48,7 +48,7 @@ const SL_K = 8;                // 신호마다 싣는 최근 마디 수
 const SL_TSM = 1679616;        // 보낸 시각(ms)을 36진 4글자로 — 이 값으로 나눈 나머지
 const SL_WIN = 2000;           // 길이 2000에 먼저 닿으면 경기 끝 (그 순간 점수로 모두의 순위)
 const SL_HHR = 1.3;             // 머리끼리: 두 머리 중심이 (반지름 합 × 1.3) 안이면 닿음 (넉넉하게)
-const SL_ZONE = 0.3;            // 머리끼리: 상대 머리가 내 머리 앞쪽 반원 + 조금(약 ±107°) 안 — 그보다 뒤(목)면 몸 박기
+const SL_ZONE = 0;              // 머리끼리: 두 머리 모두 상대 머리가 자기 머리 중심보다 앞쪽(±90° 안) — 뒤쪽(목)이면 몸 박기
 const SL_LATE = 1200;           // 머리끼리 결론이 이보다(ms) 늦게 오면(끊김 뒤) 먹힌 쪽이 받지 않음 → 먹은 쪽이 되돌림
 const SL_RESPAWN_LEN = 6;       // 부활 길이 = 쓰러져 기다리는 동안의 점수
 const SL_HIT = 0.8;            // 몸 박기: 내 화면에서 반지름 합의 0.8배 안으로 겹쳐야 탈락 (살짝 스친 것은 살림)
@@ -354,7 +354,9 @@ class SlitherGame {
     if (A !== this.myId) {                                                         // 상대 화면이 정한 결론: 닿은 자리로 되감아 쓰러짐 (결론이 늦게 와도)
       //   단, 너무 늦게 왔거나(끊김 뒤 · 1.2초 넘음) 그 친구가 내 화면에서 유령이거나, 그 자리가 내 자취에 없으면(상대 화면의 내가 틀림) → 받지 않음: 먹은 쪽이 되돌림
       const k = this.trailNear(+c.px, +c.py), qa = this.peers[A], mh = k >= 0 ? this.trail[k] : [this.x, this.y], bh = qa && this.showBite(qa, +c.x, +c.y, true);
-      if (this.srvNow() - (+c.ts) > SL_LATE || k < -1 || !qa || this.ghost(qa) || Math.hypot(bh[0] - mh[0], bh[1] - mh[1]) > (SlitherGame.radiusOf(this.len) + SlitherGame.radiusOf(qa.len)) * 1.6) { st.void = true; this.send('hhx', A, { la, lb, cb: A, ct: B, cts: +c.ts, alive: 1 }); return; }
+      //   · 내 화면에서 그 친구 머리가 내 머리 뒤쪽(목)에 있으면 받지 않음 — 남이 내 목을 박았는데 내가 죽는 일 없게
+      const md = k >= 0 && this.trail[k + 1] ? Math.atan2(mh[1] - this.trail[k + 1][1], mh[0] - this.trail[k + 1][0]) : this.angle, gx = bh[0] - mh[0], gy = bh[1] - mh[1], gd = Math.hypot(gx, gy) || 1e-6;
+      if (this.srvNow() - (+c.ts) > SL_LATE || k < -1 || !qa || this.ghost(qa) || gd > (SlitherGame.radiusOf(this.len) + SlitherGame.radiusOf(qa.len)) * 1.6 || (Math.cos(md) * gx + Math.sin(md) * gy) / gd < SL_ZONE - 0.2) { st.void = true; this.send('hhx', A, { la, lb, cb: A, ct: B, cts: +c.ts, alive: 1 }); return; }
       this.rewindAt(k); this.showBite(qa, +c.x, +c.y);                            // 내 화면에서도 두 머리가 닿은 모습 (먹은 친구 머리를 닿은 자리까지 당겨 그림)
     }
     st.lost = true;
@@ -572,7 +574,7 @@ class SlitherGame {
     for (const id in this.peers) { const p = this.peers[id]; if (!this.alive(p)) continue; const L = Math.round(p.len); if (L > bl || (L === bl && id < best)) { bl = L; best = id; } }
     return best;
   }
-  // 머리끼리인가: 두 머리가 서로의 앞쪽(약 ±107°) 안에 있고, 상대 머리가 내 목·몸보다 내 머리에 더 가까움 (반대도)
+  // 머리끼리인가: 두 머리가 서로의 앞쪽(±90°) 안에 있고, 상대 머리가 내 목·몸보다 내 머리에 더 가까움 (반대도)
   //   — 상대 머리가 내 목·옆구리에 닿은 것은 머리끼리가 아님 (그건 상대가 내 몸을 박은 것 → 몸 박기 규칙으로 상대만 탈락)
   headOn(dx, dy, p, R, pr, n) {
     const d = Math.hypot(dx, dy) || 1e-6, ux = dx / d, uy = dy / d, pa = p.ma != null ? p.ma : p.ra;
@@ -609,7 +611,15 @@ class SlitherGame {
     // 머리끼리 결론 다시 보내기: 0.6초 뒤 한 번 (사건이 빠져도 상대가 받게 · 같은 결론이라 두 번 받아도 한 번만 적용)
     for (const k in this.hhOut) { const o = this.hhOut[k]; if (now - o.at >= 600) { delete this.hhOut[k]; const st = this.hhPairs[k]; if (st && st.c && st.c.ts === o.pay.ts && st.c.by === this.myId) this.send('hh', o.id, o.pay); } }
     const lead = this.leader, ca = Math.cos(this.angle), sa = Math.sin(this.angle), t = this.trail, n = Math.min(t.length, Math.ceil(this.len / SL_SEG) + 1);
-    for (const id in this.peers) { const p = this.peers[id]; if (!this.live(p) || p.dying) { p.hitAt = 0; continue; }   // 유령·쓰러짐 → 기다리던 닿음도 취소
+    for (const id in this.peers) { const p = this.peers[id];
+      if (!this.live(p) || p.dying) {                                                 // 쓰러짐 → 기다리던 닿음도 취소
+        // 단, 닿은 뒤 확인을 기다리는 사이 그 친구 신호가 끊긴 것(유령이 됨)이면 확인은 그대로 — 닿을 때는 살아 있던 몸 (예전: 통과)
+        if (!(p.hitAt && this.ghost(p) && !p.dead && !p.dying && p.deadLife !== p.life)) { p.hitAt = 0; continue; }
+        if (this.clock() - p.hitAt < SL_CONFIRM) continue;
+        const rs = R + SlitherGame.radiusOf(p.len), ok = p.hitLife === p.life && p.myLife === this.life && slNear(p.hitX, p.hitY, rs * SL_HIT, p.rx, p.ry, p.pts, p.vs, p.vn); p.hitAt = 0;
+        if (ok) { this.bodyDie(p, id); return; }
+        continue;
+      }
       const pr = SlitherGame.radiusOf(p.len), rs = R + pr, dx = p.rx - this.x, dy = p.ry - this.y, d2 = dx * dx + dy * dy, reach = Math.max(p.len, this.len) + rs + 2;
       if (d2 > reach * reach) continue;
       const pa = p.ma != null ? p.ma : p.ra;
@@ -639,10 +649,14 @@ class SlitherGame {
       if (p.hitAt && now - p.hitAt > SL_CONFIRM + 100) p.hitAt = 0;                 // 오래된 닿음(그사이 판정을 쉼) → 버림
       if (p.hitAt && now - p.hitAt >= SL_CONFIRM) {                                  // 확인 시간 끝: 닿은 그 자리가 지금도 그려진 몸과 겹치면 그 자리에서 쓰러짐
         const ok = p.hitLife === p.life && p.myLife === this.life && slNear(p.hitX, p.hitY, rs * SL_HIT, p.rx, p.ry, p.pts, p.vs, p.vn); p.hitAt = 0;
-        if (ok) { const k = this.seq - p.hitSeq; if (k > 0 && k < this.trail.length - 2) { this.trail.splice(0, k); this.seq -= k; } this.x = p.hitX; this.y = p.hitY;
-          this.die((p.name || '친구') + ' 몸에 닿았어요', id, 'body', false, true); return; }
+        if (ok) { this.bodyDie(p, id); return; }
       }
     }
+  }
+  // 몸 박기 확정: 닿은 그 자리로 되감아 쓰러짐
+  bodyDie(p, id) {
+    const k = this.seq - p.hitSeq; if (k > 0 && k < this.trail.length - 2) { this.trail.splice(0, k); this.seq -= k; } this.x = p.hitX; this.y = p.hitY;
+    this.die((p.name || '친구') + ' 몸에 닿았어요', id, 'body', false, true);
   }
   // 1초마다: 겹친 겉모습 바꾸기 · 오래된 기록 지우기
   housekeep(now) {
