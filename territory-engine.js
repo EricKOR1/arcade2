@@ -72,7 +72,7 @@ const TR_DROP = ['speed', 'speed', 'speed', 'shield', 'shield', 'grow', 'grow', 
 //   (예전: 위쪽 점수 칸·선생님 화면·결과 = '최고' 칸 수(예: 87), 게임 화면 = 지금 % (예: 2.8%) — 서로 다른 숫자에 순위도 '최고' 기준이라 어긋남)
 //   다른 친구의 % 는 그 친구가 신호에 실어 보낸 자기 점수를 그대로 씀 (각자 계산하면 땅 맞춤이 늦을 때 달라짐)
 const TR_GOAL = 50;                                       // 전체 칸의 50% 이상(표시 점수 50 이상)을 차지하면 경기 끝 · 그 학생 1등
-const trPct = (cells, N) => Math.round(cells * 1000 / (N * N)) / 10;
+const trPct = (cells, N) => Math.floor(cells * 1000 / (N * N)) / 10;   // 버림: 화면에 50 이 보이면 정말 전체 칸의 절반 이상 (반올림이면 1567/3136 = 49.97% 가 '50' 으로 보여 헷갈림)
 const trFmt = s => String(+s || 0);                       // 12 → '12', 12.3 → '12.3' (위쪽 점수 칸·선생님 화면이 숫자를 그대로 보여 주는 모양과 같게)
 const trClock = ms => { const s = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
 // 순위 규칙 (모든 화면·선생님 화면 같게): 목표 달성자 먼저 → 점수 내림차순 → 닉네임 → id
