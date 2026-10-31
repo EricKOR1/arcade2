@@ -692,7 +692,7 @@ const ITEMS = {
   star:    { icon: '⭐', name: '스타',     hint: '6초간 무적 + 가속' },
   missile: { icon: '🚀', name: '미사일',   hint: '바로 앞 주자를 멈춥니다' },
   turtle:  { icon: '🐢', name: '거북 등껍질', hint: '바로 뒤 주자를 멈춥니다' },
-  swap:    { icon: '🌀', name: '위치 교환', hint: '앞 주자와 자리를 바꿉니다' },
+  swap:    { icon: '🌀', name: '위치 교환', hint: '바로 앞 순위 주자와 도로 위 자리를 바꿉니다 (바퀴 수는 그대로)' },
   shield:  { icon: '🛡', name: '방어막',   hint: '8초간 공격을 막습니다' },
   bolt:    { icon: '🌩', name: '번개',     hint: '앞선 주자 전원 감속' },
   boost2:  { icon: '⚡⚡', name: '2배 부스터', hint: '3.5초간 더 강한 가속' },
@@ -860,6 +860,19 @@ class KartGame {
   rotate() { this.useItem(); }
   hardDrop() { this.useItem(); }
 
+  // 위치 교환 대상: 순위가 바로 앞인 주자 — 단 도로 위에서도 내 앞(반 바퀴 안)에 있어야 함
+  //   (한 바퀴 이상 앞선 주자가 도로에선 내 바로 뒤에 있으면 바꿔도 의미가 없고 바퀴만 넘어가므로 그다음 앞 주자를 고름)
+  swapAhead() {
+    const n = this.track.n, me = Math.round(this.progress);
+    let best = null, bestP = Infinity;
+    Object.keys(this.peers).forEach(id => {
+      const p = this.peers[id];
+      if (p.finished || !(p.progress > this.progress)) return;
+      const r = (((Math.round(p.progress) - me) % n) + n) % n;
+      if (r > 0 && r < n / 2 && p.progress < bestP) { bestP = p.progress; best = id; }
+    });
+    return best;
+  }
   // 바로 앞 주자 찾기
   nextAhead() {
     let best = null, bestP = Infinity;
@@ -878,7 +891,7 @@ class KartGame {
     const now = this.clock();
 
     // 대상이 없으면 아이템을 소모하지 않고 되돌림
-    if ((it === 'missile' || it === 'swap' || it === 'magnet') && !this.nextAhead()) {
+    if ((it === 'missile' || it === 'magnet') && !this.nextAhead() || it === 'swap' && !this.swapAhead()) {
       this.showToast('앞에 아무도 없다', '#9AA3B2');
       return;
     }
@@ -948,15 +961,19 @@ class KartGame {
       this.showToast('미사일 발사!', '#EF476F');
 
     } else if (it === 'swap') {
-      const target = this.nextAhead();
+      const target = this.swapAhead();
       const p = this.peers[target], n = this.track.n;
       // 상대에게 넘길 내 자리도 도로 위로 정리 (점프 중 허공·벽 밖이면 착지 쪽 도로 위로)
       const ms = this.safeSpot(this.x, this.y, this.segIdx);
-      const mine = { x: Math.round(ms.x), y: Math.round(ms.y), a: +ms.a.toFixed(3), i: ms.i, l: this.lap };
+      // 바퀴 수는 넘겨주지 않음: 도로 위 거리(road = 바로 앞 주자까지 남은 거리, 반 바퀴 미만)만큼만 서로 옮김
+      //   (예전: 상대 바퀴 수를 통째로 가져와, 한 바퀴 앞선 주자와 바꾸면 내가 한 바퀴를 공짜로 얻고 상대는 한 바퀴를 잃었음)
+      //   같은 바퀴면 예전과 같고, 결승선을 사이에 둔 경우만 그 선을 넘은 만큼 바퀴가 바뀜
+      const myP = Math.round(this.progress), hisP = Math.round(p.progress), road = (((hisP - myP) % n) + n) % n;
+      const mine = { x: Math.round(ms.x), y: Math.round(ms.y), a: +ms.a.toFixed(3), i: ms.i, l: Math.round((hisP - road - ms.i) / n) };
       // 나는 앞 주자 자리로 (보간 중인 값이 아니라 마지막으로 받은 실제 위치) — 그 자리를 본선·지름길 도로 위로 정리하고, 높이·방향은 그 도로를 따름
       //   (예전: 위치만 옮기고 3D 높이 찾기는 옛 자리 근처만 찾아 엉뚱한 구간 높이 → 도로 밑으로 꺼져 보였음 · 상대가 점프 중이면 끊긴 도로 위로)
       const pi = ((Math.round(p.progress) % n) + n) % n, d = this.safeSpot(p.tx != null ? p.tx : p.x, p.ty != null ? p.ty : p.y, pi);
-      this.lap = Math.floor(p.progress / n);
+      this.lap = Math.round((myP + road - d.i) / n);
       this.placeAt(d);
       this.speed *= 0.8;
       if (this.opts.onAttack) this.opts.onAttack('swap', target, mine);
