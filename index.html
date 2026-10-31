@@ -1257,7 +1257,7 @@
   function startGame() {
     const gen = ++startGen; if (loopRaf) { cancelAnimationFrame(loopRaf); loopRaf = null; } lastSync = null; lastSyncJs = ''; lastPosJs = ''; lastScoreSync = 0; lastQuickScore = null;   // 예전 판의 그리기 고리가 남아 있으면 끊음 (두 겹으로 돌면 기기가 두 배로 일함)
     overShown = false; document.querySelectorAll('.gameover-flash').forEach(e => e.remove());   // 새 판: 게임 오버 안내 초기화
-    byId('rank-stat').classList.add('hidden'); byId('over-label').textContent = '최종 점수'; byId('final-detail').textContent = '';   // 지난 판 순위·완주 표시가 남지 않게
+    byId('rank-stat').classList.add('hidden'); byId('over-label').textContent = '최종 점수'; byId('final-detail').textContent = ''; showEndReason('');   // 지난 판 순위·완주 표시가 남지 않게
     started = true;
     if (sessionStatus === 'playing' && sessionStartAt) setRoundIn(roundKey());   // 이번 판 참여 표시 (새로고침·재연결 때 이어서)
     decidedFor = sessionStartAt; showResume(false); if (nextRound) setNext(false, false);
@@ -1818,8 +1818,10 @@
   // 숫자가 0 에서 목표까지 차오르는 연출 (0.9초)
   function countUp(el, target) {
     const t0 = performance.now(), dur = 900, from = 0;
+    target = +target || 0;
+    const dp = Math.min(2, (String(target).split('.')[1] || '').length);   // 소수 점수(땅따먹기 % 51.1)는 소수 자리 그대로 — 예전 Math.round 로 51.1 → 51, 0.2 → 0
     const step = ts => { const k = Math.min(1, (ts - t0) / dur), e = 1 - Math.pow(1 - k, 3);
-      el.textContent = Math.round(from + (target - from) * e); if (k < 1) requestAnimationFrame(step); };
+      el.textContent = k >= 1 ? String(target) : (from + (target - from) * e).toFixed(dp); if (k < 1) requestAnimationFrame(step); };
     requestAnimationFrame(step);
   }
   // 1위 색종이 (DOM 조각 40개, 2.4초 뒤 제거)
@@ -1844,19 +1846,47 @@
     const g0 = startGen;
     setTimeout(() => { fl.remove(); if (g0 === startGen) endGameShow(); }, 1600);   // 그 사이 선생님이 대기실로 돌렸거나 새 판이면 결과 화면으로 끌고 가지 않음
   }
+  // 결과 순위 — 모든 학생 화면·선생님 화면이 같은 자료(players 의 점수)와 같은 규칙으로 셈: 점수 내림차순 → 닉네임(ko) → id
+  //  이번 판 참여자만 (다음 판 대기 'next' · 대기 'waiting' · ← 로 나간 'left' 학생은 빼고)
+  function roundRank(ps) {
+    return Object.keys(ps).filter(id => { const p = ps[id]; return p && p.nickname && (!p.game || p.game === gameId) && ['playing', 'gameover', 'finished'].indexOf(p.status) >= 0; })
+      .sort((a, b) => ((+ps[b].score || 0) - (+ps[a].score || 0)) || String(ps[a].nickname).localeCompare(String(ps[b].nickname), 'ko') || (a < b ? -1 : a > b ? 1 : 0));
+  }
   function endGameShow() {
     stopGame();
-    countUp(document.getElementById('final-score'), game.score);
-    document.getElementById('final-detail').textContent = def.detail ? def.detail(game) : '';
+    const g = game, g0 = startGen;
+    const together = !!g.endReason;                        // 시간 제한·목표 달성으로 모두 함께 끝난 판 (뱀 아레나 · 땅따먹기)
+    const fs = (together && lastSync && typeof lastSync.score === 'number') ? lastSync.score : g.score;   // 선생님 화면과 같은 숫자(= sync().score)
+    countUp(document.getElementById('final-score'), fs);
+    document.getElementById('final-detail').textContent = def.detail ? def.detail(g) : '';
     show('screen-over');
-    if (game.rank && game.total) { showRank(game.rank, game.total); return; }   // 엔진이 경기 끝 순간의 순위를 직접 셈 (뱀 아레나 2000 달성)
+    if (together) {
+      showEndReason(g.endReason === 'time' ? '⏱ 시간 종료' : '🏁 ' + (g.winner ? g.winner + ' ' : '') + '목표 달성');
+      // 모든 참여자의 최종 점수가 써질 때까지(최대 약 2.5초) 기다렸다가 같은 자료로 순위 — 실패하면 엔진 순위
+      const t0 = Date.now(); let done = false, T = null;
+      const finish = ps => { if (done) return; done = true; clearTimeout(T); playersRef.off('value', onPs); if (g0 !== startGen) return;
+        const ids = ps ? roundRank(ps) : [], i = ids.indexOf(playerId);
+        if (i >= 0 && ids.length >= 2) showRank(i + 1, ids.length); else if (g.rank && g.total) showRank(g.rank, g.total); };
+      const onPs = snap => { const ps = snap.val() || {}, ids = roundRank(ps);
+        if ((ids.length && ids.every(id => ps[id].status !== 'playing')) || Date.now() - t0 > 2500) finish(ps); };
+      playersRef.on('value', onPs);
+      T = setTimeout(() => { playersRef.once('value').then(sn => finish(sn.val() || {}), () => finish(null)); }, 2600);
+      return;
+    }
+    if (g.rank && g.total) { showRank(g.rank, g.total); return; }   // 엔진이 경기 끝 순간의 순위를 직접 셈
     playersRef.once('value').then(snap => {
       const players = snap.val() || {};
-      const scores = Object.keys(players).map(id => players[id].score || 0);
-      if (scores.length < 2) return;
-      scores.sort((a, b) => b - a);
-      showRank(scores.indexOf(game.score) + 1, scores.length);
+      const ids = roundRank(players); if (ids.length < 2) return;
+      const i = ids.indexOf(playerId);
+      showRank(i >= 0 ? i + 1 : ids.filter(id => (+players[id].score || 0) > (+g.score || 0)).length + 1, ids.length);
     });
+  }
+  // 결과 화면: 끝난 까닭 (시간 종료 · ○○ 목표 달성)
+  function showEndReason(text) {
+    let el = byId('end-reason');
+    if (!el) { el = document.createElement('div'); el.id = 'end-reason'; el.style.cssText = 'margin:2px 0 10px;padding:6px 14px;border-radius:999px;background:rgba(255,209,102,.16);color:#FFD166;font-weight:800';
+      const chip = byId('over-chip'); chip.parentNode.insertBefore(el, chip.nextSibling); }
+    el.textContent = text || ''; el.classList.toggle('hidden', !text);
   }
 
   function showResult(rank) {

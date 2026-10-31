@@ -68,6 +68,8 @@
       <div>
         <div class="controls">
           <button id="start-btn" class="btn btn-primary">게임 시작</button>
+          <label id="limit-box" class="hidden" style="display:inline-flex;align-items:center;gap:6px;font-weight:700">⏱ 시간 제한
+            <select id="limit-sel" class="select select-sm select-bordered"><option value="0">없음</option><option value="3">3분</option><option value="5" selected>5분</option><option value="7">7분</option><option value="10">10분</option><option value="15">15분</option></select></label>
           <button id="back-btn" class="btn btn-ghost">초기 대기실로 이동</button>
           <button class="btn btn-ghost move-open">⇄ 모두 다른 게임 대기실로 이동</button>
           <button id="reset-btn" class="btn btn-outline btn-error">명단 비우기</button>
@@ -125,6 +127,12 @@
       <p class="jhint">학생이 게임에서 <b>🏁 대결 참가</b>를 눌러 대기실에 모이면, 위에서 <b>출발</b>을 누르세요.</p>
     </section>
 
+    <!-- 시간 제한 게임: 남은 시간 · 끝나면 최종 순위 -->
+    <div id="time-left" class="hidden" style="display:flex;align-items:baseline;gap:12px;margin:10px 0 4px;font-weight:800"><span style="opacity:.7">⏱ 남은 시간</span><b class="num" id="time-left-v" style="font-size:44px;line-height:1">5:00</b></div>
+    <div id="final-board" class="hidden" style="margin:10px 0 14px;padding:14px 18px;border-radius:16px;background:rgba(255,209,102,.10);border:1px solid rgba(255,209,102,.35)">
+      <div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap"><b style="font-size:20px">🏆 최종 순위</b><span id="final-why" style="opacity:.75;font-weight:700"></span></div>
+      <ol id="final-list" style="margin:8px 0 0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:4px 16px"></ol>
+    </div>
     <h2 class="section-h" id="live-h">실시간 현황</h2>
     <!-- 테트리스: 학생별 미니 보드 -->
     <div id="live-grid"></div>
@@ -322,7 +330,7 @@
       if (n) eventsRef.update(up); }); }, 20000);
 
   // ── 젬 아레나 광산: 교사 화면이 젬을 솟게 합니다 (누군가 한 명이 맡아야 모두 같은 젬을 봅니다) ──
-  let gemN = 0, currentStatus = 'idle', currentStartAt = 0, gemSpotsCache = null, gemLast = 0;
+  let gemN = 0, currentStatus = 'idle', currentStartAt = 0, currentEndAt = 0, gemSpotsCache = null, gemLast = 0;
   // 젬이 솟는 간격: 인원이 많을수록 길게 — 30명이면 젬이 나오자마자 주워져 한 판이 1~2분 만에 끝났음 (10명 이하 4초 · 20명 이하 5초 · 그 이상 6초)
   const gemEvery = () => lastPlayerCount > 20 ? 6000 : lastPlayerCount > 10 ? 5000 : 4000;
   setInterval(() => {
@@ -482,9 +490,9 @@
         Object.keys(ps[id] || {}).forEach(k => { if (['nickname', 'name', 'joinedAt', 'lastSeen', 'status', 'score'].indexOf(k) < 0) up[id + '/' + k] = null; }); });
       db.ref('gems').remove(); db.ref('finishes').remove(); db.ref('screens').remove(); db.ref('picks').remove();
       if (Object.keys(up).length) playersRef.update(up);
-      sessionRef.set(Object.assign({ game: gameId, status: startNow ? 'playing' : 'waiting', track: startNow ? resolveAutoTrack(gameId) : currentTrack, soundOff: !!teacherSoundOff, rle: true }, startNow ? { startAt: serverNow() + 4200 } : {}, startNow ? matchTeams(gameId) : {}));   // 곧바로 시작해도 공통 출발 시각을 함께
+      sessionRef.set(Object.assign({ game: gameId, status: startNow ? 'playing' : 'waiting', track: startNow ? resolveAutoTrack(gameId) : currentTrack, soundOff: !!teacherSoundOff, rle: true, limitMin: (GAMES[gameId] || {}).timed ? limitNow() : null }, startNow ? startTimes(4200) : {}, startNow ? matchTeams(gameId) : {}));   // 곧바로 시작해도 공통 출발 시각(·끝나는 시각)을 함께
     })["catch"](() => {
-      sessionRef.set(Object.assign({ game: gameId, status: startNow ? 'playing' : 'waiting', track: startNow ? resolveAutoTrack(gameId) : currentTrack, soundOff: !!teacherSoundOff, rle: true }, startNow ? { startAt: serverNow() + 4200 } : {}, startNow ? matchTeams(gameId) : {}));   // 곧바로 시작해도 공통 출발 시각을 함께
+      sessionRef.set(Object.assign({ game: gameId, status: startNow ? 'playing' : 'waiting', track: startNow ? resolveAutoTrack(gameId) : currentTrack, soundOff: !!teacherSoundOff, rle: true, limitMin: (GAMES[gameId] || {}).timed ? limitNow() : null }, startNow ? startTimes(4200) : {}, startNow ? matchTeams(gameId) : {}));
     });
     renderQR(gameId);
   }
@@ -503,6 +511,12 @@
     new QRCode(box, { text: url, width: 208, height: 208, correctLevel: QRCode.CorrectLevel.M });
     $('qr-url').textContent = url;
   }
+
+  // ── 시간 제한 (games.js 의 timed 게임: 뱀 아레나 · 땅따먹기) ──
+  //  대기실에서 고른 분(없음/3/5/7/10/15, 기본 5) → session.limitMin · [게임 시작] 때 session.endAt = startAt + 분×60000 (없음이면 null)
+  function limitNow() { const g = GAMES[currentGameId] || {}; if (!g.timed) return 0; const v = +$('limit-sel').value; return v > 0 ? v : 0; }
+  function startTimes(delay) { const st = serverNow() + delay, lim = limitNow(); return { startAt: st, endAt: lim ? st + lim * 60000 : null, limitMin: (GAMES[currentGameId] || {}).timed ? lim : null }; }
+  $('limit-sel').addEventListener('change', () => { sessionRef.child('limitMin').set(+$('limit-sel').value || 0); });
 
   // 게임 시작 — 지난 판의 완주 순위 카운터·위치·아이템·이벤트를 비우고 시작합니다
   $('start-btn').addEventListener('click', () => {
@@ -527,8 +541,7 @@
       // 모든 기기가 게임을 준비할 시간을 주고, 같은 순간에 출발하도록 출발 시각을 함께 알립니다
       { const t0 = currentTrack, t1 = resolveAutoTrack(); if (t1 !== t0) sessionRef.child('track').set(t1); }   // 뱀 아레나 자동 맵: 지금 인원으로 크기 확정
       { const mt = matchTeams(); if (mt.teams) sessionRef.child('teams').set(mt.teams); }   // 레이저 태그 매칭전: 지금 접속한 학생을 N:N 경기로 나눈 표
-      sessionRef.child('startAt').set(serverNow() + 4200);
-      statusRef.set('playing');
+      sessionRef.update(Object.assign(startTimes(4200), { status: 'playing' }));   // 출발 시각 · (시간 제한 게임) 끝나는 시각 · 진행 중 — 한 번에
     });
   });
 
@@ -544,7 +557,7 @@
     const done = ids.length > 0 && ids.every(id => picks[id]);
     if (done || (selectUntil && serverNow() >= selectUntil)) {
       currentStatus = 'playing';                                // 두 번 시작하지 않게 먼저 표시
-      sessionRef.update({ status: 'playing', startAt: serverNow() + 1500, selectUntil: null });
+      sessionRef.update(Object.assign(startTimes(1500), { status: 'playing', selectUntil: null }));
     }
   }, 250);
   $('end-btn').addEventListener('click', () => statusRef.set('ended'));
@@ -576,7 +589,8 @@
       return kartRankSort(Object.keys(peerPos).filter(k => k !== '__hz'));
     }
     if (currentGameId === 'ulsan') return caseRankOrder(focusPlayers);
-    return Object.keys(focusPlayers).sort((a, b) => (focusPlayers[b].score || 0) - (focusPlayers[a].score || 0));
+    const ids = Object.keys(focusPlayers);
+    return rankSort(focusPlayers, ids.filter(id => inRound(focusPlayers[id]))).concat(rankSort(focusPlayers, ids.filter(id => !inRound(focusPlayers[id]))));
   }
 
   let focusCvKind = '2d';
@@ -770,7 +784,8 @@
       }
       const order = focusOrder();
       $('focus-name').textContent = p.nickname || '';
-      $('focus-meta').textContent = '점수 ' + (p.score || 0) + ' · ' + (order.indexOf(focusId) + 1) + '위 / ' + order.length + '명';
+      const nIn = order.filter(id => inRound(focusPlayers[id])).length;
+      $('focus-meta').textContent = isNext(p) ? '대기 · 다음 판부터' : '점수 ' + (p.score || 0) + (inRound(p) ? ' · ' + (order.indexOf(focusId) + 1) + '위 / ' + nIn + '명' : ' · 나감');
       return;
     }
 
@@ -808,7 +823,7 @@
   // 전체 화면용 상단 띠 (게임 이름 · 인원 · 끝내기)
   const fullBar = document.createElement('div');
   fullBar.id = 'full-bar';
-  fullBar.innerHTML = '<b id="full-title"></b><span id="full-count"></span><span class="spacer"></span>' +
+  fullBar.innerHTML = '<b id="full-title"></b><span id="full-count"></span><b id="full-time" class="num" style="margin-left:14px;font-size:20px"></b><span class="spacer"></span>' +
                       '<button class="btn btn-sm btn-ghost" id="full-exit">전체 화면 끝내기 (Esc)</button>';
   document.body.appendChild(fullBar);
   $('full-exit').addEventListener('click', () => setFull(false));
@@ -905,7 +920,8 @@
       const ps = snap.val() || {}; const g = GAMES[currentGameId] || {};
       const rows = Object.keys(ps).map(id => ps[id]).filter(p => p && !isStale(p));
       if (currentGameId === 'ulsan') { const byId = {}; Object.keys(ps).forEach(id => { if (ps[id] && (!isStale(ps[id]) || keepDone(ps[id]))) byId[id] = ps[id]; }); rows.length = 0; caseRankOrder(byId).forEach(id => rows.push(byId[id])); }   // 수사 순위와 같은 순서 · 끝낸 학생 포함
-      else rows.sort((a, b) => (b.score || 0) - (a.score || 0));
+      else { const byId = {}; Object.keys(ps).forEach(id => { if (ps[id] && !isStale(ps[id])) byId[id] = ps[id]; }); const ids = Object.keys(byId); rows.length = 0;
+        rankSort(byId, ids.filter(id => inRound(byId[id]))).concat(rankSort(byId, ids.filter(id => !inRound(byId[id])))).forEach(id => rows.push(byId[id])); }   // 화면 순위와 같은 순서 (대기·나감은 뒤)
       const esc = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
       const lines = [['순위', '이름', '점수', '상태', '게임'].map(esc).join(',')];
       rows.forEach((p, i) => lines.push([i + 1, p.nickname, p.score || 0, p.status || '', g.name || currentGameId].map(esc).join(',')));
@@ -927,7 +943,7 @@
   sessionRef.on('value', snap => {
     const s = snap.val() || {};
     const status = s.status || 'idle';
-    currentStatus = status; currentStartAt = +s.startAt || 0;
+    currentStatus = status; currentStartAt = +s.startAt || 0; currentEndAt = +s.endAt || 0;
     if (s.game && s.game !== currentGameId) { currentGameId = s.game; clearCards(); }
     if (s.track && TRACKS[s.track]) { currentTrack = s.track; ensureSpecTrack(); }
     if (currentGameId) applyAccent(currentGameId);
@@ -941,7 +957,7 @@
     const subs = {
       idle: '학생들은 왼쪽 QR로 대기실에 들어와 기다립니다. 게임을 고르면 모두 그 게임 대기실로 이동합니다.',
       waiting: gname + ' — 학생들이 QR로 입장하는 중입니다.',
-      playing: gname + ' — 실시간으로 지켜보는 중입니다. 새로 들어온 학생은 닉네임을 넣으면 바로 합류합니다.',
+      playing: gname + ' — 실시간으로 지켜보는 중입니다. 진행 중에 새로 들어온 학생은 대기실에서 기다렸다가 다음 판부터 함께합니다 (이번 판 참여 학생은 새로고침해도 이어서).',
       ended: gname + ' — 종료됐습니다. 다시 시작하거나 초기 대기실로 이동할 수 있습니다.'
     };
     const badge = $('status-badge');
@@ -952,6 +968,9 @@
     selectPanel.classList.toggle('hidden', status !== 'idle' || !trackPanel.classList.contains('hidden'));
     if (status === 'idle') renderLobbyQR();
     lobbyPanel.classList.toggle('hidden', !(status === 'waiting' || status === 'ended'));
+    $('limit-box').classList.toggle('hidden', !(g && g.timed));                     // 시간 제한 고르기 (timed 게임만)
+    if (s.limitMin != null && document.activeElement !== $('limit-sel') && [...$('limit-sel').options].some(o => +o.value === +s.limitMin)) $('limit-sel').value = String(+s.limitMin);
+    paintClock();
     livePanel.classList.toggle('hidden', status !== 'playing');
 
     const view = (g && g.adminView) || 'grid';
@@ -983,6 +1002,50 @@
   }
   // 이번 판을 끝낸 울산 수사대 학생: 폰을 내려놓아 신호가 끊겨도 순위에서 빼거나 지우지 않음 (예전: 30초 뒤 사라져 끝까지 푼 학생이 순위에 없었음)
   function keepDone(p) { return !!(p && p.nickname && p.done && currentGameId === 'ulsan' && p.sid && p.sid === currentStartAt); }
+  // ── 이번 판 참여자 · 다음 판 대기 · 나감 ──
+  //  next: 진행 중에 들어와 다음 판을 기다리는 학생 (학생 화면이 status 'next' 로 씀 · 출발 8초 뒤에도 'waiting' 이면 같은 뜻 — 잠든 탭 등)
+  //  left: 게임 화면에서 ← 로 나온 학생 · 이 둘은 순위·등수에서 뺌
+  function isNext(p) { return currentStatus === 'playing' && !!p && (p.status === 'next' || (p.status === 'waiting' && currentStartAt > 0 && serverNow() > currentStartAt + 8000)); }
+  function isLeftP(p) { return currentStatus === 'playing' && !!p && p.status === 'left'; }
+  function inRound(p) { return !isNext(p) && !isLeftP(p); }
+  // 순위 규칙 (학생 결과 화면과 같음): 점수 내림차순 → (카트: 트랙 진행도) → 닉네임(ko) → id
+  const nameCmp = (a, b) => String(a || '').localeCompare(String(b || ''), 'ko');
+  function rankSort(players, ids, prog) {
+    return ids.sort((a, b) => ((+players[b].score || 0) - (+players[a].score || 0)) || (prog ? prog(b) - prog(a) : 0) || nameCmp(players[a].nickname, players[b].nickname) || (a < b ? -1 : a > b ? 1 : 0));
+  }
+
+  // ── 남은 시간 · 끝난 뒤 최종 순위 ──
+  let finalSig = '';
+  function mmss(ms) { const t = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'); }
+  function paintClock() {
+    const on = currentStatus === 'playing' && currentEndAt > 0, box = $('time-left'), v = $('time-left-v'), ft = $('full-time');
+    box.classList.toggle('hidden', !on);
+    if (!on) { if (ft.textContent) ft.textContent = ''; } else {
+      const now = serverNow(), left = currentEndAt - Math.max(now, currentStartAt || now), over = now >= currentEndAt;
+      const txt = over ? '종료' : mmss(left);
+      if (v.textContent !== txt) v.textContent = txt;
+      v.style.color = over ? '#FF5C7A' : left <= 10000 ? '#FFD166' : '';
+      const f2 = '⏱ ' + txt; if (ft.textContent !== f2) ft.textContent = f2;
+    }
+    paintFinal();
+  }
+  // 끝난 판의 최종 순위: 시간이 끝나고 2.5초 뒤(학생들 최종 점수가 써질 시간) 또는 이번 판 참여자가 모두 끝났을 때 (목표 달성 등)
+  function paintFinal() {
+    const box = $('final-board');
+    if (currentStatus !== 'playing') { if (!box.classList.contains('hidden')) { box.classList.add('hidden'); finalSig = ''; } return; }
+    const ps = focusPlayers || {}, ids = Object.keys(ps).filter(id => ps[id] && ps[id].nickname && inRound(ps[id]));
+    const now = serverNow(), timeUp = currentEndAt > 0 && now >= currentEndAt + 2500;
+    const allDone = ids.length > 0 && ids.every(id => ['gameover', 'finished'].indexOf(ps[id].status) >= 0) && (GAMES[currentGameId] || {}).timed;
+    if (!timeUp && !allDone) { if (!box.classList.contains('hidden')) { box.classList.add('hidden'); finalSig = ''; } return; }
+    const sorted = rankSort(ps, ids.slice());
+    const sig = sorted.map(id => id + ':' + ps[id].score + ':' + ps[id].nickname).join('|') + (timeUp ? 'T' : 'G');
+    box.classList.remove('hidden'); if (sig === finalSig) return; finalSig = sig;
+    $('final-why').textContent = timeUp ? '⏱ 시간 종료' : '🏁 목표 달성으로 경기 끝';
+    const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    $('final-list').innerHTML = sorted.map((id, i) => '<li style="display:flex;gap:8px;font-weight:' + (i < 3 ? 800 : 600) + '"><span style="min-width:2.2em">' + (['🥇', '🥈', '🥉'][i] || (i + 1) + '.') + '</span><span style="flex:1">' + esc(ps[id].nickname) + '</span><b class="num">' + esc(+ps[id].score || 0) + '</b></li>').join('');
+  }
+  setInterval(paintClock, 250);
+
   // 30초 넘게 신호가 없는 학생은 명단에서 지웁니다 (이전 수업 찌꺼기 · 두 번 열린 탭)
   setInterval(() => {
     playersRef.once('value').then(snap => {
@@ -1003,8 +1066,9 @@
     Object.keys(players).forEach(id => { names[id] = players[id].nickname || ''; });
     focusPlayers = players;
     lastPlayerCount = Object.keys(live).length;
-    $('count-badge').textContent = lastPlayerCount + '명 접속';
-    $('full-count').textContent = lastPlayerCount + '명 · 진행 중';
+    const nWait = Object.keys(players).filter(id => isNext(players[id])).length;   // 진행 중 들어와 다음 판을 기다리는 학생
+    $('count-badge').textContent = lastPlayerCount + '명 접속' + (nWait ? ' · ' + nWait + '명 대기' : '');
+    $('full-count').textContent = lastPlayerCount + '명 · 진행 중' + (nWait ? ' · ' + nWait + '명 대기' : '');
     $('full-title').textContent = (GAMES[currentGameId] || {}).name || '';
     renderWaiting(players);
     const g = GAMES[currentGameId];
@@ -1090,7 +1154,9 @@
         cardByPlayer[id] = { wrapper, badge, ctx: cctx, nameEl: name, scoreEl: score };
       }
       const c = cardByPlayer[id];
-      const nmT = p.nickname || '(이름 없음)', scT = String(p.score || 0);
+      const nx = isNext(p), lf = isLeftP(p);   // 다음 판 대기 · 나감: 흐리게, 등수 없음
+      const nmT = (p.nickname || '(이름 없음)') + (nx ? ' · 대기' : lf ? ' · 나감' : ''), scT = nx ? '다음 판부터' : String(p.score || 0);
+      const op = nx ? '0.45' : lf ? '0.6' : ''; if (c.wrapper.style.opacity !== op) c.wrapper.style.opacity = op;
       if (c.nameEl.textContent !== nmT) c.nameEl.textContent = nmT;   // 같은 글자를 다시 쓰면 화면 배치를 다시 계산함
       if (c.scoreEl.textContent !== scT) c.scoreEl.textContent = scT;
       c.wrapper.classList.toggle('over', p.status === 'gameover');
@@ -1100,14 +1166,17 @@
     });
     // 순위: 점수(완주는 1000-순위) → 같으면 카트는 트랙 진행도(달리는 중 순위) → 같으면 먼저 들어온 학생이 위
     const prog = id => (peerPos[id] && typeof peerPos[id].progress === 'number') ? peerPos[id].progress : 0;
-    const sorted = currentGameId === 'ulsan' ? caseRankOrder(players) : ids.slice().sort((a, b) => ((players[b].score || 0) - (players[a].score || 0)) || (prog(b) - prog(a)) || ((players[a].joinedAt || 0) - (players[b].joinedAt || 0)));
-    renderCaseRank(players, sorted);
+    // 순위는 이번 판 참여자만 (다음 판 대기 · 나간 학생은 뒤에, 등수 없음) — 점수 → 카트 진행도 → 닉네임 → id (학생 결과 화면과 같은 규칙)
+    const inR = ids.filter(id => inRound(players[id])), outR = ids.filter(id => !inRound(players[id]));
+    const ranked = currentGameId === 'ulsan' ? caseRankOrder(players).filter(id => inRound(players[id])) : rankSort(players, inR.slice(), prog);
+    const sorted = ranked.concat(rankSort(players, outR.slice()));
+    renderCaseRank(players, ranked);
     sorted.forEach((id, i) => {
       const c = cardByPlayer[id]; if (!c) return;
       const at = liveGrid.children[i]; if (at !== c.wrapper) liveGrid.insertBefore(c.wrapper, at || null);   // 순서가 바뀐 카드만 옮김 (예전: 매번 30장 모두 다시 붙여 화면 배치를 다시 계산)
-      const top = i < 3 && ids.length > 1;
+      const top = i < 3 && i < ranked.length && ranked.length > 1;
       c.badge.classList.toggle('hidden', !top);
-      c.wrapper.classList.toggle('top', i === 0 && ids.length > 1);
+      c.wrapper.classList.toggle('top', i === 0 && ranked.length > 1);
       if (top && c.badge.textContent !== (i + 1) + '등') c.badge.textContent = (i + 1) + '등';
     });
   }
@@ -1120,24 +1189,25 @@
       box.innerHTML = '<p class="empty-note">아직 플레이 중인 학생이 없습니다</p>';
       return;
     }
-    ids.sort((a, b) => (players[b].score || 0) - (players[a].score || 0));
+    const inR = rankSort(players, ids.filter(id => inRound(players[id]))), outR = rankSort(players, ids.filter(id => !inRound(players[id])));
     box.innerHTML = '<ul id="score-list"></ul>';
     const ul = box.querySelector('#score-list');
-    ids.forEach((id, i) => {
-      const p = players[id];
+    inR.concat(outR).forEach((id, i) => {
+      const p = players[id], nx = isNext(p), ranked = i < inR.length;
       const li = document.createElement('li');
-      if (i === 0 && ids.length > 1) li.className = 'top';
+      if (i === 0 && inR.length > 1) li.className = 'top';
+      if (!ranked) li.style.opacity = nx ? '0.45' : '0.6';
       const r = document.createElement('span'); r.className = 'r';
-      r.textContent = (['🥇','🥈','🥉'][i] || (i + 1) + '.');
+      r.textContent = ranked ? (['🥇','🥈','🥉'][i] || (i + 1) + '.') : '–';
       const nm = document.createElement('span'); nm.className = 'nm';
       nm.textContent = p.nickname || '(이름 없음)';
       li.addEventListener('click', () => openFocus(id));
       const lv = document.createElement('span'); lv.className = 'lp';
-      lv.textContent = (p.level ? p.level + '단계' : '진행 중')
+      lv.textContent = nx ? '대기 · 다음 판부터' : (p.level ? p.level + '단계' : '진행 중')
                      + (p.cleared ? ' · 완료' : '')
                      + (p.status === 'left' ? ' · 나감' : '');
       const sc = document.createElement('span'); sc.className = 'sc';
-      sc.textContent = (p.score || 0) + '점';
+      sc.textContent = nx ? '' : (p.score || 0) + '점';
       li.append(r, nm, lv, sc);
       ul.appendChild(li);
     });
