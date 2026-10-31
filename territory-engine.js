@@ -68,6 +68,15 @@ const TR_ITEMS = {
   inv:     { name: '부활 무적',     color: '#FFF3A0', good: true,  desc: '3초 동안 꼬리를 밟혀도 안 잘려요', ms: TR_INV_MS }   // 상자로는 안 나옴
 };
 const TR_DROP = ['speed', 'speed', 'speed', 'shield', 'shield', 'grow', 'grow', 'mystery', 'mystery', 'mystery'];   // 나오는 비율
+// 점수 = 지금 차지한 땅의 비율(%) 소수 한 자리 — HUD·게임 안 순위표·위쪽 점수 칸·선생님 화면(sync score)·결과가 모두 이 숫자 하나
+//   (예전: 위쪽 점수 칸·선생님 화면·결과 = '최고' 칸 수(예: 87), 게임 화면 = 지금 % (예: 2.8%) — 서로 다른 숫자에 순위도 '최고' 기준이라 어긋남)
+//   다른 친구의 % 는 그 친구가 신호에 실어 보낸 자기 점수를 그대로 씀 (각자 계산하면 땅 맞춤이 늦을 때 달라짐)
+const TR_GOAL = 50;                                       // 전체 칸의 50% 이상(표시 점수 50 이상)을 차지하면 경기 끝 · 그 학생 1등
+const trPct = (cells, N) => Math.floor(cells * 1000 / (N * N)) / 10;   // 버림: 화면에 50 이 보이면 정말 전체 칸의 절반 이상 (반올림이면 1567/3136 = 49.97% 가 '50' 으로 보여 헷갈림)
+const trFmt = s => String(+s || 0);                       // 12 → '12', 12.3 → '12.3' (위쪽 점수 칸·선생님 화면이 숫자를 그대로 보여 주는 모양과 같게)
+const trClock = ms => { const s = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+// 순위 규칙 (모든 화면·선생님 화면 같게): 목표 달성자 먼저 → 점수 내림차순 → 닉네임 → id
+const trCmp = w => (a, b) => (a.id === w ? -1 : b.id === w ? 1 : 0) || (b.s - a.s) || String(a.name || '').localeCompare(String(b.name || ''), 'ko') || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 const trHash = (a, b, c) => { let h = (a | 0) ^ Math.imul(b + 0x9E37, 0x85EBCA6B) ^ Math.imul(c + 0x27D4, 0xC2B2AE35); h = Math.imul(h ^ (h >>> 15), 0x2C1B3C6D); h = Math.imul(h ^ (h >>> 12), 0x297A2D39); return ((h ^ (h >>> 15)) >>> 0) / 4294967296; };
 
 class TerritoryGame {
@@ -84,6 +93,10 @@ class TerritoryGame {
     this.clock = () => (this.opts.serverNow ? this.opts.serverNow() : Date.now());   // 서버 시계 (기기 시계가 달라도 상자가 같은 때 나옴)
     this.itemT0 = this.opts.seed || this.clock(); this.itemSeed = Math.floor(this.itemT0 / 7) | 0; this.joinAt = this.clock();
     this.taken = new Set(); this.items = []; this.fx = {}; this.sched = []; this.ipos = new Map(); this.isent = new Set(); this.picked = [];
+    // 경기 끝: 시간(endAt, 서버 ms · 페이지가 game.endAt 을 바꿀 수 있음) 또는 50% 달성 — 끝나면 score·rank·total·endReason·winner 고정
+    this.endAt = +this.opts.endAt || 0; this.endReason = null; this.winner = ''; this.winId = null; this.winName = ''; this.goalT = 0; this.rank = 0; this.total = 0; this.place = '-'; this.board = [];
+    // 판 표시(시작 시각): 지난 판 신호(50% 넘은 채 남은 것 등)를 이번 판으로 잘못 읽지 않게
+    this.tag = this.opts.seed ? (Math.floor(this.opts.seed / 1000) % 2176782336).toString(36) : '';
     this.spawn(this.opts.slot);
   }
   setSize(n) { this.N = n; this.slots = Math.min(28, Math.round(TR_ITEM_SLOTS * n * n / (TR_N_MIN * TR_N_MIN))); }   // 상자 수도 넓이에 비례 (56칸 10개 · 96칸 29→28개)
@@ -99,7 +112,7 @@ class TerritoryGame {
     this.sched = []; this.mini = null; this.miniDirty = true; this.recount();
     if (this.cx >= n - 1 || this.cy >= n - 1 || !this.cells) { this.clearOwner(this.myId); this.spawn(); }
   }
-  get pct() { return Math.round(this.cells / (this.N * this.N) * 1000) / 10; }
+  get pct() { return trPct(this.cells, this.N); }
   get isDead() { return this.now < this.deadUntil; }
   idx(x, y) { return y * this.N + x; }
   toast(t, c) { this.toasts.push({ t, c: c || '#fff', until: (this.now || 0) + 1800 }); }
@@ -145,7 +158,9 @@ class TerritoryGame {
   serialize() {
     const hx = this.cx + TR_DIRS[this.dir][0] * this.p, hy = this.cy + TR_DIRS[this.dir][1] * this.p, now = this.now || 0;
     const fl = (this.has('shield') ? 1 : 0) | (this.has('speed') ? 2 : 0) | (this.has('slow') ? 4 : 0) | (this.has('inv') ? 8 : 0);   // 효과 (친구 화면에 방패 고리 · 번개 꼬리 · 8 부활 무적 = 친구도 내 꼬리를 못 자름)
-    let s = [hx.toFixed(2), hy.toFixed(2), this.dir, this.isDead ? 1 : 0, this.ci, this.kills, this.cells, fl, this.itemNote(), this.picked.filter(q => now - q.at < 4000).map(q => q.k).join(';'), this.N].join(',') + '|' + this.corners();   // 8: 내가 정한 상자 칸 · 9: 방금 먹은 상자 — 소식(events)이 빠져도 다음 위치 신호로 맞춰짐 · 10: 경기장 크기
+    let s = [hx.toFixed(2), hy.toFixed(2), this.dir, this.isDead ? 1 : 0, this.ci, this.kills, this.cells, fl, this.itemNote(), this.picked.filter(q => now - q.at < 4000).map(q => q.k).join(';'), this.N,
+      this.score, this.tag, this.gameOver ? (this.endReason === 'goal' ? 'g' + this.winId : 't') : ''].join(',') + '|' + this.corners();   // 8: 내가 정한 상자 칸 · 9: 방금 먹은 상자 — 소식(events)이 빠져도 다음 위치 신호로 맞춰짐 · 10: 경기장 크기
+    //   11: 내 점수(%) — 친구 화면 순위표가 이 값을 그대로 씀 · 12: 판 표시 · 13: 경기 끝(t 시간 · g+달성자 id) — '달성' 소식이 빠져도 이 신호로 끝남
     if (now - this._full > ((this.opts.sendMs || 165) > 200 ? 4000 : 2000)) { this._full = now; s += '|' + this.terrRle(); }   // 2초마다 내 땅 전체 (늦게 들어온 친구도 땅을 보게) — 21명 이상(전송 간격이 길 때)은 4초마다: 땅이 넓어지면 이 부분이 신호의 대부분이라
     return s;
   }
@@ -157,6 +172,12 @@ class TerritoryGame {
   applyPeerRaw(id, raw, name) {
     if (typeof raw !== 'string' || id === this.myId) return; const [h, tr, terr] = raw.split('|'), a = h.split(',');
     const x = +a[0], y = +a[1]; if (!isFinite(x) || !isFinite(y)) return;
+    if (this.tag && a[12] != null && a[12] !== this.tag) return;   // 다른 판 신호 (지난 판에 남은 것)
+    if (this.gameOver) {   // 경기가 끝난 뒤: 친구의 마지막(고정) 점수만 받아 순위를 다시 셈 — 땅·꼬리는 더 바꾸지 않음
+      if (+a[10] && (+a[10] | 0) !== this.N) return; const p = this.peers[id] || (this.peers[id] = { x, y, trailKey: null, trail: new Set(), trailPts: [] });
+      p.pct = a[11] != null && a[11] !== '' ? +a[11] || 0 : trPct(+a[6] || 0, this.N); p.dead = a[3] === '1'; p.name = name || p.name || ''; p.rcvS = this.clock(); p.ci = (+a[4] || 0) % TR_SKINS.length;
+      if (a[13] && a[13][0] === 'g' && this.endReason === 'time') this.onGoal(a[13].slice(1) || id, this.endAt);   // 시간 끝 직전에 누가 달성했었음
+      this.rerank(); return; }
     { const n = +a[10] | 0, t = this.clock(), first = this.firstPeerAt == null; if (first) this.firstPeerAt = t;
       if (n && n !== this.N) {   // 경기장 크기 맞추기: 판 시작 6초 안 = 큰 쪽으로 · 늦게 들어왔으면 첫 신호의 크기 → 1.5초 동안 그중 작은 쪽(먼저 온 친구들 크기)
         const early = t < this.itemT0 + 6000, late = this.joinAt > this.itemT0 + 6000 && t < this.firstPeerAt + 1500;
@@ -169,6 +190,12 @@ class TerritoryGame {
     if (a[9]) a[9].split(';').forEach(k => { if (k && !this.taken.has(k)) { this.taken.add(k); this.items = this.items.filter(q => q.key !== k); } });
     if (Math.hypot(p.x - x, p.y - y) > 3) { p.x = x; p.y = y; }
     Object.assign(p, { tx: x, ty: y, dir: +a[2] || 0, dead, ci: (+a[4] || 0) % TR_SKINS.length, kills: +a[5] || 0, cells: +a[6] || 0, fl: +a[7] || 0, name: name || p.name || '' });
+    p.pct = a[11] != null && a[11] !== '' ? +a[11] || 0 : trPct(p.cells, this.N); p.rcvS = this.clock();   // 그 친구가 보낸 자기 점수 그대로
+    if (!this.tag || a[12] === this.tag) {   // 같은 판 신호일 때만: 친구가 이미 끝났거나(소식이 빠짐) 50% 를 넘었으면 나도 끝
+      const ef = a[13] || '';
+      if (ef[0] === 'g') { this.onGoal(ef.slice(1) || id, 0, ef.slice(1) === id ? name : ''); return; }
+      if (ef === 't' && this.endAt > 0) { this.finish('time'); return; }
+      if (!dead && p.pct >= TR_GOAL) { this.onGoal(id, 0, name); return; } }
     // 도착 간격(이동 평균)으로 '다음 신호가 올 때쯤 받은 위치 조금 앞에 닿는' 속도를 정함 → 그 사이를 고른 속도로 감 (tick). 보내는 간격은 인원에 따라 165~235ms
     { const now = this.now || 0, iv = p.iv || this.opts.sendMs || 165; p.iv = p.rcv == null ? iv : (now - p.rcv < iv * 2.5 ? iv + (Math.max(40, now - p.rcv) - iv) * 0.15 : iv); p.rcv = now; p.rcvS = this.clock();
       const N = Math.max(3, p.iv / 16.7), v = TR_SPEED / 60 * (p.fl & 2 ? 1.5 : 1) * (p.fl & 4 ? 0.6 : 1), M = N * 0.1, dist = Math.abs(x - p.x) + Math.abs(y - p.y);
@@ -195,6 +222,8 @@ class TerritoryGame {
   }
   onEvent(e) {
     if (!e || e.by === this.myId) return;
+    if (e.type === 'goal') { this.onGoal(String(e.by), +e.t || 0, e.name || ''); return; }   // 누가 50% 달성 → 모든 화면 경기 끝
+    if (this.gameOver) return;   // 끝난 뒤엔 땅·탈락이 바뀌지 않음 (점수 고정)
     if (e.type === 'cap') { const cells = TerritoryGame.rleCells(e.rle, this.N); let lost = 0; cells.forEach(i => { if (this.own[i] === this.myId) lost++; this.own[i] = e.by; }); this.recount(); this.miniDirty = true;
       if (lost >= 8 && !this.isDead) this.toast('😮 ' + ((this.peers[e.by] || {}).name || '친구') + '가 내 땅 ' + lost + '칸을 가져갔어요', '#FFB3BF'); }
     if (e.type === 'item' && e.k) { this.taken.add(e.k); this.items = this.items.filter(q => q.key !== e.k); }
@@ -202,7 +231,31 @@ class TerritoryGame {
     if (e.type === 'cut' && e.target === this.myId && !this.isDead && this.trail.length) { if (e.c != null && (!this.trailSet.has(+e.c) || (e.ct && this.trailAt && this.trailAt.get(+e.c) > e.ct))) return;   // 그 칸이 지금 내 꼬리가 아니거나(벌써 땅으로 돌아옴 · 예측이 빗나감) 친구가 지나간 뒤에 내가 들어갔으면 무시
       if (this.has('shield')) { this.toast('🛡 방패가 꼬리를 지켰어요!', '#9BE7FF'); return; } if (this.has('inv')) return; this.die(((this.peers[e.by] || {}).name || '친구') + '가 내 꼬리를 밟았어요', e.by); }
   }
-  recount() { let n = 0; for (let i = 0; i < this.own.length; i++) if (this.own[i] === this.myId) n++; this.cells = n; this.best = Math.max(this.best, n); this.score = this.best; }
+  recount() { let n = 0; for (let i = 0; i < this.own.length; i++) if (this.own[i] === this.myId) n++; this.cells = n; if (this.gameOver) return; this.score = trPct(n, this.N); this.best = Math.max(this.best, this.score); }   // best: 가장 넓었을 때 % (참고용)
+  // ── 경기 끝 ── reason 'time' | 'goal' · 그 순간의 내 % 로 고정 · 순위 = 나 + 신호가 오는 친구들(각자 보낸 %) — 달성자 1등
+  finish(reason, winId, t) {
+    if (this.gameOver) return;
+    this.gameOver = true; this.endReason = reason; this.winId = reason === 'goal' ? String(winId) : null; this.goalT = reason === 'goal' ? (t || this.clock()) : 0;
+    this.sw = null; this.rerank();   // (끝 소리·색종이는 페이지가)
+  }
+  // 달성 소식(또는 신호) — 아직 안 끝났으면 끝 · 이미 끝났어도 더 먼저 달성한 사람이면 그 사람으로 (두 화면이 다른 달성자를 고르지 않게: 이른 시각 → id 작은 쪽)
+  onGoal(by, t, name) {
+    if (!by) return; by = String(by);
+    const nm = by === this.myId ? (this.myName || '나') : (name || (this.peers[by] || {}).name || (this.opts.nameOf && this.opts.nameOf(by)) || '');
+    if (!this.gameOver) { this.winName = nm; this.finish('goal', by, t); return; }
+    if (by === this.winId) { if (nm && this.winName !== nm) { this.winName = nm; this.rerank(); } return; }
+    const tt = t || this.clock(), earlier = this.endReason === 'time' ? (t > 0 && t <= this.endAt) : (tt < this.goalT - 300 || (Math.abs(tt - this.goalT) <= 300 && by < this.winId));
+    if (!earlier) return;
+    this.endReason = 'goal'; this.winId = by; this.goalT = tt; this.winName = nm; this.rerank();
+  }
+  rerank() {
+    const now = this.clock(), w = this.winId, list = [{ id: this.myId, name: this.myName || '나', s: this.score }];
+    for (const id in this.peers) { const p = this.peers[id]; if ((p.rcvS != null && now - p.rcvS > 6000) && id !== w) continue; list.push({ id, name: p.name || (this.opts.nameOf && this.opts.nameOf(id)) || '', s: +p.pct || 0, ci: p.ci }); }
+    if (w && !list.some(e => e.id === w)) list.push({ id: w, name: this.winName || (this.opts.nameOf && this.opts.nameOf(w)) || '친구', s: TR_GOAL });   // 달성자 신호가 아직 안 왔어도 순위에 넣음
+    list.sort(trCmp(w)); this.board = list;
+    this.rank = list.findIndex(e => e.id === this.myId) + 1; this.total = list.length; this.place = this.rank + '/' + this.total;
+    const top = list[0]; this.winner = top.id === this.myId ? (this.myName || '나') : (top.id === w && this.winName) || top.name || '친구';
+  }
   die(why, by) {
     if (this.isDead) return; this.deadUntil = (this.now || 0) + 3000; this.burst(this.cx + 0.5, this.cy + 0.5, 28, trSkin(this.ci).c);
     this.clearOwner(this.myId); this.trail = []; this.trailSet = new Set(); this.fx = {}; this.recount(); this.toast((why || '탈락') + ' · 3초 뒤 다시 시작', '#FF8A8A');
@@ -238,6 +291,8 @@ class TerritoryGame {
   }
   tick(now) {
     const { dt, f } = FX.frame(this, now), k = dt / 1000; this.run += k;
+    if (!this.gameOver && this.endAt > 0 && this.clock() >= this.endAt) this.finish('time');   // 시간 끝 (서버 시계 — 모든 화면이 같은 순간)
+    if (this.gameOver) { this.parts = FX.stepParts(this.parts, f, 0.03); this.draw(); return; }
     if (this.deadUntil && now >= this.deadUntil) { this.spawn(); this.toast('다시 시작!', '#7DF58F'); }
     if (this.softDropping) this.turn(1);   // 키보드 ↓ (누르는 동안 표시만 옴)
     if (now - (this._hk || 0) > 1000) { this._hk = now; this.fixSkin(now); }
@@ -249,6 +304,8 @@ class TerritoryGame {
         if (this.want !== this.dir && !((this.want + 2) % 4 === this.dir && this.trail.length)) this.dir = this.want; this.enter(); }
       // 친구 머리가 내 꼬리 위에 있으면 (신호가 늦어도 꼬리 잘림이 빠지지 않게) — 단 그 칸에 신호가 오기 0.25초 전보다 늦게 들어갔으면 친구가 먼저 지나간 것 (예전: 바로 뒤를 자르면 자른 쪽도 함께 탈락)
       if (this.trail.length && !this.isDead && !this.has('shield') && !this.has('inv')) Object.keys(this.peers).forEach(id => { const p = this.peers[id]; if (p.dead || this.isDead) return; const i = this.idx(Math.round(p.tx), Math.round(p.ty)), at = this.trailAt && this.trailAt.get(i); if (this.trailSet.has(i) && i !== this.trail[this.trail.length - 1] && !(at != null && p.rcvS != null && at > p.rcvS - 250)) this.die((p.name || '친구') + '가 내 꼬리를 밟았어요', id); });
+      // 50% 달성: 모두에게 알리고 경기 끝 (소식이 빠진 기기는 내 위치 신호의 점수·끝 표시로 알아챔)
+      if (!this.isDead && this.score >= TR_GOAL) { const t = Math.round(this.clock()); if (this.opts.onAttack) this.opts.onAttack('goal', null, { name: this.myName || '', pct: this.score }); this.winName = this.myName || '나'; this.finish('goal', this.myId, t); }
     }
     // 친구 머리: 받은 위치까지 정해 둔 속도로 고르게 (칸 따라 ㄱ자로 — 먼저 지금 방향의 줄에 맞춘 뒤 그 줄을 따라). 다음 신호가 늦으면 서서히 늦추고, 닿은 뒤엔 지금 방향으로 0.35칸까지만 더
     //   (예전: 남은 거리의 일정 비율씩 — 신호를 받을 때마다 확 갔다가 멈칫, 간격이 길수록 심해짐. 모의 실험 235ms: 멈칫 프레임 15% → 1%)
@@ -380,6 +437,23 @@ class TerritoryGame {
   }
   skinOf(id) { if (id === this.myId) return trSkin(this.ci); const p = this.peers[id]; return p ? trSkin(p.ci) : null; }
   colorOf(id) { const k = this.skinOf(id); return k ? k.c : '#8B93A7'; }
+  liveBoard() {
+    const now = this.clock(), list = [{ id: this.myId, name: this.myName || '나', s: this.score }];
+    for (const id in this.peers) { const p = this.peers[id]; if (p.rcvS != null && now - p.rcvS > 6000) continue; list.push({ id, name: p.name || '', s: +p.pct || 0, ci: p.ci }); }
+    list.sort(trCmp(null)); const r = list.findIndex(e => e.id === this.myId) + 1; this.place = r + '/' + list.length; return list;
+  }
+  // 끝 화면: 끝난 까닭 · 내 순위와 점수 · 1~5등
+  drawEnd(ctx, W, H) {
+    ctx.fillStyle = 'rgba(10,14,28,.62)'; ctx.fillRect(0, 0, W, H);
+    const pw = Math.min(W - 32, 380), ph = 132 + Math.min(5, this.board.length) * 24, px = (W - pw) / 2, py = H >= 560 ? Math.min(H - ph - 12, H / 2 + 80) : Math.max(70, (H - ph) / 2);   // 키 큰 화면: 가운데 아래 (페이지의 '끝' 카드가 가운데에 잠깐 뜸)
+    ctx.fillStyle = 'rgba(22,28,48,.94)'; FX.rr(ctx, px, py, pw, ph, 18); ctx.fill(); ctx.strokeStyle = '#FFD447'; ctx.lineWidth = 2; ctx.stroke();
+    const title = this.endReason === 'goal' ? this.winner + ' ' + TR_GOAL + '% 달성!' : '시간 끝!';
+    ctx.font = '900 28px Pretendard, sans-serif'; const tsz = Math.min(28, 28 * (pw - 24) / Math.max(1, ctx.measureText(title).width));
+    FX.text(ctx, title, W / 2, py + 40, { size: tsz, weight: 900, color: '#FFD447', align: 'center', stroke: 'rgba(20,24,40,.9)' });
+    FX.text(ctx, '나는 ' + this.total + '명 중 ' + this.rank + '등 · 내 땅 ' + trFmt(this.score) + '%', W / 2, py + 70, { size: 16, weight: 900, color: '#fff', align: 'center' });
+    this.board.slice(0, 5).forEach((e, i) => { const me = e.id === this.myId, y = py + 104 + i * 24, t = (i + 1) + '. ' + (me ? (this.myName || '나') : (e.name || '친구')) + '  ' + trFmt(e.s) + '%';
+      FX.text(ctx, t, px + 46, y, { size: 15, weight: me ? 900 : 700, color: me ? '#FFE38A' : '#DCE3F2' }); trSwatch(ctx, trSkin(me ? this.ci : e.ci), px + 24, y - 12, 14); });
+  }
   draw() {
     const ctx = this.ctx, W = this.canvas.clientWidth || this.canvas.width, H = this.canvas.clientHeight || this.canvas.height, u = Math.min(W, H) / (Math.min(W, H) > 600 ? TR_VIEW + 2 : TR_VIEW), VW = W / u, VH = H / u;
     const hx = this.cx + TR_DIRS[this.dir][0] * (this.isDead ? 0 : this.p), hy = this.cy + TR_DIRS[this.dir][1] * (this.isDead ? 0 : this.p);
@@ -433,18 +507,28 @@ class TerritoryGame {
     ctx.fillStyle = 'rgba(10,14,28,.6)'; FX.rr(ctx, mx - 4, my - 4, M + 8, M + 8, 8); ctx.fill(); ctx.imageSmoothingEnabled = false; ctx.drawImage(this.mini, mx, my, M, M); ctx.imageSmoothingEnabled = true;
     if (!this.has('fog')) this.items.forEach(it => { ctx.fillStyle = TR_ITEMS[it.type].color; ctx.fillRect(mx + (it.x + 0.5) * mk - 1.5, my + (it.y + 0.5) * mk - 1.5, 3, 3); });
     ctx.fillStyle = '#fff'; ctx.fillRect(mx + hx * mk - 2, my + hy * mk - 2, 4, 4);
-    FX.text(ctx, this.pct.toFixed(1) + '%', 10, 30, { size: 24, weight: 900, color: trSkin(this.ci).c, stroke: 'rgba(20,24,40,.85)' });
-    FX.text(ctx, '✂ ' + this.kills + ' · 최고 ' + (Math.round(this.best / (this.N * this.N) * 1000) / 10) + '%', 10, 50, { size: 13, weight: 800, color: '#fff', stroke: 'rgba(20,24,40,.85)' });
+    FX.text(ctx, trFmt(this.score) + '%', 10, 30, { size: 24, weight: 900, color: trSkin(this.ci).c, stroke: 'rgba(20,24,40,.85)' });   // 점수 = 지금 내 땅 % (위쪽 점수 칸·선생님 화면과 같은 숫자)
+    FX.text(ctx, '✂ ' + this.kills + ' · ' + this.place + '위', 10, 50, { size: 13, weight: 800, color: '#fff', stroke: 'rgba(20,24,40,.85)' });
     let fy = 62; ['inv', 'speed', 'shield', 'slow', 'reverse', 'fog'].forEach(k => { if (!this.has(k)) return; const d = TR_ITEMS[k], left = (this.fx[k] - tn) / 1000, w = 112;
       ctx.fillStyle = 'rgba(10,14,28,.65)'; FX.rr(ctx, 8, fy, w, 22, 8); ctx.fill(); ctx.fillStyle = d.color; FX.rr(ctx, 8, fy + 18, w * Math.min(1, left * 1000 / d.ms), 4, 2); ctx.fill();
       FX.text(ctx, (d.good ? '▲ ' : '▼ ') + d.name + ' ' + left.toFixed(1) + '초', 16, fy + 15, { size: 12, weight: 900, color: d.good ? '#9BF6B5' : '#FFB3BF' }); fy += 27; });
-    const rank = Object.values(this.peers).filter(p => !p.dead).map(p => [p.name || '친구', p.cells, p.ci]).concat([[this.myName || '나', this.cells, this.ci, 1]]).sort((a, b) => b[1] - a[1]).slice(0, 3);
-    rank.forEach((r, i) => { const t = (i + 1) + '. ' + r[0] + ' ' + (Math.round(r[1] / (this.N * this.N) * 1000) / 10) + '%', ry = my + M + 22 + i * 17; FX.text(ctx, t, W - 10, ry, { size: 12.5, weight: r[3] ? 900 : 700, color: r[3] ? '#FFE38A' : '#fff', align: 'right', stroke: 'rgba(20,24,40,.85)' });
-      trSwatch(ctx, trSkin(r[2]), W - 10 - ctx.measureText(t).width - 16, ry - 11, 12); });   // 순위표에도 색+무늬 견본
+    // 게임 안 순위표: 친구마다 그 친구가 보낸 자기 % (계산 차이 없음) · 순위 규칙도 결과와 같음 — 내가 3등 밖이면 넷째 줄에 나
+    const board = this.gameOver ? this.board : this.liveBoard(), mine = board.findIndex(e => e.id === this.myId), rows = board.slice(0, 3).map((e, i) => [i, e]);
+    if (mine >= 3) rows.push([mine, board[mine]]);
+    rows.forEach(([i, e], j) => { const me = e.id === this.myId, t = (i + 1) + '. ' + (me ? (this.myName || '나') : (e.name || '친구')) + ' ' + trFmt(e.s) + '%', ry = my + M + 22 + j * 17;
+      FX.text(ctx, t, W - 10, ry, { size: 12.5, weight: me ? 900 : 700, color: me ? '#FFE38A' : '#fff', align: 'right', stroke: 'rgba(20,24,40,.85)' });
+      trSwatch(ctx, trSkin(me ? this.ci : e.ci), W - 10 - ctx.measureText(t).width - 16, ry - 11, 12); });   // 순위표에도 색+무늬 견본
+    // 남은 시간 (위 가운데 · 마지막 10초는 빨갛게 크게)
+    if (this.endAt > 0) { const left = this.gameOver ? (this.endReason === 'time' ? 0 : Math.max(0, this.endAt - this.goalT)) : this.endAt - this.clock(), hot = left <= 10000, tt = '남은 시간 ' + trClock(left), fs = hot ? 20 + (this.gameOver ? 0 : 4 * Math.max(0, left % 1000) / 1000) : 16;   // 마지막 10초: 매초 커졌다 작아짐
+      ctx.font = '900 ' + fs + 'px Pretendard, sans-serif'; const tw = ctx.measureText(tt).width + 22, tx = Math.min(W / 2, mx - 10 - tw / 2);
+      ctx.fillStyle = hot ? 'rgba(120,10,30,.78)' : 'rgba(10,14,28,.62)'; FX.rr(ctx, tx - tw / 2, 8, tw, fs + 12, (fs + 12) / 2); ctx.fill();
+      FX.text(ctx, tt, tx, 8 + (fs + 12) / 2 + fs * 0.36, { size: fs, weight: 900, color: hot ? '#FFD1D8' : '#fff', align: 'center', stroke: 'rgba(20,24,40,.6)' }); }
     this.toasts.forEach((t, i) => FX.text(ctx, t.t, W / 2, H * 0.2 + i * 24, { size: 15, weight: 900, color: t.c, align: 'center', stroke: 'rgba(20,24,40,.9)' }));
     if (this.run < 4) FX.text(ctx, '화면 아무 데나 밀어서 방향 바꾸기 (방향키도 됨)', W / 2, H * 0.62, { size: 15, weight: 900, color: '#FFE38A', align: 'center', stroke: 'rgba(20,24,40,.9)' });
     if (this.run < 4) FX.text(ctx, '내 땅 밖에 선을 긋고 돌아오면 그 안이 내 땅!', W / 2, H * 0.62 + 22, { size: 13, weight: 800, color: '#fff', align: 'center', stroke: 'rgba(20,24,40,.9)' });
+    if (this.run < 4) FX.text(ctx, '전체 땅의 ' + TR_GOAL + '%를 먼저 차지하면 승리!' + (this.endAt > 0 ? ' (시간이 끝나면 넓은 순)' : ''), W / 2, H * 0.62 + 62, { size: 13, weight: 800, color: '#9BF6B5', align: 'center', stroke: 'rgba(20,24,40,.9)' });
     if (this.run < 4) FX.text(ctx, '상자를 밟으면 아이템! (좋은 것도, 나쁜 것도)', W / 2, H * 0.62 + 42, { size: 13, weight: 800, color: '#D9C2FF', align: 'center', stroke: 'rgba(20,24,40,.9)' });
+    if (this.gameOver) { this.drawEnd(ctx, W, H); return; }
     if (this.isDead) { ctx.fillStyle = 'rgba(10,14,28,.45)'; ctx.fillRect(0, 0, W, H); FX.text(ctx, Math.max(1, Math.ceil((this.deadUntil - (this.now || 0)) / 1000)) + '', W / 2, H * 0.48, { size: 56, weight: 900, color: '#fff', align: 'center', stroke: 'rgba(20,24,40,.9)' }); }
   }
 }
