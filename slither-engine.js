@@ -49,6 +49,7 @@ const SL_TSM = 1679616;        // 보낸 시각(ms)을 36진 4글자로 — 이 
 const SL_WIN = 2000;           // 길이 2000에 먼저 닿으면 경기 끝 (그 순간 점수로 모두의 순위)
 const SL_HHR = 1.3;             // 머리끼리: 두 머리 중심이 (반지름 합 × 1.3) 안이면 닿음 (넉넉하게)
 const SL_ZONE = 0.3;            // 머리끼리: 상대 머리가 내 머리 앞쪽 반원 + 조금(약 ±107°) 안 — 그보다 뒤(목)면 몸 박기
+const SL_LATE = 1200;           // 머리끼리 결론이 이보다(ms) 늦게 오면(끊김 뒤) 먹힌 쪽이 받지 않음 → 먹은 쪽이 되돌림
 const SL_RESPAWN_LEN = 6;       // 부활 길이 = 쓰러져 기다리는 동안의 점수
 const SL_HIT = 0.8;            // 몸 박기: 내 화면에서 반지름 합의 0.8배 안으로 겹쳐야 탈락 (살짝 스친 것은 살림)
 const SL_GHOST = 1000;          // 신호가 이만큼(ms) 안 오면 흐린 유령 — 부딪혀도 안 죽음
@@ -311,7 +312,9 @@ class SlitherGame {
       this.toast(slJosa(nm, '이', '가') + ' 내 몸에 부딪혔다!', '#7DF58F'); return;
     }
     if (e.type === 'hh') { this.applyClaim(e); return; }                            // 머리끼리 결론 (누가 먹었나) — 받는 즉시 따름
-    if (e.type === 'hhx') { if (me) this.voidClaim(e); return; }                    // 먹힌 친구가 그 결론보다 먼저 이미 쓰러져 있었음 → 커진 길이 되돌림
+    if (e.type === 'hhx') {                                                         // 먹힌 쪽이 결론을 받지 않음(이미 먼저 쓰러짐 · 너무 늦게 옴) → 먹은 쪽은 커진 길이 되돌림
+      if (me) { this.voidClaim(e); return; }
+      const q = this.peers[e.by], vl = String(e.cb) === e.by ? +e.la : +e.lb; if (e.alive && q && q.life === vl && q.deadLife === vl && !q.dead) q.deadLife = null; return; }   // 구경하는 친구: 다시 부딪힐 수 있게
     if (e.type === 'hhd' && !me && e.k === 'c') {                                   // 다른 친구들: 1등 교체 소식
       const key = e.target + '>' + e.by + ':' + e.ml;
       if (!this.noted[key]) { this.noted[key] = now; this.say(slJosa(this.nameOf(e.target), '이', '가') + ' 1등을 잡았다!', '슈퍼 지렁이가 ' + slJosa(nm, '을', '를') + ' 이기고 1등 자리를 이어받았어요', '#FFD447', 3200); }
@@ -339,7 +342,7 @@ class SlitherGame {
     if (meWin) {
       if (myL !== this.life || this.isDead || st.lost) return;                     // 그 목숨이 이미 끝남(둘 다 쓰러진 경우 등) → 커지지 않음
       if (this.gainFrom(other, oL, n, c.k, q)) st.grew = n;
-      if (q && q.life === oL) this.markEaten(q, oL);
+      if (q && q.life === oL) { if (A !== this.myId) this.showBite(q, +c.x, +c.y); this.markEaten(q, oL); }
       return;
     }
     if (st.grew) { this.undoGain(other, oL, st.grew); st.grew = 0; }               // 내가 먼저 먹은 줄 알았는데 상대 결론이 더 먼저 → 되돌리고 쓰러짐
@@ -348,8 +351,13 @@ class SlitherGame {
       const dt = this.deathTs[myL]; if (dt != null && dt < +c.ts - 150) this.send('hhx', other, { la, lb, cb: A, ct: B, cts: +c.ts });
       return;
     }
+    if (A !== this.myId) {                                                         // 상대 화면이 정한 결론: 닿은 자리로 되감아 쓰러짐 (결론이 늦게 와도)
+      //   단, 너무 늦게 왔거나(끊김 뒤 · 1.2초 넘음) 그 친구가 내 화면에서 유령이거나, 그 자리가 내 자취에 없으면(상대 화면의 내가 틀림) → 받지 않음: 먹은 쪽이 되돌림
+      const k = this.trailNear(+c.px, +c.py), qa = this.peers[A];
+      if (this.srvNow() - (+c.ts) > SL_LATE || k < -1 || !qa || this.ghost(qa)) { st.void = true; this.send('hhx', A, { la, lb, cb: A, ct: B, cts: +c.ts, alive: 1 }); return; }
+      this.rewindAt(k); this.showBite(qa, +c.x, +c.y);                            // 내 화면에서도 두 머리가 닿은 모습 (먹은 친구 머리를 닿은 자리까지 당겨 그림)
+    }
     st.lost = true;
-    if (A !== this.myId) this.rewindTo(+c.px, +c.py);                             // 상대 화면에서 닿은 자리로 되감아 쓰러짐 (결론이 늦게 와도)
     this.killedBy = { id: other, k: c.k === 'c' ? 'c' : 'e' };
     if (c.k === 'c') { this.die('슈퍼 지렁이 ' + nm + '에게 1등을 빼앗겼다', other, 'crown', false, true); this.say('1등을 빼앗겼어요', '슈퍼 지렁이 ' + slJosa(nm, '이', '가') + ' 내 머리를 먹었어요', '#FF5C7A', 2600); }
     else this.die('머리끼리 부딪혀 ' + nm + '에게 먹혔어요', other, 'eat', false, true);
@@ -358,18 +366,27 @@ class SlitherGame {
   // 먹힌 친구가 이미 먼저 쓰러져 있었다고 알려 옴 → 그 결론으로 커진 길이를 되돌림
   voidClaim(e) {
     const st = this.hhPairs[slPairKey(String(e.cb), +e.la, String(e.ct), +e.lb)];
-    if (!st || !st.c || st.c.ts !== +e.cts || !st.grew) return;
-    this.undoGain(e.by, e.cb === this.myId ? +e.lb : +e.la, st.grew); st.grew = 0;
+    if (!st || !st.c || st.c.ts !== +e.cts) return;
+    const vl = e.cb === this.myId ? +e.lb : +e.la, q = this.peers[e.by]; st.void = true;
+    if (st.grew) { this.undoGain(e.by, vl, st.grew); st.grew = 0; }
+    if (e.alive && q && q.eatenLife === vl && q.life === vl) this.unmarkEaten(q);  // 살아 있는 그 친구를 다시 그림
   }
-  // 상대 화면에서 내 머리가 닿은 자리(x,y) 로 되감기 — 그 자리에 가장 가까운 내 자취 점까지 (2.5칸 안일 때만)
-  rewindTo(x, y) {
-    if (!isFinite(x) || !isFinite(y)) return;
-    const t = this.trail, m = Math.min(t.length - 3, 120); let bi = -1, bd = (this.x - x) ** 2 + (this.y - y) ** 2;
-    if (bd > 6.25) bd = 6.25;
+  // 상대 화면에서 내 머리가 닿은 자리(x,y) 에 가장 가까운 내 자취 점 번호 (1.5칸 안) · -1: 지금 머리 · -2: 없음
+  trailNear(x, y) {
+    if (!isFinite(x) || !isFinite(y)) return -2;
+    const t = this.trail, m = Math.min(t.length - 3, 120); let bi = -2, bd = 2.25;
+    { const dd = (this.x - x) ** 2 + (this.y - y) ** 2; if (dd < bd) { bd = dd; bi = -1; } }
     for (let i = 0; i < m; i++) { const dd = (t[i][0] - x) ** 2 + (t[i][1] - y) ** 2; if (dd < bd) { bd = dd; bi = i; } }
-    if (bi < 0) return;
-    if (bi > 0) { t.splice(0, bi); this.seq -= bi; }
-    this.x = t[0][0]; this.y = t[0][1];
+    return bi;
+  }
+  rewindAt(k) { const t = this.trail; if (k < 0) return; if (k > 0) { t.splice(0, k); this.seq -= k; } this.x = t[0][0]; this.y = t[0][1]; }
+  // 친구 머리를 (x,y) — 결론을 낸 화면에서 닿은 자리 — 까지 받은 길을 따라 당겨 그림 (앞으로만 · 1.5칸 안)
+  showBite(q, x, y) {
+    if (!q || !q.pts.length || !isFinite(x) || !isFinite(y)) return;
+    const pts = q.pts, h0 = Math.hypot(pts[0][0] - q.hx, pts[0][1] - q.hy); let L = null, bd = 2.25;
+    { const dd = (q.hx - x) ** 2 + (q.hy - y) ** 2; if (dd < bd) { bd = dd; L = 0; } }
+    for (let k = 0, e = Math.min(q.vs + 1, pts.length); k < e; k++) { const dd = (pts[k][0] - x) ** 2 + (pts[k][1] - y) ** 2; if (dd < bd) { bd = dd; L = h0 + k * SL_SEG; } }
+    if (L != null && L < q.lag) { q.lag = L; this.placeRender(q); }
   }
   // 먹은 친구: 내 화면에서 바로 쓰러지는 모습 (늦게 온 '살아 있는' 신호는 무시)
   markEaten(q, L) { q.eatenLife = L; q.deadLife = L; if (!q.dead) { q.dead = true; q.dying = q.pts.length > 0; q.dyingAt = this.clock(); } }

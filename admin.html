@@ -477,7 +477,8 @@
     playersRef.once('value').then(snap => {
       const ps = snap.val() || {}, up = {};
       // 이전 게임의 미니보드·순위·통계가 카드에 남지 않게 게임 관련 값은 전부 비웁니다 (닉네임·접속 시각만 유지)
-      Object.keys(ps).forEach(id => { up[id + '/status'] = 'waiting'; up[id + '/score'] = 0;
+      // 이름 있는 줄만 — 예전엔 그 사이 지워진 학생(게임 이동 중)의 줄을 이름 없이 다시 만들어, 교사 화면 정리가 그 학생의 명단까지 지움
+      Object.keys(ps).forEach(id => { if (!ps[id] || !ps[id].nickname) return; up[id + '/status'] = 'waiting'; up[id + '/score'] = 0;
         Object.keys(ps[id] || {}).forEach(k => { if (['nickname', 'name', 'joinedAt', 'lastSeen', 'status', 'score'].indexOf(k) < 0) up[id + '/' + k] = null; }); });
       db.ref('gems').remove(); db.ref('finishes').remove(); db.ref('screens').remove(); db.ref('picks').remove();
       if (Object.keys(up).length) playersRef.update(up);
@@ -509,7 +510,7 @@
     db.ref('finishes').remove();   // 카트 완주 기록 — 예전엔 남아서 2판의 완주 순위가 1판 기록(나간 학생 포함)과 섞여 밀렸음
     playersRef.once('value').then(snap => {
       const ps = snap.val() || {}, up = {};
-      Object.keys(ps).forEach(id => { up[id + '/status'] = 'waiting'; up[id + '/score'] = 0; up[id + '/rank'] = null; up[id + '/finishMs'] = null; });
+      Object.keys(ps).forEach(id => { if (!ps[id] || !ps[id].nickname) return; up[id + '/status'] = 'waiting'; up[id + '/score'] = 0; up[id + '/rank'] = null; up[id + '/finishMs'] = null; });   // 이름 있는 줄만
       return Object.keys(up).length ? playersRef.update(up) : null;
     })["catch"](() => {}).then(() => {
       // 캐릭터를 고르는 게임(젬 아레나): 먼저 10초 캐릭터 선택 → 모두 고르거나 시간이 끝나면 시작 (selectWatch)
@@ -881,7 +882,7 @@
     jobs.push(playersRef.once('value').then(snap => {
       const ps = snap.val() || {};
       const up = {};
-      Object.keys(ps).forEach(id => { up[id + '/status'] = 'waiting'; });
+      Object.keys(ps).forEach(id => { if (ps[id] && ps[id].nickname) up[id + '/status'] = 'waiting'; });   // 이름 있는 줄만
       return Object.keys(up).length ? playersRef.update(up) : null;
     }));
     Promise.all(jobs)
