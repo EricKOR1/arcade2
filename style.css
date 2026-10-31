@@ -46,8 +46,13 @@ body {
   font-size: 16px; line-height: 1.45; overflow: hidden;
   overscroll-behavior: none; touch-action: manipulation;
   -webkit-user-select: none; user-select: none;
+  -webkit-touch-callout: none;                 /* 아이폰·아이패드: 길게 누르면 뜨는 메뉴·돋보기 막기 (버튼을 꾹 누르는 게임) */
   -webkit-font-smoothing: antialiased;
 }
+/* 사파리는 user-select 를 자식에게 물려줘 입력 칸까지 선택 불가가 됨 → 글자 입력(닉네임)은 다시 허용 */
+input, textarea, [contenteditable="true"] { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default }
+/* 조작 영역: 끌어도 화면이 출렁이거나(iOS 15 는 overscroll-behavior 없음) 확대되지 않게 — 버튼 누름(click)은 그대로 */
+.pad, #fps-ctl { touch-action: none }
 /* 배경: 거의 단색 + 위쪽에 아주 은은한 강조색 */
 body::before {
   content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
@@ -813,6 +818,8 @@ body.fullgrid .spectate { grid-template-columns: 1fr 320px }
 @media (orientation: landscape) and (min-width: 640px) {
   #screen-game:has(.pad-climb) { grid-template-columns: 1fr; grid-template-areas: "top" "canvas" }
   #screen-game:has(.pad-climb) .canvas-wrap { grid-column: 1; padding: 6px 200px }        /* 양옆 200px 는 버튼 자리 */
+  #screen-game.hs-climb { grid-template-columns: 1fr; grid-template-areas: "top" "canvas" }              /* :has 없는 브라우저(iOS 15.4 미만) 짝 — shared.js 가 class 를 닮 */
+  #screen-game.hs-climb .canvas-wrap { grid-column: 1; padding: 6px 200px }
   #screen-game .pad.pad-climb { position: absolute; left: 0; right: 0; bottom: 0; top: 60px; display: flex; justify-content: space-between; align-items: center; padding: 0 22px; pointer-events: none; background: none }
   #screen-game .pad.pad-climb .pad-lr, #screen-game .pad.pad-climb .pad-ud { pointer-events: auto; width: 160px }
   #screen-game .pad.pad-climb .pad-lr { display: grid; grid-template-columns: 1fr 1fr; gap: 10px }
@@ -890,6 +897,7 @@ body.fullgrid .spectate { grid-template-columns: 1fr 320px }
   #screen-game.active { grid-template-columns: minmax(0, 1fr) !important; grid-template-areas: "top" "canvas" !important }   /* minmax(0, …): 캔버스의 처음 크기(300px)가 칸을 넓혀 화면보다 넓어지던 것(가로 폭 732px 이하 폰에서 판이 버튼 밑으로) */
   #screen-game .canvas-wrap { grid-column: 1 !important }
   #screen-game:not(:has(.pad.pad-none)) .canvas-wrap:not(.bleed) { padding: 6px var(--side, 214px) }     /* 판이 버튼에 가리지 않게 양옆 비움 */
+  #screen-game.hs-pany.hs-pany .canvas-wrap:not(.bleed) { padding: 6px var(--side, 214px) }               /* :has 없는 브라우저 짝 (같은 우선순위) */
   #screen-game .pad:not(.pad-none) { position: absolute !important; left: 0; right: 0; bottom: 0; top: auto; max-height: none; overflow: visible; background: none;
     display: flex !important; justify-content: space-between; align-items: flex-end; gap: 12px; padding: 0 max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); pointer-events: none; z-index: 5 }
   #screen-game .pad:not(.pad-none) > * { pointer-events: auto }
@@ -944,10 +952,13 @@ body.fullgrid .spectate { grid-template-columns: 1fr 320px }
   /* 한쪽에만 버튼이 있는 게임: 버튼 쪽만 비우고 판을 반대쪽으로 붙여 크게 (방향 십자만 → 왼쪽만 비움 · 동작 버튼만 → 오른쪽만 비움) */
   #screen-game:has(.pad.pad-single > .dpad) .canvas-wrap:not(.bleed) { padding-right: 16px }
   #screen-game:has(.pad.pad-single > .pad-r) .canvas-wrap:not(.bleed) { padding-left: 16px }
+  #screen-game.hs-1d.hs-1d.hs-1d .canvas-wrap:not(.bleed) { padding-right: 16px }                         /* :has 없는 브라우저 짝 */
+  #screen-game.hs-1r.hs-1r.hs-1r .canvas-wrap:not(.bleed) { padding-left: 16px }
 }
 @media (orientation: landscape) and (min-width: 640px) and (max-height: 480px) {
   /* 레이저 태그(버튼 12개)는 폰 가로 높이(≈390px)에 1.5배가 들어가지 않아 1.25배 */
   #screen-game:has(#fps-ctl:not(.k3-ctl):not(.arena-ctl)) { --kz: 1.25 }
+  #screen-game#screen-game.hs-fps.hs-fps { --kz: 1.25 }                                                   /* :has 없는 브라우저 짝 */
 }
 @media (orientation: landscape) and (min-width: 640px) {
   /* 레이저 태그 설정 칩(자이로·감도)은 조작 키가 아니라 원래 크기·자리 그대로 (확대하면 재장전·구르기와 부딪힘) */

@@ -23,6 +23,8 @@ const Sound = (function () {
     if (ctx) return;
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
+    // 아이폰·아이패드: 기본값(ambient)이면 옆면 무음 스위치를 켠 기기에서 게임 소리가 전혀 안 남 → 안드로이드처럼 미디어 소리로 (iOS 16.4+ 만, 소리 끄기 버튼·선생님 전체 음소거는 그대로)
+    try { if (navigator.audioSession && window.IS_IOS) navigator.audioSession.type = 'playback'; } catch (e) {}
     wire(new AC());
   }
   // 'interrupted'(아이폰 전화·앱 전환 뒤)도 다시 켬 · 누르지 않은 때 부르면 거절될 수 있어 오류는 삼킴
