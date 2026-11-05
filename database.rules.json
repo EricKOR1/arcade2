@@ -1,0 +1,20 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "session":     { ".read": true, ".write": true },
+    "players":     { ".read": true, ".write": true },
+    "roster":      { ".read": true, ".write": true },
+    "pos":         { ".read": true, ".write": true },
+    "events":      { ".read": true, ".write": true },
+    "hazards":     { ".read": true, ".write": true },
+    "gems":        { ".read": true, ".write": true },
+    "finishes":    { ".read": true, ".write": true },
+    "finishCount": { ".read": true, ".write": true },
+    "picks":       { ".read": true, ".write": true },
+    "screens":     { ".read": true, ".write": true },
+    "rooms":       { ".read": true, ".write": true },
+    "scores":      { ".read": true, ".write": true }
+  }
+}
