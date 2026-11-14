@@ -568,7 +568,7 @@ class TagCore {
     if (this.toasts.length) this.toasts = this.toasts.filter(t => t.until > now);
     if (this.feed.length) this.feed = this.feed.filter(f => f.t > now);
     this.shake = Math.max(0, (this.shake || 0) - dt * 2.2);
-    if (!this._svT || now - this._svT > 3000) { this._svT = now; this.save(); }
+    if (!this._svT || now - this._svT > 1000) { this._svT = now; this.save(); }   // 새로고침해도 이어서 (1초마다)
     return dt;
   }
   // 살아남은 시간 (사냥 중 · 사람일 때만 · 시간 제한까지)
@@ -642,7 +642,7 @@ class TagCore {
           for (const zn of W.zones) if (inR(wx, wz, zn)) v = zn.k === 'road' ? 12 : zn.k === 'yard' ? 66 : zn.k === 'sand' ? 57 : zn.k === 'grass' ? 42 : 62;
           row.push(v); } b.push(row); }
       const fill = (x0, z0, x1, z1, v) => { for (let y = Math.max(0, Math.floor(z0 / L * G)); y <= Math.min(G - 1, Math.floor((z1 - 0.01) / L * G)); y++) for (let x = Math.max(0, Math.floor(x0 / L * G)); x <= Math.min(G - 1, Math.floor((x1 - 0.01) / L * G)); x++) b[y][x] = v; };
-      W.boxes.forEach(o => { if (o.k === 'school' || o.k === 'gym' || o.k === 'house') fill(o.x0, o.z0, o.x1, o.z1, 63); else if (o.k === 'wall' || o.k === 'edge') fill(o.x0, o.z0, o.x1, o.z1, 45); });
+      W.boxes.forEach(o => { if (o.k === 'school' || o.k === 'gym' || o.k === 'house') fill(o.x0, o.z0, o.x1, o.z1, 45); else if (o.k === 'wall' || o.k === 'edge') fill(o.x0, o.z0, o.x1, o.z1, 63); });
       W.trees.forEach(t => fill(t.x, t.z, t.x + 0.01, t.z + 0.01, 65)); }
     const g = this._snapBase.map(r => r.slice()), put = (x, z, v) => { const gx = Math.floor(x / L * G), gy = Math.floor(z / L * G); if (g[gy] && g[gy][gx] != null) g[gy][gx] = v; };
     for (const it of this.itemsNow(this.srv())) put(it.x, it.z, 48);

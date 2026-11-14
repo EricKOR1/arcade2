@@ -373,8 +373,10 @@ class TagGame extends TagCore {
     this.updateParticles(now, dt);
     if (window.ThreeQuality && this.hq !== 'low') ThreeQuality.frame(this, this.camT.x, 0, this.camT.z, now);
     this.renderer.render(this.scene, this.camera);
-    this.drawHud();
+    if (t - (this._hudAt || 0) >= 30 || this.gameOver) { this._hudAt = t; this.drawHud(); }   // 글자 HUD 는 초당 30번까지 (저사양 기기 CPU 아낌)
   }
+  // 순위표는 0.3초마다 다시 셈 (한국어 이름 비교가 무거움)
+  standingsC() { if (!this._stC || this.now - this._stAt > 300 || this.gameOver) { this._stC = this.standings(); this._stAt = this.now; } return this._stC; }
   updateCamera(dt) {
     const T = this.camT, W = this.world, z = this.role === 'z';
     let tx = this.x + Math.max(-2.5, Math.min(2.5, this.vx * 0.22)), tz = this.z + Math.max(-2.5, Math.min(2.5, this.vz * 0.22));
@@ -503,7 +505,10 @@ class TagGame extends TagCore {
     // 위험 테두리 (사람: 좀비가 가까우면 붉게 두근두근) · 좀비 시야(늘 붉은 기운)
     let danger = 0; if (this.role === 'h' && ph === 'hunt' && this.nearZ < 10) danger = Math.min(1, (10 - this.nearZ) / 8) * (0.55 + 0.45 * Math.abs(Math.sin(now / Math.max(120, 60 + this.nearZ * 40))));
     if (this.role === 'z' && !this.gameOver) danger = Math.max(danger, 0.28);
-    if (danger > 0.02) { const g = c.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.32, W / 2, H / 2, Math.max(W, H) * 0.72); g.addColorStop(0, 'rgba(255,30,50,0)'); g.addColorStop(1, 'rgba(255,30,50,' + (0.62 * danger).toFixed(3) + ')'); c.fillStyle = g; c.fillRect(0, 0, W, H); }
+    if (danger > 0.02) { if (!this._vig || this._vigW !== W || this._vigH !== H) { const g = this._vig = c.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.24, W / 2, H / 2, Math.max(W, H) * 0.62); g.addColorStop(0, 'rgba(255,30,50,0)'); g.addColorStop(0.6, 'rgba(255,30,50,0.32)'); g.addColorStop(1, 'rgba(255,20,40,0.8)'); this._vigW = W; this._vigH = H; }
+      c.globalAlpha = danger; c.fillStyle = this._vig; c.fillRect(0, 0, W, H);
+      if (this.role === 'h') { c.lineWidth = 10; c.strokeStyle = 'rgba(255,40,60,0.85)'; c.strokeRect(5, 5, W - 10, H - 10); }   // 화면 테두리 경고
+      c.globalAlpha = 1; }
     this.drawLabels(c, L);
     this.drawEdgeArrow(c, L);
     this.drawTop(c, L, srv, ph);
@@ -521,11 +526,12 @@ class TagGame extends TagCore {
   toScreen(x, y, z) { const v = this.tmpV.set(x, y, z).project(this.camera); if (v.z > 1 || v.x < -1.1 || v.x > 1.1 || v.y < -1.1 || v.y > 1.1) return null; return [(v.x + 1) / 2 * this.vw, (1 - v.y) / 2 * this.vh]; }
   // 머리 위: 이름 (사람 흰색 · 좀비 빨강) + 상태 (방패 · 얼음 · 기절 · 투명) — 벽 너머 친구는 이름도 안 보임
   drawLabels(c, L) {
-    const s = L.s, meZ = this.role === 'z';
+    const s = L.s, meZ = this.role === 'z', now = this.now; let nl = 0;
     for (const id in this.peers) { const p = this.peers[id]; if (p.tx == null || p.role === 'w') continue;
-      const d = Math.hypot(p.x - this.x, p.z - this.z); if (d > 24) continue;
+      const d = Math.hypot(p.x - this.x, p.z - this.z); if (d > 24 || nl >= 14) continue;
       if (p.inv && p.role === 'h' && meZ && d > 3.5) continue;
-      if (d > 3 && !this.world.los(this.x, this.z, p.x, p.z)) continue;
+      if (d > 3) { if (!p._losAt || now - p._losAt > 150) { p._losAt = now; p._los = this.world.los(this.x, this.z, p.x, p.z); } if (!p._los) continue; }
+      nl++;
       const sp = this.toScreen(p.x, 2.3, p.z); if (!sp) continue; const zb = p.role === 'z';
       c.globalAlpha = p.stale ? 0.45 : 1;
       if (zb) { c.fillStyle = '#FF4D5E'; c.beginPath(); c.moveTo(sp[0], sp[1] + 6 * s); c.lineTo(sp[0] - 6 * s, sp[1] - 4 * s); c.lineTo(sp[0] + 6 * s, sp[1] - 4 * s); c.closePath(); c.fill(); }
@@ -557,7 +563,7 @@ class TagGame extends TagCore {
     // 얼굴 그림 (사람: 웃는 얼굴 · 좀비: 붉은 눈 + 이빨)
     c.fillStyle = zMe ? '#FFD0D0' : '#FFFFFF'; c.beginPath(); c.arc(cx - r * 0.35, cy - r * 0.18, r * 0.14, 0, 7); c.arc(cx + r * 0.35, cy - r * 0.18, r * 0.14, 0, 7); c.fill();
     c.strokeStyle = '#FFFFFF'; c.lineWidth = Math.max(1.5, r * 0.12); c.beginPath(); if (zMe) { c.moveTo(cx - r * 0.42, cy + r * 0.35); for (let i = 1; i <= 6; i++) c.lineTo(cx - r * 0.42 + i * r * 0.14, cy + r * (i % 2 ? 0.22 : 0.38)); } else c.arc(cx, cy + r * 0.08, r * 0.38, 0.2, Math.PI - 0.2); c.stroke();
-    const x0 = cx + r + 8, w = P.x + P.w - x0 - 8, st = this.standings(), rk = st.findIndex(q => q.me) + 1;
+    const x0 = cx + r + 8, w = P.x + P.w - x0 - 8, st = this.standingsC(), rk = st.findIndex(q => q.me) + 1;
     tg3TF(c, this.joinWait ? '참가 중' : zMe ? '좀비' : '사람', x0, P.y + 13 * s, 13 * s, w * 0.5, zMe ? '#FF9AA6' : '#9EF0B0', 'left', false, 900);
     tg3TF(c, rk + '등 / ' + st.length, x0 + w, P.y + 13 * s, 11 * s, w * 0.48, '#FFE08A', 'right', false, 800);
     tg3TF(c, this.score + '점', x0, P.y + P.h * 0.62, 20 * s, w * 0.6, '#FFFFFF', 'left', false, 900);
@@ -628,7 +634,7 @@ class TagGame extends TagCore {
   }
   // 라운드 사이: 지난 라운드 결과 + 지금 순위 위 5명
   drawRoundEnd(c, L, srv) {
-    const s = L.s, lr = this.lastRound, st = this.standings().slice(0, 5), w = Math.min(L.W - 24, 330 * s), h = (96 + st.length * 19) * s, x = (L.W - w) / 2, y = L.H * 0.44 - h / 2 + 40 * s;
+    const s = L.s, lr = this.lastRound, st = this.standingsC().slice(0, 5), w = Math.min(L.W - 24, 330 * s), h = (96 + st.length * 19) * s, x = (L.W - w) / 2, y = L.H * 0.44 - h / 2 + 40 * s;
     c.fillStyle = 'rgba(14,16,40,0.86)'; tg3RR(c, x, y, w, h, 14); c.fill();
     tg3T(c, lr.r + '라운드 결과', L.W / 2, y + 20 * s, 16 * s, '#FFD166', 'center', null, 900);
     tg3TF(c, lr.why === 'cap' ? '살아남은 사람 ' + lr.surv.length + '명' + (lr.surv.length ? ': ' + lr.surv.slice(0, 4).join(', ') + (lr.surv.length > 4 ? ' …' : '') : '') : '사람이 모두 잡혔어요!', L.W / 2, y + 42 * s, 12 * s, w - 20, '#FFFFFF', 'center', false, 800);
