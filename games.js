@@ -201,6 +201,65 @@ const GAMES = {
     sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, lv: g.lv, kills: g.kills }; }
   },
 
+  // 범퍼카 서바이벌 3D: 규칙 · 통신은 bumper-engine.js(BumperCore), 그림 · HUD 는 bumper3d-engine.js(BumperGame)
+  bumper3d: {
+    type: 'canvas',
+    name: '범퍼카 서바이벌 3D',
+    desc: '하늘에 뜬 경기장에서 범퍼카로 서로 들이받아 밖으로 밀어 떨어뜨리기! 많이 맞을수록 충격%가 올라 더 멀리 날아가요. 시간이 지나면 가장자리가 무너져 좁아지고, 다 좁아지면 다시 넓어져 다음 라운드',
+    howto: '조이스틱으로 운전(화면 위 = 북쪽) · ⚡ 버튼(Space) = 돌진 · 친구를 밖으로 밀어 떨어뜨리면 +3점 · 10초 버틸 때마다 +1 · 라운드 끝까지 살아남으면 +2 · 빨갛게 흔들리는 바닥은 곧 떨어져요 · 아이템: 🪨 무거워지기 · 🛡 방패 · ⚡ 슈퍼 돌진 · 빨간 기둥은 튕겨 내고 초록 화살표 판은 가운데로 점프 · 떨어지면 2.6초 뒤 다시 출발',
+    meta: '실시간 개인전 · 3D · 차 45가지 · 인원별 경기장 크기 · 최대 30명',
+    primary: '72% 0.18 25', primaryContent: '100% 0 0', hex: '#FF6B4A',
+    grid: { cols: 30, rows: 30 },   // 교사 미니보드: 위에서 본 경기장 (남은 바닥 · 흔들리는 조각 · 범퍼 · 아이템 · 차)
+    adminView: 'grid', fullBleed: true, engine3d: true, autoSize: true,   // autoSize: 시작할 때 인원을 track 에 붙임('auto:24') → 늦게 온 학생도 같은 크기
+    needsPeers: true, realtime: true, hasNext: false, timed: true,
+    stats: [{ key: 'kills', label: '떨어뜨림' }, { key: 'falls', label: '떨어짐' }],
+    overText: function (g) { return g.endReason === 'time' ? '시간 끝!' : 'GAME OVER'; },
+    detail: function (g) { return (g.rank && g.total ? (g.endReason === 'time' ? '시간 끝 · 1등 ' + g.winner + ' · ' : '') + g.total + '명 중 ' + g.rank + '등 · ' : '') + '점수 ' + g.score + ' · 떨어뜨림 ' + g.kills + ' · 떨어짐 ' + g.falls; },
+    controls: [], padLayout: 'slither', padHint: false, mouseSteer: false, boostLabel: '⚡<small>돌진</small>',   // 조이스틱 + 돌진 버튼 하나 · 조작 안내는 엔진이 첫 출발 때 그림
+    create: function (canvas, opts) { return new BumperGame(canvas, Object.assign({ maxDpr: 1.25 }, opts)); },
+    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, kills: g.kills, falls: g.falls }; }
+  },
+
+  // 장애물 대탈출 3D: 규칙 · 코스 · 통신은 obst-engine.js(ObstCore), 그림 · HUD 는 obst3d-engine.js(ObstGame)
+  obst3d: {
+    type: 'canvas',
+    name: '장애물 대탈출 3D',
+    desc: '하늘에 뜬 알록달록 장애물 코스를 반 친구들과 동시에 달려 결승선까지! 빙글 막대 · 흔들 망치 · 사라지는 발판 · 움직이는 발판 · 컨베이어 · 점프대 · 굴러오는 공 · 미끄러운 얼음을 피해 먼저 도착할수록 점수가 커요. 코스가 끝나면 순위를 보고 다음 코스로 — 시간이 끝나면 총점 순위',
+    howto: '조이스틱으로 달리기(위 = 앞) · ⤴ 버튼(Space)으로 점프 · 떨어지거나 밀려나면 마지막 체크포인트(초록 깃발)에서 바로 다시 · 결승 도착 순서로 1등 100 · 2등 85 · 3등 75점 … · 도착 못 해도 반환점을 넘으면 10점 · 1등이 들어오고 30초 뒤(또는 90초) 코스 끝',
+    meta: '실시간 단체전 · 3D · 코스 3종(인원별 폭) · 최대 30명',
+    primary: '72% 0.17 350', primaryContent: '100% 0 0', hex: '#FF6FB5',
+    grid: { cols: 16, rows: 40 },   // 교사 미니보드: 위에서 본 코스 (위 = 결승) · 플레이어 점
+    adminView: 'grid', fullBleed: true, engine3d: true,
+    needsPeers: true, realtime: true, hasNext: false, timed: true,   // timed: 선생님이 정한 시간이 끝나면 총점 순위 (없으면 4코스)
+    stats: [{ key: 'place', label: '순위' }, { key: 'cleared', label: '완주' }],
+    overText: function (g) { return g.endReason === 'time' ? '시간 끝!' : '경기 끝!'; },
+    // 점수 = 총점(코스마다 도착 순위 점수의 합) — HUD · 게임 안 순위표 · 선생님 화면 · 결과가 모두 g.score
+    detail: function (g) { return (g.rank && g.total ? g.total + '명 중 ' + g.rank + '등 · ' : '') + '총점 ' + g.score + ' · 완주 ' + g.cleared + '번 · 코스 ' + (g.k + 1); },
+    controls: [], padLayout: 'slither', padHint: false, mouseSteer: false, boostLabel: '⤴<small>점프</small>',   // 조이스틱 + 점프 버튼 (안내는 엔진이 그림)
+    create: function (canvas, opts) { return new ObstGame(canvas, Object.assign({ maxDpr: 1.25 }, opts)); },
+    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, place: g.place, cleared: g.cleared }; }
+  },
+
+  // 좀비 술래잡기 3D: 규칙 · 맵 · 통신은 tag-engine.js(TagCore), 그림 · HUD · 소리는 tag3d-engine.js(TagGame)
+  tag3d: {
+    type: 'canvas',
+    name: '좀비 술래잡기 3D',
+    desc: '해 질 녘 학교와 마을에서 하는 감염 술래잡기! 몇 초 뒤 몇 명이 좀비가 되고, 좀비에게 닿으면 나도 좀비가 돼요. 사람은 오래 살아남을수록, 좀비는 많이 잡을수록 점수. 사람이 모두 잡히면 새 좀비를 뽑아 다음 라운드',
+    howto: '조이스틱으로 이동(화면 위 = 북쪽) · 🏃 버튼 꾹(Space) = 달리기(기력 소모) · 좀비가 되면 같은 버튼 톡 = 돌진 · 사람: 1초 살아남을 때마다 +1 · 끝까지(90초) 살아남으면 +20 · 마지막 생존자 +10 · 좀비: 한 명 잡을 때마다 +10 · 아이템(사람만): 신발(빨라짐) · 망토(투명) · 방패(한 번 막음) · 눈덩이(가까운 좀비를 자동으로 얼림) · 좀비가 가까우면 심장 소리와 붉은 테두리 · 시간이 끝나면 총점 순위',
+    meta: '실시간 단체전 · 3D 밤 학교 마을 · 감염 술래잡기 · 인원별 맵 크기 · 최대 30명',
+    primary: '68% 0.17 145', primaryContent: '100% 0 0', hex: '#5EC26A',
+    grid: { cols: 36, rows: 36 },   // 교사 미니보드: 위에서 본 지도 (건물 · 담 · 운동장 · 사람 초록 · 좀비 빨강)
+    adminView: 'grid', fullBleed: true, engine3d: true, autoSize: true,   // autoSize: 시작할 때 인원을 track 에 붙임('auto:24') → 모든 학생이 같은 맵 크기
+    needsPeers: true, realtime: true, hasNext: false, timed: true,      // 시간 제한이 없으면 6분
+    stats: [{ key: 'catches', label: '잡음' }, { key: 'survSec', label: '생존(초)' }],
+    overText: function (g) { return g.endReason === 'time' ? '시간 끝!' : 'GAME OVER'; },
+    // 점수 = 살아남은 초 + 잡은 수 × 10 + 보너스 — HUD · 게임 안 순위표 · 선생님 화면 · 결과가 모두 g.score
+    detail: function (g) { return (g.rank && g.total ? g.total + '명 중 ' + g.rank + '등 · ' : '') + '점수 ' + g.score + ' · 생존 ' + g.survSec + '초 · 잡음 ' + g.catches + ' · ' + g.r + '라운드'; },
+    controls: [], padLayout: 'slither', padHint: false, mouseSteer: false, boostLabel: '🏃<small>달리기</small>',   // 조이스틱 + 버튼 하나 (사람 = 달리기 · 좀비 = 돌진 — 엔진이 글자를 바꿈) · 안내는 엔진이 그림
+    create: function (canvas, opts) { return new TagGame(canvas, Object.assign({ maxDpr: 1.25 }, opts)); },
+    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, catches: g.catches, survSec: g.survSec, role: g.role }; }
+  },
+
   slither: {
     type: 'canvas',
     name: '뱀 아레나',
