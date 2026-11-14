@@ -315,7 +315,7 @@ class BumperCore {
     k *= 1 + this.pct / 85;
     const vn = this.vx * nx + this.vz * nz; if (vn < 0) { this.vx -= nx * vn; this.vz -= nz * vn; }   // 친구 쪽으로 가던 속도는 멈춤
     this.vx += nx * k; this.vz += nz * k;
-    const add = (3 + Math.max(0, c) * 1.15 * (dashing ? (p.sup ? 1.8 : 1.35) : 1)) * (this.has('shield') ? 0.25 : 1) * (now < this.dashUntil ? 0.4 : 1);
+    const add = (2 + Math.max(0, c) * 0.9 * (dashing ? (p.sup ? 1.8 : 1.35) : 1)) * (this.has('shield') ? 0.25 : 1) * (now < this.dashUntil ? 0.4 : 1);
     this.pct = Math.min(250, this.pct + add);
     this.stunUntil = now + Math.min(900, 220 + this.pct * 2.2 + (dashing ? 180 : 0));
     this.dashUntil = Math.min(this.dashUntil, now);

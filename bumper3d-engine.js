@@ -242,26 +242,26 @@ class BumperGame extends BumperCore {
   carParts(shape) {
     const T = THREE, body = [], sec = [], dark = [], R = BP_CAR_R;
     // 고무 범퍼 (둥근 고리) · 바닥
-    const skirt = new T.LatheGeometry([new T.Vector2(0.01, 0.06), new T.Vector2(R * 0.92, 0.06), new T.Vector2(R * 1.0, 0.14), new T.Vector2(R * 1.02, 0.3), new T.Vector2(R * 0.96, 0.44), new T.Vector2(R * 0.82, 0.48), new T.Vector2(0.01, 0.48)], 22);
+    const skirt = new T.LatheGeometry([new T.Vector2(0.01, 0.06), new T.Vector2(R * 0.92, 0.06), new T.Vector2(R * 1.0, 0.14), new T.Vector2(R * 1.02, 0.3), new T.Vector2(R * 0.96, 0.44), new T.Vector2(R * 0.82, 0.48), new T.Vector2(0.01, 0.48)], 16);
     dark.push(bp3P(skirt, 0, 0, 0, 0x222831));
     if (shape === 0) {          // 동글이: 둥근 욕조 + 앞 코 + 등받이
-      body.push(bp3P(new T.SphereGeometry(0.9, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), 0, 0.42, 0, null, 0, 0, 0, 1.0, 0.62, 0.86));
-      body.push(bp3P(new T.SphereGeometry(0.5, 14, 8), 0.62, 0.62, 0, null, 0, 0, 0, 0.75, 0.55, 1.25));
+      body.push(bp3P(new T.SphereGeometry(0.9, 16, 7, 0, Math.PI * 2, 0, Math.PI / 2), 0, 0.42, 0, null, 0, 0, 0, 1.0, 0.62, 0.86));
+      body.push(bp3P(new T.SphereGeometry(0.5, 10, 6), 0.62, 0.62, 0, null, 0, 0, 0, 0.75, 0.55, 1.25));
       body.push(bp3P(new T.BoxGeometry(0.34, 0.75, 1.28), -0.7, 0.92, 0, null, 0, 0, 0.18));
-      sec.push(bp3P(new T.TorusGeometry(0.84, 0.07, 6, 24), 0, 0.72, 0, null, Math.PI / 2, 0, 0, 1, 0.86, 1));
+      sec.push(bp3P(new T.TorusGeometry(0.84, 0.07, 5, 18), 0, 0.72, 0, null, Math.PI / 2, 0, 0, 1, 0.86, 1));
     } else if (shape === 1) {   // 쌩쌩이: 낮고 뾰족한 앞 + 뒤 날개
-      body.push(bp3P(new T.SphereGeometry(0.9, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), -0.05, 0.42, 0, null, 0, 0, 0, 1.08, 0.45, 0.82));
+      body.push(bp3P(new T.SphereGeometry(0.9, 16, 7, 0, Math.PI * 2, 0, Math.PI / 2), -0.05, 0.42, 0, null, 0, 0, 0, 1.08, 0.45, 0.82));
       body.push(bp3P(new T.ConeGeometry(0.5, 1.1, 14), 0.72, 0.58, 0, null, 0, 0, -Math.PI / 2, 1, 1, 0.75));
       sec.push(bp3P(new T.BoxGeometry(0.28, 0.08, 1.5), -0.82, 1.18, 0), bp3P(new T.BoxGeometry(0.1, 0.42, 0.1), -0.82, 0.96, 0.55), bp3P(new T.BoxGeometry(0.1, 0.42, 0.1), -0.82, 0.96, -0.55));
       sec.push(bp3P(new T.BoxGeometry(1.1, 0.04, 0.22), 0.3, 0.83, 0));
     } else {                    // 방울이: 높은 둥근 몸 + 투명 덮개 테
-      body.push(bp3P(new T.CylinderGeometry(0.82, 0.92, 0.55, 22), 0, 0.72, 0));
-      body.push(bp3P(new T.SphereGeometry(0.82, 20, 8, 0, Math.PI * 2, 0, Math.PI / 2), 0, 0.99, 0, null, 0, 0, 0, 1, 0.42, 1));
+      body.push(bp3P(new T.CylinderGeometry(0.82, 0.92, 0.55, 16), 0, 0.72, 0));
+      body.push(bp3P(new T.SphereGeometry(0.82, 16, 6, 0, Math.PI * 2, 0, Math.PI / 2), 0, 0.99, 0, null, 0, 0, 0, 1, 0.42, 1));
       sec.push(bp3P(new T.TorusGeometry(0.62, 0.08, 6, 20), 0.05, 1.32, 0, null, Math.PI / 2), bp3P(new T.SphereGeometry(0.16, 10, 8), 0.6, 1.0, 0.45), bp3P(new T.SphereGeometry(0.16, 10, 8), 0.6, 1.0, -0.45));
     }
     // 운전자 헬멧(줄무늬 색) · 좌석 · 운전대 · 뒤 기둥(전기 범퍼카) · 기둥 끝 불꽃
     const sy = shape === 2 ? 1.25 : 0.95;
-    sec.push(bp3P(new T.SphereGeometry(0.3, 14, 10), -0.18, sy + 0.42, 0));
+    sec.push(bp3P(new T.SphereGeometry(0.3, 10, 7), -0.18, sy + 0.42, 0));
     dark.push(bp3P(new T.BoxGeometry(0.42, 0.22, 0.7), -0.35, sy - 0.08, 0, 0x111827), bp3P(new T.TorusGeometry(0.2, 0.04, 6, 14), 0.2, sy + 0.18, 0, 0x111827, 0, Math.PI / 2, 0.5),
       bp3P(new T.CylinderGeometry(0.035, 0.035, 1.5, 6), -0.82, 1.35, 0, 0xCBD5E1), bp3P(new T.SphereGeometry(0.09, 8, 6), -0.82, 2.12, 0, 0xFDE047));
     return { body, sec, dark };
@@ -454,7 +454,7 @@ class BumperGame extends BumperCore {
     const st = this.standings(), myR = st.findIndex(e => e.me) + 1, x0 = 60, y0 = 10, narrow = W < 640;   // 왼쪽 위 ← · 소리 버튼(index.html) 자리는 비움
     bp3RR(c, x0, y0, 168 * U, 84 * U, 14); c.fillStyle = 'rgba(10,16,34,0.58)'; c.fill();
     const pc = Math.round(this.pct); bp3T(c, '충격', x0 + 12, y0 + 18 * U, 13 * U, '#CBD5E1', 'left', false, 700);
-    bp3T(c, this.alive || this.state === 'wait' ? pc + '%' : '—', x0 + 12, y0 + 46 * U, 34 * U, this.pctColor(pc), 'left');
+    bp3T(c, pc + '%', x0 + 12, y0 + 46 * U, 34 * U, this.pctColor(pc), 'left');
     bp3T(c, '점수 ' + this.score, x0 + 158 * U, y0 + 22 * U, 17 * U, '#FFD447', 'right');
     bp3T(c, myR + '등 / ' + st.length, x0 + 158 * U, y0 + 46 * U, 14 * U, '#fff', 'right', false);
     bp3T(c, '떨어뜨림 ' + this.kills, x0 + 158 * U, y0 + 68 * U, 12 * U, '#9BF6C8', 'right', false, 700);
@@ -496,7 +496,7 @@ class BumperGame extends BumperCore {
     const b = this.banner; if (b && now < b.until) { const k = Math.min(1, (now - b.at) / 220), a = Math.min(1, (b.until - now) / 400), sc = 0.7 + 0.3 * k;
       c.globalAlpha = a; bp3TF(c, b.text, W / 2, H * 0.24, 40 * U * sc, W - 30, b.color); if (b.sub) bp3TF(c, b.sub, W / 2, H * 0.24 + 38 * U, 16 * U, W - 30, '#fff'); c.globalAlpha = 1; }
     // 처음 출격: 조작 안내
-    if (this.guideAt && now - this.guideAt < 6500 && !this.gameOver) { const a = Math.min(1, (6500 - (now - this.guideAt)) / 500), gw = Math.min(W - 30, 400), gh = 92 * U, gx = (W - gw) / 2, gy = H - gh - (small ? 130 : 150);
+    if (this.guideAt && now - this.guideAt < 6500 && !this.gameOver) { const a = Math.min(1, (6500 - (now - this.guideAt)) / 500), gw = Math.min(W - 30, 400), gh = 92 * U, gx = (W - gw) / 2, gy = H - gh - (H > W ? 240 : small ? 130 : 150);   // 세로 화면: 조이스틱 · 돌진 버튼 위로
       c.globalAlpha = a; bp3RR(c, gx, gy, gw, gh, 16); c.fillStyle = 'rgba(10,16,34,0.78)'; c.fill();
       bp3TF(c, '🕹 조이스틱 = 운전   ⚡ 버튼 = 돌진!', W / 2, gy + 24 * U, 17 * U, gw - 20, '#fff');
       bp3TF(c, '친구를 밀어 경기장 밖으로 떨어뜨리면 +3점', W / 2, gy + 50 * U, 15 * U, gw - 20, '#FFD447', 'center', false, 700);

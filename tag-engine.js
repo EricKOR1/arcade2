@@ -627,7 +627,7 @@ class TagCore {
       // 앞당겨 그린 자리만으로는 안 됨 — 마지막으로 받은 자리도 가까워야 (돌진이 멈춘 뒤 앞당긴 자리로 잡히지 않게)
       const d = Math.hypot(p.x - this.x, p.z - this.z), act = !p.rise && !p.frozen && !p.stun && !p.stale;
       if (act && d < nd) { nd = d; nz = p; }
-      if (act && d < TG_TOUCH && now >= this.immuneUntil && Math.hypot(p.tx - this.x, p.tz - this.z) < TG_TOUCH + 1.4 && this.world.los(this.x, this.z, p.x, p.z)) { if (this.onTouch) this.onTouch(id, d); if (this.caughtBy(id)) return; } }
+      if (act && d < TG_TOUCH && now >= this.immuneUntil && Math.hypot(p.tx - this.x, p.tz - this.z) < TG_TOUCH + 1.0 && this.world.los(this.x, this.z, p.x, p.z)) { if (this.onTouch) this.onTouch(id, d); if (this.caughtBy(id)) return; } }
     this.nearZ = nz ? nd : 1e9;
     if (this.snow > 0 && nz && nd < 7 && now - this.throwAt > 900 && this.world.los(this.x, this.z, nz.x, nz.z)) {
       this.snow--; this.throwAt = now; this.send('frz', nz.id, { r: this.r }); this.shots.push({ x0: this.x, z0: this.z, x1: nz.x, z1: nz.z, t0: now, T: 380 }); this.sfx('throw'); this.toast('눈덩이 던짐!', '#BFE8FF', 1200); this.save();
