@@ -201,6 +201,26 @@ const GAMES = {
     sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, lv: g.lv, kills: g.kills }; }
   },
 
+  // 장애물 대탈출 3D: 규칙 · 코스 · 통신은 obst-engine.js(ObstCore), 그림 · HUD 는 obst3d-engine.js(ObstGame)
+  obst3d: {
+    type: 'canvas',
+    name: '장애물 대탈출 3D',
+    desc: '하늘에 뜬 알록달록 장애물 코스를 반 친구들과 동시에 달려 결승선까지! 빙글 막대 · 흔들 망치 · 사라지는 발판 · 움직이는 발판 · 컨베이어 · 점프대 · 굴러오는 공 · 미끄러운 얼음을 피해 먼저 도착할수록 점수가 커요. 코스가 끝나면 순위를 보고 다음 코스로 — 시간이 끝나면 총점 순위',
+    howto: '조이스틱으로 달리기(위 = 앞) · ⤴ 버튼(Space)으로 점프 · 떨어지거나 밀려나면 마지막 체크포인트(초록 깃발)에서 바로 다시 · 결승 도착 순서로 1등 100 · 2등 85 · 3등 75점 … · 도착 못 해도 반환점을 넘으면 10점 · 1등이 들어오고 30초 뒤(또는 90초) 코스 끝',
+    meta: '실시간 단체전 · 3D · 코스 3종(인원별 폭) · 최대 30명',
+    primary: '72% 0.17 350', primaryContent: '100% 0 0', hex: '#FF6FB5',
+    grid: { cols: 16, rows: 40 },   // 교사 미니보드: 위에서 본 코스 (위 = 결승) · 플레이어 점
+    adminView: 'grid', fullBleed: true, engine3d: true,
+    needsPeers: true, realtime: true, hasNext: false, timed: true,   // timed: 선생님이 정한 시간이 끝나면 총점 순위 (없으면 4코스)
+    stats: [{ key: 'place', label: '순위' }, { key: 'cleared', label: '완주' }],
+    overText: function (g) { return g.endReason === 'time' ? '시간 끝!' : '경기 끝!'; },
+    // 점수 = 총점(코스마다 도착 순위 점수의 합) — HUD · 게임 안 순위표 · 선생님 화면 · 결과가 모두 g.score
+    detail: function (g) { return (g.rank && g.total ? g.total + '명 중 ' + g.rank + '등 · ' : '') + '총점 ' + g.score + ' · 완주 ' + g.cleared + '번 · 코스 ' + (g.k + 1); },
+    controls: [], padLayout: 'slither', padHint: false, mouseSteer: false, boostLabel: '⤴<small>점프</small>',   // 조이스틱 + 점프 버튼 (안내는 엔진이 그림)
+    create: function (canvas, opts) { return new ObstGame(canvas, Object.assign({ maxDpr: 1.25 }, opts)); },
+    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, place: g.place, cleared: g.cleared }; }
+  },
+
   slither: {
     type: 'canvas',
     name: '뱀 아레나',

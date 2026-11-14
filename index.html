@@ -187,6 +187,7 @@
     arena: ['arena-engine.js'], arena3d: ['three.min.js', 'arena-engine.js', 'three-quality.js', 'arena3d-engine.js'],
     tank: ['three.min.js', 'three-quality.js', 'tank-engine.js', 'tank3d-engine.js'], tankffa: ['three.min.js', 'three-quality.js', 'tank-engine.js', 'tank3d-engine.js'],
     slither: ['slither-engine.js'], territory: ['territory-engine.js'],
+    obst3d: ['three.min.js', 'three-quality.js', 'obst-engine.js', 'obst3d-engine.js'],   // 장애물 대탈출 3D
     g2048: ['game2048-engine.js'], blockpuzzle: ['blockpuzzle-engine.js'], match3: ['match3-engine.js'], stack: ['stack-engine.js'], watersort: ['watersort-engine.js'],
     logic: ['logic-engine.js'], slingshot: ['slingshot-engine.js'], rhythm: ['rhythm-engine.js'], helix: ['helix-engine.js'], runner: ['runner-engine.js'],
     frogger: ['frogger-engine.js'], frogger3d: ['three.min.js', 'frogger-engine.js', 'frogger3d-engine.js', 'three-quality.js'],
@@ -921,7 +922,7 @@
     ctl = document.createElement('div'); ctl.id = 'fps-ctl'; ctl.className = 'arena-ctl';
     ctl.innerHTML =
       '<div class="fjoy" id="fjoy"><div class="fjoy-base"><div class="fjoy-knob"></div></div></div>' +
-      (slither ? '<button class="asuper aboost" id="aboost">' + (rpg ? '🔍<small>조사</small>' : '⚡<small>부스트</small>') + '</button>' + (rpg ? '<button class="asuper ajump" id="ajump">⤴<small>점프</small></button>' : '')
+      (slither ? '<button class="asuper aboost" id="aboost">' + (rpg ? '🔍<small>조사</small>' : (def.boostLabel || '⚡<small>부스트</small>')) + '</button>' + (rpg ? '<button class="asuper ajump" id="ajump">⤴<small>점프</small></button>' : '')
                : '<button class="ffire" id="afire"><span>●</span>발사<div class="pips"><i class="pip on"></i><i class="pip on"></i><i class="pip on"></i></div></button><button class="asuper" id="asuper">★<small>0%</small></button>') +
       (def.padHint === false ? '' : '<div class="fhint" id="fhint">' + (rpg ? '조이스틱: 이동 · ⤴ 점프(낮은 담장·상자 넘기) · 🔍 조사·대화 · 위 버튼: 수첩·지도·보고서' : slither ? '조이스틱: 방향 · ⚡ 꾹: 부스트(길이 소모) · 머리가 다른 뱀 몸에 닿으면 탈락' : '조이스틱: 이동(총구도 그 방향) · ● 발사(가까운 적 자동 조준, 꾹 누르면 연사) · ★ 궁극기') + '</div>');   // padHint false: 엔진이 안내를 그림 (탱크 대전)
     wrap.appendChild(ctl);
@@ -977,7 +978,7 @@
     // PC: WASD 이동 · 마우스 조준 · 클릭 발사 · Space 궁극기
     const cv = byId('game-canvas');
     onRound(cv, 'mousemove', e => { if (!game) return; const r = cv.getBoundingClientRect(); const dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
-      if (slither) { if (!rpg && game.setMove) game.setMove(dx / 120, dy / 120); } else if (game.setAim) { game.setAim(dx / 120, dy / 120); clearTimeout(window.__aimT); window.__aimT = setTimeout(() => game.setAim && game.setAim(null), 1500); } });
+      if (slither) { if (!rpg && game.setMove && def.mouseSteer !== false) game.setMove(dx / 120, dy / 120); } else if (game.setAim) { game.setAim(dx / 120, dy / 120); clearTimeout(window.__aimT); window.__aimT = setTimeout(() => game.setAim && game.setAim(null), 1500); } });
     onRound(cv, 'mousedown', e => { if (!game || !game.releaseAim) return; const r = cv.getBoundingClientRect(); const dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2); game.releaseAim(dx / 120, dy / 120); });
   }
 
