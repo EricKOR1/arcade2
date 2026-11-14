@@ -72,7 +72,7 @@ class BumperGame extends BumperCore {
     if (!this.renderer) return;
     this.renderer.setSize(W, H, false); this.glCanvas.style.width = '100%'; this.glCanvas.style.height = '100%';
     const cam = this.camera, asp = W / H; cam.aspect = asp; cam.fov = asp < 1 ? 52 : 42;
-    const tn = Math.tan(cam.fov * Math.PI / 360), want = Math.min(asp < 1 ? 30 : 40, this.R * (asp < 1 ? 1.2 : 1.55) + 6);   // 짧은 변에 경기장 대부분이 보이게 (세로 화면은 차가 너무 작아지지 않게 조금 가까이)
+    const tn = Math.tan(cam.fov * Math.PI / 360), want = Math.min(asp < 1 ? 30 : 40, this.R * (asp < 1 ? 1.15 : 1.4) + 5);   // 짧은 변에 경기장 대부분이 보이게 (세로 화면은 차가 너무 작아지지 않게 조금 가까이)
     this.camDist = asp < 1 ? want / (2 * tn * asp) : want * 0.92 / (2 * tn); cam.far = this.camDist * 3 + 400; cam.updateProjectionMatrix();
   }
   captureTo(g, w, h) { if (!this.renderer || this._dead) return; this.renderer.render(this.scene, this.camera); g.drawImage(this.glCanvas, 0, 0, w, h); if (this.hudCanvas.width) g.drawImage(this.hudCanvas, 0, 0, w, h); }
@@ -135,10 +135,10 @@ class BumperGame extends BumperCore {
     // 카메라가 58° 내려다봐 지평선이 화면에 안 들어옴 → 하늘은 반사 환경을 만들 때만 씀 (화면마다 하늘을 칠하지 않아 가벼움)
   }
   // 바다: 경기장 한참 아래 · 물결(사인파 합) · 하늘 반사(프레넬) · 햇빛 반짝임 — 셰이더 하나 (가볍게)
-  buildSea() {
+  buildSea() {   // 톤 매핑(ACES)이 밝게 올리므로 선형 화질(mid/high)은 바다 색을 조금 어둡게
     const T = THREE, g = new T.PlaneGeometry(1200, 1200, 1, 1); g.rotateX(-Math.PI / 2);
     const m = this.seaMat = new T.ShaderMaterial({ fog: false, toneMapped: true,
-      uniforms: { t: { value: 0 }, deep: { value: this.color3(0x0B4F7A) }, shal: { value: this.color3(0x1FA3C4) }, sky: { value: this.color3(0xCFEAFB) }, fogC: { value: this.color3(this.horizon) }, sunDir: { value: new T.Vector3(-22, 46, 30).normalize() }, camP: { value: new T.Vector3() }, hiq: { value: this.hq === 'low' ? 0 : 1 } },
+      uniforms: { t: { value: 0 }, deep: { value: this.color3(this.lin ? 0x063A5E : 0x0B4F7A) }, shal: { value: this.color3(this.lin ? 0x0C7799 : 0x1FA3C4) }, sky: { value: this.color3(this.lin ? 0x9CCBE8 : 0xCFEAFB) }, fogC: { value: this.color3(this.horizon) }, sunDir: { value: new T.Vector3(-22, 46, 30).normalize() }, camP: { value: new T.Vector3() }, hiq: { value: this.hq === 'low' ? 0 : 1 } },
       vertexShader: 'varying vec3 vW; void main(){ vec4 w = modelMatrix * vec4(position,1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }',
       fragmentShader: [
         'uniform float t, hiq; uniform vec3 deep, shal, sky, fogC, sunDir, camP; varying vec3 vW;',
@@ -146,7 +146,7 @@ class BumperGame extends BumperCore {
         ' vec2 g = vec2(cos(p.x*0.21 + a*1.1)*0.6 + cos(p.x*0.13 - p.y*0.17 + a*0.8), cos(p.y*0.19 - a*0.9)*0.6 + cos(p.x*0.11 + p.y*0.15 + a*0.7));',
         ' if (hiq > 0.5) g += vec2(cos(p.x*0.83 + p.y*0.31 + a*2.3), cos(p.y*0.77 - p.x*0.29 + a*2.1)) * 0.35;',
         ' vec3 n = normalize(vec3(g.x*0.09, 1.0, g.y*0.09)); vec3 v = normalize(camP - vW); float f = pow(1.0 - max(dot(n, v), 0.0), 4.0);',
-        ' vec3 c = mix(deep, shal, 0.35 + 0.25*g.x*0.5); c = mix(c, sky, 0.18 + f*0.75);',
+        ' vec3 c = mix(deep, shal, 0.35 + 0.25*g.x*0.5); c = mix(c, sky, 0.1 + f*0.75);',
         ' vec3 h = normalize(sunDir + v); c += vec3(1.0,0.95,0.85) * pow(max(dot(n,h),0.0), 260.0) * 2.5;',
         ' float d = length(camP.xz - vW.xz); c = mix(c, fogC, smoothstep(140.0, 520.0, d));',
         ' gl_FragColor = vec4(c, 1.0);', this.lin ? ' #include <tonemapping_fragment>\n gl_FragColor = linearToOutputTexel(gl_FragColor);' : '', '}'].join('\n') });
@@ -156,10 +156,10 @@ class BumperGame extends BumperCore {
   buildClouds() {
     const T = THREE, tex = bp3Canvas(256, 128, (g, w, h) => { for (let i = 0; i < 26; i++) { const x = w * (0.18 + 0.64 * Math.random()), y = h * (0.42 + 0.22 * Math.random()), r = h * (0.16 + 0.2 * Math.random());
       const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, 'rgba(255,255,255,0.85)'); gr.addColorStop(0.6, 'rgba(250,252,255,0.45)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h); } });
-    const n = this.hq === 'low' ? 6 : 14, m = new T.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, fog: true, color: this.color3(0xFFFFFF) });
+    const n = this.hq === 'low' ? 6 : 12, m = new T.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.7, depthWrite: false, fog: true, color: this.color3(0xFFFFFF) });
     const mesh = this.clouds = new T.InstancedMesh(new T.PlaneGeometry(1, 0.5), m, n); mesh.frustumCulled = false; mesh.renderOrder = -2;
     this.cloudData = [];
-    for (let i = 0; i < n; i++) { const a = bpHash(i, 3, 9) * Math.PI * 2, d = this.R + 14 + bpHash(i, 4, 9) * 110, y = -16 + bpHash(i, 5, 9) * 14 - (d > 80 ? 0 : 4);
+    for (let i = 0; i < n; i++) { const a = bpHash(i, 3, 9) * Math.PI * 2, d = this.R + 30 + bpHash(i, 4, 9) * 110, y = -14 + bpHash(i, 5, 9) * 10;   // 경기장 둘레 멀리 (가까우면 바다를 덮어 뿌옇게 됨)
       this.cloudData.push({ x: Math.cos(a) * d, y, z: Math.sin(a) * d, s: 26 + bpHash(i, 6, 9) * 30, v: 0.4 + bpHash(i, 7, 9) * 0.6 }); }
     this.scene.add(mesh);
   }
@@ -175,7 +175,7 @@ class BumperGame extends BumperCore {
     const load = src => new Promise((res, rej) => { if (window.THREE && THREE.RGBELoader) return res(); const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
     load('lib/RGBELoader.js').then(() => new Promise(res => new THREE.RGBELoader().setDataType(THREE.UnsignedByteType).load('assets/hdr/blouberg_sunrise_2_1k.hdr', res, undefined, () => res(null)))).then(tex => {
       if (!tex || this._dead) return; tex.mapping = THREE.EquirectangularReflectionMapping;
-      const pm = new THREE.PMREMGenerator(this.renderer), old = this.scene.environment; this.scene.environment = pm.fromEquirectangular(tex).texture; pm.dispose(); tex.dispose(); if (old) old.dispose(); this.hdr = true;
+      const pm = new THREE.PMREMGenerator(this.renderer), old = this.scene.environment; this.scene.environment = pm.fromEquirectangular(tex).texture; pm.dispose(); tex.dispose(); if (old) old.dispose(); this.hdr = true; if (this.bodyMat) this.bodyMat.envMapIntensity = 0.7; this.renderer.toneMappingExposure = 0.92;   // 사진 하늘은 밝아 반사 · 노출을 조금 낮춤 (안 그러면 도장이 바래 보임)
     }).catch(() => {});
   }
 
@@ -268,7 +268,7 @@ class BumperGame extends BumperCore {
   }
   buildCars() {
     const T = THREE;
-    this.bodyMat = this.mat({ color: 0xFFFFFF, roughness: 0.22, metalness: 0.35, envMapIntensity: 1.2, phys: true });
+    this.bodyMat = this.mat({ color: 0xFFFFFF, roughness: 0.24, metalness: 0.15, envMapIntensity: 1.0, phys: true });
     this.secMat = this.mat({ color: 0xFFFFFF, roughness: 0.3, metalness: 0.15 });
     this.darkMat = this.mat({ vertexColors: true, roughness: 0.6, metalness: 0.2 });
     this.carM = [];
@@ -290,7 +290,7 @@ class BumperGame extends BumperCore {
     const mk = (n, size, add) => { const g = new T.BufferGeometry(); g.setAttribute('position', new T.BufferAttribute(new Float32Array(n * 3), 3)); g.setAttribute('color', new T.BufferAttribute(new Float32Array(n * 3), 3)); g.setDrawRange(0, 0);
       const pts = new T.Points(g, new T.PointsMaterial({ size, map: ptex, vertexColors: true, transparent: true, depthWrite: false, blending: add ? T.AdditiveBlending : T.NormalBlending, toneMapped: false })); pts.frustumCulled = false; this.scene.add(pts); return { pts, n, list: [] }; };
     this.sparks = mk(260, 0.42, true); this.puffs = mk(140, 1.3, true);   // 연기 · 물보라도 더하기 섞기 (보통 섞기로 흐려지면 검은 점이 됨)
-    const rg = new T.RingGeometry(0.8, 1.0, 36); rg.rotateX(-Math.PI / 2);
+    const rg = new T.RingGeometry(0.9, 1.0, 40); rg.rotateX(-Math.PI / 2);
     this.ringFx = new T.InstancedMesh(rg, new T.MeshBasicMaterial({ color: 0xFFFFFF, transparent: true, blending: T.AdditiveBlending, depthWrite: false, toneMapped: false }), 24); this.ringFx.frustumCulled = false; this.ringFx.setColorAt(0, this.tmpC.set(0)); this.ringFx.count = 0; this.scene.add(this.ringFx);
     this.rings3 = [];
   }
@@ -306,10 +306,10 @@ class BumperGame extends BumperCore {
       if (f.kind === 'spark') { this.emit(this.sparks, f.x, f.y + 0.3, f.z, Math.round(10 + 10 * f.s), 5 + 3 * f.s, [1, 0.85, 0.35], 0.45, 4); this.emit(this.sparks, f.x, f.y + 0.3, f.z, 6, 3, [1, 1, 1], 0.25, 3); this.ringAt(f.x, 0.08, f.z, 0.8 + f.s * 0.5, 0xFFE08A, 380); }
       else if (f.kind === 'ring') this.ringAt(f.x, f.y, f.z, 1.2 * f.s, f.c ? new THREE.Color(f.c).getHex() : 0x9BE7FF, 520);
       else if (f.kind === 'splash') this.splash(f.x, f.z);
-      else if (f.kind === 'spawn') { this.ringAt(f.x, 0.1, f.z, 1.6, 0x8BFFB0, 700); this.emit(this.sparks, f.x, 0.5, f.z, 16, 2.5, [0.5, 1, 0.7], 0.6, 6, 2); }
+      else if (f.kind === 'spawn') { this.ringAt(f.x, 0.1, f.z, 1.1, 0x8BFFB0, 650); this.emit(this.sparks, f.x, 0.5, f.z, 16, 2.5, [0.5, 1, 0.7], 0.6, 6, 2); }
       else if (f.kind === 'dash') this.emit(this.puffs, f.x, 0.4, f.z, 5, 1.2, [0.45, 0.47, 0.5], 0.5, 1, -1); }
   }
-  splash(x, z) { const y = BP_FALL_Y - 1.8; this.emit(this.puffs, x, y, z, 26, 4, [0.6, 0.66, 0.7], 1.1, 9, 12); this.emit(this.sparks, x, y, z, 14, 5, [0.75, 0.92, 1], 0.8, 10, 14); this.ringAt(x, y + 0.05, z, 2.5, 0xFFFFFF, 1100); }
+  splash(x, z) { const y = BP_FALL_Y - 1.8; this.emit(this.puffs, x, y, z, 26, 4, [0.6, 0.66, 0.7], 1.1, 9, 12); this.emit(this.sparks, x, y, z, 14, 5, [0.75, 0.92, 1], 0.8, 10, 14); this.ringAt(x, y + 0.05, z, 1.6, 0xDDEEFF, 1000); }
   stepFx(dt) {
     [this.sparks, this.puffs].forEach(S => { const pos = S.pts.geometry.attributes.position.array, col = S.pts.geometry.attributes.color.array; let n = 0;
       S.list = S.list.filter(p => (p.l -= dt) > 0);
@@ -319,7 +319,7 @@ class BumperGame extends BumperCore {
     const R = this.ringFx; let n = 0;
     this.rings3 = this.rings3.filter(r => (r.t += dt) < r.d);
     for (const r of this.rings3) { const k = r.t / r.d, s = r.s * (0.6 + k * 1.8); this.tmpP.set(r.x, r.y, r.z); this.tmpQ.set(0, 0, 0, 1); this.tmpS.set(s, 1, s); this.tmpM.compose(this.tmpP, this.tmpQ, this.tmpS); R.setMatrixAt(n, this.tmpM);
-      this.tmpC.copy(r.c).multiplyScalar(1 - k); R.setColorAt(n, this.tmpC); n++; }
+      this.tmpC.copy(r.c).multiplyScalar(0.75 * (1 - k) * (1 - k)); R.setColorAt(n, this.tmpC); n++; }
     R.count = n; R.instanceMatrix.needsUpdate = true; if (R.instanceColor) R.instanceColor.needsUpdate = true;
   }
 
@@ -491,24 +491,16 @@ class BumperGame extends BumperCore {
     // 시작 카운트다운
     if (srv < this.startAt) { const s = Math.ceil((this.startAt - srv) / 1000); bp3T(c, s > 0 ? String(s) : 'GO!', W / 2, H * 0.42, 72 * U, '#FFD447'); bp3T(c, '곧 시작해요', W / 2, H * 0.42 + 54, 18 * U, '#fff'); }
     // 알림 글자
-    let toY = H * 0.62; for (const t of this.toasts.slice(-3)) { const a = Math.min(1, (t.until - now) / 300); c.globalAlpha = a; bp3TF(c, t.text, W / 2, toY, 19 * U, W - 40, t.color); toY += 28; } c.globalAlpha = 1;
+    let toY = H * 0.62; if (!this.gameOver) for (const t of this.toasts.slice(-3)) { const a = Math.min(1, (t.until - now) / 300); c.globalAlpha = a; bp3TF(c, t.text, W / 2, toY, 19 * U, W - 40, t.color); toY += 28; } c.globalAlpha = 1;
     // 큰 안내 (라운드 시작 · 경고 · 시간 끝)
     const b = this.banner; if (b && now < b.until) { const k = Math.min(1, (now - b.at) / 220), a = Math.min(1, (b.until - now) / 400), sc = 0.7 + 0.3 * k;
       c.globalAlpha = a; bp3TF(c, b.text, W / 2, H * 0.24, 40 * U * sc, W - 30, b.color); if (b.sub) bp3TF(c, b.sub, W / 2, H * 0.24 + 38 * U, 16 * U, W - 30, '#fff'); c.globalAlpha = 1; }
-    if (this.gameOver && this.rankList) this.drawFinal(c, W, H, U);
     // 처음 출격: 조작 안내
     if (this.guideAt && now - this.guideAt < 6500 && !this.gameOver) { const a = Math.min(1, (6500 - (now - this.guideAt)) / 500), gw = Math.min(W - 30, 400), gh = 92 * U, gx = (W - gw) / 2, gy = H - gh - (small ? 130 : 150);
       c.globalAlpha = a; bp3RR(c, gx, gy, gw, gh, 16); c.fillStyle = 'rgba(10,16,34,0.78)'; c.fill();
       bp3TF(c, '🕹 조이스틱 = 운전   ⚡ 버튼 = 돌진!', W / 2, gy + 24 * U, 17 * U, gw - 20, '#fff');
       bp3TF(c, '친구를 밀어 경기장 밖으로 떨어뜨리면 +3점', W / 2, gy + 50 * U, 15 * U, gw - 20, '#FFD447', 'center', false, 700);
       bp3TF(c, '빨갛게 흔들리는 바닥은 곧 떨어져요 · 많이 맞을수록 충격%↑ 멀리 날아가요', W / 2, gy + 72 * U, 12 * U, gw - 20, '#CBD5E1', 'center', false, 600); c.globalAlpha = 1; }
-  }
-  drawFinal(c, W, H, U) {
-    const list = this.rankList.slice(0, 6), w = Math.min(W - 30, 320), rh = 26 * U, h = list.length * rh + 18, x = (W - w) / 2, y = H * 0.24 + 70 * U;
-    bp3RR(c, x, y, w, h, 14); c.fillStyle = 'rgba(10,16,34,0.72)'; c.fill();
-    list.forEach((e, i) => { const yy = y + 9 + rh * (i + 0.5), me = e.id === this.myId, medal = ['🥇', '🥈', '🥉'][i] || (i + 1) + '';
-      if (me) { bp3RR(c, x + 4, yy - rh / 2 + 2, w - 8, rh - 4, 9); c.fillStyle = 'rgba(255,212,71,0.22)'; c.fill(); }
-      bp3T(c, medal, x + 22, yy, 15 * U, '#fff', 'center', false); bp3TF(c, me ? (this.myName || '나') : e.name, x + 42, yy, 15 * U, w - 110, '#fff', 'left', false, 700); bp3T(c, e.s + '점', x + w - 14, yy, 15 * U, '#FFD447', 'right', false); });
   }
   pctColor(p) { return p < 30 ? '#FFFFFF' : p < 70 ? '#FFE066' : p < 120 ? '#FFA94D' : '#FF5C5C'; }
   liveTiles(ri, L) { if (!this._tileTot) this._tileTot = this.arena.tiles; let n = 0; for (let k = 1; k <= this.arena.K; k++) for (const ft of L.fall[k]) if (ft > ri.t) n++; return n / this._tileTot; }

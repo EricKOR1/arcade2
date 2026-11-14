@@ -331,7 +331,7 @@ class BumperCore {
   onEcho(p, c, dashing) {
     const now = this.now;
     if (now - (this.pair[p.id] || -1e9) < 700) return;                    // 이미 내 화면에서 튕김
-    if (this.ghost || !this.peerSolid(p)) { this.stats.echoIgnored++; return; }
+    if (this.ghost || this.state !== 'play' || !this.peerSolid(p)) { this.stats.echoIgnored++; return; }   // 점프 중 · 보호 중이면 무시
     if (now - p.nearAt > BP_ECHO_WIN) { this.stats.echoIgnored++; if (this.log) this.log.push({ k: 'echoIgnored', t: this.srv(), peer: p.id, nearAgo: now - p.nearAt, d: Math.hypot(this.x - p.x, this.z - p.z) - this.rad - (p.heavy ? BP_HEAVY_R : BP_CAR_R) }); return; }   // 내 화면에선 안 닿아 보였음 → 무시
     let nx = this.x - p.x, nz = this.z - p.z; const d = Math.hypot(nx, nz) || 1; nx /= d; nz /= d;
     this.knock(p, nx, nz, c, dashing, 'echo', d);
@@ -339,9 +339,10 @@ class BumperCore {
   collidePeers(dt) {
     const now = this.now, rA = this.rad;
     for (const id in this.peers) {
-      const p = this.peers[id]; if (!this.peerSolid(p)) continue;
+      const p = this.peers[id]; if (p.out || p.falling || p.air || p.tx == null) continue;
       const rB = p.heavy ? BP_HEAVY_R : BP_CAR_R, dx = this.x - p.x, dz = this.z - p.z, d = Math.hypot(dx, dz), sum = rA + rB;
-      if (d < sum + BP_ECHO_NEAR) p.nearAt = now;
+      if (d < sum + BP_ECHO_NEAR) p.nearAt = now;                           // 메아리 확인용: 내 화면에서 거의 닿아 보인 때 (보호 중 깜빡이는 차도)
+      if (!this.peerSolid(p)) continue;
       if (d >= sum || this.ghost) continue;
       const nx = d > 1e-4 ? dx / d : 1, nz = d > 1e-4 ? dz / d : 0, mB = p.heavy ? 2.4 : 1, share = mB / (this.mass + mB);
       // 겹친 만큼 밀려남 (친구도 자기 화면에서 나머지를 밀려남)
@@ -484,9 +485,9 @@ class BumperCore {
   getSnapshot() {
     const N = 30, S = this.R + 1.5, g = [], ri = this.roundInfo(), L = this.arena.round(ri.r);
     for (let y = 0; y < N; y++) { const row = []; for (let x = 0; x < N; x++) { const wx = ((x + 0.5) / N * 2 - 1) * S, wz = ((y + 0.5) / N * 2 - 1) * S, ft = this.arena.fallTime(L, wx, wz);
-      row.push(ft <= ri.t ? 41 : ft - ri.t < BP_WARN_MS ? 52 : 66); } g.push(row); }
+      row.push(ft <= ri.t ? 41 : ft - ri.t < BP_WARN_MS ? 52 : 63); } g.push(row); }
     const put = (x, z, v) => { const gx = Math.floor((x / S + 1) / 2 * N), gy = Math.floor((z / S + 1) / 2 * N); if (g[gy] && g[gy][gx] != null) g[gy][gx] = v; };
-    L.bumpers.forEach(b => { if (L.fall[b.k][b.s] > ri.t) put(b.x, b.z, 45); }); L.pads.forEach(b => { if (L.fall[b.k][b.s] > ri.t) put(b.x, b.z, 48); });
+    L.bumpers.forEach(b => { if (L.fall[b.k][b.s] > ri.t) put(b.x, b.z, 40); }); L.pads.forEach(b => { if (L.fall[b.k][b.s] > ri.t) put(b.x, b.z, 48); });
     L.items.forEach(it => { if (ri.t >= it.t0 && ri.t < it.t1 && !this.taken[it.id]) put(it.x, it.z, 67); });
     const CC = [68, 69, 4, 5, 6, 3, 1, 7, 2, 44, 24, 31];
     for (const id in this.peers) { const p = this.peers[id]; if (p.out || p.falling || p.gone) continue; put(p.x, p.z, CC[(p.skin | 0) % CC.length]); }
