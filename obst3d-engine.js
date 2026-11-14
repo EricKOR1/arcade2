@@ -125,7 +125,7 @@ class ObstGame extends ObstCore {
   carr(hex, k) { const c = this.col(hex, k); return [c.r, c.g, c.b]; }
   mat(o) {   // 화질에 맞는 재질 (high · mid = 물리 기반 · low = Lambert)
     const T = THREE; const opt = Object.assign({}, o); const rough = opt.roughness, metal = opt.metalness; delete opt.roughness; delete opt.metalness;
-    const m = this.hq === 'low' ? new T.MeshLambertMaterial(opt) : new T.MeshStandardMaterial(Object.assign(opt, { roughness: rough == null ? 0.6 : rough, metalness: metal == null ? 0 : metal }));
+    const m = this.hq === 'low' ? new T.MeshLambertMaterial(opt) : new T.MeshStandardMaterial(Object.assign({ envMapIntensity: 0.65 }, opt, { roughness: rough == null ? 0.6 : rough, metalness: metal == null ? 0 : metal }));
     m.userData.lin = true; if (m.color && this.lin && o.color != null) m.color.convertSRGBToLinear(); if (m.emissive && this.lin && o.emissive != null) m.emissive.convertSRGBToLinear();
     return m;
   }
@@ -137,11 +137,11 @@ class ObstGame extends ObstCore {
     this.hq = 'low'; this.hqLocked = false;
     if (window.ThreeQuality) { const pq = ThreeQuality.pick(r, this.opts); this.hq = pq.q; this.hqLocked = !!pq.locked; }
     this.lin = this.hq !== 'low';
-    r.outputEncoding = this.lin ? T.sRGBEncoding : T.LinearEncoding; r.toneMapping = this.lin ? T.ACESFilmicToneMapping : T.NoToneMapping; r.toneMappingExposure = 1.12;
+    r.outputEncoding = this.lin ? T.sRGBEncoding : T.LinearEncoding; r.toneMapping = this.lin ? T.ACESFilmicToneMapping : T.NoToneMapping; r.toneMappingExposure = 1.0;
     const sc = this.scene = new T.Scene();
     sc.fog = new T.Fog(0xCFE6FF, 60, 190);
     this.camera = new T.PerspectiveCamera(60, 1, 0.3, 600);
-    this.hemi = new T.HemisphereLight(0xEAF4FF, 0x8C7BB0, this.lin ? 0.55 : 0.85); sc.add(this.hemi);
+    this.hemi = new T.HemisphereLight(0xEAF4FF, 0x8C7BB0, this.lin ? 0.42 : 0.85); sc.add(this.hemi);
     const sun = this.sun = new T.DirectionalLight(0xFFF1D6, this.lin ? 2.2 : 0.9); sun.position.set(-14, 30, -10); sc.add(sun); sc.add(sun.target);
     this.tmpM = new T.Matrix4(); this.tmpM2 = new T.Matrix4(); this.tmpM3 = new T.Matrix4(); this.tmpQ = new T.Quaternion(); this.tmpS = new T.Vector3(1, 1, 1); this.tmpP = new T.Vector3(); this.tmpE = new T.Euler(); this.tmpV = new T.Vector3(); this.tmpC = new T.Color(); this.dummy = new T.Object3D();
     this.makeTextures();
@@ -236,7 +236,7 @@ class ObstGame extends ObstCore {
     const prof = [[0, 0.14], [0.22, 0.16], [0.36, 0.3], [0.42, 0.52], [0.41, 0.78], [0.35, 0.98], [0.22, 1.12], [0, 1.18]].map(p => new T.Vector2(p[0], p[1]));
     const bodyG = new T.LatheGeometry(prof, this.hq === 'low' ? 10 : 16);
     const charMat = this.mat({ vertexColors: true, roughness: 0.32, metalness: 0.05 });
-    const inst = (g, mat, n) => { const m = new T.InstancedMesh(g, mat, n); m.count = 0; m.frustumCulled = false; m.castShadow = this.lin; m.receiveShadow = false; sc.add(m); return m; };
+    const inst = (g, mat, n) => { const m = new T.InstancedMesh(g, mat, n); m.instanceColor = new T.InstancedBufferAttribute(new Float32Array(n * 3).fill(1), 3); m.count = 0; m.frustumCulled = false; m.castShadow = this.lin; m.receiveShadow = false; sc.add(m); return m; };
     const bodyGeo = obMerge([{ g: bodyG, c: W }, obPart(new T.SphereGeometry(0.2, 10, 8), 0, 0.5, 0.25, [1, 1, 1], 0, 0, 0, 1, 1.2, 0.6)]);   // 배 무늬(같은 색 — 볼록)
     this.mBody = inst(bodyGeo, charMat, N);
     const eyeW = obMerge([obPart(new T.SphereGeometry(0.115, 10, 8), -0.14, 0.86, 0.3, W), obPart(new T.SphereGeometry(0.115, 10, 8), 0.14, 0.86, 0.3, W)]);
@@ -276,7 +276,7 @@ class ObstGame extends ObstCore {
       m.userData.lin = true; const p = new T.Points(g, m); p.frustumCulled = false; p.renderOrder = 3; sc.add(p);
       return { p, pos, col, n, list: [], next: 0 }; };
     const lo = this.hq === 'low';
-    this.pDust = mk(lo ? 60 : 160, this.tex.dot, false); this.pStar = mk(lo ? 60 : 180, this.tex.star, true);
+    this.pDust = mk(lo ? 60 : 160, this.tex.dot, true); this.pStar = mk(lo ? 60 : 180, this.tex.star, true);
     // 둥둥 떠 있는 반짝이 (카메라 근처)
     const na = lo ? 0 : 60; this.amb = null;
     if (na) { const g = new T.BufferGeometry(), pos = new Float32Array(na * 3), rr = obRng(5); for (let i = 0; i < na * 3; i++) pos[i] = (rr() - 0.5) * 40; g.setAttribute('position', new T.BufferAttribute(pos, 3));
@@ -346,11 +346,11 @@ class ObstGame extends ObstCore {
     // 결승선 체크무늬 · 아치 · 출발 아치
     const W = C.W, tc = [1, 1, 1];
     const fl = new T.Mesh(new T.PlaneGeometry(W + 3, 1.2), M.check); fl.rotation.x = -Math.PI / 2; fl.position.set(0, C.finTop + 0.02, C.finishZ); this.tex.check.repeat.set((W + 3) / 2.4, 1); shadowy(fl); g.add(fl);
-    const arch = (z, y, w, hex, txtMat) => { const c = this.carr(hex), c2 = this.carr(0xffffff), h = 5.2;
+    const arch = (z, y, w, hex, txtMat, h) => { const c = this.carr(hex), c2 = this.carr(0xffffff);
       deco.push(obPart(new T.CylinderGeometry(0.42, 0.5, h, 12), -w / 2 - 0.8, y + h / 2, z, c), obPart(new T.CylinderGeometry(0.42, 0.5, h, 12), w / 2 + 0.8, y + h / 2, z, c),
         obPart(new T.BoxGeometry(w + 2.6, 1.0, 0.7), 0, y + h, z, c), obPart(new T.SphereGeometry(0.6, 12, 8), -w / 2 - 0.8, y + h + 0.3, z, c2), obPart(new T.SphereGeometry(0.6, 12, 8), w / 2 + 0.8, y + h + 0.3, z, c2));
-      const tm = new T.Mesh(new T.PlaneGeometry(Math.min(w, 9), Math.min(w, 9) * 96 / 512 * 1.1), txtMat); tm.position.set(0, y + h, z - 0.37); tm.rotation.y = Math.PI; g.add(tm); };
-    arch(C.finishZ, C.finTop, W + 1, 0x8E5CF6, M.finTxt); arch(C.startLine + 0.5, 0, W + 1.2, 0xFF4D8D, M.startTxt);
+      const tw = Math.min(w * 0.8, 7), tm = new T.Mesh(new T.PlaneGeometry(tw, tw * 96 / 512), txtMat); tm.position.set(0, y + h, z - 0.37); tm.rotation.y = Math.PI; g.add(tm); };
+    arch(C.finishZ, C.finTop, W + 1, 0x8E5CF6, M.finTxt, 5.6); arch(C.startLine + 0.5, 0, W + 1.2, 0xFF4D8D, M.startTxt, 7.6);
     // 체크포인트 깃발
     C.cps.forEach((cp, i) => { if (!i) return; const x = cp.x1 + 0.25; deco.push(obPart(new T.CylinderGeometry(0.06, 0.06, 2.6, 6), x, cp.top + 1.3, cp.z, this.carr(0xffffff)), obPart(new T.BoxGeometry(0.05, 0.6, 0.9), x, cp.top + 2.25, cp.z + 0.45, this.carr(0x2EC27E)));
       const x2 = cp.x0 - 0.25; deco.push(obPart(new T.CylinderGeometry(0.06, 0.06, 2.6, 6), x2, cp.top + 1.3, cp.z, this.carr(0xffffff)), obPart(new T.BoxGeometry(0.05, 0.6, 0.9), x2, cp.top + 2.25, cp.z + 0.45, this.carr(0x2EC27E))); });
@@ -421,7 +421,7 @@ class ObstGame extends ObstCore {
       const sp = Math.hypot(this.vx, this.vz), blink = this.protUntil && now < this.protUntil && Math.floor(now / 90) % 2 === 0;
       if (!blink) list.push({ me: true, x: this.x, y: this.y, z: this.z, h: this.h, sp, air: !this.grounded, stun: now < this.stunUntil, fin: !!this.fin, look: this.look, a: this.anim, land: this.landK, jump: this.jumpK, ghost: false, vy: this.vy });
     }
-    for (const id in this.peers) { const p = this.peers[id]; if (p.wait || p.k !== this.k || ((p.vfl || 0) & 4) || (p.gone && now - p.goneAt > 1500)) continue;
+    for (const id in this.peers) { const p = this.peers[id]; if (p.wait || p.k !== this.k || p.y < -30 || (p.gone && now - p.goneAt > 1500)) continue;   // 떨어지는 친구도 보임 (아래로 사라짐)
       const a = p.a || (p.a = { ph: Math.random() * 6, air: 0, tilt: 0, lx: p.x, lz: p.z, ly: p.y, sp: 0, land: 0, wasAir: false });
       const fdt = Math.max(0.001, dt), sp = Math.min(12, Math.hypot(p.x - a.lx, p.z - a.lz) / fdt), vy = (p.y - a.ly) / fdt; a.sp += (sp - a.sp) * Math.min(1, dt * 8); a.lx = p.x; a.lz = p.z; a.ly = p.y;
       const air = !!((p.vfl || 0) & 1); if (a.wasAir && !air) a.land = 1; a.wasAir = air; a.land = Math.max(0, a.land - dt * 4);
@@ -519,18 +519,22 @@ class ObstGame extends ObstCore {
         n++; const fs = Math.max(10, Math.min(15, 15 - o.d * 0.15)) * s; c.globalAlpha = o.e.ghost ? 0.45 : 0.92; obTF(c, o.e.name, x, y, fs, 110 * s, '#ffffff', 'center', 'rgba(20,24,48,0.85)', 800); c.globalAlpha = 1; } }
     // 위: 총점(왼쪽) · 코스 · 시간(가운데) · 순위(오른쪽)
     const st = this.standings(), myRank = st.findIndex(e => e.me) + 1; this.place = myRank;
-    const bh = 54 * s;
-    c.fillStyle = 'rgba(24,28,58,0.55)'; obRR(c, pad, pad, 132 * s, bh, 14 * s); c.fill();
-    obT(c, '⭐ ' + this.score, pad + 12 * s, pad + 19 * s, 21 * s, '#FFE066', 'left', false, 900);
-    obT(c, '전체 ' + myRank + '등 / ' + st.length + '명', pad + 12 * s, pad + 41 * s, 12.5 * s, '#E6E9FF', 'left', false, 700);
+    const bh = 54 * s, lx = 60, lw = 128 * s, rw = 96 * s, narrow = W - lx - lw - rw - pad * 3 < 200 * s;
+    c.fillStyle = 'rgba(24,28,58,0.55)'; obRR(c, lx, pad, lw, bh, 14 * s); c.fill();
+    obTF(c, '⭐ ' + this.score + '점', lx + 12 * s, pad + 19 * s, 21 * s, lw - 18 * s, '#FFE066', 'left', false, 900);
+    obTF(c, '전체 ' + myRank + '등 / ' + st.length + '명', lx + 12 * s, pad + 41 * s, 12.5 * s, lw - 18 * s, '#E6E9FF', 'left', false, 700);
     const E = this.endOf(this.k, this.Sk), cx = W / 2;
-    const cw = Math.min(W - 2 * (pad + 140 * s), 230 * s);
-    c.fillStyle = 'rgba(24,28,58,0.55)'; obRR(c, cx - cw / 2, pad, cw, bh, 14 * s); c.fill();
-    obTF(c, '코스 ' + (this.k + 1) + ' · ' + this.course.name, cx, pad + 16 * s, 13 * s, cw - 16, '#ffffff', 'center', false, 800);
-    const left = this.phase === 'race' ? E - srv : this.phase === 'pre' ? OB_LIMIT : 0, firstIn = this.endOf(this.k, this.Sk) < this.Sk + OB_LIMIT - 1;
-    obT(c, '⏱ ' + obClock(left), cx - (this.endAt > 0 ? cw * 0.22 : 0), pad + 38 * s, 17 * s, firstIn && this.phase === 'race' ? '#FF9AA8' : '#ffffff', 'center', false, 900);
-    if (this.endAt > 0) { const tl = Math.max(0, this.endAt - srv), last = tl <= 10000 && !this.gameOver, pulse = last ? 1 + 0.08 * Math.sin(now / 80) : 1;
-      obT(c, '전체 ' + obClock(tl), cx + cw * 0.24, pad + 38 * s, 14 * s * pulse, last ? '#FF5C7A' : '#C8D0FF', 'center', false, 800); }
+    const cw = narrow ? Math.min(W - pad * 2, 300 * s) : Math.min(W - 2 * (lx + lw + pad), 250 * s), cy0 = narrow ? pad + bh + 6 : pad, ch = narrow ? 44 * s : bh, ccx = narrow ? cx : (lx + lw + W - pad - rw) / 2;
+    this.topH = cy0 + ch;
+    c.fillStyle = 'rgba(24,28,58,0.55)'; obRR(c, ccx - cw / 2, cy0, cw, ch, 14 * s); c.fill();
+    const left = this.phase === 'race' ? E - srv : this.phase === 'pre' ? OB_LIMIT : 0, firstIn = E < this.Sk + OB_LIMIT - 1;
+    if (narrow) { obTF(c, (this.k + 1) + '코스 · ' + this.course.name, ccx - cw / 2 + 12 * s, cy0 + ch / 2, 13 * s, cw * 0.42, '#ffffff', 'left', false, 800);
+      obT(c, '⏱ ' + obClock(left), ccx + cw * 0.12, cy0 + ch / 2, 16 * s, firstIn && this.phase === 'race' ? '#FF9AA8' : '#ffffff', 'center', false, 900);
+      if (this.endAt > 0) { const tl = Math.max(0, this.endAt - srv), last = tl <= 10000 && !this.gameOver; obT(c, '전체 ' + obClock(tl), ccx + cw / 2 - 12 * s, cy0 + ch / 2, 13 * s * (last ? 1 + 0.08 * Math.sin(now / 80) : 1), last ? '#FF5C7A' : '#C8D0FF', 'right', false, 800); } }
+    else { obTF(c, '코스 ' + (this.k + 1) + ' · ' + this.course.name, ccx, cy0 + 16 * s, 13 * s, cw - 16, '#ffffff', 'center', false, 800);
+      obT(c, '⏱ ' + obClock(left), ccx - (this.endAt > 0 ? cw * 0.22 : 0), cy0 + 38 * s, 17 * s, firstIn && this.phase === 'race' ? '#FF9AA8' : '#ffffff', 'center', false, 900);
+      if (this.endAt > 0) { const tl = Math.max(0, this.endAt - srv), last = tl <= 10000 && !this.gameOver, pulse = last ? 1 + 0.08 * Math.sin(now / 80) : 1;
+        obT(c, '전체 ' + obClock(tl), ccx + cw * 0.24, cy0 + 38 * s, 14 * s * pulse, last ? '#FF5C7A' : '#C8D0FF', 'center', false, 800); } }
     const cr = this.courseRank();
     if (!this.hidden && cr.rank) { c.fillStyle = 'rgba(24,28,58,0.55)'; obRR(c, W - pad - 96 * s, pad, 96 * s, bh, 14 * s); c.fill();
       obT(c, cr.rank + '등', W - pad - 48 * s, pad + 22 * s, 24 * s, this.fin ? '#FFE066' : '#ffffff', 'center', false, 900); obT(c, (this.fin ? '도착 · ' : '지금 · ') + cr.n + '명', W - pad - 48 * s, pad + 43 * s, 11 * s, '#C8D0FF', 'center', false, 700); }
@@ -548,7 +552,7 @@ class ObstGame extends ObstCore {
     if (this.gameOver) this.drawFinal(c, W, H, s, st);
   }
   drawProgress(c, W, H, s, pad) {
-    const x = W - pad - 9 * s, y0 = pad + 70 * s, y1 = H - (this.touchUi ? 200 : 90) * s; if (y1 - y0 < 80) return;
+    const x = W - pad - 9 * s, y0 = (this.topH || 64) + 22 * s, y1 = H - (this.touchUi ? 200 : 90) * s; if (y1 - y0 < 80) return;
     const C = this.course, Y = p => y1 - (y1 - y0) * p;
     c.fillStyle = 'rgba(24,28,58,0.45)'; obRR(c, x - 6 * s, y0 - 8 * s, 12 * s, y1 - y0 + 16 * s, 6 * s); c.fill();
     C.cps.forEach((cp, i) => { if (!i) return; const yy = Y(this.progOf(cp.z)); c.fillStyle = i <= this.cp && !this.hidden ? '#7CFFB2' : 'rgba(255,255,255,0.55)'; c.fillRect(x - 6 * s, yy - 1, 12 * s, 2); });
@@ -559,12 +563,12 @@ class ObstGame extends ObstCore {
       obT(c, '나', x - 16 * s, yy, 11 * s, '#fff', 'center', 'rgba(20,24,48,0.9)', 900); }
   }
   drawPre(c, W, H, s, srv) {
-    const n = Math.ceil((this.Sk - srv) / 1000), cx = W / 2, cy = H * 0.36, ww = Math.min(W - 24, 380 * s);
+    const n = Math.ceil((this.Sk - srv) / 1000), cx = W / 2, cy = Math.max((this.topH || 64) + 74 * s, H * 0.25), ww = Math.min(W - 24, 380 * s);
     c.fillStyle = 'rgba(24,28,58,0.62)'; obRR(c, cx - ww / 2, cy - 64 * s, ww, 100 * s, 18 * s); c.fill();
     obTF(c, '코스 ' + (this.k + 1) + ' · ' + this.course.name, cx, cy - 40 * s, 22 * s, ww - 24, '#FFE066', 'center', false, 900);
     obTF(c, this.course.mods.map(m => OB_MOD_NAME[m]).join(' → '), cx, cy - 12 * s, 12.5 * s, ww - 24, '#E6E9FF', 'center', false, 700);
     obT(c, this.k === 0 && this.lastFinal == null ? '결승선까지 먼저 가면 100점!' : '1등 100점 · 2등 85점 · 3등 75점 …', cx, cy + 12 * s, 12 * s, '#C8D0FF', 'center', false, 700);
-    if (n >= 1 && n <= 3) { const f = 1 - ((this.Sk - srv) / 1000 - (n - 1)); obT(c, String(n), cx, cy + 92 * s, (64 + 30 * Math.max(0, 1 - f * 3)) * s, '#ffffff', 'center', 'rgba(255,77,141,0.95)', 900); }
+    if (n >= 1 && n <= 3) { const f = 1 - ((this.Sk - srv) / 1000 - (n - 1)); obT(c, String(n), cx, cy + 86 * s, (58 + 26 * Math.max(0, 1 - f * 3)) * s, '#ffffff', 'center', 'rgba(255,77,141,0.95)', 900); }
   }
   drawBanner(c, W, H, s) {
     const b = this.banner, age = this.now - b.at, k = Math.min(1, age / 160), out = b.until - this.now < 300 ? Math.max(0, (b.until - this.now) / 300) : 1, cx = W / 2, cy = H * 0.3;

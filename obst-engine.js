@@ -257,9 +257,9 @@ class ObstCore {
   recordEnd(k, at) { if (!(k >= this.k) || !isFinite(at)) return; const r = this.rec(k); if (at < r.E) r.E = Math.round(at); }
   // 코스 점수 확정 → 총점
   finalize(k, cutAt) {
-    const res = this.results(k), cut = cutAt == null ? Infinity : cutAt;
-    res.fin.forEach(e => { if (e.t < cut) this.totals[e.id] = (this.totals[e.id] || 0) + e.pts; });
-    res.half.forEach(e => { if (e.t < cut) this.totals[e.id] = (this.totals[e.id] || 0) + e.pts; });
+    const res = this.results(k), cut = cutAt == null ? Infinity : cutAt, h = (this.ptsHist || (this.ptsHist = {}))[k] = {};   // 코스별 점수 기록 (늦게 온 학생의 친구 총점 계산용)
+    res.fin.forEach(e => { if (e.t < cut) { this.totals[e.id] = (this.totals[e.id] || 0) + e.pts; h[e.id] = e.pts; } });
+    res.half.forEach(e => { if (e.t < cut) { this.totals[e.id] = (this.totals[e.id] || 0) + e.pts; h[e.id] = e.pts; } });
     if (res.fin.some(e => e.id === this.myId && e.t < cut)) this.cleared++;
     this.lastFinal = k; this.score = this.totals[this.myId] || 0;
     this.lastRes = Object.assign({ k, name: this.course.name }, res);
@@ -438,9 +438,7 @@ class ObstCore {
   }
   advance(E) {
     // 코스 k 확정 (모두 같은 자료 → 같은 점수) · 다음 코스 준비
-    const before = Object.assign({}, this.totals);
     this.finalize(this.k);
-    const hist = this.ptsHist || (this.ptsHist = {}), h = hist[this.k] = {}; for (const id in this.totals) { const d = (this.totals[id] || 0) - (before[id] || 0); if (d) h[id] = d; }
     delete this.recs[this.k - 1];
     const wasWaiting = this.lateWait;
     this.k++; this.Sk = E + OB_RES + OB_PRE; this.proposed = -1;
@@ -518,7 +516,8 @@ class ObstCore {
     // 친구와 살짝 밀림 (내 화면 기준 · 나만 움직임)
     if (!(now < this.protUntil)) for (const id in this.peers) { const p = this.peers[id]; if (p.gone || p.wait || (p.vfl & 4) || p.k !== this.k || now - p.seen > 2500) continue;
       const dx = nx - p.x, dz = nz - p.z, dy = ny - p.y; if (Math.abs(dy) > 1.1) continue; const d = Math.hypot(dx, dz);
-      if (d < 0.8 && d > 0.001) { const k = (0.8 - d) * 0.35; nx += dx / d * k; nz += dz / d * k; } }
+      if (d < 0.8 && d > 0.001) { const k = (0.8 - d) * 0.35, px = nx + dx / d * k, pz = nz + dz / d * k;
+        if (C.support(px, pz, T, ny + OB_STEP, 0)) { nx = px; nz = pz; } } }   // 밀려서 발판 밖으로 떨어지지는 않게 (억울한 낙하 없음)
     // 바닥: 내려가는 중이면 발밑 면에 착지
     if (this.vy <= 0) {
       const s = C.support(nx, nz, T, Math.max(y0, ny) + (this.grounded ? OB_STEP : 0.05));
