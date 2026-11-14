@@ -417,8 +417,8 @@ class BumperGame extends BumperCore {
   updateCamera(dt, now) {
     const cam = this.camera, ri = this.roundInfo();
     let fx = this.x, fz = this.z; if (this.state === 'dead' || this.state === 'wait') { fx = this.x * 0.5; fz = this.z * 0.5; }
-    if (this.state === 'fall') { fx = this.x; fz = this.z; }
-    const tx = fx * 0.72, tz = fz * 0.72 + 1.5, ty = this.state === 'fall' ? Math.max(-6, this.y * 0.25) : 0;
+    if (this.state === 'fall') { fx = this.camT.x / 0.72; fz = (this.camT.z - 1.5) / 0.72; }      // 떨어지는 동안은 카메라를 멈추고 경기장을 그대로 보여 줌
+    const tx = fx * 0.72, tz = fz * 0.72 + 1.5, ty = 0;
     const k = this.camSnap ? 1 : 1 - Math.exp(-dt * 4.5); this.camSnap = false;
     this.camT.x += (tx - this.camT.x) * k; this.camT.z += (tz - this.camT.z) * k; this.camT.y += (ty - this.camT.y) * k;
     const d = this.camDist || 40, sh = this.shake || 0, jx = sh * (Math.sin(now / 23) * 0.5 + Math.sin(now / 37)) * 0.35, jy = sh * Math.sin(now / 29) * 0.3;
