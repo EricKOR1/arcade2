@@ -25,9 +25,9 @@ function obRng(seed) { let s = (seed >>> 0) || 1; return () => { s = (Math.imul(
 
 // ── 코스 3종 (가운데 구간은 4번째 코스부터 seed 로 섞음) ──
 const OB_COURSES = [
-  { id: 'cloud', name: '구름 언덕', mods: ['sweep', 'tiles', 'hammer', 'movers', 'pads'], sky: [0x4C9DF0, 0xCDE9FF], fog: 0xCFE6FF, plat: [0xFF7AA8, 0xFFC94D, 0x6FD4FF, 0x9B8CFF, 0x6DE3A0] },
-  { id: 'candy', name: '사탕 공장', mods: ['conveyor', 'walls', 'balls', 'beams', 'sweep'], sky: [0x6A8DF5, 0xFFD8EE], fog: 0xFFE0F0, plat: [0xFF6FB5, 0x7FE3D6, 0xFFE066, 0xB693FF, 0xFF9A6B] },
-  { id: 'ice', name: '얼음 계곡', mods: ['ice', 'hammer', 'tiles', 'balls', 'movers'], sky: [0x3F8FE0, 0xE3F4FF], fog: 0xDDEFFF, plat: [0x7CC7FF, 0xFFFFFF, 0xA5B4FC, 0x67E8F9, 0xFDA4AF] }
+  { id: 'cloud', name: '구름 언덕', mods: ['sweep', 'tiles', 'hammer', 'movers', 'pads'], sky: [0x4C9DF0, 0xCDE9FF], fog: 0xCFE6FF, plat: [0xFF4F8B, 0xFFB81C, 0x2FB8FF, 0x7A5CFF, 0x22C97A] },
+  { id: 'candy', name: '사탕 공장', mods: ['conveyor', 'walls', 'balls', 'beams', 'sweep'], sky: [0x6A8DF5, 0xFFD8EE], fog: 0xFFE0F0, plat: [0xFF3E9A, 0x1FD1B9, 0xFFC93C, 0x9B6BFF, 0xFF7A3D] },
+  { id: 'ice', name: '얼음 계곡', mods: ['ice', 'hammer', 'tiles', 'balls', 'movers'], sky: [0x3F8FE0, 0xE3F4FF], fog: 0xDDEFFF, plat: [0x3FA9F5, 0xE8F4FF, 0x6C7CFF, 0x19C6E6, 0xFF6B8B] }
 ];
 const OB_MOD_NAME = { sweep: '빙글 막대', tiles: '사라지는 발판', hammer: '흔들 망치', movers: '움직이는 발판', pads: '점프대', conveyor: '컨베이어', walls: '미는 벽', balls: '굴러오는 공', beams: '좁은 다리', ice: '미끄러운 얼음' };
 const OB_THEME = id => OB_COURSES.find(c => c.id === id) || OB_COURSES[0];
@@ -356,7 +356,7 @@ class ObstCore {
   setHazards() {}
   onEvent(e) {
     if (!e || typeof e !== 'object' || !e.by || e.by === this.myId) return;
-    if (e.type === 'ofin') { this.recordFin(+e.k, e.by, +e.ft); const p = this.peers[e.by]; if (p && +e.k === this.k) { this.addFx('confetti', p.x, p.y + 1.2, p.z); } return; }
+    if (e.type === 'ofin') { this.recordFin(+e.k, e.by, +e.ft); const p = this.peers[e.by]; if (p && +e.k === this.k) { this.addFx('confetti', Math.max(-6, Math.min(6, p.x)), this.course.finTop + 1.2, this.course.finishZ + 0.5); } return; }   // 꽃가루는 결승선에서
     if (e.type === 'ohalf') { this.recordHalf(+e.k, e.by, +e.th); return; }
     if (e.type === 'oend') { this.recordEnd(+e.k, +e.at); return; }
   }

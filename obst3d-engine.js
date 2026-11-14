@@ -124,8 +124,8 @@ class ObstGame extends ObstCore {
   col(hex, k) { const c = new THREE.Color(hex); if (k != null) c.multiplyScalar(k); if (this.lin) c.convertSRGBToLinear(); return c; }
   carr(hex, k) { const c = this.col(hex, k); return [c.r, c.g, c.b]; }
   mat(o) {   // 화질에 맞는 재질 (high · mid = 물리 기반 · low = Lambert)
-    const T = THREE; const opt = Object.assign({}, o); const rough = opt.roughness, metal = opt.metalness; delete opt.roughness; delete opt.metalness;
-    const m = this.hq === 'low' ? new T.MeshLambertMaterial(opt) : new T.MeshStandardMaterial(Object.assign({ envMapIntensity: 0.65 }, opt, { roughness: rough == null ? 0.6 : rough, metalness: metal == null ? 0 : metal }));
+    const T = THREE; const opt = Object.assign({}, o); const rough = opt.roughness, metal = opt.metalness, ei = opt.envMapIntensity; delete opt.roughness; delete opt.metalness; delete opt.envMapIntensity;
+    const m = this.hq === 'low' ? new T.MeshLambertMaterial(opt) : new T.MeshStandardMaterial(Object.assign(opt, { envMapIntensity: ei == null ? 0.45 : ei, roughness: rough == null ? 0.6 : rough, metalness: metal == null ? 0 : metal }));
     m.userData.lin = true; if (m.color && this.lin && o.color != null) m.color.convertSRGBToLinear(); if (m.emissive && this.lin && o.emissive != null) m.emissive.convertSRGBToLinear();
     return m;
   }
@@ -137,12 +137,12 @@ class ObstGame extends ObstCore {
     this.hq = 'low'; this.hqLocked = false;
     if (window.ThreeQuality) { const pq = ThreeQuality.pick(r, this.opts); this.hq = pq.q; this.hqLocked = !!pq.locked; }
     this.lin = this.hq !== 'low';
-    r.outputEncoding = this.lin ? T.sRGBEncoding : T.LinearEncoding; r.toneMapping = this.lin ? T.ACESFilmicToneMapping : T.NoToneMapping; r.toneMappingExposure = 1.0;
+    r.outputEncoding = this.lin ? T.sRGBEncoding : T.LinearEncoding; r.toneMapping = this.lin ? T.ACESFilmicToneMapping : T.NoToneMapping; r.toneMappingExposure = 0.95;
     const sc = this.scene = new T.Scene();
     sc.fog = new T.Fog(0xCFE6FF, 60, 190);
     this.camera = new T.PerspectiveCamera(60, 1, 0.3, 600);
-    this.hemi = new T.HemisphereLight(0xEAF4FF, 0x8C7BB0, this.lin ? 0.42 : 0.85); sc.add(this.hemi);
-    const sun = this.sun = new T.DirectionalLight(0xFFF1D6, this.lin ? 2.2 : 0.9); sun.position.set(-14, 30, -10); sc.add(sun); sc.add(sun.target);
+    this.hemi = new T.HemisphereLight(0xEAF4FF, 0x8C7BB0, this.lin ? 0.34 : 0.85); sc.add(this.hemi);
+    const sun = this.sun = new T.DirectionalLight(0xFFF1D6, this.lin ? 2.6 : 0.9); sun.position.set(-14, 30, -10); sc.add(sun); sc.add(sun.target);
     this.tmpM = new T.Matrix4(); this.tmpM2 = new T.Matrix4(); this.tmpM3 = new T.Matrix4(); this.tmpQ = new T.Quaternion(); this.tmpS = new T.Vector3(1, 1, 1); this.tmpP = new T.Vector3(); this.tmpE = new T.Euler(); this.tmpV = new T.Vector3(); this.tmpC = new T.Color(); this.dummy = new T.Object3D();
     this.makeTextures();
     this.buildSky();
@@ -235,7 +235,7 @@ class ObstGame extends ObstCore {
     const T = THREE, sc = this.scene, W = [1, 1, 1], D = [0.12, 0.12, 0.16], N = OB3_MAXP;
     const prof = [[0, 0.14], [0.22, 0.16], [0.36, 0.3], [0.42, 0.52], [0.41, 0.78], [0.35, 0.98], [0.22, 1.12], [0, 1.18]].map(p => new T.Vector2(p[0], p[1]));
     const bodyG = new T.LatheGeometry(prof, this.hq === 'low' ? 10 : 16);
-    const charMat = this.mat({ vertexColors: true, roughness: 0.32, metalness: 0.05 });
+    const charMat = this.mat({ vertexColors: true, roughness: 0.32, metalness: 0.05, envMapIntensity: 0.3 });
     const inst = (g, mat, n) => { const m = new T.InstancedMesh(g, mat, n); m.instanceColor = new T.InstancedBufferAttribute(new Float32Array(n * 3).fill(1), 3); m.count = 0; m.frustumCulled = false; m.castShadow = this.lin; m.receiveShadow = false; sc.add(m); return m; };
     const bodyGeo = obMerge([{ g: bodyG, c: W }, obPart(new T.SphereGeometry(0.2, 10, 8), 0, 0.5, 0.25, [1, 1, 1], 0, 0, 0, 1, 1.2, 0.6)]);   // 배 무늬(같은 색 — 볼록)
     this.mBody = inst(bodyGeo, charMat, N);
@@ -355,7 +355,7 @@ class ObstGame extends ObstCore {
     C.cps.forEach((cp, i) => { if (!i) return; const x = cp.x1 + 0.25; deco.push(obPart(new T.CylinderGeometry(0.06, 0.06, 2.6, 6), x, cp.top + 1.3, cp.z, this.carr(0xffffff)), obPart(new T.BoxGeometry(0.05, 0.6, 0.9), x, cp.top + 2.25, cp.z + 0.45, this.carr(0x2EC27E)));
       const x2 = cp.x0 - 0.25; deco.push(obPart(new T.CylinderGeometry(0.06, 0.06, 2.6, 6), x2, cp.top + 1.3, cp.z, this.carr(0xffffff)), obPart(new T.BoxGeometry(0.05, 0.6, 0.9), x2, cp.top + 2.25, cp.z + 0.45, this.carr(0x2EC27E))); });
     // 망치 지지대
-    C.obs.forEach(o => { if (o.type !== 'hammer') return; const half = W * 0.36 + 0.6, c = this.carr(0x6B7395), y0 = o.py - o.L - 1.0;
+    C.obs.forEach(o => { if (o.type !== 'hammer') return; const half = W * 0.36 + 0.6, c = this.carr(0x7B61FF), y0 = o.py - o.L - 1.0;
       deco.push(obPart(new T.BoxGeometry(0.35, o.py - y0 + 0.3, 0.35), -half, (o.py + y0) / 2, o.pz, c), obPart(new T.BoxGeometry(0.35, o.py - y0 + 0.3, 0.35), half, (o.py + y0) / 2, o.pz, c),
         obPart(new T.BoxGeometry(half * 2 + 0.4, 0.35, 0.35), 0, o.py + 0.15, o.pz, c)); });
     if (deco.length) { const m = shadowy(new T.Mesh(obMerge(deco), M.deco), true); g.add(m); }
@@ -521,7 +521,8 @@ class ObstGame extends ObstCore {
     const st = this.standings(), myRank = st.findIndex(e => e.me) + 1; this.place = myRank;
     const bh = 54 * s, lx = 60, lw = 128 * s, rw = 96 * s, narrow = W - lx - lw - rw - pad * 3 < 200 * s;
     c.fillStyle = 'rgba(24,28,58,0.55)'; obRR(c, lx, pad, lw, bh, 14 * s); c.fill();
-    obTF(c, '⭐ ' + this.score + '점', lx + 12 * s, pad + 19 * s, 21 * s, lw - 18 * s, '#FFE066', 'left', false, 900);
+    const pend = this.phase === 'results' ? (this.results(this.k).fin.concat(this.results(this.k).half).find(e => e.id === this.myId) || {}).pts : 0;   // 순위 화면 동안: 곧 더해질 점수
+    obTF(c, '⭐ ' + this.score + '점' + (pend ? ' +' + pend : ''), lx + 12 * s, pad + 19 * s, 21 * s, lw - 18 * s, '#FFE066', 'left', false, 900);
     obTF(c, '전체 ' + myRank + '등 / ' + st.length + '명', lx + 12 * s, pad + 41 * s, 12.5 * s, lw - 18 * s, '#E6E9FF', 'left', false, 700);
     const E = this.endOf(this.k, this.Sk), cx = W / 2;
     const cw = narrow ? Math.min(W - pad * 2, 300 * s) : Math.min(W - 2 * (lx + lw + pad), 250 * s), cy0 = narrow ? pad + bh + 6 : pad, ch = narrow ? 44 * s : bh, ccx = narrow ? cx : (lx + lw + W - pad - rw) / 2;
