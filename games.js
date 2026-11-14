@@ -201,6 +201,25 @@ const GAMES = {
     sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, lv: g.lv, kills: g.kills }; }
   },
 
+  // 범퍼카 서바이벌 3D: 규칙 · 통신은 bumper-engine.js(BumperCore), 그림 · HUD 는 bumper3d-engine.js(BumperGame)
+  bumper3d: {
+    type: 'canvas',
+    name: '범퍼카 서바이벌 3D',
+    desc: '하늘에 뜬 경기장에서 범퍼카로 서로 들이받아 밖으로 밀어 떨어뜨리기! 많이 맞을수록 충격%가 올라 더 멀리 날아가요. 시간이 지나면 가장자리가 무너져 좁아지고, 다 좁아지면 다시 넓어져 다음 라운드',
+    howto: '조이스틱으로 운전(화면 위 = 북쪽) · ⚡ 버튼(Space) = 돌진 · 친구를 밖으로 밀어 떨어뜨리면 +3점 · 10초 버틸 때마다 +1 · 라운드 끝까지 살아남으면 +2 · 빨갛게 흔들리는 바닥은 곧 떨어져요 · 아이템: 🪨 무거워지기 · 🛡 방패 · ⚡ 슈퍼 돌진 · 빨간 기둥은 튕겨 내고 초록 화살표 판은 가운데로 점프 · 떨어지면 2.6초 뒤 다시 출발',
+    meta: '실시간 개인전 · 3D · 차 45가지 · 인원별 경기장 크기 · 최대 30명',
+    primary: '72% 0.18 25', primaryContent: '100% 0 0', hex: '#FF6B4A',
+    grid: { cols: 30, rows: 30 },   // 교사 미니보드: 위에서 본 경기장 (남은 바닥 · 흔들리는 조각 · 범퍼 · 아이템 · 차)
+    adminView: 'grid', fullBleed: true, engine3d: true, autoSize: true,   // autoSize: 시작할 때 인원을 track 에 붙임('auto:24') → 늦게 온 학생도 같은 크기
+    needsPeers: true, realtime: true, hasNext: false, timed: true,
+    stats: [{ key: 'kills', label: '떨어뜨림' }, { key: 'falls', label: '떨어짐' }],
+    overText: function (g) { return g.endReason === 'time' ? '시간 끝!' : 'GAME OVER'; },
+    detail: function (g) { return (g.rank && g.total ? (g.endReason === 'time' ? '시간 끝 · 1등 ' + g.winner + ' · ' : '') + g.total + '명 중 ' + g.rank + '등 · ' : '') + '점수 ' + g.score + ' · 떨어뜨림 ' + g.kills + ' · 떨어짐 ' + g.falls; },
+    controls: [], padLayout: 'slither', padHint: false, boostLabel: '⚡<small>돌진</small>',   // 조이스틱 + 돌진 버튼 하나 · 조작 안내는 엔진이 첫 출발 때 그림
+    create: function (canvas, opts) { return new BumperGame(canvas, Object.assign({ maxDpr: 1.25 }, opts)); },
+    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, kills: g.kills, falls: g.falls }; }
+  },
+
   // 장애물 대탈출 3D: 규칙 · 코스 · 통신은 obst-engine.js(ObstCore), 그림 · HUD 는 obst3d-engine.js(ObstGame)
   obst3d: {
     type: 'canvas',
