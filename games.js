@@ -215,7 +215,7 @@ const GAMES = {
     stats: [{ key: 'kills', label: '떨어뜨림' }, { key: 'falls', label: '떨어짐' }],
     overText: function (g) { return g.endReason === 'time' ? '시간 끝!' : 'GAME OVER'; },
     detail: function (g) { return (g.rank && g.total ? (g.endReason === 'time' ? '시간 끝 · 1등 ' + g.winner + ' · ' : '') + g.total + '명 중 ' + g.rank + '등 · ' : '') + '점수 ' + g.score + ' · 떨어뜨림 ' + g.kills + ' · 떨어짐 ' + g.falls; },
-    controls: [], padLayout: 'slither', padHint: false, boostLabel: '⚡<small>돌진</small>',   // 조이스틱 + 돌진 버튼 하나 · 조작 안내는 엔진이 첫 출발 때 그림
+    controls: [], padLayout: 'slither', padHint: false, mouseSteer: false, boostLabel: '⚡<small>돌진</small>',   // 조이스틱 + 돌진 버튼 하나 · 조작 안내는 엔진이 첫 출발 때 그림
     create: function (canvas, opts) { return new BumperGame(canvas, Object.assign({ maxDpr: 1.25 }, opts)); },
     sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, kills: g.kills, falls: g.falls }; }
   },
