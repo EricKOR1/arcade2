@@ -224,7 +224,9 @@ class ObstCore {
     else if (srv > this.Sk + 4000) { this.lateWait = true; this.waitSince = srv; this.firstK = -1; }   // 이미 시작한 판 → 친구 신호로 지금 코스를 알아냄
     this.course = new ObCourse(this.seed, this.k, this.wl);
     this.courseBuilt = -1;
-    if (!this.lateWait) this.placeAtStart(); else this.placeSpectator();
+    if (this.lateWait) this.placeSpectator();
+    else if (this.restored && this.srv() >= this.Sk) { const cp = this.cp, fin = this.fin, half = this.half; this.placeAtStart(); this.cp = cp; this.fin = fin; this.half = half; this.respawn(); }   // 새로고침: 같은 코스 마지막 체크포인트에서
+    else this.placeAtStart();
   }
   saveKey() { return 'obst:' + this.seed + ':' + this.myId; }
   save() { try { if (typeof sessionStorage === 'undefined') return; const r = this.recs[this.k];
@@ -232,7 +234,7 @@ class ObstCore {
   restore(s) {
     this.k = s.k | 0; this.Sk = +s.Sk; this.wl = s.wl | 0; this.totals = s.totals || {}; this.cleared = s.cleared | 0; this.firstK = s.firstK | 0; this.cp = s.cp | 0; this.fin = +s.fin || 0; this.half = +s.half || 0;
     if (isFinite(+s.look)) this.look = +s.look; this.lastFinal = isFinite(+s.lf) ? +s.lf : -1;
-    if (s.rec) { const r = this.rec(this.k); Object.assign(r.fin, s.rec.fin || {}); Object.assign(r.half, s.rec.half || {}); if (isFinite(+s.rec.E)) r.E = +s.rec.E; }
+    if (s.rec) { const r = this.rec(this.k); Object.assign(r.fin, s.rec.fin || {}); Object.assign(r.half, s.rec.half || {}); if (s.rec.E != null && +s.rec.E > 0) r.E = +s.rec.E; }   // Infinity 는 JSON 에서 null → 0 이 되므로 숫자일 때만
     this.score = this.totals[this.myId] || 0; this.restored = true;
   }
   srv() { return this.opts.serverNow ? this.opts.serverNow() : Date.now(); }
