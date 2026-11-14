@@ -240,6 +240,26 @@ const GAMES = {
     sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, place: g.place, cleared: g.cleared }; }
   },
 
+  // 좀비 술래잡기 3D: 규칙 · 맵 · 통신은 tag-engine.js(TagCore), 그림 · HUD · 소리는 tag3d-engine.js(TagGame)
+  tag3d: {
+    type: 'canvas',
+    name: '좀비 술래잡기 3D',
+    desc: '해 질 녘 학교와 마을에서 하는 감염 술래잡기! 몇 초 뒤 몇 명이 좀비가 되고, 좀비에게 닿으면 나도 좀비가 돼요. 사람은 오래 살아남을수록, 좀비는 많이 잡을수록 점수. 사람이 모두 잡히면 새 좀비를 뽑아 다음 라운드',
+    howto: '조이스틱으로 이동(화면 위 = 북쪽) · 🏃 버튼 꾹(Space) = 달리기(기력 소모) · 좀비가 되면 같은 버튼 톡 = 돌진 · 사람: 1초 살아남을 때마다 +1 · 끝까지(90초) 살아남으면 +20 · 마지막 생존자 +10 · 좀비: 한 명 잡을 때마다 +10 · 아이템(사람만): 신발(빨라짐) · 망토(투명) · 방패(한 번 막음) · 눈덩이(가까운 좀비를 자동으로 얼림) · 좀비가 가까우면 심장 소리와 붉은 테두리 · 시간이 끝나면 총점 순위',
+    meta: '실시간 단체전 · 3D 밤 학교 마을 · 감염 술래잡기 · 인원별 맵 크기 · 최대 30명',
+    primary: '68% 0.17 145', primaryContent: '100% 0 0', hex: '#5EC26A',
+    grid: { cols: 36, rows: 36 },   // 교사 미니보드: 위에서 본 지도 (건물 · 담 · 운동장 · 사람 초록 · 좀비 빨강)
+    adminView: 'grid', fullBleed: true, engine3d: true, autoSize: true,   // autoSize: 시작할 때 인원을 track 에 붙임('auto:24') → 모든 학생이 같은 맵 크기
+    needsPeers: true, realtime: true, hasNext: false, timed: true,      // 시간 제한이 없으면 6분
+    stats: [{ key: 'catches', label: '잡음' }, { key: 'survSec', label: '생존(초)' }],
+    overText: function (g) { return g.endReason === 'time' ? '시간 끝!' : 'GAME OVER'; },
+    // 점수 = 살아남은 초 + 잡은 수 × 10 + 보너스 — HUD · 게임 안 순위표 · 선생님 화면 · 결과가 모두 g.score
+    detail: function (g) { return (g.rank && g.total ? g.total + '명 중 ' + g.rank + '등 · ' : '') + '점수 ' + g.score + ' · 생존 ' + g.survSec + '초 · 잡음 ' + g.catches + ' · ' + g.r + '라운드'; },
+    controls: [], padLayout: 'slither', padHint: false, mouseSteer: false, boostLabel: '🏃<small>달리기</small>',   // 조이스틱 + 버튼 하나 (사람 = 달리기 · 좀비 = 돌진 — 엔진이 글자를 바꿈) · 안내는 엔진이 그림
+    create: function (canvas, opts) { return new TagGame(canvas, Object.assign({ maxDpr: 1.25 }, opts)); },
+    sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, catches: g.catches, survSec: g.survSec, role: g.role }; }
+  },
+
   slither: {
     type: 'canvas',
     name: '뱀 아레나',

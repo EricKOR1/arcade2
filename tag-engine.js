@@ -37,7 +37,7 @@ const TG_MAPS = { school: { name: '해 질 녘 학교 마을', tag: '★2 · 기
 
 // 인원별 한 변 길이(m): 8명 60 · 16명 72 · 30명 80
 function tgSizeFor(n) { n = +n || 0; return Math.max(56, Math.min(84, Math.round((40 + 7.6 * Math.sqrt(Math.max(1, n))) / 4) * 4)); }
-function tgParseTrack(track) { const a = String(track || '').split(':'), n = parseInt(a[1], 10); return { mapId: 'school', n: a[0] === 'school' && n > 0 ? n : 16 }; }   // ':N' 이 없으면 16명 크기 (기기마다 맵이 달라지지 않게)
+function tgParseTrack(track) { const a = String(track || '').split(':'), n = parseInt(a[1], 10); return { mapId: 'school', n: (a[0] === 'auto' || a[0] === 'school') && n > 0 ? n : 16 }; }   // 선생님 화면이 시작할 때 'auto:N'(autoSize) · ':N' 이 없으면 16명 크기 (기기마다 맵이 달라지지 않게)
 
 // ── 결정적 난수 (기기마다 같은 결과) ──
 function tgHash(a, b, c) { let h = (Math.imul(a | 0, 374761393) + Math.imul(b | 0, 668265263) + Math.imul(c | 0, 1274126177)) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); h ^= h >>> 16; return (h >>> 0) / 4294967296; }
