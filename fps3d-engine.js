@@ -800,11 +800,13 @@ class Fps3DGame {
       uarm: mk(G.uarm, MAX * 2), farm: mk(G.farm, MAX * 2), rifle: mk(G.rifle, MAX), sniper: mk(G.sniper, MAX),
       flash: mk(G.flash, MAX, new T.MeshBasicMaterial({ map: (() => { const t = new T.CanvasTexture(Fps3DGame.texCanvas('flash')); t.encoding = T.sRGBEncoding; return t; })(), color: 0xFFE2A0, transparent: true, blending: T.AdditiveBlending, depthWrite: false, side: T.DoubleSide })),
       ring: mk(G.ring, MAX, new T.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.6, depthWrite: false })),
-      beam: mk(G.beam, MAX, new T.MeshBasicMaterial({ transparent: true, opacity: 0.28, blending: T.AdditiveBlending, depthWrite: false, side: T.DoubleSide })) };
+      beam: mk(G.beam, MAX, new T.MeshBasicMaterial({ map: (() => { const cv = document.createElement('canvas'); cv.width = 4; cv.height = 64; const g = cv.getContext('2d'), gr = g.createLinearGradient(0, 0, 0, 64);
+        gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(0.7, 'rgba(255,255,255,0.35)'); gr.addColorStop(1, 'rgba(255,255,255,0.9)'); g.fillStyle = gr; g.fillRect(0, 0, 4, 64); return new T.CanvasTexture(cv); })(),
+        transparent: true, opacity: 0.4, blending: T.AdditiveBlending, depthWrite: false, side: T.DoubleSide })) };   // 부활 빛기둥: 아래가 밝고 위로 사라짐
     K.ring.renderOrder = 1; K.beam.renderOrder = 2; K.flash.renderOrder = 3;
     this.sMeshes = Object.keys(K).map(k => K[k]);
     this.sMax = MAX;
-    this._sm = { R: new T.Matrix4(), L: new T.Matrix4(), M: new T.Matrix4(), U: new T.Matrix4(), W: new T.Matrix4(), q: new T.Quaternion(), q2: new T.Quaternion(), e: new T.Euler(0, 0, 0, 'YXZ'), v: new T.Vector3(), v2: new T.Vector3(),
+    this._sm = { R: new T.Matrix4(), L: new T.Matrix4(), M: new T.Matrix4(), U: new T.Matrix4(), W: new T.Matrix4(), Pm: new T.Matrix4(), q: new T.Quaternion(), q2: new T.Quaternion(), e: new T.Euler(0, 0, 0, 'YXZ'), v: new T.Vector3(), v2: new T.Vector3(),
       one: new T.Vector3(1, 1, 1), down: new T.Vector3(0, -1, 0), c: new T.Color(), a: [0, 0, 0], b: [0, 0, 0], h: [0, 0, 0], ik: [0, 0, 0, 0, 0, 0], pole: [0, 0, 0] };
   }
 
@@ -1677,9 +1679,11 @@ class Fps3DGame {
       if (p.prot && !p.dead && Math.floor(now / 110) % 2) continue;   // 부활 직후 무적: 깜빡임 (아래에서 하늘색으로도 칠함)
       const P = this.soldierPose(p, now, S.pose || (S.pose = {}));
       if (p.dead) { if (!u.deadAt) u.deadAt = now; } else u.deadAt = 0;
-      const dk = u.deadAt ? Math.min(1, (now - u.deadAt) / 650) : 0, de = dk * dk;   // 쓰러짐 진행 (점점 빨라짐)
-      if (u.deadAt) { S.e.set(de * 1.5, P.ry, de * 0.14, 'YXZ'); S.q.setFromEuler(S.e); S.R.compose(S.v.set(P.x, P.y + de * 0.2, P.z), S.q, S.one); }
-      else { S.e.set(P.rx, P.ry, P.rz, 'YXZ'); S.q.setFromEuler(S.e); S.R.compose(S.v.set(P.x, P.y, P.z), S.q, S.one); }   // 판정과 같은 몸 변환
+      // 쓰러짐 (0.8초): 무릎이 꺾이며 주저앉고(앞 35%) → 허리를 축으로 뒤로 넘어가 등을 대고 누움 (무릎은 세운 채)
+      const dk = u.deadAt ? Math.min(1, (now - u.deadAt) / 800) : 0, kneel = Math.min(1, dk / 0.35), fall = Math.max(0, Math.min(1, (dk - 0.15) / 0.7)), fe = fall * fall * (3 - 2 * fall);
+      if (u.deadAt) { S.e.set(0, P.ry, 0, 'YXZ'); S.q.setFromEuler(S.e); S.R.compose(S.v.set(P.x, P.y, P.z), S.q, S.one);
+        S.e.set(fe * 1.52, 0, fe * 0.12, 'YXZ'); S.q2.setFromEuler(S.e); S.v.set(0, -SK.waist, 0).applyQuaternion(S.q2); S.v.y += SK.waist - kneel * kneel * 0.3 - fe * 0.42; S.Pm.compose(S.v, S.q2, S.one); }
+      else { S.e.set(P.rx, P.ry, P.rz, 'YXZ'); S.q.setFromEuler(S.e); S.R.compose(S.v.set(P.x, P.y, P.z), S.q, S.one); S.Pm.identity(); }   // 판정과 같은 몸 변환
       // 색: 피격 순간 하얗게 · 무적 하늘색
       const hitFl = p.flash && now < p.flash, mul = S.mul || (S.mul = [1, 1, 1]);
       if (hitFl) mul[0] = mul[1] = mul[2] = 2.3; else if (p.prot && !p.dead) { mul[0] = 0.75; mul[1] = 1.55; mul[2] = 1.9; } else mul[0] = mul[1] = mul[2] = 1;
@@ -1693,7 +1697,8 @@ class Fps3DGame {
       // 윗몸: 허리를 축으로 (조준 위아래의 20% · 달릴 때 앞으로 · 움찔하면 뒤로) + 숨쉬기
       const aim = p.dead ? 0 : Math.max(-0.9, Math.min(0.9, p.pitch || 0));
       const tilt = aim * 0.2 - kk * 0.13 + fl * 0.17, tw = fl * 0.2 * (u.flSide || 1), br = (!mv && !p.dead) ? Math.sin(now * 0.0021 + (u.col & 255)) * 0.006 : 0;
-      S.e.set(tilt, tw, 0, 'YXZ'); S.q2.setFromEuler(S.e); S.v.set(0, -SK.waist + br, 0).applyQuaternion(S.q2); S.v.y += SK.waist; S.U.compose(S.v, S.q2, S.one);
+      if (u.deadAt) S.U.copy(S.Pm);
+      else { S.e.set(tilt, tw, 0, 'YXZ'); S.q2.setFromEuler(S.e); S.v.set(0, -SK.waist + br, 0).applyQuaternion(S.q2); S.v.y += SK.waist; S.U.compose(S.v, S.q2, S.one); }
       // 총: 개머리판을 오른쪽 어깨에 대고 조준 방향으로. 걷는 중(안 쏠 때)은 총구를 조금 내림 · 쏠 때 반동
       if (p.fire && !u.fw) u.kickAt = now; u.fw = p.fire;
       const sn = p.wpn === 's', kt0 = u.kickAt ? now - u.kickAt : 1e9;
@@ -1701,7 +1706,7 @@ class Fps3DGame {
       if (!u.deadAt) {
         const ready = (mv && !p.fire) ? 0.3 * kk : 0, wp = aim * 0.8 - ready + kick * (sn ? 0.2 : 0.07) + fl * 0.15, sway = mv ? Math.sin(ph) * 0.03 * kk : 0;
         S.e.set(wp, 0.07 + sway, 0, 'YXZ'); S.q.setFromEuler(S.e); S.v.set(0, 0, kick * (sn ? 0.07 : 0.035)).applyQuaternion(S.q); S.v.x += SK.butt[0]; S.v.y += SK.butt[1]; S.v.z += SK.butt[2];
-      } else { S.e.set(-0.25, 1.2, 0.35, 'YXZ'); S.q.setFromEuler(S.e); S.v.set(0.34, 1.0, -0.15); }   // 쓰러지면 총이 옆으로 늘어짐
+      } else { S.e.set(1.45 * fe, 0, 0.55 * fe, 'ZXY'); S.q.setFromEuler(S.e); S.v.set(SK.butt[0] + 0.24 * fe, SK.butt[1] - 0.22 * fe, SK.butt[2] + 0.13 * fe); }   // 쓰러지면 총이 몸 오른쪽 바닥으로
       S.L.compose(S.v, S.q, S.one); S.W.multiplyMatrices(S.U, S.L);
       const gp = SK.grip[sn ? 's' : 'r'];
       // 팔: 어깨 → 손 (두 마디 IK). 오른손은 손잡이, 왼손은 총열 덮개 (쓰러지면 왼팔은 늘어짐)
@@ -1718,14 +1723,14 @@ class Fps3DGame {
         const phs = ph + (s > 0 ? Math.PI : 0), stride = 0.07 + 0.17 * kk;
         let fx = s * 0.115, fy = -bounce + (mv ? Math.max(0, Math.cos(phs)) * (0.04 + 0.1 * kk) : 0), fz = mv ? -stride * Math.sin(phs) : (s > 0 ? 0.04 : -0.04);
         if (air) { fy += s > 0 ? 0.22 : 0.12; fz += s > 0 ? 0.08 : -0.06; }
-        if (u.deadAt) { fy = 0.03 + Math.sin(dk * Math.PI) * 0.2; fz = -0.05; fx = s * 0.15; }   // 넘어지며 무릎이 꺾였다 펴짐
-        S.a[0] = s * SK.hipX; S.a[1] = SK.hipY; S.a[2] = 0; S.h[0] = fx; S.h[1] = fy; S.h[2] = fz;
-        S.pole[0] = s * 0.12; S.pole[1] = 0; S.pole[2] = -1;
+        if (u.deadAt) { fx = s * (0.13 + 0.05 * fe); fy = 0.0; fz = (s > 0 ? -0.06 : 0.02) - 0.12 * kneel - 0.18 * fe; }   // 발은 땅에 · 엉덩이 쪽으로 끌려옴 (무릎이 섬)
+        xf(S.Pm, s * SK.hipX, SK.hipY, 0, S.a); S.h[0] = fx; S.h[1] = fy; S.h[2] = fz;
+        S.pole[0] = s * 0.12; S.pole[1] = u.deadAt ? 0.6 : 0; S.pole[2] = -1;
         const e = f3IK(S.a, S.h, SK.thigh, SK.shin, S.pole, S.ik), k = i * 2 + (s > 0 ? 1 : 0);
         f3SegM(S.L, S.a[0], S.a[1], S.a[2], e[0], e[1], e[2], S); put(K.thigh, k, S.M.multiplyMatrices(S.R, S.L), mul);
         f3SegM(S.L, e[0], e[1], e[2], e[3], e[4], e[5], S); put(K.shin, k, S.M.multiplyMatrices(S.R, S.L), mul);
       }
-      put(K.pelvis, i, S.R, mul);
+      put(K.pelvis, i, u.deadAt ? S.M.multiplyMatrices(S.R, S.Pm) : S.R, mul);
       S.M.multiplyMatrices(S.R, S.U);
       const lo = this.q === 0 || Math.hypot(p.x - this.x, p.y - this.y) * zf > lodD;
       if (lo) put(K.upperLo, nLo++, S.M, mul); else put(K.upper, nHi++, S.M, mul);
