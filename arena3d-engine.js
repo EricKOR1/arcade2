@@ -47,9 +47,9 @@
 
   // ───────────────────────── 화질 단계 ─────────────────────────
   const TIERS = {
-    high: { name: 'high', shadow: 2048, soft: true, post: true, hdr: true, env: true, std: true, tri: true, grass: 4, seg: 12, parts: 560, fxLights: 3, mineLight: true, outline: true, pr: 1.5, floorPx: 24, cloud: true, amb: 70, decor: 1 },
-    mid:  { name: 'mid', shadow: 1024, soft: false, post: false, hdr: false, env: true, std: true, tri: true, grass: 3, seg: 10, parts: 320, fxLights: 1, mineLight: false, outline: false, pr: 1.25, floorPx: 16, cloud: true, amb: 36, decor: 0.8 },
-    low:  { name: 'low', shadow: 0, soft: false, post: false, hdr: false, env: false, std: false, tri: false, grass: 2, seg: 7, parts: 120, fxLights: 0, mineLight: false, outline: false, pr: 1.0, floorPx: 12, cloud: false, amb: 0, decor: 0.5 }
+    high: { name: 'high', shadow: 2048, soft: true, post: true, hdr: true, env: true, std: true, tri: true, grass: 4, seg: 10, segFar: 6, parts: 560, fxLights: 3, mineLight: true, outline: true, pr: 1.5, floorPx: 24, cloud: true, amb: 70, decor: 1 },
+    mid:  { name: 'mid', shadow: 1024, soft: false, post: false, hdr: false, env: true, std: true, tri: true, grass: 3, seg: 8, segFar: 5, parts: 320, fxLights: 1, mineLight: false, outline: false, pr: 1.25, floorPx: 16, cloud: true, amb: 36, decor: 0.8 },
+    low:  { name: 'low', shadow: 0, soft: false, post: false, hdr: false, env: false, std: false, tri: false, grass: 2, seg: 6, segFar: 5, parts: 120, fxLights: 0, mineLight: false, outline: false, pr: 1.0, floorPx: 12, cloud: false, amb: 0, decor: 0.5 }
   };
 
   // ───────────────────────── 맵 분위기 3종 ─────────────────────────
@@ -62,7 +62,7 @@
     jungle: { exposure: 1.02, fog: 0xA9C9A2, fogN: 26, fogF: 72, sky: [0x8CC4E8, 0xD9EFD0, 0x5B7A3A], sun: [0xFFF1CC, 1.4], sunDir: [-0.4, 1, 0.5], hemi: [0xD8F0FF, 0x4F6B32, 0.52],
       floor: { base: '#7DB548', alt: '#6CA33C', dark: '#4F7F2A', path: '#A88B5C', speck: '#3E6A22', light: '#9BCB5A', pave: '#8E8A78', zone: false }, rough: 0.9, hdr: 'spruit_sunrise_1k',
       water: 0x2A8FC4, waterDeep: '#1E5470', waterOp: 0.84, wave: 0.26, iceWater: false,
-      cliff: 0x6E7566, top: 0x4F8A36, topK: 1.0, stone: 0x8C8F7C, wood: 0x7A5230, crateMetal: false, ice: 0x9FD8F5,
+      cliff: 0x6E7566, top: 0x4F8A36, topK: 0.8, stone: 0x8C8F7C, wood: 0x7A5230, crateMetal: false, ice: 0x9FD8F5,
       bush: ['#2E8A34', '#5DBB45', '#17561E', '#86D45A'], mound: 0x1E5E26, decor: 'jungle', amb: 'firefly', cloudK: 0.22, mineGlow: 0xB15DFF },
     ice: { exposure: 0.9, fog: 0xCFE3F2, fogN: 28, fogF: 78, sky: [0x8FBDE8, 0xE6F1FA, 0xB8CCDA], sun: [0xFFF6EA, 1.25], sunDir: [-0.55, 1, 0.45], hemi: [0xE4F1FF, 0x8FA6BA, 0.5],
       floor: { base: '#D8E8F2', alt: '#C6DBE9', dark: '#A3BED2', path: '#BCD2E3', speck: '#8FAAC0', light: '#F2F8FC', pave: '#AFC6D8', zone: true }, rough: 0.6, hdr: 'blouberg_sunrise_2_1k',
@@ -370,7 +370,7 @@
     const piv = [[0, 0, 0], [0, legH, 0], [0, legH + 0.03, 0], [0, legH + 0.03 + tH, 0], [D.shW, legH + tH - 0.06, 0], [-D.shW, legH + tH - 0.06, 0], [D.hipW, legH, 0], [-D.hipW, legH, 0], [0, legH + 0.03 + tH + hR * 1.75, 0], [0, legH + tH - 0.02, -0.18]];
     const par = [-1, 0, 1, 2, 2, 2, 1, 1, 3, 2];
     const add = (b, geo, hex, m, p, r, sc, flat) => P.push({ b, geo, c: C3(hex), m: m || [0.7, 0, 0], p, r, s: sc, o: piv[b], flat });
-    const sph = (r) => new T.SphereGeometry(r, seg, Math.max(5, seg * 0.75 | 0)), cyl = (a, b, h, n) => new T.CylinderGeometry(a, b, h, n || seg), box = (w, h, d) => new T.BoxGeometry(w, h, d), cone = (r, h, n) => new T.ConeGeometry(r, h, n || seg);
+    const sph = (r) => { const n = clamp(Math.round(seg * (0.45 + r * 2.4)), 5, seg); return new T.SphereGeometry(r, n, Math.max(4, n * 0.7 | 0)); }, cyl = (a, b, h, n) => new T.CylinderGeometry(a, b, h, n || seg), box = (w, h, d) => new T.BoxGeometry(w, h, d), cone = (r, h, n) => new T.ConeGeometry(r, h, n || seg);
     const C = teamHex, CD = teamDark, Z90 = [Math.PI / 2, 0, 0];
     // 다리 · 신발
     const leg = (b, col, shoe, thick) => { add(b, cyl(0.075 * thick, 0.068 * thick, legH, 8), col, [0.8, 0, 0], [0, -legH / 2, 0]); add(b, box(0.15 * thick, 0.09, 0.22 * thick), shoe, [0.6, 0, 0], [0, -legH + 0.045, 0.035]); };
@@ -422,7 +422,7 @@
       add(3, sph(hR), 0xE8C9A0, [0.6, 0, 0], [0, hR * 0.95, 0]);
       add(3, new T.SphereGeometry(hR * 1.12, seg, seg / 2 | 0, 0, Math.PI * 2, 0, Math.PI * 0.62), C, [0.75, 0, 0], [0, hR * 0.98, -0.04]);
       add(3, cone(0.07, 0.2, 6), BEAK, [0.45, 0, 0], [0, hR * 0.72, hR * 1.0], [Math.PI / 2, 0, 0]);
-      [-1, 1].forEach(k => { add(3, cyl(0.065, 0.065, 0.06), METAL, [0.3, 0.7, 0], [k * 0.095, hR * 1.02, hR * 0.86], Z90); add(3, cyl(0.048, 0.048, 0.02), 0x5CE1E6, [0.1, 0, 1.3], [k * 0.095, hR * 1.02, hR * 0.9], Z90); });
+      [-1, 1].forEach(k => { add(3, cyl(0.065, 0.065, 0.06), METAL, [0.3, 0.7, 0], [k * 0.095, hR * 1.02, hR * 0.86], Z90); add(3, cyl(0.048, 0.048, 0.02), 0x5CE1E6, [0.1, 0, 1.3], [k * 0.095, hR * 1.02, hR * 0.86 + 0.035], Z90); });
       add(3, box(hR * 2.1, 0.035, 0.03), DARK, [0.6, 0, 0], [0, hR * 1.02, hR * 0.6]);
       [-0.3, 0, 0.3].forEach((o, i) => add(8, cone(0.05, 0.22, 5), FEATHER, [0.8, 0, 0], [o * 0.25, -0.02, -hR * 0.5 - i * 0.02], [-0.9, 0, o]));
       [-1, 1].forEach(k => add(2, cone(0.06, 0.2, 5), FEATHER, [0.8, 0, 0], [k * 0.22, tH + 0.02, -0.02], [0, 0, -k * 1.1]));
@@ -455,7 +455,7 @@
       add(2, box(0.3, 0.24, 0.16), 0x6B4A2E, [0.8, 0, 0], [0, 0.26, -0.33]);
       add(3, sph(hR), BR, [0.85, 0, 0], [0, hR * 0.8, 0], null, [1.05, 0.95, 1]); add(3, sph(hR * 0.9), 0xE8C9A0, [0.8, 0, 0], [0, hR * 0.78, hR * 0.38], null, [1, 0.85, 0.45]);
       [-1, 1].forEach(k => { add(3, cone(0.075, 0.2, 5), BR_D, [0.8, 0, 0], [k * 0.18, hR * 1.6, -0.02], [0, 0, -k * 0.45]);
-        add(3, cyl(0.105, 0.105, 0.07), 0xB8860B, [0.3, 0.8, 0], [k * 0.12, hR * 0.88, hR * 0.8], Z90); add(3, cyl(0.078, 0.078, 0.02), 0xFFB703, [0.1, 0, 1.0], [k * 0.12, hR * 0.88, hR * 0.84], Z90); add(3, sph(0.025), EYE, [0.2, 0, 0], [k * 0.12, hR * 0.88, hR * 0.86]); });
+        add(3, cyl(0.105, 0.105, 0.07), 0xB8860B, [0.3, 0.8, 0], [k * 0.12, hR * 0.88, hR * 0.8], Z90); add(3, cyl(0.078, 0.078, 0.02), 0xFFB703, [0.1, 0, 1.0], [k * 0.12, hR * 0.88, hR * 0.8 + 0.042], Z90); add(3, sph(0.028), EYE, [0.2, 0, 0], [k * 0.12, hR * 0.88, hR * 0.8 + 0.05]); });
       add(3, cone(0.05, 0.1, 5), ORANGE, [0.5, 0, 0], [0, hR * 0.55, hR * 0.88], [Math.PI * 0.6, 0, 0]);
       add(4, sph(0.16), BR_D, [0.85, 0, 0], [0.05, -0.16, 0.0], [0, 0, -0.3], [0.4, 1.1, 0.75]);
       add(5, sph(0.16), BR_D, [0.85, 0, 0], [0, -0.04, 0.16], [0.9, 0, 0], [0.45, 1.1, 0.75]);
@@ -836,9 +836,10 @@
     }
 
     // ───────────── 캐릭터 모델 ─────────────
-    charGeoFor(chId, ally) {
-      const key = chId + (ally ? 'A' : 'E'); if (this.charGeo[key]) return this.charGeo[key];
-      const c = buildChar(chId, ally ? 0x3FA9F5 : 0xF24E4E, ally ? 0x1C6FB5 : 0xA92430, this.tier.seg); c.geo.userData.shared = true; this.charGeo[key] = c; return c;
+    // 캐릭터 지오메트리: 캐릭터 × 팀 × 거리(LOD — 멀면 덜 둥글게)마다 하나씩 만들어 같은 모델끼리 함께 씀
+    charGeoFor(chId, ally, far) {
+      const key = chId + (ally ? 'A' : 'E') + (far ? 'f' : ''); if (this.charGeo[key]) return this.charGeo[key];
+      const c = buildChar(chId, ally ? 0x3FA9F5 : 0xF24E4E, ally ? 0x1C6FB5 : 0xA92430, far ? this.tier.segFar : this.tier.seg); c.geo.userData.shared = true; this.charGeo[key] = c; return c;
     }
     makeModel(chId, ally, isMe) {
       const T = THREE, cg = this.charGeoFor(chId, ally), g = new T.Group();
@@ -976,6 +977,8 @@
         m.visible = visible; if (!visible) { a.vis = false; a.px = null; return; }
         a.vis = true;
         m.position.set(p.x, 0, p.y); m.rotation.y = Math.PI / 2 - (isMe ? this.angle : (p.angle || 0));
+        const far = isMe ? 0 : (Math.hypot(p.x - this.x, p.y - this.y) > 7.5 ? 1 : 0);   // 멀리 있는 친구는 덜 둥근 모델 (삼각형 약 40% 줄임)
+        if ((u.far || 0) !== far) { u.far = far; const ng = this.charGeoFor(chId, ally, far).geo; u.mesh.geometry = ng; if (u.outline) u.outline.geometry = ng; }
         const alpha = isMe ? (this.hidden ? 0.6 : 1) : (p.hidden ? 0.55 : 1);
         const dash = isMe ? now < this.dashUntil : !!p.dash;
         this.poseModel(m, { x: p.x, y: p.y, dash, alpha }, tnow, dt);
