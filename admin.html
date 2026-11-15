@@ -609,7 +609,7 @@
     const L = el.firstChild, N = el.lastChild;
     if (v === 'end') { L.textContent = '⏱ 시간 끝'; N.textContent = '경기 종료!'; el.className = 'end pop'; aEnd.sec = 0; kartBeep(1320, 0.45);
       const k = aEnd.key; setTimeout(() => { if (aEnd.key === k || currentStatus !== 'playing') el.classList.add('hidden'); }, 2500); return; }
-    const s = Math.max(0, Math.ceil(v / 1000)); if (s === aEnd.sec) return;
+    const s = Math.max(0, Math.min(10, Math.ceil(v / 1000))); if (s === aEnd.sec) return;
     const first = aEnd.sec < 0; aEnd.sec = s;
     L.textContent = '🏁 1등 도착! 경기 종료까지'; N.textContent = s; el.className = s <= 3 ? 'hot' : ''; void el.offsetWidth; el.classList.add('pop');
     if (s <= 3) kartBeep(660, 0.16); else if (first) kartBeep(988, 0.18);

@@ -1613,6 +1613,7 @@
     }
     kartRankUpdate();
     if (!early) { clearTimeout(kEnd.cardT); kEnd.cardT = null; kartShow(); }   // 모든 화면이 같은 순간 결과로 (완주 카드를 보던 학생도)
+    else if (kEnd.shown) showEndReason(kartReason());    // 모두 완주: 이미 결과 화면이면 '모두 완주' 표시만
   }
   function kartShow() {
     if (!kEnd.on || kEnd.gen !== startGen) return;
@@ -1642,7 +1643,7 @@
       const g0 = startGen; setTimeout(() => { if (g0 === startGen || !kEnd.on) { const e2 = byId('kart-cd'); if (e2) e2.classList.add('hidden'); } }, 1800);
       return;
     }
-    const s = Math.max(0, Math.ceil(v / 1000));
+    const s = Math.max(0, Math.min(10, Math.ceil(v / 1000)));   // (기기 시계 추정 차이로 11 이 잠깐 보이지 않게)
     if (s === kEnd.sec && el.classList.contains('sm') === sm) return;
     const first = kEnd.sec < 0, changed = s !== kEnd.sec; kEnd.sec = s;
     L.textContent = '🏁 1등 도착! 경기 종료까지'; N.textContent = s;
