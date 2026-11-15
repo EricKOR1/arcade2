@@ -239,15 +239,18 @@ class KartGame3D extends KartGame {
       const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new T.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
       const m = new T.Mesh(g, mat); this.scene.add(m); return m; };
     this.roadMat = new T.MeshLambertMaterial({ map: rt, side: T.DoubleSide }); strip(1, -1, 0.02, 0.02, hw * 2 * S, this.roadMat, true);
-    const km = new T.MeshLambertMaterial({ map: kt, side: T.DoubleSide });
+    const km = this.kerbMat = new T.MeshLambertMaterial({ map: kt, side: T.DoubleSide });
     strip(1.07, 1, 0.1, 0.02, 3, km, true); strip(-1, -1.07, 0.02, 0.1, 3, km, true);
     // 옆벽: 도로 가장자리에서 땅까지 (도로가 떠 보이지 않게). 점프 구간은 비워 둠
-    const skirt = off => { const pos = [], idx = [];
+    // (uv: 가로 = 도로 따라 거리 · 세로 = 높이 (m/4) — 고화질의 옹벽 무늬용 · 가벼움 모드는 무늬 없이 색만)
+    const skirtMat = this.skirtMat = new T.MeshLambertMaterial({ color: this.night ? 0x3A3F55 : 0x9C8A6A, side: T.DoubleSide });
+    const skirt = off => { const pos = [], uv = [], idx = []; let dist = 0, px = null, pz = null;
       for (let i = 0; i <= n; i++) { const j = i % n, c = tr.center[j], [tx, ty] = tr.tangent[j], nx = -ty, ny = tx, e = tr.elev[j];
         const x = (c[0] + nx * hw * off) * S, z = (c[1] + ny * hw * off) * S; pos.push(x, e * S + 0.05, z, x, this.groundY, z);
+        if (px != null) dist += Math.hypot(x - px, z - pz); px = x; pz = z; uv.push(dist / 4, (e * S + 0.05 - this.groundY) / 4, dist / 4, 0);
         if (i < n && !(tr.gapSeg[j] || tr.gapSeg[(j + 1) % n])) { const q = i * 2; idx.push(q, q + 2, q + 1, q + 1, q + 2, q + 3); } }
-      const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals();
-      this.scene.add(new T.Mesh(g, new T.MeshLambertMaterial({ color: this.night ? 0x3A3F55 : 0x9C8A6A, side: T.DoubleSide }))); };
+      const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new T.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
+      this.scene.add(new T.Mesh(g, skirtMat)); };
     skirt(1.07); skirt(-1.07);
   }
   // ── 지름길: 흙길 + 노란·검정 연석 + 옆벽(땅까지) + 입구 아치 '지름길' · 길 위 화살표 ──
@@ -306,7 +309,7 @@ class KartGame3D extends KartGame {
     const m = new T.Matrix4(), q = new T.Quaternion(), sc = new T.Vector3(), up = new T.Vector3(0, 1, 0);
     rails.forEach((o, k) => { const a = this.P(o.x, o.y, o.e), b = this.P(o.x2, o.y2, o.e2), mid = a.clone().add(b).multiplyScalar(0.5); mid.y += 0.55;
       const len = a.distanceTo(b); q.setFromAxisAngle(up, -Math.atan2(b.z - a.z, b.x - a.x)); sc.set(len + 0.05, 1, 1); m.compose(mid, q, sc); mesh.setMatrixAt(k, m); });
-    this.scene.add(mesh);
+    this.scene.add(mesh); this.railMesh = mesh; this.railList = rails;
   }
   // ── 장식물 16종: 종류별 인스턴스 (2D 판과 같은 자리) ──
   buildDeco() {
@@ -376,7 +379,7 @@ class KartGame3D extends KartGame {
     }
     const ac = document.createElement('canvas'); ac.width = 64; ac.height = 64; const a = ac.getContext('2d'); a.fillStyle = '#FF8A00'; a.fillRect(0, 0, 64, 64);
     a.fillStyle = '#FFE066'; [0, 26].forEach(o => { a.beginPath(); a.moveTo(12, 30 + o - 10); a.lineTo(32, 10 + o); a.lineTo(52, 30 + o - 10); a.lineTo(52, 40 + o - 10); a.lineTo(32, 20 + o); a.lineTo(12, 40 + o - 10); a.fill(); });
-    const aTex = new T.CanvasTexture(ac); this.pads = [];
+    const aTex = this.padTex = new T.CanvasTexture(ac); this.pads = [];
     tr.boostPads.forEach(bp => { const m = new T.Mesh(new T.PlaneGeometry(tr.halfW * 0.3 * this.S, tr.halfW * 0.4 * this.S), new T.MeshBasicMaterial({ map: aTex, transparent: true }));
       m.rotation.x = -Math.PI / 2; m.rotation.z = Math.atan2(-Math.cos(bp.angle), -Math.sin(bp.angle)); m.position.copy(this.P(bp.x, bp.y, tr.elev[bp.i])); m.position.y += 0.08; this.scene.add(m); this.pads.push(m); });
     // 장애물 (2D 판과 같은 자리 · 맞으면 잠시 사라짐)
@@ -414,7 +417,7 @@ class KartGame3D extends KartGame {
     const T = THREE, far = this.track.theme.far || 'hills', R = span * 0.4, cxS = cx * this.S, cyS = cy * this.S, gY = this.groundY;
     const ring = (count, fn) => { for (let i = 0; i < count; i++) { const a = i / count * Math.PI * 2 + (i % 2) * 0.1, r = R * (0.92 + (i % 3) * 0.07); fn(cxS + Math.cos(a) * r, cyS + Math.sin(a) * r, i); } };
     if (far === 'ocean') {                                     // 바다: 땅 바깥은 물, 먼 섬
-      const sea = new T.Mesh(new T.PlaneGeometry(span * 3, span * 3), new T.MeshLambertMaterial({ color: 0x2E9BD6 })); sea.rotation.x = -Math.PI / 2; sea.position.set(cxS, gY - 0.3, cyS); this.scene.add(sea);
+      const sea = new T.Mesh(new T.PlaneGeometry(span * 3, span * 3), new T.MeshLambertMaterial({ color: 0x2E9BD6 })); sea.rotation.x = -Math.PI / 2; sea.position.set(cxS, gY - 0.3, cyS); this.scene.add(sea); this.sea = sea;
       this.ground.scale.setScalar(0.55); this.ground.material.color.set(0xE9D8A6);          // 섬(모래 해변)
       ring(9, (x, z, i) => { const m = new T.Mesh(new T.SphereGeometry(40 + (i % 3) * 15, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), new T.MeshLambertMaterial({ color: 0x4F9E4F })); m.scale.y = 0.45; m.position.set(x * 1.3 - cxS * 0.3, gY - 0.3, z * 1.3 - cyS * 0.3); this.scene.add(m); });
       return; }
@@ -532,7 +535,7 @@ class KartGame3D extends KartGame {
     k.g.visible = true;
     // 높이 찾기: 나는 물리의 구간 번호(segIdx), 친구는 진행도 근처에서 — 예전엔 지난 프레임 자리(k.hint) ±45구간만 찾아,
     //   위치 교환으로 순간이동하면 엉뚱한 구간의 높이를 써서 카트가 도로 밑(또는 위)에 떠 있었음. 지름길 위면 지름길 높이
-    const loc = this.track.locate(x, y, hint != null ? hint : k.hint); k.hint = loc.i;
+    const loc = this.track.locate(x, y, hint != null ? hint : k.hint); k.hint = loc.i; k.onSc = !!loc.sc;   // (지름길 흙길 위 — 먼지 연출용)
     // 높이는 구간 사이를 보간 (예전엔 가장 가까운 점 하나의 높이라 언덕에서 구간마다 계단처럼 툭툭 오르내렸고, 카메라도 같이 흔들렸음)
     const ev = this.track.surfaceE(loc, x, y);
     // 점프 구간에서 떨어질 때도 땅 밑으로는 내려가지 않게 (카메라가 땅 밑으로 들어가 하늘만 보이던 문제)
@@ -541,6 +544,7 @@ class KartGame3D extends KartGame {
     const spin = opts && opts.spin ? (this.clock() / 70) : 0;
     k.g.rotation.set(0, Math.PI / 2 - a + spin, 0); k.g.userData.shield.visible = !!(opts && opts.shield); k.seen = true;
     if (k.g.userData.wheels) { const d = k.lastP ? Math.hypot(px - k.lastP.x, pz - k.lastP.z) : 0; if (!k.lastP) k.lastP = { x: 0, z: 0 }; k.lastP.x = px; k.lastP.z = pz; k.g.userData.wheels.forEach(w => { w.rotation.x += Math.min(1.2, d * 1.4); }); }
+    const ct = k.g.userData.contact; if (ct) { ct.position.y = 0.04 - lift; ct.visible = k.g.userData.shadow.visible && lift < 3; }   // 접지 그림자(바퀴 밑 어둠): 태양 그림자가 있어도 늘 — 카트가 떠 보이지 않게
     if (this.hq !== 'low' && this.renderer.shadowMap.enabled) k.g.userData.shadow.visible = false;
     const fl = k.g.userData.flame; fl.visible = !!(opts && opts.boost); if (fl.visible) fl.children.forEach(c => { c.scale.set(1, 0.7 + Math.random() * 0.6, 1); });
     const bm = k.g.userData.body.color; if (opts && opts.star) bm.setHSL((this.clock() / 400) % 1, 0.9, 0.55); else if (k.baseColor) bm.copy(k.baseColor); if (!k.baseColor) k.baseColor = bm.clone();
@@ -630,7 +634,7 @@ class KartGame3D extends KartGame {
     // 입자 (2D 판의 입자 목록: 세계 좌표 + 높이)
     let np = 0; const m4 = tmp.m4, q0 = tmp.q.identity(), sc0 = tmp.sc;
     const pv = this._pv || (this._pv = new T.Vector3());
-    (this.parts || []).forEach(pt => { if (np >= 160 || pt.x == null) return; if (pt.e3 == null) pt.e3 = this.elevAtXY(pt.x, pt.y, this.segIdx).e;   // 입자 높이는 처음 한 번만 (예전엔 매 프레임 입자 160개 × 트랙 91점 탐색)
+    if (this.partMesh.visible) (this.parts || []).forEach(pt => { if (np >= 160 || pt.x == null) return;   // (보통·고화질은 kart3d-style 의 부드러운 입자로 그림 — 이 상자 입자는 숨김) if (pt.e3 == null) pt.e3 = this.elevAtXY(pt.x, pt.y, this.segIdx).e;   // 입자 높이는 처음 한 번만 (예전엔 매 프레임 입자 160개 × 트랙 91점 탐색)
       const p = pv.set(pt.x * this.S, pt.e3 * this.S, pt.y * this.S); p.y += ((pt.h || 0) * this.S) + 0.3;
       // 2D 판의 입자 크기(size, 화면 픽셀 기준)·색을 그대로 — 작게, 수명에 따라 줄어듦
       const s = Math.max(0.15, (pt.life != null ? pt.life : 1)) * Math.min(1.2, (pt.size || 6) / 12); sc0.setScalar(s); m4.compose(p, q0, sc0); this.partMesh.setMatrixAt(np, m4);
@@ -662,17 +666,18 @@ class KartGame3D extends KartGame {
     if (this.updateStyle) this.updateStyle(now);
     if (this.sun && this.renderer.shadowMap.enabled) { const mp = this.karts.__me.g.position, sh = this.sun.shadow;
       // 그림자 범위가 카트를 따라 움직일 때 그림자 화소 크기 단위로만 옮김 — 매 프레임 조금씩 옮기면 그림자 테두리가 지글지글 떨려 보였음
-      if (!this._lsR) { const fw = new T.Vector3(-45, -95, -30).normalize(); this._lsR = new T.Vector3().crossVectors(fw, new T.Vector3(0, 1, 0)).normalize(); this._lsU = new T.Vector3().crossVectors(this._lsR, fw).normalize(); }
+      const so = this.sunOff || (this.sunOff = new T.Vector3(45, 95, 30));   // 태양 방향(맵마다 — kart3d-style)
+      if (!this._lsR) { const fw = so.clone().negate().normalize(); this._lsR = new T.Vector3().crossVectors(fw, new T.Vector3(0, 1, 0)).normalize(); this._lsU = new T.Vector3().crossVectors(this._lsR, fw).normalize(); }
       const tsz = (sh.camera.right - sh.camera.left) / (sh.mapSize.x || 1024), r0 = mp.dot(this._lsR), u0 = mp.dot(this._lsU);
       const sb = tmp.v.copy(mp).addScaledVector(this._lsR, Math.round(r0 / tsz) * tsz - r0).addScaledVector(this._lsU, Math.round(u0 / tsz) * tsz - u0);
-      this.sun.position.set(sb.x + 45, sb.y + 95, sb.z + 30); this.sun.target.position.copy(sb); this.sun.target.updateMatrixWorld(); }
+      this.sun.position.set(sb.x + so.x, sb.y + so.y, sb.z + so.z); this.sun.target.position.copy(sb); this.sun.target.updateMatrixWorld(); }
     if (this.composer) this.composer.render(); else this.renderer.render(this.scene, this.camera);
     // 느리면 화질을 한 단계씩 자동으로 낮춤 (3초 평균 초당 26프레임 미만: high → mid, 22 미만: mid → 그림자 끔)
     if (this.resScale > this.resFloor + 0.001) { this._fpsN = 0; this._fpsT = 0; }      // (해상도를 먼저 낮추고, 가장 낮췄는데도 느리면 그때 그림자 등을 줄임)
     else if (this.hq !== 'low' && !this.spectator && !this.hqLocked) { this._fpsN = (this._fpsN || 0) + 1; if (!this._fpsT) this._fpsT = now;
       if (now - this._fpsT > 3000) { const fps = this._fpsN * 1000 / (now - this._fpsT); this._fpsN = 0; this._fpsT = now;
-        if (fps < 26 && this.hq === 'high') { this.hq = 'mid'; this.composer = null; this.resCap = Math.max(this.resFloor, Math.min(this.resCap, 1.75)); this.sun.shadow.mapSize.set(1024, 1024); if (this.sun.shadow.map) { this.sun.shadow.map.dispose(); this.sun.shadow.map = null; } }
-        else if (fps < 22 && this.hq === 'mid' && this.renderer.shadowMap.enabled) { this.renderer.shadowMap.enabled = false; this.sun.castShadow = false; this.scene.traverse(o => { if (o.material) { const ms = Array.isArray(o.material) ? o.material : [o.material]; ms.forEach(m => { m.needsUpdate = true; }); } }); } } }
+        if (fps < 26 && this.hq === 'high') { this.hq = 'mid'; this.composer = null; if (this.onDowngrade) this.onDowngrade('mid'); this.resCap = Math.max(this.resFloor, Math.min(this.resCap, 1.75)); this.sun.shadow.mapSize.set(1024, 1024); if (this.sun.shadow.map) { this.sun.shadow.map.dispose(); this.sun.shadow.map = null; } }
+        else if (fps < 22 && this.hq === 'mid' && this.renderer.shadowMap.enabled) { if (this.onDowngrade) this.onDowngrade('noshadow'); this.renderer.shadowMap.enabled = false; this.sun.castShadow = false; this.scene.traverse(o => { if (o.material) { const ms = Array.isArray(o.material) ? o.material : [o.material]; ms.forEach(m => { m.needsUpdate = true; }); } }); } } }
     // ── 오버레이: 2D 판의 미니맵·순위·카운트다운·알림을 그대로 ──
     const ctx = this.ctx, W = this.vw || 800, H = this.vh || 600; ctx.setTransform(this.hudDpr || 1, 0, 0, this.hudDpr || 1, 0, 0); ctx.clearRect(0, 0, W, H);
     const fast = Math.max(0, (this.speed / this.maxSpeed - 0.85) / 0.15);
