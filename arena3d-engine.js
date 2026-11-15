@@ -64,10 +64,10 @@
       water: 0x2A8FC4, waterDeep: '#1E5470', waterOp: 0.84, wave: 0.26, iceWater: false,
       cliff: 0x6E7566, top: 0x4F8A36, topK: 0.8, stone: 0x8C8F7C, wood: 0x7A5230, crateMetal: false, ice: 0x9FD8F5,
       bush: ['#2E8A34', '#5DBB45', '#17561E', '#86D45A'], mound: 0x1E5E26, decor: 'jungle', amb: 'firefly', cloudK: 0.22, mineGlow: 0xB15DFF },
-    ice: { exposure: 0.9, fog: 0xCFE3F2, fogN: 28, fogF: 78, sky: [0x8FBDE8, 0xE6F1FA, 0xB8CCDA], sun: [0xFFF6EA, 1.25], sunDir: [-0.55, 1, 0.45], hemi: [0xE4F1FF, 0x8FA6BA, 0.5],
-      floor: { base: '#D8E8F2', alt: '#C6DBE9', dark: '#A3BED2', path: '#BCD2E3', speck: '#8FAAC0', light: '#F2F8FC', pave: '#AFC6D8', zone: true }, rough: 0.6, hdr: 'blouberg_sunrise_2_1k',
+    ice: { exposure: 0.95, fog: 0xCFE3F2, fogN: 28, fogF: 78, sky: [0x8FBDE8, 0xE6F1FA, 0xB8CCDA], sun: [0xFFF6EA, 1.25], sunDir: [-0.55, 1, 0.45], hemi: [0xE4F1FF, 0x8FA6BA, 0.5],
+      floor: { base: '#CFE5F6', alt: '#BCD9EF', dark: '#97B9D6', path: '#B6D1E8', speck: '#86A7C4', light: '#F0F8FE', pave: '#A7C4DE', zone: true }, rough: 0.6, hdr: 'blouberg_sunrise_2_1k',
       water: 0x9BD8F2, waterDeep: '#6FA9C8', waterOp: 0.92, wave: 0.05, iceWater: true,
-      cliff: 0x9DBCD2, top: 0xF4F9FC, topK: 1.0, stone: 0x9AA6B4, wood: 0x6B5A4A, crateMetal: true, ice: 0xA8DDF6,
+      cliff: 0x8FB8D8, top: 0xF4F9FC, topK: 1.0, stone: 0x92A6BC, wood: 0x6B5A4A, crateMetal: true, ice: 0xA8DDF6,
       bush: ['#2F6E57', '#4E9A7C', '#1C4A3A', '#EAF6FA'], mound: 0x24533F, decor: 'snow', amb: 'snow', cloudK: 0.12, mineGlow: 0xB15DFF }
   };
   // 벽 칸 모양 → 그릴 종류 (맵마다)
@@ -825,7 +825,7 @@
       this.fAdd = new A3Particles(120, true, true, atlas, this.uLin); this.fAlpha = new A3Particles(140, false, true, atlas, this.uLin);
       [this.pAdd, this.pAlpha, this.fAdd, this.fAlpha].forEach(p => { this.scene.add(p.mesh); this._disp.push(p); });
       this.gemMesh = new T.InstancedMesh(gemGeo(), this.stdMat({ color: lin(0xB15DFF), emissive: lin(0x7A2FE0), emissiveIntensity: std ? 0.6 : 0.8, roughness: 0.1, metalness: 0.35, envMapIntensity: 2.2, flatShading: true }, 'gem'), 120);
-      this.gemMesh.count = 0; this.gemMesh.frustumCulled = false; this.gemMesh.castShadow = !!tier.shadow; this.scene.add(this.gemMesh);
+      this.gemMesh.count = 0; this.gemMesh.frustumCulled = false; this.gemMesh.castShadow = false; this.scene.add(this.gemMesh);
       this.coreMesh = new T.InstancedMesh(new T.SphereGeometry(0.5, 10, 8), new T.MeshBasicMaterial({ color: 0xffffff, transparent: true, blending: T.AdditiveBlending, depthWrite: false, toneMapped: false }), 360);
       this.coreMesh.instanceColor = new T.InstancedBufferAttribute(new Float32Array(360 * 3), 3); this.coreMesh.count = 0; this.coreMesh.frustumCulled = false; this.coreMesh.renderOrder = 4; this.scene.add(this.coreMesh);
       this.bombMesh = new T.InstancedMesh(bombGeo(Math.max(6, tier.seg - 2)), this.stdMat({ vertexColors: true, roughness: 0.4 }, 'bomb', std ? { mat: true } : null), 48);
