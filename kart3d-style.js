@@ -666,9 +666,9 @@
     if (pos.length) { const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new T.Float32BufferAttribute(uv, 2)); g.setIndex(idx);
       const m = new T.MeshBasicMaterial({ map: t, color: lc('#FFC873').multiplyScalar(0.55), transparent: true, depthWrite: false, side: T.DoubleSide, blending: T.AdditiveBlending, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }); m.userData.lin = true;
       const mesh = new T.Mesh(g, m); mesh.renderOrder = 3; this.scene.add(mesh); }
-    const hg = new T.PlaneGeometry(9, 15); hg.rotateX(-Math.PI / 2); hg.translate(0, 0.09, 8.6);
+    const hg = new T.PlaneGeometry(6, 11); hg.rotateX(-Math.PI / 2); hg.translate(0, 0.09, 7.2);
     const uvA = hg.attributes.uv; for (let i = 0; i < uvA.count; i++) uvA.setXY(i, 0.5 + uvA.getX(i) * 0.5, uvA.getY(i) * 0.5);   // 빛 웅덩이 칸
-    const hm = new T.MeshBasicMaterial({ map: t, color: lc('#DDE8FF').multiplyScalar(0.2), transparent: true, depthWrite: false, blending: T.AdditiveBlending }); hm.userData.lin = true;
+    const hm = new T.MeshBasicMaterial({ map: t, color: lc('#DDE8FF').multiplyScalar(0.11), transparent: true, depthWrite: false, blending: T.AdditiveBlending }); hm.userData.lin = true;
     this._hl = new T.InstancedMesh(hg, hm, 16); this._hl.count = 0; this._hl.frustumCulled = false; this._hl.renderOrder = 3; this.scene.add(this._hl);
   };
 
