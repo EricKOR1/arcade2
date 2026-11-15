@@ -675,7 +675,7 @@ const GAMES = {
     needsPeers: true, hasNext: false, hasTracks: true,
     detail: function (g) { const fmt = ms => { const s2 = ms / 1000; return Math.floor(s2 / 60) + ':' + (s2 % 60).toFixed(1).padStart(4, '0'); };
       const fin = g.finished && (g.finishMs || g.raceMs) ? ' · 완주 시간 ' + (window.fmtRaceMs ? fmtRaceMs(g.finishMs || g.raceMs) : fmt(g.finishMs || g.raceMs)) : '';   // 완주 시간 (순위를 정한 시간)
-      if (g.timeUp && !g.finished) return '시간 초과 · ' + Math.max(1, Math.min(g.lap + 1, g.track ? g.track.laps : 3)) + '바퀴째에서 멈춤 (1등 도착 10초 뒤 경기 끝)';   // 못 들어온 학생
+      if (g.timeUp && !g.finished) return '시간 초과 · ' + Math.max(1, Math.min(g.lap + 1, g.track ? g.track.laps : 3)) + '바퀴째에서 멈춤';   // 못 들어온 학생 (1등 도착 10초 뒤 경기 끝)
       return (g.finishRank ? g.finishRank + '위로 완주' : g.finished ? '완주' : Math.max(1, g.lap + 1) + '바퀴째') + fin + (g.bestLap ? ' · 최고 랩 ' + fmt(g.bestLap) : ''); },
     controls: [], padLayout: 'kart3dx',
     create: function (canvas, opts) { return new KartGame(canvas, opts); },
@@ -694,7 +694,7 @@ const GAMES = {
     needsPeers: true, hasNext: false, hasTracks: true,
     detail: function (g) { const fmt = ms => { const s2 = ms / 1000; return Math.floor(s2 / 60) + ':' + (s2 % 60).toFixed(1).padStart(4, '0'); };
       const fin = g.finished && (g.finishMs || g.raceMs) ? ' · 완주 시간 ' + (window.fmtRaceMs ? fmtRaceMs(g.finishMs || g.raceMs) : fmt(g.finishMs || g.raceMs)) : '';   // 완주 시간 (순위를 정한 시간)
-      if (g.timeUp && !g.finished) return '시간 초과 · ' + Math.max(1, Math.min(g.lap + 1, g.track ? g.track.laps : 3)) + '바퀴째에서 멈춤 (1등 도착 10초 뒤 경기 끝)';   // 못 들어온 학생
+      if (g.timeUp && !g.finished) return '시간 초과 · ' + Math.max(1, Math.min(g.lap + 1, g.track ? g.track.laps : 3)) + '바퀴째에서 멈춤';   // 못 들어온 학생 (1등 도착 10초 뒤 경기 끝)
       return (g.finishRank ? g.finishRank + '위로 완주' : g.finished ? '완주' : Math.max(1, g.lap + 1) + '바퀴째') + fin + (g.bestLap ? ' · 최고 랩 ' + fmt(g.bestLap) : ''); },
     controls: [], padLayout: 'kart3dx',
     create: function (canvas, opts) { return new KartGame3D(canvas, Object.assign({ maxDpr: 1.25 }, opts)); },
@@ -714,7 +714,7 @@ const GAMES = {
     needsPeers: true, hasNext: false, hasTracks: true,
     detail: function (g) { const fmt = ms => { const s2 = ms / 1000; return Math.floor(s2 / 60) + ':' + (s2 % 60).toFixed(1).padStart(4, '0'); };
       const fin = g.finished && (g.finishMs || g.raceMs) ? ' · 완주 시간 ' + (window.fmtRaceMs ? fmtRaceMs(g.finishMs || g.raceMs) : fmt(g.finishMs || g.raceMs)) : '';   // 완주 시간 (순위를 정한 시간)
-      if (g.timeUp && !g.finished) return '시간 초과 · ' + Math.max(1, Math.min(g.lap + 1, g.track ? g.track.laps : 3)) + '바퀴째에서 멈춤 (1등 도착 10초 뒤 경기 끝)';   // 못 들어온 학생
+      if (g.timeUp && !g.finished) return '시간 초과 · ' + Math.max(1, Math.min(g.lap + 1, g.track ? g.track.laps : 3)) + '바퀴째에서 멈춤';   // 못 들어온 학생 (1등 도착 10초 뒤 경기 끝)
       return (g.finishRank ? g.finishRank + '위로 완주' : g.finished ? '완주' : Math.max(1, g.lap + 1) + '바퀴째') + fin + (g.bestLap ? ' · 최고 랩 ' + fmt(g.bestLap) : ''); },
     controls: [], padLayout: 'kart3dx',
     create: function (canvas, opts) { return new KartGame(canvas, Object.assign({ noItems: true }, opts)); },
@@ -733,7 +733,7 @@ const GAMES = {
     needsPeers: true, hasNext: false, hasTracks: true,
     detail: function (g) { const fmt = ms => { const s2 = ms / 1000; return Math.floor(s2 / 60) + ':' + (s2 % 60).toFixed(1).padStart(4, '0'); };
       const fin = g.finished && (g.finishMs || g.raceMs) ? ' · 완주 시간 ' + (window.fmtRaceMs ? fmtRaceMs(g.finishMs || g.raceMs) : fmt(g.finishMs || g.raceMs)) : '';   // 완주 시간 (순위를 정한 시간)
-      if (g.timeUp && !g.finished) return '시간 초과 · ' + Math.max(1, Math.min(g.lap + 1, g.track ? g.track.laps : 3)) + '바퀴째에서 멈춤 (1등 도착 10초 뒤 경기 끝)';   // 못 들어온 학생
+      if (g.timeUp && !g.finished) return '시간 초과 · ' + Math.max(1, Math.min(g.lap + 1, g.track ? g.track.laps : 3)) + '바퀴째에서 멈춤';   // 못 들어온 학생 (1등 도착 10초 뒤 경기 끝)
       return (g.finishRank ? g.finishRank + '위로 완주' : g.finished ? '완주' : Math.max(1, g.lap + 1) + '바퀴째') + fin + (g.bestLap ? ' · 최고 랩 ' + fmt(g.bestLap) : ''); },
     controls: [], padLayout: 'kart3dx',
     create: function (canvas, opts) { return new KartGame3D(canvas, Object.assign({ noItems: true, maxDpr: 1.25 }, opts)); },
