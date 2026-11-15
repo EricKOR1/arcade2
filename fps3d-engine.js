@@ -869,11 +869,11 @@ class Fps3DGame {
     this.scene.background = new T.Color(th.fog[0]);
     this.scene.fog = new T.Fog(th.fog[0], th.fog[1], th.fog[2]);   // 안개 끝 = 병사가 보이고 맞는 거리 (viewFar) — 바꾸지 않음
     this.camera = new T.PerspectiveCamera(72, 1, 0.05, 140);
-    if (r) { r.toneMapping = lit ? T.ACESFilmicToneMapping : T.NoToneMapping; r.toneMappingExposure = th.night ? 1.25 : 1.0; r.shadowMap.enabled = high && this.fx.shadow; r.shadowMap.type = T.PCFSoftShadowMap; }
+    if (r) { r.toneMapping = lit ? T.ACESFilmicToneMapping : T.NoToneMapping; r.toneMappingExposure = th.night ? 1.5 : 1.0; r.shadowMap.enabled = high && this.fx.shadow; r.shadowMap.type = T.PCFSoftShadowMap; }
 
     // 조명: 하늘빛 + 해 (해 방향 = 하늘에 그린 해 = 굽힌 그림자 방향)
-    this.hemi = new T.HemisphereLight(th.hemi[0], th.hemi[1], lit ? (th.night ? 0.55 : 0.28) : (th.night ? 0.6 : 0.85));
-    this.sun = new T.DirectionalLight(th.sun, lit ? (th.night ? 0.75 : 1.4) : (th.night ? 0.55 : 1.0));
+    this.hemi = new T.HemisphereLight(th.hemi[0], th.hemi[1], lit ? (th.night ? 0.75 : 0.28) : (th.night ? 0.6 : 0.85));
+    this.sun = new T.DirectionalLight(th.sun, lit ? (th.night ? 0.9 : 1.4) : (th.night ? 0.55 : 1.0));
     if (lit) { this.hemi.color.convertSRGBToLinear(); this.hemi.groundColor.convertSRGBToLinear(); this.sun.color.convertSRGBToLinear(); }
     this.sun.position.set(N / 2 + F3_SUN[0] * 60, F3_SUN[1] * 60, N / 2 + F3_SUN[2] * 60); this.sun.target.position.set(N / 2, 0, N / 2);
     this.scene.add(this.hemi, this.sun, this.sun.target);
