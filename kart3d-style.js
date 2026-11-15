@@ -355,6 +355,18 @@
     const id = g.getImageData(0, 0, N, N); for (let i = 0; i < N * N; i++) { const m = 0.85 + nz[i] * 0.3; id.data[i * 4] *= m; id.data[i * 4 + 1] *= m; id.data[i * 4 + 2] *= m; } g.putImageData(id, 0, 0);
     return (CANV[key] = c);
   }
+  // 지름길 흙길: 바퀴 자국 두 줄 · 자갈 · 젖은 얼룩 + 진행 방향 화살표(예전 그림과 같은 자리)
+  function dirtCanvas() {
+    if (CANV.dirt) return CANV.dirt; const W = 256, H = 512, c = canvasOf(W, H), g = c.getContext('2d'), img = g.createImageData(W, H), d = img.data, r = rng(71);
+    const t1 = fbm(W, H, 4, 4, 73, 2), t2 = pnoise(W, H, 64, 128, 79);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const i = y * W + x, u = x / W, rut = Math.exp(-Math.pow((u - 0.3) / 0.06, 2)) + Math.exp(-Math.pow((u - 0.7) / 0.06, 2));
+      let v = 0.8 + (t1[i] - 0.5) * 0.45 + (t2[i] - 0.5) * 0.2 - rut * 0.16; const rr = r(); if (rr < 0.03) v *= 0.7; else if (rr > 0.975) v *= 1.3;
+      const o = i * 4; d[o] = 150 * v; d[o + 1] = 112 * v; d[o + 2] = 76 * v; d[o + 3] = 255; }
+    g.putImageData(img, 0, 0);
+    for (let q = 0; q < 160; q++) { const x = r() * W, y = r() * H, s = 1.5 + r() * 3; g.fillStyle = r() < 0.5 ? 'rgba(90,70,50,0.7)' : 'rgba(200,180,150,0.7)'; g.beginPath(); g.arc(x, y, s, 0, Math.PI * 2); g.fill(); }   // 자갈
+    g.fillStyle = 'rgba(255,240,200,0.7)'; g.beginPath(); g.moveTo(128, 80); g.lineTo(200, 176); g.lineTo(168, 176); g.lineTo(128, 128); g.lineTo(88, 176); g.lineTo(56, 176); g.closePath(); g.fill();   // 화살표 (예전 64×128 그림의 4배)
+    return (CANV.dirt = c);
+  }
   // 연석: 두 색 블록 + 둥근 윗면(밝게) · 바깥 홈(어둡게) · 때
   function kerbCanvas(kerb) {
     const key = 'kerb' + kerb.join(); if (CANV[key]) return CANV[key];
@@ -455,7 +467,7 @@
       float de = uPuddle > 0.5 ? 1e4 : max( abs( vW.x - uIsle.x ), abs( vW.z - uIsle.y ) ) - uIsle.z;
       float sh = 1.0 - smoothstep( 0.0, 70.0, de );
       vec3 base = mix( uDeep, uShallow, sh * 0.85 );
-      vec3 c = mix( base, sky, clamp( fr * ( 0.85 + uPuddle * 0.3 ) + 0.08, 0.0, 1.0 ) );
+      vec3 c = mix( base, sky, clamp( fr * ( 0.85 + uPuddle * 0.3 ) + 0.08 + uPuddle * 0.22, 0.0, 1.0 ) );
       c += uSunCol * pow( max( dot( R, uSunDir ), 0.0 ), 260.0 ) * ( 5.0 - uNight * 4.0 );
       float a = 1.0;
       if ( uPuddle > 0.5 ) { float r = length( vUv - 0.5 ) * 2.0; a = smoothstep( 1.0, 0.78, r ) * 0.9; c = mix( c, c * 0.75, smoothstep( 0.5, 1.0, r ) ); }
@@ -531,6 +543,7 @@
       gm.customProgramCacheKey = () => 'kart3d-ground'; gm.needsUpdate = true; }
     // 3) 옹벽 · 연석 · 가드레일(W형 + 기둥)
     if (this.skirtMat) { const wt = new T.CanvasTexture(wallCanvas(far, this.night)); wt.wrapS = wt.wrapT = T.RepeatWrapping; wt.encoding = T.sRGBEncoding; this.skirtMat.map = wt; this.skirtMat.color.set(0xffffff); this.skirtMat.userData.lin = true; this.skirtMat.needsUpdate = true; }
+    if (this.dirtMat) { const dt = new T.CanvasTexture(dirtCanvas()); dt.wrapS = dt.wrapT = T.RepeatWrapping; dt.encoding = T.sRGBEncoding; this.dirtMat.map = dt; this.dirtMat.needsUpdate = true; }
     if (this.kerbMat) { const kt = new T.CanvasTexture(kerbCanvas((tr.theme.kerb && tr.theme.kerb.length) ? tr.theme.kerb : ['#E63946', '#F5F5F5'])); kt.wrapS = kt.wrapT = T.RepeatWrapping; kt.encoding = T.sRGBEncoding; this.kerbMat.map = kt; this.kerbMat.needsUpdate = true; }
     if (this.railMesh) { const rt2 = new T.CanvasTexture(railCanvas()); rt2.encoding = T.sRGBEncoding; const rm = this.railMesh.material; rm.map = rt2; rm.color.set(this.night ? 0xA8B0CC : 0xffffff); rm.userData.lin = true; rm.userData.rough = 0.4; rm.userData.metal = 0.7; rm.needsUpdate = true;
       this.railMesh.castShadow = true;
@@ -544,7 +557,7 @@
       vertexShader: WATER_VS, fragmentShader: WATER_FS, fog: true, transparent: !!puddle, depthWrite: !puddle });
       (this._waterMats = this._waterMats || []).push(m); return m; };
     if (this.sea) { const g0 = this.ground, half = g0.geometry.parameters.width * g0.scale.x / 2; this.sea.material.dispose(); this.sea.material = waterMat(false, '#0E4F86', '#3FC1C9', new T.Vector4(g0.position.x, g0.position.z, half, 0)); this.sea.receiveShadow = false; }
-    (this.obsMeshes || []).forEach(({ o, m }) => { if (o.kind !== 'puddle') return; m.material.dispose(); m.material = waterMat(true, this.night ? '#1A2238' : '#3A4250', '#5A6A78'); m.renderOrder = 2; m.receiveShadow = false; });
+    (this.obsMeshes || []).forEach(({ o, m }) => { if (o.kind !== 'puddle') return; m.material.dispose(); m.material = waterMat(true, this.night ? '#202A44' : '#4E5E72', '#6A7C8E'); m.renderOrder = 2; m.receiveShadow = false; });
     // 6) 아이템 상자: 은은히 빛나게 · 부스터 발판: 화살표가 흐름
     if (this.boxMesh) { const bm = this.boxMesh.material; bm.emissive = new T.Color(0xffffff); bm.emissiveMap = bm.map; bm.emissiveIntensity = 0.35; bm.needsUpdate = true; }
     if (this.padTex) { this.padTex.wrapS = this.padTex.wrapT = T.RepeatWrapping; this.padTex.needsUpdate = true; }

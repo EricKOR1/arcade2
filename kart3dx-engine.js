@@ -264,7 +264,7 @@ class KartGame3D extends KartGame {
     const dt = new T.CanvasTexture(dc); dt.wrapS = dt.wrapT = T.RepeatWrapping;
     const kc = document.createElement('canvas'); kc.width = 8; kc.height = 32; const kg = kc.getContext('2d'); kg.fillStyle = '#FFD166'; kg.fillRect(0, 0, 8, 16); kg.fillStyle = '#23262E'; kg.fillRect(0, 16, 8, 16);
     const kt = new T.CanvasTexture(kc); kt.wrapS = kt.wrapT = T.RepeatWrapping;
-    const dm = new T.MeshLambertMaterial({ map: dt, side: T.DoubleSide, polygonOffset: true, polygonOffsetFactor: 3, polygonOffsetUnits: 6 }),   // (본선과 겹치는 입구에서 본선 도로가 늘 위에 보이게 — 깊이 정밀도가 낮은 기기에서 얼룩지지 않게)
+    const dm = this.dirtMat = new T.MeshLambertMaterial({ map: dt, side: T.DoubleSide, polygonOffset: true, polygonOffsetFactor: 3, polygonOffsetUnits: 6 }),   // (본선과 겹치는 입구에서 본선 도로가 늘 위에 보이게 — 깊이 정밀도가 낮은 기기에서 얼룩지지 않게)
            km = new T.MeshLambertMaterial({ map: kt, side: T.DoubleSide }), wm = new T.MeshLambertMaterial({ color: this.night ? 0x3A3F55 : 0x7A6248, side: T.DoubleSide });
     tr.shortcuts.forEach(s => {
       const P = s.pts, m = P.length;
