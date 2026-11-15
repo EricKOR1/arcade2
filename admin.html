@@ -651,7 +651,7 @@
     const val = id => { const e = fin[id]; if (e && !e.dnf && +e.ms > 0) return '완주 ' + kartFmt(+e.ms); if (e && e.dnf) return '⏱ 시간 초과'; return (peerPos[id] && peerPos[id].finished) ? '완주' : '⏱ 시간 초과'; };
     const sig = 'kart|' + order.map(id => id + ':' + nm(id) + ':' + val(id)).join('|') + aEnd.early;
     box.classList.remove('hidden'); if (sig === finalSig) return true; finalSig = sig;
-    $('final-why').textContent = aEnd.early ? '🏁 모두 완주 — 경기 종료' : '🏁 1등 도착 10초 — 경기 종료';
+    $('final-why').textContent = aEnd.early ? (order.length > 1 ? '🏁 모두 완주 — 경기 종료' : '🏁 완주 — 경기 종료') : '🏁 1등 도착 10초 — 경기 종료';
     const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     $('final-list').innerHTML = order.map((id, i) => '<li data-id="' + esc(id) + '" style="display:flex;gap:8px;font-weight:' + (i < 3 ? 800 : 600) + '"><span style="min-width:2.2em">' + (['🥇', '🥈', '🥉'][i] || (i + 1) + '.') + '</span><span style="flex:1">' + esc(nm(id)) + '</span><b class="num">' + esc(val(id)) + '</b></li>').join('');
     return true;
