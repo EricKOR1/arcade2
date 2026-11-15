@@ -361,7 +361,7 @@ function f3Surface(kind, th, themeKey, S) {
       speck(g, 3200, 1, 2, ['rgba(0,0,0,0.10)', 'rgba(255,255,255,0.09)', 'rgba(60,50,40,0.08)']); speck(k, 2400, 1, 2, ['#8a8a8a', '#767676']);
       [0, W / 2].forEach(p => { line(p - 1.5, 0, 3, H, 0.32, '#3a3a3a'); line(0, p - 1.5, W, 3, 0.32, '#3a3a3a'); g.fillStyle = 'rgba(255,255,255,0.10)'; g.fillRect(p + 1.5, 0, 1, H); g.fillRect(0, p + 1.5, W, 1); });
       line(W - 1.5, 0, 1.5, H, 0.32, '#3a3a3a'); line(0, H - 1.5, W, 1.5, 0.32, '#3a3a3a');
-      crack(3, 0.45); if (dark) { g.strokeStyle = 'rgba(0,0,0,0.12)'; g.lineWidth = 2; for (let i = 0; i < 6; i++) { g.beginPath(); g.arc(R() * W, R() * H, 10 + R() * 30, R() * 6, R() * 6 + 1.5); g.stroke(); } }
+      crack(2, 0.28); if (dark) { g.strokeStyle = 'rgba(0,0,0,0.12)'; g.lineWidth = 2; for (let i = 0; i < 6; i++) { g.beginPath(); g.arc(R() * W, R() * H, 10 + R() * 30, R() * 6, R() * 6 + 1.5); g.stroke(); } }
     }
   } else if (kind === '#' || kind === 'H') {
     g.fillStyle = kind === 'H' ? f3Shade(wc['#'] || '#B9BFC9', -0.07) : (wc['#'] || '#B9BFC9'); g.fillRect(0, 0, W, H);
@@ -416,7 +416,7 @@ function f3Surface(kind, th, themeKey, S) {
   return { c, h: hc };
 }
 // 바닥 굽기: 벽 주변 어둠(AO) + 해 그림자(지도 칸 높이로 해 쪽을 따라가 막히면 그림자) + 넓은 얼룩(타일 반복 감추기)
-//   ao: 실시간 그림자를 쓸 때 · bake: AO × 해 그림자 (그 밖) · lit[]: 칸 안 밝기(병사 명암에 씀). 맵마다 한 번 (캐시)
+//   bake: AO × 해 그림자 (모든 단계 — high 의 실시간 그림자는 병사·소품만) · lit[]: 칸 안 밝기(병사 명암에 씀). 맵마다 한 번 (캐시)
 function f3BakeFloor(rows, night) {
   const N = rows.length, s = N > 60 ? 4 : 6, W = N * s, occ = new Float32Array(W * W), lit = new Float32Array(W * W).fill(1), mac = new Float32Array(W * W);
   const hAt = (x, y) => { const cx = Math.floor(x), cy = Math.floor(y), r = rows[cy], c = r && r[cx]; if (!c || c === '.') return 0; const bh = F3_BOXH[c]; if (bh) return bh;
@@ -435,13 +435,13 @@ function f3BakeFloor(rows, night) {
     for (let y = 0; y < W; y++) { let acc = 0; for (let x = -r; x <= r; x++) acc += a[y * W + Math.max(0, Math.min(W - 1, x))]; for (let x = 0; x < W; x++) { t[y * W + x] = acc * k; acc += a[y * W + Math.min(W - 1, x + r + 1)] - a[y * W + Math.max(0, x - r)]; } }
     for (let x = 0; x < W; x++) { let acc = 0; for (let y = -r; y <= r; y++) acc += t[Math.max(0, Math.min(W - 1, y)) * W + x]; for (let y = 0; y < W; y++) { a[y * W + x] = acc * k; acc += t[Math.min(W - 1, y + r + 1) * W + x] - t[Math.max(0, y - r) * W + x]; } } };
   blur(occ, Math.round(s * 0.45)); blur(occ, Math.round(s * 0.3)); blur(lit, Math.max(1, Math.round(s * 0.25))); blur(lit, 1);   // 그림자 가장자리 부드럽게
-  const aoC = f3Cv(W), bkC = f3Cv(W), a1 = aoC.getContext('2d').createImageData(W, W), a2 = bkC.getContext('2d').createImageData(W, W), sd = night ? 0.72 : 0.5;
+  const bkC = f3Cv(W), a2 = bkC.getContext('2d').createImageData(W, W), sd = night ? 0.72 : 0.5;
   for (let i = 0; i < W * W; i++) { const ao = Math.max(0.35, 1 - occ[i] * 0.62) * mac[i], b = ao * (sd + (1 - sd) * lit[i]), j = i * 4;
-    a1.data[j] = a1.data[j + 1] = a1.data[j + 2] = Math.min(255, ao * 235); a1.data[j + 3] = 255; a2.data[j] = a2.data[j + 1] = a2.data[j + 2] = Math.min(255, b * 235); a2.data[j + 3] = 255; }
-  aoC.getContext('2d').putImageData(a1, 0, 0); bkC.getContext('2d').putImageData(a2, 0, 0);
-  return { ao: aoC, bake: bkC, lit, s, W, sd };
+    a2.data[j] = a2.data[j + 1] = a2.data[j + 2] = Math.min(255, b * 235); a2.data[j + 3] = 255; }
+  bkC.getContext('2d').putImageData(a2, 0, 0);
+  return { bake: bkC, lit, s, W, sd };
 }
-// 하늘 (등장방형 그림): 테마 색 그라데이션 + 해 · 해무리 + 구름 (밤: 별 · 달). 지평선 띠는 안개 색과 같게 → 먼 곳이 하늘로 자연스럽게 녹음
+// 하늘 (등장방형 그림): 테마 색 그라데이션 + 해 · 해무리 + 구름 (밤: 달 — 별은 하늘 셰이더가 화면 해상도로 찍음). 지평선 띠는 안개 색과 같게 → 먼 곳이 하늘로 자연스럽게 녹음
 function f3SkyCanvas(th, W) {
   const H = W / 2, c = f3Cv(W, H), g = c.getContext('2d'), sk = th.sky || ['#5FA8FF', '#A9D3FF', '#E8F3FF'], fog = '#' + new THREE.Color(th.fog[0]).getHexString(), R = f3Rng(f3StrHash(sk.join('')));
   const yOf = e => (0.5 - e / Math.PI) * H;   // 고도(라디안) → 세로 위치
@@ -451,7 +451,6 @@ function f3SkyCanvas(th, W) {
   const su = Math.atan2(F3_SUN[2], F3_SUN[0]) / (Math.PI * 2) + 0.5, sv = Math.asin(F3_SUN[1]), sxp = su * W, syp = yOf(sv);
   const glow = (x, y, r, col, a) => { for (const ox of [-W, 0, W]) { const q = g.createRadialGradient(x + ox, y, 0, x + ox, y, r); q.addColorStop(0, 'rgba(' + col + ',' + a + ')'); q.addColorStop(1, 'rgba(' + col + ',0)'); g.fillStyle = q; g.fillRect(x + ox - r, y - r, r * 2, r * 2); } };
   if (th.night) {
-    for (let i = 0; i < 520; i++) { const x = R() * W, e = Math.asin(R()) , y = yOf(e * 0.97 + 0.04); if (y > H * 0.48) continue; const a = 0.3 + R() * 0.7; g.fillStyle = 'rgba(255,255,255,' + a + ')'; g.fillRect(x, y, R() < 0.1 ? 2 : 1, R() < 0.1 ? 2 : 1); }
     glow(sxp, syp, W * 0.05, '200,210,255', 0.35); g.fillStyle = '#EEF0FF'; g.beginPath(); g.arc(sxp, syp, W * 0.006, 0, 6.3); g.fill();
     glow(W * 0.3, yOf(0.02), W * 0.25, '255,120,200', th.decor === 'neon' ? 0.12 : 0.04); glow(W * 0.8, yOf(0.02), W * 0.2, '120,160,255', 0.08);   // 도시 불빛 노을
   } else {
@@ -873,7 +872,7 @@ class Fps3DGame {
     if (r) { r.toneMapping = lit ? T.ACESFilmicToneMapping : T.NoToneMapping; r.toneMappingExposure = th.night ? 1.25 : 1.0; r.shadowMap.enabled = high && this.fx.shadow; r.shadowMap.type = T.PCFSoftShadowMap; }
 
     // 조명: 하늘빛 + 해 (해 방향 = 하늘에 그린 해 = 굽힌 그림자 방향)
-    this.hemi = new T.HemisphereLight(th.hemi[0], th.hemi[1], lit ? (th.night ? 0.4 : 0.28) : (th.night ? 0.6 : 0.85));
+    this.hemi = new T.HemisphereLight(th.hemi[0], th.hemi[1], lit ? (th.night ? 0.55 : 0.28) : (th.night ? 0.6 : 0.85));
     this.sun = new T.DirectionalLight(th.sun, lit ? (th.night ? 0.75 : 1.4) : (th.night ? 0.55 : 1.0));
     if (lit) { this.hemi.color.convertSRGBToLinear(); this.hemi.groundColor.convertSRGBToLinear(); this.sun.color.convertSRGBToLinear(); }
     this.sun.position.set(N / 2 + F3_SUN[0] * 60, F3_SUN[1] * 60, N / 2 + F3_SUN[2] * 60); this.sun.target.position.set(N / 2, 0, N / 2);
@@ -885,9 +884,10 @@ class Fps3DGame {
     // 표면 무늬 (캔버스는 맵 테마마다 한 번 만들어 둠 · 텍스처는 장면마다)
     const aniso = r ? Math.min(high ? 8 : (lit ? 4 : 1), r.capabilities.getMaxAnisotropy()) : 1;
     const ctex = (cv, srgb, rep) => { const t = new T.CanvasTexture(cv); if (srgb) t.encoding = T.sRGBEncoding; t.wrapS = t.wrapT = T.RepeatWrapping; if (rep) t.repeat.set(rep[0], rep[1]); t.anisotropy = aniso; return t; };
+    [F3_SURF, F3_SKY].forEach(C => Object.keys(C).forEach(k => { if (k.split('|')[1] !== tk) delete C[k]; }));   // 다른 테마 캔버스는 버림 (태블릿 메모리)
     const surf = (kind, S) => { const key = kind + '|' + tk + '|' + S; return F3_SURF[key] || (F3_SURF[key] = f3Surface(kind, th, tk, S)); };
     const surfMat = (kind, S, rep, o) => { const sf = surf(kind, S), p = Object.assign({ map: ctex(sf.c, true, rep) }, o || {});
-      if (lit) { if (!sf.n) sf.n = f3NormalCv(sf.h, kind === 'floor' ? 2.6 : 3.2); p.normalMap = ctex(sf.n, false, rep); }
+      if (lit) { if (!sf.n && sf.h) sf.n = f3NormalCv(sf.h, kind === 'floor' ? 2.6 : 3.2); sf.h = null; if (sf.n) p.normalMap = ctex(sf.n, false, rep); } else sf.h = null;   // 높이 캔버스는 노멀맵을 만든 뒤 버림
       return this.mat(p); };
     // 바닥: 무늬(2m 반복) × 굽힌 바닥(맵 전체 한 장 — 두 번째 UV)
     this.bakeTex = new T.CanvasTexture(this.bake.bake); this.bakeTex.anisotropy = aniso;
@@ -938,11 +938,13 @@ class Fps3DGame {
         mesh.receiveShadow = true; this.scene.add(mesh); } }
 
     // 하늘: 그린 등장방형 하늘을 방향으로 찾아 그림 (카메라를 따라다님 · 맨 먼저 · 깊이 안 씀). mid·high 는 같은 그림으로 환경광(반사)도 만듦
-    const skyKey = tk + '|' + (lit ? 1024 : 512), skyCv = F3_SKY[skyKey] || (F3_SKY[skyKey] = f3SkyCanvas(th, lit ? 1024 : 512));
+    const skyW = high ? 2048 : 1024, skyKey = skyW + '|' + tk, skyCv = F3_SKY[skyKey] || (F3_SKY[skyKey] = f3SkyCanvas(th, skyW));
     const skyT = new T.CanvasTexture(skyCv); skyT.minFilter = T.LinearFilter; skyT.generateMipmaps = false; skyT.wrapS = T.RepeatWrapping;
-    this.sky = new T.Mesh(new T.SphereGeometry(90, 24, 12), new T.ShaderMaterial({ uniforms: { map: { value: skyT } }, side: T.BackSide, depthWrite: false, fog: false,
+    this.sky = new T.Mesh(new T.SphereGeometry(90, 24, 12), new T.ShaderMaterial({ uniforms: { map: { value: skyT }, stars: { value: th.night ? 1 : 0 } }, side: T.BackSide, depthWrite: false, fog: false,
       vertexShader: 'varying vec3 vD; void main(){ vD = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); gl_Position.z = gl_Position.w * 0.99999; }',
-      fragmentShader: 'uniform sampler2D map; varying vec3 vD; void main(){ vec3 d = normalize(vD); gl_FragColor = texture2D(map, vec2(atan(d.z, d.x) * 0.1591549 + 0.5, asin(clamp(d.y, -1.0, 1.0)) * 0.3183099 + 0.5)); }' }));
+      fragmentShader: 'uniform sampler2D map; uniform float stars; varying vec3 vD; void main(){ vec3 d = normalize(vD); vec4 c = texture2D(map, vec2(atan(d.z, d.x) * 0.1591549 + 0.5, asin(clamp(d.y, -1.0, 1.0)) * 0.3183099 + 0.5));' +
+        ' if (stars > 0.5 && d.y > 0.04) { vec3 q = floor(d * 420.0); float h = fract(sin(dot(q, vec3(12.9898, 78.233, 37.719))) * 43758.5453); float b = fract(h * 91.7); c.rgb += vec3(0.9, 0.93, 1.0) * step(0.9982, h) * (0.35 + 0.65 * b) * smoothstep(0.04, 0.3, d.y); }' +
+        ' gl_FragColor = c; }' }));
     this.sky.renderOrder = -10; this.sky.frustumCulled = false; this.scene.add(this.sky);
     if (lit && r) { try { const et = new T.CanvasTexture(skyCv); et.encoding = T.sRGBEncoding; et.mapping = T.EquirectangularReflectionMapping; const pm = new T.PMREMGenerator(r); this.envRT = pm.fromEquirectangular(et); pm.dispose(); et.dispose(); this.scene.environment = this.envRT.texture; } catch (e) {} }
     if (high && r && F3_HDR[tk]) this.loadHdr(F3_HDR[tk]);
@@ -955,7 +957,7 @@ class Fps3DGame {
     // 바닥 얼룩 (기름·먼지 자국) — 화질을 낮추면 숨김. 접지 그림자는 굽힌 바닥에 들어 있음 (예전: 벽 칸마다 반투명 판 → 덧그리기 많았음)
     this.decor = new T.Group(); this.scene.add(this.decor);
     { const cv = f3Cv(64), g = cv.getContext('2d'), R = f3Rng(5); for (let i = 0; i < 14; i++) { const x = 16 + R() * 32, y = 16 + R() * 32, rr = 6 + R() * 14, q = g.createRadialGradient(x, y, 0, x, y, rr); q.addColorStop(0, 'rgba(255,255,255,0.55)'); q.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = q; g.fillRect(0, 0, 64, 64); }
-      const st = new T.CanvasTexture(cv), decMat = new T.MeshBasicMaterial({ color: th.night ? 0x10121A : 0x3A2E22, alphaMap: st, transparent: true, opacity: 0.55, depthWrite: false });
+      const st = new T.CanvasTexture(cv), decMat = new T.MeshBasicMaterial({ color: th.night ? 0x10121A : 0x3A2E22, alphaMap: st, transparent: true, opacity: 0.22, depthWrite: false });
       const cnt = Math.round(28 * Math.min(4, Math.pow(N / 44, 2) || 1)), geo = new T.PlaneGeometry(1, 1); geo.rotateX(-Math.PI / 2);
       const dec = new T.InstancedMesh(geo, decMat, cnt), m = new T.Matrix4(), q = new T.Quaternion(), e = new T.Euler(), v = new T.Vector3(), sc = new T.Vector3();
       for (let i = 0; i < cnt; i++) { let x, y, k = 0; do { x = 2 + Math.random() * (N - 4); y = 2 + Math.random() * (N - 4); } while (this.wall(x, y) && k++ < 30);
@@ -1002,7 +1004,7 @@ class Fps3DGame {
       if (!tex || this._dead || this.scene !== tok || !this.renderer) { if (tex) tex.dispose(); return; }
       const pm = new THREE.PMREMGenerator(this.renderer), rt = pm.fromEquirectangular(tex); pm.dispose(); tex.dispose();
       if (this.envRT) this.envRT.dispose(); this.envRT = rt; this.scene.environment = rt.texture; this.hdr = true;
-      this.scene.traverse(o => { [].concat(o.material || []).forEach(m => { if (m && m.envMapIntensity != null && !m.userData.hdrK) { m.userData.hdrK = 1; m.envMapIntensity *= 0.55; } }); });
+      this.scene.traverse(o => { [].concat(o.material || []).forEach(m => { if (m && m.envMapIntensity != null && !m.userData.hdrK) { m.userData.hdrK = 1; m.envMapIntensity *= 0.38; } }); });
     }).catch(() => {});
   }
   // 교사 관전에서 경기 맵을 바꿀 때 · 화질을 낮춰 다시 만들 때: 장면을 비우고 GPU 자원을 돌려줌
@@ -1049,9 +1051,9 @@ class Fps3DGame {
     const sm = () => { const t = new T.WebGLRenderTarget(4, 4, Object.assign({ depthBuffer: false }, o)); t.texture.generateMipmaps = false; return t; };
     const V = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }';
     const sh = (u, f) => new T.ShaderMaterial({ uniforms: u, vertexShader: V, fragmentShader: f, depthTest: false, depthWrite: false });
-    const bright = sh({ tDiffuse: { value: null }, texel: { value: new T.Vector2() } }, 'uniform sampler2D tDiffuse; uniform vec2 texel; varying vec2 vUv; void main(){ vec3 c = texture2D(tDiffuse, vUv - texel).rgb + texture2D(tDiffuse, vUv + texel).rgb + texture2D(tDiffuse, vUv + vec2(texel.x, -texel.y)).rgb + texture2D(tDiffuse, vUv + vec2(-texel.x, texel.y)).rgb; c *= 0.25; float l = max(c.r, max(c.g, c.b)); gl_FragColor = vec4(c * smoothstep(0.86, 1.0, l), 1.0); }');
+    const bright = sh({ tDiffuse: { value: null }, texel: { value: new T.Vector2() } }, 'uniform sampler2D tDiffuse; uniform vec2 texel; varying vec2 vUv; void main(){ vec3 c = texture2D(tDiffuse, vUv - texel).rgb + texture2D(tDiffuse, vUv + texel).rgb + texture2D(tDiffuse, vUv + vec2(texel.x, -texel.y)).rgb + texture2D(tDiffuse, vUv + vec2(-texel.x, texel.y)).rgb; c *= 0.25; float l = max(c.r, max(c.g, c.b)); gl_FragColor = vec4(c * smoothstep(0.9, 1.0, l), 1.0); }');
     const blur = sh({ tDiffuse: { value: null }, dir: { value: new T.Vector2() } }, 'uniform sampler2D tDiffuse; uniform vec2 dir; varying vec2 vUv; void main(){ vec3 c = texture2D(tDiffuse, vUv).rgb * 0.227; c += (texture2D(tDiffuse, vUv + dir).rgb + texture2D(tDiffuse, vUv - dir).rgb) * 0.1945; c += (texture2D(tDiffuse, vUv + dir * 2.0).rgb + texture2D(tDiffuse, vUv - dir * 2.0).rgb) * 0.1216; c += (texture2D(tDiffuse, vUv + dir * 3.0).rgb + texture2D(tDiffuse, vUv - dir * 3.0).rgb) * 0.054; c += (texture2D(tDiffuse, vUv + dir * 4.0).rgb + texture2D(tDiffuse, vUv - dir * 4.0).rgb) * 0.0162; gl_FragColor = vec4(c, 1.0); }');
-    const comp = sh({ tDiffuse: { value: null }, tBloom: { value: null }, bloom: { value: 0.6 }, vig: { value: 0.3 }, hurt: { value: 0 } }, 'uniform sampler2D tDiffuse; uniform sampler2D tBloom; uniform float bloom; uniform float vig; uniform float hurt; varying vec2 vUv; void main(){ vec2 d = vUv - 0.5; vec3 c; if (hurt > 0.01) { float k = hurt * 0.012; c = vec3(texture2D(tDiffuse, vUv + d * k).r, texture2D(tDiffuse, vUv).g, texture2D(tDiffuse, vUv - d * k).b); } else c = texture2D(tDiffuse, vUv).rgb; c += texture2D(tBloom, vUv).rgb * bloom; float v = smoothstep(0.85, 0.3, length(d * vec2(1.0, 0.82))); c *= mix(1.0 - vig, 1.0, v); c = mix(c, c * c * (3.0 - 2.0 * c), 0.12); gl_FragColor = vec4(c, 1.0); }');
+    const comp = sh({ tDiffuse: { value: null }, tBloom: { value: null }, bloom: { value: 0.4 }, vig: { value: 0.3 }, hurt: { value: 0 } }, 'uniform sampler2D tDiffuse; uniform sampler2D tBloom; uniform float bloom; uniform float vig; uniform float hurt; varying vec2 vUv; void main(){ vec2 d = vUv - 0.5; vec3 c; if (hurt > 0.01) { float k = hurt * 0.012; c = vec3(texture2D(tDiffuse, vUv + d * k).r, texture2D(tDiffuse, vUv).g, texture2D(tDiffuse, vUv - d * k).b); } else c = texture2D(tDiffuse, vUv).rgb; c += texture2D(tBloom, vUv).rgb * bloom; float v = smoothstep(0.85, 0.3, length(d * vec2(1.0, 0.82))); c *= mix(1.0 - vig, 1.0, v); c = mix(c, c * c * (3.0 - 2.0 * c), 0.12); gl_FragColor = vec4(c, 1.0); }');
     const scene = new T.Scene(), cam = new T.OrthographicCamera(-1, 1, 1, -1, 0, 1), quad = new T.Mesh(new T.PlaneGeometry(2, 2), comp); quad.frustumCulled = false; scene.add(quad);
     this.post = { main, a: sm(), b: sm(), bright, blur, comp, scene, cam, quad, w: 0, h: 0 };
   }
@@ -1314,8 +1316,8 @@ class Fps3DGame {
   // 1인칭 총 재질 (두 총이 같이 씀): 총몸 금속 · 어두운 금속 · 폴리머 · 나무 · 팀 색 발광 · 렌즈 · 빨간 점
   vmMats() {
     if (this._vmm) return this._vmm; const T = THREE, team = this.team ? F3_TEAM[this.team] : 0xFFD166;
-    return (this._vmm = { gm: this.mat({ color: 0x4A505A, roughness: 0.4, metalness: 0.5 }), dk: this.mat({ color: 0x1C1E22, roughness: 0.5, metalness: 0.6 }),
-      poly: this.mat({ color: 0x41453B, roughness: 0.7 }), wood: this.mat({ color: 0x6E4C30, roughness: 0.55 }),
+    return (this._vmm = { gm: this.mat({ color: 0x5C626C, roughness: 0.42, metalness: 0.35 }), dk: this.mat({ color: 0x1C1E22, roughness: 0.5, metalness: 0.6 }),
+      poly: this.mat({ color: 0x4C5044, roughness: 0.7 }), wood: this.mat({ color: 0x6E4C30, roughness: 0.55 }),
       glow: new T.MeshBasicMaterial({ color: team }), lens: this.mat({ color: 0x0E2638, roughness: 0.08, metalness: 0.2, emissive: 0x0A3050, envMapIntensity: 1.6 }), red: new T.MeshBasicMaterial({ color: 0xFF3040 }) });
   }
   // 부품 [재질, 도형, x, y, z, rx, ry, rz] 을 재질별로 합쳐 그물 몇 개로 (총 하나 = 그리기 약 6번)
@@ -2068,8 +2070,8 @@ class Fps3DGame {
     if (this.rifleModel && this.rifleModel !== this.weaponModel) this.rifleModel.visible = false; if (this.sniperModel && this.sniperModel !== this.weaponModel) this.sniperModel.visible = false;
     // 볼트 손잡이 애니메이션 (스나이퍼 모델에만 있음)
     if (this.weaponModel.userData && this.weaponModel.userData.bolt) { const b = this.weaponModel.userData.bolt; b.position.z = -0.02 + bk * 0.12; b.rotation.z = bk * 1.2; }
-    this.flash.visible = this.muzzle > 0.15; this.flash.material.opacity = Math.min(1, this.muzzle); this.flash.scale.setScalar((0.25 + this.muzzle * 0.25) * (this.flashBig ? 1.9 : 1));
-    if (this.mzLight) this.mzLight.intensity = (this.muzzle > 0.05 && !this.spectator && !this.isDead) ? this.muzzle * (this.flashBig ? 5 : 3) : 0;   // high: 총구 섬광 빛
+    this.flash.visible = this.muzzle > 0.15; this.flash.material.opacity = Math.min(1, this.muzzle) * (this.lit ? 0.6 : 1);   // mid·high: 톤 매핑 · 블룸이 더해지므로 조금 옅게 this.flash.scale.setScalar((0.25 + this.muzzle * 0.25) * (this.flashBig ? 1.9 : 1));
+    if (this.mzLight) this.mzLight.intensity = (this.muzzle > 0.05 && !this.spectator && !this.isDead) ? this.muzzle * (this.flashBig ? 2.6 : 1.5) : 0;   // high: 총구 섬광 빛
     // 탄피: 오른쪽으로 튀어 나가 떨어짐 (인스턴스 하나)
     if (this.shellMesh) { const sm = this.shellMesh, M = this._shM || (this._shM = new T.Matrix4()), e = this._shE || (this._shE = new T.Euler()), q = this._shQ || (this._shQ = new T.Quaternion()), v = this._shV || (this._shV = new T.Vector3()), one = this._sh1 || (this._sh1 = new T.Vector3(1, 1, 1));
       let n = 0; for (let i = 0; i < Math.min(6, this.shells.length); i++) { const sh = this.shells[i], tt = sh.t; v.set(0.32 + sh.vx * tt * 0.5, -0.2 + sh.vy * tt - 2.2 * tt * tt, -0.5 + sh.vz * tt); q.setFromEuler(e.set(tt * 12, 0, tt * 9)); sm.setMatrixAt(n++, M.compose(v, q, one)); }
