@@ -281,13 +281,179 @@ function f3Finish(m, spawns, o) {
 }
 // 여러 도형을 한 도형으로 합침 (같은 재질이면 그리기 호출 한 번) — position · normal · uv · color 를 이어 붙임
 function f3MergeGeos(list) {
-  const T = THREE, out = new T.BufferGeometry(), keys = ['position', 'normal', 'uv', 'color'].filter(k => list.every(g => g.attributes[k]));
+  const T = THREE, out = new T.BufferGeometry(), keys = ['position', 'normal', 'uv', 'color', 'sfx'].filter(k => list.every(g => g.attributes[k]));
   const arr = {}, idx = []; keys.forEach(k => arr[k] = []); let base = 0;
   list.forEach(g => { keys.forEach(k => { const a = g.attributes[k].array; for (let i = 0; i < a.length; i++) arr[k].push(a[i]); });
     const n = g.attributes.position.count; if (g.index) { const ia = g.index.array; for (let i = 0; i < ia.length; i++) idx.push(ia[i] + base); } else for (let i = 0; i < n; i++) idx.push(i + base);
     base += n; g.dispose(); });
   keys.forEach(k => out.setAttribute(k, new T.BufferAttribute(new Float32Array(arr[k]), k === 'uv' ? 2 : 3)));
   out.setIndex(idx); return out;
+}
+
+// ── 병사 모델 (군인) ──────────────────────────────────────────────
+// 판정 상자(F3_PARTS)에 맞춰 그린 사람 비율의 군인: 머리 1.39~1.71 · 몸통 0.7~1.325 · 다리 0~0.7 (몸 기준: x 오른쪽, y 위, z 앞이 -)
+// 부위마다 InstancedMesh 하나 (모든 병사가 같이 씀) — 인원과 상관없이 그리기 호출 약 10번. 재질은 한 개(셰이더 한 벌):
+//   꼭짓점마다 sfx = (팀색 섞기 — 1 밝은 팀색 · 2 진한 팀색(조끼), 빛남, 위장 무늬) · 병사마다 instanceColor = 팀(개인전은 학생별) 색 · iMul = 피격 번쩍임/무적 색
+const F3_FFA_COLS = [0xFFD166, 0x06D6A0, 0xFF8C42, 0xC77DFF, 0x4CC9F0, 0xF15BB5, 0xB8F35D, 0xF4F4F4, 0xFFB4A2, 0x80FFDB];
+function f3PlayerCol(id) { let h = 7; for (const c of String(id)) h = (h * 131 + c.charCodeAt(0)) >>> 0; return F3_FFA_COLS[h % F3_FFA_COLS.length]; }
+const F3_SK = { hipX: 0.1, hipY: 0.76, thigh: 0.37, shin: 0.41, shX: 0.2, shY: 1.29, uarm: 0.28, farm: 0.3, waist: 0.9,
+  butt: [0.13, 1.285, -0.125],                          // 개머리판이 닿는 오른쪽 어깨 앞
+  grip: { r: [[0, -0.05, -0.2], [0, -0.035, -0.38]], s: [[0, -0.05, -0.24], [0, -0.035, -0.42]] },   // [오른손 손잡이, 왼손 덮개]
+  muzzle: { r: -0.86, s: -1.29 } };
+// 두 마디 팔다리: 어깨(엉덩이) s → 손(발) h, 마디 길이 L1·L2, 팔꿈치(무릎)가 향할 쪽 p → out = [팔꿈치 xyz, 손끝 xyz]
+function f3IK(s, h, L1, L2, p, out) {
+  let dx = h[0] - s[0], dy = h[1] - s[1], dz = h[2] - s[2]; const d0 = Math.hypot(dx, dy, dz) || 1e-6; dx /= d0; dy /= d0; dz /= d0;
+  const d = Math.min(L1 + L2 - 1e-3, Math.max(Math.abs(L1 - L2) + 1e-3, d0)), a = (L1 * L1 - L2 * L2 + d * d) / (2 * d), hh = Math.sqrt(Math.max(0, L1 * L1 - a * a));
+  const pd = p[0] * dx + p[1] * dy + p[2] * dz; let qx = p[0] - dx * pd, qy = p[1] - dy * pd, qz = p[2] - dz * pd; const ql = Math.hypot(qx, qy, qz) || 1;
+  out[0] = s[0] + dx * a + qx / ql * hh; out[1] = s[1] + dy * a + qy / ql * hh; out[2] = s[2] + dz * a + qz / ql * hh;
+  out[3] = s[0] + dx * d; out[4] = s[1] + dy * d; out[5] = s[2] + dz * d; return out;
+}
+// 마디 행렬: a 에서 시작해 b 쪽으로 (도형은 -y 방향으로 만들어 둠)
+function f3SegM(out, ax, ay, az, bx, by, bz, S) {
+  let dx = bx - ax, dy = by - ay, dz = bz - az; const l = Math.hypot(dx, dy, dz) || 1;
+  S.q.setFromUnitVectors(S.down, S.v.set(dx / l, dy / l, dz / l)); return out.compose(S.v.set(ax, ay, az), S.q, S.one);
+}
+// 위장 무늬 (우드랜드) — 이어 붙여도 이음매가 없게 가장자리를 넘는 얼룩은 반대편에도 그림
+function f3CamoCanvas() {
+  const S = 128, cv = document.createElement('canvas'); cv.width = S; cv.height = S; const g = cv.getContext('2d');
+  g.fillStyle = '#6F7148'; g.fillRect(0, 0, S, S);
+  const blob = (col, n, r0, r1) => { g.fillStyle = col; for (let i = 0; i < n; i++) { const x = Math.random() * S, y = Math.random() * S, rx = r0 + Math.random() * (r1 - r0), ry = rx * (0.45 + Math.random() * 0.5), a = Math.random() * Math.PI;
+    for (const ox of [-S, 0, S]) for (const oy of [-S, 0, S]) { g.beginPath(); g.ellipse(x + ox, y + oy, rx, ry, a, 0, Math.PI * 2); g.fill();
+      g.beginPath(); g.ellipse(x + ox + rx * 0.6, y + oy + ry * 0.4, rx * 0.6, ry * 0.7, a + 0.8, 0, Math.PI * 2); g.fill(); } } };
+  blob('#8E7E55', 7, 9, 16); blob('#454A2C', 8, 8, 15); blob('#2E3222', 9, 4, 8); blob('#A39A6C', 5, 3, 6);
+  for (let i = 0; i < 400; i++) { g.fillStyle = 'rgba(' + (Math.random() < 0.5 ? '0,0,0' : '255,255,230') + ',0.06)'; g.fillRect(Math.random() * S, Math.random() * S, 2, 2); }
+  return cv;
+}
+// 병사 재질: Lambert + (팀색 섞기 · 빛남 · 위장 무늬) — onBeforeCompile 로 꼭짓점 색 계산만 바꿈
+function f3SoldierMat(tex) {
+  const T = THREE, m = new T.MeshLambertMaterial({ map: tex, vertexColors: true });
+  m.onBeforeCompile = sh => {
+    sh.vertexShader = 'attribute vec3 sfx;\nattribute vec3 iMul;\nvarying vec3 vSfx;\n' + sh.vertexShader.replace('#include <color_vertex>',
+      'vec3 tc = sfx.x > 1.5 ? instanceColor.xyz * instanceColor.xyz : instanceColor.xyz; vColor = color * mix(vec3(1.0), tc, min(sfx.x, 1.0)) * iMul; vSfx = sfx;');
+    sh.fragmentShader = 'varying vec3 vSfx;\n' + sh.fragmentShader.replace('#include <map_fragment>',
+      'vec4 texelColor = mapTexelToLinear(texture2D(map, vUv)); diffuseColor.rgb *= mix(vec3(1.0), texelColor.rgb, vSfx.z);')
+      .replace('#include <emissivemap_fragment>', 'totalEmissiveRadiance += diffuseColor.rgb * vSfx.y;');
+  };
+  m.customProgramCacheKey = () => 'f3soldier';
+  return m;
+}
+// 부품을 칠하고(색 · sfx · 위장 무늬 UV) 목록에 넣는 도우미. o: { x,y,z, rx,ry,rz, s:[sx,sy,sz], t: 팀색(0~1), g: 빛남, c: 위장(0~1) }
+function f3Put(list, geo, hex, o) {
+  o = o || {}; const T = THREE;
+  if (o.s) geo.scale(o.s[0], o.s[1], o.s[2]); if (o.rx) geo.rotateX(o.rx); if (o.ry) geo.rotateY(o.ry); if (o.rz) geo.rotateZ(o.rz); geo.translate(o.x || 0, o.y || 0, o.z || 0);
+  const n = geo.attributes.position.count, col = new Float32Array(n * 3), sfx = new Float32Array(n * 3), c = new T.Color(hex), P = geo.attributes.position.array, N = geo.attributes.normal.array;
+  const uv = geo.attributes.uv.array, K = 3.6;   // 위장 무늬: 0.28 칸마다 한 번 (얼룩 약 4~8cm)
+  for (let i = 0; i < n; i++) { col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b; sfx[i * 3] = o.t || 0; sfx[i * 3 + 1] = o.g || 0; sfx[i * 3 + 2] = o.c || 0;
+    if (o.c) { const ax = Math.abs(N[i * 3]), ay = Math.abs(N[i * 3 + 1]), az = Math.abs(N[i * 3 + 2]), x = P[i * 3], y = P[i * 3 + 1], z = P[i * 3 + 2];
+      if (ax >= ay && ax >= az) { uv[i * 2] = z * K; uv[i * 2 + 1] = y * K; } else if (ay >= az) { uv[i * 2] = x * K; uv[i * 2 + 1] = z * K; } else { uv[i * 2] = x * K + 0.37; uv[i * 2 + 1] = y * K; } } }
+  geo.setAttribute('color', new T.BufferAttribute(col, 3)); geo.setAttribute('sfx', new T.BufferAttribute(sfx, 3));
+  list.push(geo); return geo;
+}
+// 부위별 도형 (몸 기준 좌표). lo = 멀리 있는 병사 · 낮은 화질용 (장식 생략)
+function f3SoldierGeos() {
+  const T = THREE, B = (w, h, d) => new T.BoxGeometry(w, h, d), C = (rt, rb, h, n, open) => new T.CylinderGeometry(rt, rb, h, n || 8, 1, !!open), Pl = (w, h) => new T.PlaneGeometry(w, h), Sp = (r, w, h, t0, t1) => new T.SphereGeometry(r, w, h, 0, Math.PI * 2, t0 || 0, t1 || Math.PI);
+  const SKIN = 0xC48F6A, BLK = 0x1E2023, DARK = 0x2C2F2A, OLIVE = 0x535839, TAN = 0x8A7A55, VEST = 0x6A6A6A, VEST2 = 0x555555, HAIR = 0x3B2A1E, GLOW = 0xFFFFFF, CAMO = 0xFFFFFF, PANTS = 0xE2E2D6, BRASS = 0xC9A247;
+  const out = {};
+  // 윗몸 (허리 위 — 조준 방향으로 살짝 기울어짐): 셔츠 · 조끼 · 탄띠 · 무전기 배낭 · 목 · 얼굴 · 고글 · 헬멧
+  { const L = [];
+    f3Put(L, B(0.34, 0.42, 0.19), CAMO, { y: 1.08, c: 1 });                                  // 가슴 (전투복)
+    f3Put(L, B(0.3, 0.16, 0.18), CAMO, { y: 0.9, c: 1 });                                    // 배
+    [-1, 1].forEach(s => f3Put(L, Sp(0.078, 6, 4), CAMO, { x: s * 0.195, y: 1.255, c: 1 })); // 어깨
+    f3Put(L, B(0.35, 0.33, 0.05), VEST, { y: 1.1, z: -0.11, t: 2 });                         // 조끼 앞판 (진한 팀 색)
+    f3Put(L, B(0.35, 0.33, 0.05), VEST, { y: 1.1, z: 0.11, t: 2 });                          // 조끼 뒤판
+    f3Put(L, B(0.37, 0.15, 0.23), VEST2, { y: 0.99, t: 2 });                                 // 옆구리 띠
+    [-1, 1].forEach(s => f3Put(L, B(0.08, 0.035, 0.27), VEST2, { x: s * 0.12, y: 1.285, t: 2 }));   // 어깨 끈
+    [-0.095, 0, 0.095].forEach(x => { f3Put(L, B(0.08, 0.12, 0.05), OLIVE, { x, y: 0.99, z: -0.155 }); f3Put(L, Pl(0.08, 0.025), DARK, { x, y: 1.04, z: -0.181, ry: Math.PI }); });   // 탄창 주머니 (덮개 띠)
+    f3Put(L, B(0.05, 0.5, 0.022), DARK, { y: 1.12, z: -0.142, rz: 0.72 });                   // 탄띠 (왼어깨 → 오른허리)
+    for (let k = -2; k <= 2; k++) f3Put(L, Pl(0.022, 0.04), BRASS, { x: -k * 0.066, y: 1.12 + k * 0.075, z: -0.154, ry: Math.PI, rz: -0.72 });   // 탄띠 총알
+    f3Put(L, Pl(0.12, 0.045), GLOW, { x: 0.085, y: 1.215, z: -0.137, ry: Math.PI, t: 1, g: 0.9 });  // 가슴 팀 표식
+    [-1, 1].forEach(s => f3Put(L, Pl(0.085, 0.075), GLOW, { x: s * 0.274, y: 1.235, ry: s * Math.PI / 2, t: 1, g: 0.9 }));   // 어깨 패치 (팀 색)
+    f3Put(L, B(0.26, 0.28, 0.06), OLIVE, { y: 1.07, z: 0.165 });                             // 무전기 배낭
+    f3Put(L, B(0.22, 0.06, 0.03), DARK, { y: 0.97, z: 0.21 });
+    f3Put(L, B(0.27, 0.035, 0.085), GLOW, { y: 1.205, z: 0.17, t: 1, g: 0.9 });              // 배낭 위 팀 띠 (뒤에서 보임)
+    f3Put(L, C(0.006, 0.008, 0.42, 3, 1), BLK, { x: 0.09, y: 1.4, z: 0.19 });                   // 안테나
+    f3Put(L, C(0.075, 0.08, 0.05, 8, 1), CAMO, { y: 1.315, c: 1 });                            // 깃
+    f3Put(L, C(0.052, 0.058, 0.12, 6, 1), SKIN, { y: 1.37 });                                   // 목
+    f3Put(L, Sp(0.105, 8, 6), SKIN, { y: 1.5, z: -0.01, s: [0.95, 1.12, 1.0] });            // 머리
+    f3Put(L, B(0.13, 0.07, 0.11), SKIN, { y: 1.43, z: -0.045 });                             // 턱
+    f3Put(L, new T.SphereGeometry(0.108, 5, 3, 0, Math.PI, 0.45, 1.2), HAIR, { y: 1.5, z: -0.006, s: [0.97, 1.12, 1.02] });   // 뒷머리 (짧게 깎은 · 뒤쪽 반)
+    f3Put(L, B(0.026, 0.042, 0.035), 0xB07B58, { y: 1.495, z: -0.118 });                      // 코
+    [-1, 1].forEach(s => f3Put(L, B(0.02, 0.045, 0.035), 0xB07B58, { x: s * 0.103, y: 1.5 }));// 귀
+    f3Put(L, B(0.205, 0.05, 0.06), BLK, { y: 1.538, z: -0.088 });                            // 고글 띠
+    [-1, 1].forEach(s => f3Put(L, Pl(0.072, 0.042), 0x9FD8F0, { x: s * 0.045, y: 1.538, z: -0.119, ry: Math.PI, g: 0.45 }));   // 고글 렌즈
+    [-1, 1].forEach(s => f3Put(L, B(0.012, 0.11, 0.012), DARK, { x: s * 0.1, y: 1.47, z: -0.02 }));   // 턱끈
+    f3Put(L, Sp(0.145, 11, 4, 0, Math.PI / 2), 0xCFCFB4, { y: 1.565, s: [1, 0.82, 1.05], c: 1 });   // 헬멧 (위장 덮개)
+    f3Put(L, C(0.149, 0.152, 0.026, 11, 1), OLIVE, { y: 1.567 });                               // 헬멧 테
+    f3Put(L, C(0.149, 0.149, 0.032, 11, 1), GLOW, { y: 1.595, s: [1, 1, 1.05], t: 1, g: 0.9 }); // 헬멧 팀 띠
+    f3Put(L, B(0.05, 0.04, 0.025), BLK, { y: 1.62, z: -0.142 });                             // 야간투시경 받침
+    out.upper = f3MergeGeos(L); }
+  { const L = [];   // 멀리: 상자 몇 개로
+    f3Put(L, B(0.34, 0.5, 0.19), CAMO, { y: 1.05, c: 1 });
+    f3Put(L, B(0.36, 0.33, 0.26), VEST, { y: 1.1, t: 2 });
+    [-1, 1].forEach(s => f3Put(L, B(0.1, 0.12, 0.12), CAMO, { x: s * 0.2, y: 1.25, c: 1 }));
+    [-1, 1].forEach(s => f3Put(L, B(0.02, 0.075, 0.08), GLOW, { x: s * 0.26, y: 1.235, t: 1, g: 0.9 }));
+    f3Put(L, B(0.25, 0.27, 0.08), OLIVE, { y: 1.07, z: 0.17 });
+    f3Put(L, B(0.27, 0.035, 0.085), GLOW, { y: 1.205, z: 0.17, t: 1, g: 0.9 });
+    f3Put(L, B(0.1, 0.12, 0.1), SKIN, { y: 1.37 });
+    f3Put(L, B(0.19, 0.22, 0.2), SKIN, { y: 1.49, z: -0.01 });
+    f3Put(L, B(0.18, 0.1, 0.03), HAIR, { y: 1.53, z: 0.095 });
+    f3Put(L, B(0.2, 0.05, 0.03), 0x9FD8F0, { y: 1.538, z: -0.1, g: 0.45 });
+    f3Put(L, Sp(0.145, 7, 3, 0, Math.PI / 2), 0xCFCFB4, { y: 1.565, s: [1, 0.82, 1.05], c: 1 });
+    f3Put(L, C(0.15, 0.15, 0.04, 7), GLOW, { y: 1.59, s: [1, 1, 1.05], t: 1, g: 0.9 });
+    out.upperLo = f3MergeGeos(L); }
+  // 골반 (허리띠 · 주머니)
+  { const L = [];
+    f3Put(L, B(0.33, 0.21, 0.2), PANTS, { y: 0.815, c: 1 });
+    f3Put(L, B(0.345, 0.05, 0.215), DARK, { y: 0.9 });
+    f3Put(L, B(0.05, 0.036, 0.012), TAN, { y: 0.9, z: -0.11 });
+    [-1, 1].forEach(s => f3Put(L, B(0.06, 0.1, 0.09), OLIVE, { x: s * 0.185, y: 0.84, z: 0.03 }));
+    out.pelvis = f3MergeGeos(L); }
+  // 허벅지 (엉덩이 관절에서 아래로 0.36)
+  { const L = []; f3Put(L, C(0.085, 0.068, 0.39, 6, 1), PANTS, { y: -0.175, c: 1 }); f3Put(L, B(0.07, 0.09, 0.025), PANTS, { y: -0.19, z: -0.075, c: 1 }); out.thigh = f3MergeGeos(L); }
+  // 정강이 + 무릎 보호대 + 전투화 (무릎 관절에서 발바닥까지 0.4)
+  { const L = [];
+    f3Put(L, C(0.066, 0.054, 0.3, 6, 1), PANTS, { y: -0.145, c: 1 });
+    f3Put(L, B(0.11, 0.1, 0.045), DARK, { y: -0.02, z: -0.062 });                             // 무릎 보호대
+    f3Put(L, B(0.105, 0.12, 0.19), BLK, { y: -0.35, z: -0.035 });                          // 전투화
+    f3Put(L, B(0.112, 0.022, 0.2), 0x3A2E22, { y: -0.4, z: -0.035 });                        // 밑창
+    out.shin = f3MergeGeos(L); }
+  // 위팔 (어깨에서 0.28) · 아래팔 + 장갑 낀 손 (팔꿈치에서 손바닥까지 0.3)
+  { const L = []; f3Put(L, C(0.055, 0.047, 0.29, 6, 1), CAMO, { y: -0.135, c: 1 }); out.uarm = f3MergeGeos(L); }
+  { const L = []; f3Put(L, C(0.047, 0.04, 0.2, 6, 1), CAMO, { y: -0.1, c: 1 }); f3Put(L, C(0.043, 0.043, 0.05, 6, 1), DARK, { y: -0.215 });
+    f3Put(L, B(0.075, 0.1, 0.045), DARK, { y: -0.29 }); out.farm = f3MergeGeos(L); }
+  // 총 (개머리판 끝이 원점, 총구가 -z): 라이플 (카빈) · 스나이퍼 (긴 총열 · 조준경 · 양각대)
+  { const L = [], GUN = 0x2A2D33, GUN2 = 0x3A3E46;
+    f3Put(L, B(0.045, 0.075, 0.18), GUN, { y: -0.012, z: -0.09 });                           // 개머리판
+    f3Put(L, B(0.052, 0.07, 0.26), GUN2, { z: -0.31 });                                      // 몸통
+    f3Put(L, B(0.034, 0.14, 0.06), GUN, { y: -0.095, z: -0.36, rx: 0.18 });                  // 탄창
+    f3Put(L, B(0.03, 0.085, 0.035), GUN, { y: -0.065, z: -0.21, rx: -0.3 });                 // 손잡이
+    f3Put(L, B(0.058, 0.062, 0.24), 0x4A4A36, { z: -0.55 });                                 // 총열 덮개
+    f3Put(L, C(0.012, 0.012, 0.16, 6), GUN, { z: -0.74, rx: Math.PI / 2 });                  // 총열
+    f3Put(L, C(0.018, 0.018, 0.05, 6), GUN, { z: -0.835, rx: Math.PI / 2 });                 // 소염기
+    f3Put(L, B(0.036, 0.045, 0.085), GUN, { y: 0.06, z: -0.3 });                             // 조준기
+    f3Put(L, B(0.016, 0.016, 0.006), 0xFF4040, { y: 0.065, z: -0.344, g: 1 });               // 조준기 빨간 점
+    out.rifle = f3MergeGeos(L); out.rifle.scale(1.3, 1.25, 1); }
+  { const L = [], GUN = 0x24272C, WOOD = 0x6B6440;
+    f3Put(L, B(0.048, 0.095, 0.26), WOOD, { y: -0.015, z: -0.13 });                          // 개머리판
+    f3Put(L, B(0.03, 0.035, 0.12), WOOD, { y: 0.05, z: -0.1 });                              // 뺨 받침
+    f3Put(L, B(0.05, 0.065, 0.22), GUN, { z: -0.37 });                                       // 몸통
+    f3Put(L, B(0.034, 0.07, 0.07), GUN, { y: -0.06, z: -0.38 });                             // 탄창
+    f3Put(L, B(0.03, 0.085, 0.035), GUN, { y: -0.065, z: -0.25, rx: -0.3 });                 // 손잡이
+    f3Put(L, B(0.056, 0.058, 0.34), WOOD, { z: -0.65 });                                     // 덮개
+    f3Put(L, C(0.014, 0.014, 0.44, 6), GUN, { z: -1.03, rx: Math.PI / 2 });                  // 긴 총열
+    f3Put(L, B(0.036, 0.032, 0.07), GUN, { z: -1.26 });                                      // 제퇴기
+    f3Put(L, C(0.025, 0.025, 0.3, 8), GUN, { y: 0.075, z: -0.37, rx: Math.PI / 2 });         // 조준경
+    f3Put(L, C(0.034, 0.028, 0.06, 8), GUN, { y: 0.075, z: -0.55, rx: Math.PI / 2 });
+    f3Put(L, C(0.03, 0.03, 0.006, 8), 0x8FE3FF, { y: 0.075, z: -0.582, rx: Math.PI / 2, g: 0.8 });   // 렌즈
+    [-1, 1].forEach(s => f3Put(L, C(0.006, 0.006, 0.26, 4), GUN, { x: s * 0.018, y: -0.04, z: -0.86, rx: Math.PI / 2 }));   // 접은 양각대
+    out.sniper = f3MergeGeos(L); out.sniper.scale(1.2, 1.2, 1); }
+  // 총구 섬광 (세 장을 엇갈려 어느 쪽에서 봐도 보이게) · 발밑 고리 · 부활 빛기둥
+  { const L = []; [0, Math.PI / 3, -Math.PI / 3].forEach(r => { const g = new T.PlaneGeometry(0.16, 0.34); g.rotateX(-Math.PI / 2); g.rotateZ(r); g.translate(0, 0, -0.14); L.push(g); }); out.flash = f3MergeGeos(L); }
+  { const L = [], disc = new T.CircleGeometry(0.36, 18), ring = new T.RingGeometry(0.36, 0.46, 24);
+    [[disc, 0x000000], [ring, 0xFFFFFF]].forEach(([g, hex]) => { g.rotateX(-Math.PI / 2); const n = g.attributes.position.count, col = new Float32Array(n * 3), c = new T.Color(hex); for (let i = 0; i < n; i++) { col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b; } g.setAttribute('color', new T.BufferAttribute(col, 3)); L.push(g); });
+    out.ring = f3MergeGeos(L); }
+  out.beam = new T.CylinderGeometry(0.45, 0.45, 2.4, 14, 1, true); out.beam.translate(0, 1.2, 0);
+  return out;
 }
 // 트랙 문자열 → 실제 맵. 'plaza' 기본 · 'plaza:24' 24명 크기 · 'v2' 매칭전 2:2 (match = 경기 번호, 경기마다 다른 맵)
 const F3_MAP_CACHE = {};
@@ -620,24 +786,26 @@ class Fps3DGame {
     this.scene = null; this.models = {}; this._w = 0;
   }
 
-  // ── 상대 병사: 모두를 부위별 InstancedMesh 4개로 (몸통 · 팀색 장식 · 다리 · 오른팔) ──
-  // 예전: 상대 1명 = 메시 13개 · 재질 4개 → 30명이면 그리기 호출 약 380번 (태블릿에서 가장 큰 렉 원인). 이제는 인원과 상관없이 4번
+  // ── 상대 병사 (군인): 부위별 InstancedMesh — 윗몸(가까이/멀리) · 골반 · 허벅지 · 정강이 · 위팔 · 아래팔 · 라이플 · 스나이퍼 · 총구 섬광 · 발밑 고리 · 부활 빛기둥 ──
+  // 모든 병사가 같은 도형·재질을 씀: 인원과 상관없이 그리기 호출은 보이는 부위 수만큼(보통 9~11번). 예전(상자 병사)은 4번 · 그 전(병사마다 메시)은 30명에 약 380번
   initSoldiers() {
     const T = THREE, MAX = 48;
-    const part = (w, h, d, x, y, z, hex) => { const g = new T.BoxGeometry(w, h, d); g.translate(x, y, z); const c = new T.Color(hex), n = g.attributes.position.count, col = new Float32Array(n * 3);
-      for (let i = 0; i < n; i++) { col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b; } g.setAttribute('color', new T.BufferAttribute(col, 3)); return g; };
-    const ARMOR = 0x5C6678, SKIN = 0x3A4256, GUN = 0x1A1D24, W = 0xFFFFFF;
-    const body = f3MergeGeos([part(0.46, 0.6, 0.28, 0, 1.0, 0, ARMOR), part(0.13, 0.5, 0.14, -0.32, 1.0, 0, SKIN), part(0.06, 0.08, 0.5, 0.3, 1.05, -0.45, GUN), part(0.3, 0.32, 0.3, 0, 1.55, 0, ARMOR)]);
-    const trim = f3MergeGeos([part(0.2, 0.32, 0.29, 0, 1.02, 0, W), part(0.48, 0.05, 0.3, 0, 1.3, 0, W), part(0.26, 0.08, 0.05, 0, 1.55, -0.15, W)]);   // 가슴판 · 어깨 띠 · 바이저 (팀 색)
-    const mk = (geo, mat, n) => { const im = new T.InstancedMesh(geo, mat, n); im.instanceMatrix.setUsage(T.DynamicDrawUsage); im.frustumCulled = false;
-      for (let i = 0; i < n; i++) im.setColorAt(i, new T.Color(1, 1, 1)); im.count = 0; this.scene.add(im); return im; };
-    this.sBody = mk(body, new T.MeshLambertMaterial({ vertexColors: true }), MAX);
-    this.sTrim = mk(trim, new T.MeshBasicMaterial({ vertexColors: true }), MAX);
-    const skin = new T.MeshLambertMaterial({ color: SKIN });
-    this.sLegs = mk(new T.BoxGeometry(0.16, 0.7, 0.18), skin, MAX * 2);
-    this.sArm = mk(new T.BoxGeometry(0.13, 0.4, 0.14), skin, MAX);
+    const camo = new T.CanvasTexture(f3CamoCanvas()); camo.wrapS = camo.wrapT = T.RepeatWrapping; camo.encoding = T.sRGBEncoding; this.camoTex = camo;
+    const mat = f3SoldierMat(camo), G = f3SoldierGeos();
+    const mk = (geo, n, m) => { const im = new T.InstancedMesh(geo, m || mat, n); im.instanceMatrix.setUsage(T.DynamicDrawUsage); im.frustumCulled = false;
+      for (let i = 0; i < n; i++) im.setColorAt(i, new T.Color(1, 1, 1));
+      if (!m) { const mul = new Float32Array(n * 3).fill(1); geo.setAttribute('iMul', new T.InstancedBufferAttribute(mul, 3)); geo.attributes.iMul.setUsage(T.DynamicDrawUsage); }
+      im.count = 0; im.visible = false; this.scene.add(im); return im; };
+    const K = this.sKit = { upper: mk(G.upper, MAX), upperLo: mk(G.upperLo, MAX), pelvis: mk(G.pelvis, MAX), thigh: mk(G.thigh, MAX * 2), shin: mk(G.shin, MAX * 2),
+      uarm: mk(G.uarm, MAX * 2), farm: mk(G.farm, MAX * 2), rifle: mk(G.rifle, MAX), sniper: mk(G.sniper, MAX),
+      flash: mk(G.flash, MAX, new T.MeshBasicMaterial({ map: (() => { const t = new T.CanvasTexture(Fps3DGame.texCanvas('flash')); t.encoding = T.sRGBEncoding; return t; })(), color: 0xFFE2A0, transparent: true, blending: T.AdditiveBlending, depthWrite: false, side: T.DoubleSide })),
+      ring: mk(G.ring, MAX, new T.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.6, depthWrite: false })),
+      beam: mk(G.beam, MAX, new T.MeshBasicMaterial({ transparent: true, opacity: 0.28, blending: T.AdditiveBlending, depthWrite: false, side: T.DoubleSide })) };
+    K.ring.renderOrder = 1; K.beam.renderOrder = 2; K.flash.renderOrder = 3;
+    this.sMeshes = Object.keys(K).map(k => K[k]);
     this.sMax = MAX;
-    this._sm = { R: new T.Matrix4(), L: new T.Matrix4(), M: new T.Matrix4(), q: new T.Quaternion(), e: new T.Euler(0, 0, 0, 'YXZ'), v: new T.Vector3(), one: new T.Vector3(1, 1, 1), c: new T.Color() };
+    this._sm = { R: new T.Matrix4(), L: new T.Matrix4(), M: new T.Matrix4(), U: new T.Matrix4(), W: new T.Matrix4(), q: new T.Quaternion(), q2: new T.Quaternion(), e: new T.Euler(0, 0, 0, 'YXZ'), v: new T.Vector3(), v2: new T.Vector3(),
+      one: new T.Vector3(1, 1, 1), down: new T.Vector3(0, -1, 0), c: new T.Color(), a: [0, 0, 0], b: [0, 0, 0], h: [0, 0, 0], ik: [0, 0, 0, 0, 0, 0], pole: [0, 0, 0] };
   }
 
   static texCanvas(kind, theme) {
@@ -748,7 +916,7 @@ class Fps3DGame {
     add(new T.BoxGeometry(0.05, 0.04, 0.16), dark, 0, 0.09, 0.02);    // 조준경
     add(new T.BoxGeometry(0.095, 0.015, 0.4), teamC, 0, 0.065, -0.05); // 팀 색 발광선
     add(new T.BoxGeometry(0.06, 0.06, 0.06), teamC, 0, -0.03, -0.66);  // 총구 링
-    add(new T.BoxGeometry(0.08, 0.1, 0.12), new T.MeshLambertMaterial({ color: 0x6B5B4E }), 0.02, -0.1, 0.18); // 손
+    this.addViewArms(g, [0.02, -0.1, 0.17], [0.0, -0.045, -0.36]);                     // 장갑 낀 두 손 · 위장복 소매
     g.position.set(0.28, -0.26, -0.55); g.rotation.y = -0.06;
     return g;
   }
@@ -769,10 +937,27 @@ class Fps3DGame {
     add(new T.BoxGeometry(0.08, 0.012, 0.5), teamC, 0, 0.045, -0.5);            // 팀 색 선
     const bolt = add(new T.CylinderGeometry(0.012, 0.012, 0.08, 6), dark, 0.05, 0.03, -0.02); bolt.rotation.z = Math.PI / 2;   // 볼트 손잡이
     add(new T.SphereGeometry(0.018, 6, 6), dark, 0.09, 0.03, -0.02).userData.knob = true;
-    add(new T.BoxGeometry(0.08, 0.1, 0.12), new T.MeshLambertMaterial({ color: 0x6B5B4E }), 0.02, -0.1, 0.22);   // 손
-    add(new T.BoxGeometry(0.07, 0.08, 0.1), new T.MeshLambertMaterial({ color: 0x6B5B4E }), -0.01, -0.03, -0.62);  // 앞손
+    this.addViewArms(g, [0.02, -0.1, 0.21], [-0.01, -0.035, -0.6]);                    // 장갑 낀 두 손 · 위장복 소매
     g.position.set(0.28, -0.26, -0.55); g.rotation.y = -0.06; g.userData = { bolt };
     return g;
+  }
+
+  // 1인칭 팔: 장갑 낀 손(오른손 = 손잡이, 왼손 = 총열 덮개) + 위장복 소매(화면 아래 밖으로) + 팀 색 완장. 재질은 두 총이 같이 씀
+  addViewArms(g, rh, lh) {
+    const T = THREE, M = this._vm || (this._vm = (() => { const tex = new T.CanvasTexture(f3CamoCanvas()); tex.wrapS = tex.wrapT = T.RepeatWrapping; tex.repeat.set(4, 3); tex.encoding = T.sRGBEncoding;
+      return { sleeve: new T.MeshLambertMaterial({ map: tex }), glove: new T.MeshLambertMaterial({ color: 0x2C2E31 }), cuff: new T.MeshLambertMaterial({ color: 0x24262A }), band: new T.MeshBasicMaterial({ color: this.team ? F3_TEAM[this.team] : 0xFFD166 }) }; })());
+    const seg = (a, b, r0, r1, mat) => { const d = new T.Vector3(b[0] - a[0], b[1] - a[1], b[2] - a[2]), l = d.length(), m = new T.Mesh(new T.CylinderGeometry(r1, r0, l, 8), mat);
+      m.position.set((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2); m.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), d.normalize()); g.add(m); return m; };
+    const box = (w, h, d, p, mat) => { const m = new T.Mesh(new T.BoxGeometry(w, h, d), mat); m.position.set(p[0], p[1], p[2]); g.add(m); return m; };
+    // 오른손: 손잡이를 감싼 손 · 손목 → 팔꿈치(오른쪽 아래 뒤, 화면 밖)
+    box(0.075, 0.1, 0.1, rh, M.glove); box(0.03, 0.035, 0.07, [rh[0] - 0.045, rh[1] + 0.02, rh[2] - 0.04], M.glove);   // 손 · 엄지
+    const rw = [rh[0] + 0.01, rh[1] - 0.04, rh[2] + 0.06], re = [rh[0] + 0.2, rh[1] - 0.36, rh[2] + 0.5];
+    seg(rw, [rw[0] + 0.012, rw[1] - 0.02, rw[2] + 0.04], 0.045, 0.045, M.cuff); seg([rw[0] + 0.01, rw[1] - 0.018, rw[2] + 0.035], re, 0.05, 0.062, M.sleeve);
+    seg([rw[0] + 0.05, rw[1] - 0.1, rw[2] + 0.15], [rw[0] + 0.065, rw[1] - 0.125, rw[2] + 0.19], 0.058, 0.06, M.band);   // 완장 (팀 색)
+    // 왼손: 덮개 아래를 받친 손 · 손목 → 팔꿈치(왼쪽 아래, 화면 밖)
+    box(0.09, 0.06, 0.11, lh, M.glove); box(0.025, 0.05, 0.08, [lh[0] + 0.05, lh[1] + 0.025, lh[2]], M.glove);           // 손바닥 · 손가락
+    const lw = [lh[0] - 0.03, lh[1] - 0.05, lh[2] + 0.06], le = [lh[0] - 0.36, lh[1] - 0.4, lh[2] + 0.42];
+    seg(lw, [lw[0] - 0.02, lw[1] - 0.025, lw[2] + 0.03], 0.043, 0.043, M.cuff); seg([lw[0] - 0.018, lw[1] - 0.022, lw[2] + 0.026], le, 0.048, 0.062, M.sleeve);
   }
 
   // 이름표: 이름은 한 번만 그리고(텍스처), 체력은 색 스프라이트 두 장을 늘였다 줄이는 막대로 표시합니다.
@@ -1462,11 +1647,17 @@ class Fps3DGame {
     this.drawHud(this.hctx, W, H, now);
   }
 
-  // 상대 모델 갱신 (위치 · 걷기 · 다운 · 이름표 · 피격 번쩍임) — 부위별 InstancedMesh 의 칸을 채움 (새 메시를 만들지 않음)
+  // 상대 병사 갱신: 위치·방향은 보간된 값(soldierPose — 명중 판정과 같은 값) 그대로, 그 위에 팔다리·총 자세를 계산해 부위별 칸을 채움 (새 메시를 만들지 않음)
+  //   걷기/달리기: 발이 판정 다리처럼 앞뒤로 (두 마디 IK 로 발바닥을 땅에) · 속도에 비례해 보폭·발 들기·앞으로 기울기
+  //   서 있으면 숨쉬기 · 조준 방향(위아래)으로 윗몸·총 · 쏠 때 반동·섬광 · 맞으면 움찔 · 쓰러지면 뒤로 넘어짐 · 부활하면 빛기둥(무적 동안)
   updateModels() {
-    if (!this.sBody) return;
-    const now = this.clock(), S = this._sm, far = Math.min(70, (this.theme && this.theme.fog) ? this.theme.fog[2] : 60);   // 안개 끝까지 보임 (예전: 45칸에서 사라짐)
-    let i = 0;
+    const K = this.sKit; if (!K) return;
+    const now = this.clock(), S = this._sm, SK = F3_SK, far = Math.min(70, (this.theme && this.theme.fog) ? this.theme.fog[2] : 60);   // 안개 끝까지 보임
+    // 멀리 있는 병사는 단순한 윗몸 (화질 낮음 = 모두 단순). 스코프로 당겨 보면 그만큼 가까이 보는 것으로
+    const zf = this.camera ? Math.tan(this.camera.fov * Math.PI / 360) / Math.tan(36 * Math.PI / 180) : 1, lodD = [0, 14, 24][this.q == null ? 2 : this.q];
+    let i = 0, nHi = 0, nLo = 0, nR = 0, nS = 0, nF = 0, nG = 0, nB = 0;
+    const put = (m, k, M, mul) => { m.setMatrixAt(k, M); m.setColorAt(k, S.c); if (mul) m.geometry.attributes.iMul.setXYZ(k, mul[0], mul[1], mul[2]); };
+    const xf = (M, x, y, z, out) => { S.v2.set(x, y, z).applyMatrix4(M); out[0] = S.v2.x; out[1] = S.v2.y; out[2] = S.v2.z; return out; };
     for (const id in this.peers) {
       const p = this.peers[id], u = this.models[id] || (this.models[id] = {});
       const hide = (this.spectator && id === this.followId) || p.tx == null || i >= this.sMax || Math.hypot(p.x - this.x, p.y - this.y) > far;
@@ -1475,27 +1666,82 @@ class Fps3DGame {
       if (wantTag && (!u.tag || u.tag.userData.name !== p.name)) { if (u.tag) { this.scene.remove(u.tag); if (u.tag.userData.material && u.tag.userData.material.map) u.tag.userData.material.map.dispose(); } u.tag = this.makeTag(p.name || '', p.team, p.hp); this.scene.add(u.tag); }
       if (u.tag) { u.tag.visible = wantTag; if (wantTag) { if (u.tag.userData.hp !== p.hp) this.setTagHp(u.tag, p.hp || 0); u.tag.position.set(p.x, (p.z || 0) + 2.0, p.y); } }
       if (hide) continue;
-      if (p.prot && !p.dead && Math.floor(now / 110) % 2) continue;   // 부활 직후 무적: 깜빡임 (아래에서 하늘색으로도 칠함)
       if (p.rollPlaying && now - (p.rollAt || 0) >= 700) { p.rollPlaying = false; p.roll = false; p.rollT = -1; }   // 재생이 끝나면 정리
-      // 다운: 서서히 뒤로 쓰러짐 (구르는 중엔 0) — 자세 계산은 명중 판정과 같은 soldierPose
+      // 다운: 판정용 몸 회전(fallRx)은 예전처럼 — 쓰러진 병사는 판정이 없으므로 그림은 따로 '뒤로 넘어짐'
       if (p.rollPlaying || p.roll) p.fallRx = 0; else p.fallRx = (p.fallRx || 0) + ((p.dead ? -Math.PI / 2 : 0) - (p.fallRx || 0)) * 0.2;
+      if (u.team !== p.team || u.col == null) { u.team = p.team; u.col = p.team ? F3_TEAM[p.team] : f3PlayerCol(id); }
+      S.c.setHex(u.col);
+      // 발밑 고리 (팀 색 · 개인전은 학생 색) · 부활 직후 빛기둥
+      if (!p.dead) { S.M.makeTranslation(p.x, (p.z || 0) + 0.025, p.y); put(K.ring, nG++, S.M); }
+      if (p.prot && !p.dead) { const k = 0.85 + 0.15 * Math.sin(now * 0.02); S.M.makeScale(k, 1, k).setPosition(p.x, p.z || 0, p.y); put(K.beam, nB++, S.M); }
+      if (p.prot && !p.dead && Math.floor(now / 110) % 2) continue;   // 부활 직후 무적: 깜빡임 (아래에서 하늘색으로도 칠함)
       const P = this.soldierPose(p, now, S.pose || (S.pose = {}));
-      // 몸 전체 변환 (방향(y) 을 먼저 적용해야 앞으로 구르는 회전이 자연스럽습니다)
-      S.e.set(P.rx, P.ry, P.rz, 'YXZ'); S.q.setFromEuler(S.e); S.R.compose(S.v.set(P.x, P.y, P.z), S.q, S.one);
-      this.sBody.setMatrixAt(i, S.R); this.sTrim.setMatrixAt(i, S.R);
-      S.L.makeRotationX(P.sw).setPosition(-0.11, 0.35, 0); this.sLegs.setMatrixAt(i * 2, S.M.multiplyMatrices(S.R, S.L));
-      S.L.makeRotationX(-P.sw).setPosition(0.11, 0.35, 0); this.sLegs.setMatrixAt(i * 2 + 1, S.M.multiplyMatrices(S.R, S.L));
-      S.L.makeRotationX(P.arm).setPosition(0.3, 1.05, -0.15); this.sArm.setMatrixAt(i, S.M.multiplyMatrices(S.R, S.L));
-      // 색: 팀 색 장식 · 피격 순간 하얗게 번쩍
-      const fl = p.flash && now < p.flash ? 2.6 : 1;
-      if (p.prot && !p.dead && fl === 1) S.c.setRGB(0.75, 1.55, 1.9); else S.c.setScalar(fl); this.sBody.setColorAt(i, S.c); this.sArm.setColorAt(i, S.c); this.sLegs.setColorAt(i * 2, S.c); this.sLegs.setColorAt(i * 2 + 1, S.c);
-      S.c.setHex(p.team ? F3_TEAM[p.team] : 0xFFD166); if (fl > 1) S.c.lerp(S.c.clone().setScalar(1), 0.7); this.sTrim.setColorAt(i, S.c);
+      if (p.dead) { if (!u.deadAt) u.deadAt = now; } else u.deadAt = 0;
+      const dk = u.deadAt ? Math.min(1, (now - u.deadAt) / 650) : 0, de = dk * dk;   // 쓰러짐 진행 (점점 빨라짐)
+      if (u.deadAt) { S.e.set(de * 1.5, P.ry, de * 0.14, 'YXZ'); S.q.setFromEuler(S.e); S.R.compose(S.v.set(P.x, P.y + de * 0.2, P.z), S.q, S.one); }
+      else { S.e.set(P.rx, P.ry, P.rz, 'YXZ'); S.q.setFromEuler(S.e); S.R.compose(S.v.set(P.x, P.y, P.z), S.q, S.one); }   // 판정과 같은 몸 변환
+      // 색: 피격 순간 하얗게 · 무적 하늘색
+      const hitFl = p.flash && now < p.flash, mul = S.mul || (S.mul = [1, 1, 1]);
+      if (hitFl) mul[0] = mul[1] = mul[2] = 2.3; else if (p.prot && !p.dead) { mul[0] = 0.75; mul[1] = 1.55; mul[2] = 1.9; } else mul[0] = mul[1] = mul[2] = 1;
+      // 움찔: 체력이 줄었거나 내가 맞혔을 때 0.26초
+      if ((u.hp != null && p.hp < u.hp) || (p.flash && p.flash !== u.flSeen)) { u.flAt = now; u.flSide = Math.random() < 0.5 ? -1 : 1; u.flSeen = p.flash; } u.hp = p.hp;
+      const ft = u.flAt ? (now - u.flAt) / 260 : 1, fl = ft < 1 && !p.dead ? Math.sin(ft * Math.PI) : 0;
+      // 속도 (신호의 실제 속도 · 칸/초 — 최고 약 5.7) → 걸음 크기
+      const spd = Math.hypot(p.vx || 0, p.vy || 0), mv = p.moving && !p.dead && !(p.roll || p.rollPlaying);
+      const kt = mv ? (spd > 0.3 ? Math.max(0.35, Math.min(1, spd / 5.5)) : 0.75) : 0; u.kk = (u.kk || 0) + (kt - (u.kk || 0)) * 0.15; const kk = u.kk;
+      const ph = p.walk || 0, bounce = mv ? Math.abs(Math.sin(ph)) * 0.05 : 0, air = !p.dead && p.vz && !(p.roll || p.rollPlaying);
+      // 윗몸: 허리를 축으로 (조준 위아래의 20% · 달릴 때 앞으로 · 움찔하면 뒤로) + 숨쉬기
+      const aim = p.dead ? 0 : Math.max(-0.9, Math.min(0.9, p.pitch || 0));
+      const tilt = aim * 0.2 - kk * 0.13 + fl * 0.17, tw = fl * 0.2 * (u.flSide || 1), br = (!mv && !p.dead) ? Math.sin(now * 0.0021 + (u.col & 255)) * 0.006 : 0;
+      S.e.set(tilt, tw, 0, 'YXZ'); S.q2.setFromEuler(S.e); S.v.set(0, -SK.waist + br, 0).applyQuaternion(S.q2); S.v.y += SK.waist; S.U.compose(S.v, S.q2, S.one);
+      // 총: 개머리판을 오른쪽 어깨에 대고 조준 방향으로. 걷는 중(안 쏠 때)은 총구를 조금 내림 · 쏠 때 반동
+      if (p.fire && !u.fw) u.kickAt = now; u.fw = p.fire;
+      const sn = p.wpn === 's', kt0 = u.kickAt ? now - u.kickAt : 1e9;
+      const kick = sn ? (kt0 < 600 ? Math.exp(-kt0 / 110) : 0) : (p.fire ? 1 - (kt0 % 105) / 105 : 0);
+      if (!u.deadAt) {
+        const ready = (mv && !p.fire) ? 0.3 * kk : 0, wp = aim * 0.8 - ready + kick * (sn ? 0.2 : 0.07) + fl * 0.15, sway = mv ? Math.sin(ph) * 0.03 * kk : 0;
+        S.e.set(wp, 0.07 + sway, 0, 'YXZ'); S.q.setFromEuler(S.e); S.v.set(0, 0, kick * (sn ? 0.07 : 0.035)).applyQuaternion(S.q); S.v.x += SK.butt[0]; S.v.y += SK.butt[1]; S.v.z += SK.butt[2];
+      } else { S.e.set(-0.25, 1.2, 0.35, 'YXZ'); S.q.setFromEuler(S.e); S.v.set(0.34, 1.0, -0.15); }   // 쓰러지면 총이 옆으로 늘어짐
+      S.L.compose(S.v, S.q, S.one); S.W.multiplyMatrices(S.U, S.L);
+      const gp = SK.grip[sn ? 's' : 'r'];
+      // 팔: 어깨 → 손 (두 마디 IK). 오른손은 손잡이, 왼손은 총열 덮개 (쓰러지면 왼팔은 늘어짐)
+      for (let s = -1; s <= 1; s += 2) {
+        const sh = xf(S.U, s * SK.shX, SK.shY, 0, S.a);
+        const hd = (s < 0 && u.deadAt) ? xf(S.U, -0.42, 1.02, -0.1, S.h) : xf(S.W, gp[s > 0 ? 0 : 1][0], gp[s > 0 ? 0 : 1][1], gp[s > 0 ? 0 : 1][2], S.h);
+        S.pole[0] = s * 0.8; S.pole[1] = -0.6; S.pole[2] = s > 0 ? 0.2 : 0.05;
+        const e = f3IK(sh, hd, SK.uarm, SK.farm, S.pole, S.ik), k = i * 2 + (s > 0 ? 1 : 0);
+        f3SegM(S.L, sh[0], sh[1], sh[2], e[0], e[1], e[2], S); put(K.uarm, k, S.M.multiplyMatrices(S.R, S.L), mul);
+        f3SegM(S.L, e[0], e[1], e[2], e[3], e[4], e[5], S); put(K.farm, k, S.M.multiplyMatrices(S.R, S.L), mul);
+      }
+      // 다리: 엉덩이 → 발바닥 (두 마디 IK, 무릎은 앞으로). 발 앞뒤 위치는 판정 다리 흔들림(sin(walk))과 같은 박자
+      for (let s = -1; s <= 1; s += 2) {
+        const phs = ph + (s > 0 ? Math.PI : 0), stride = 0.07 + 0.17 * kk;
+        let fx = s * 0.115, fy = -bounce + (mv ? Math.max(0, Math.cos(phs)) * (0.04 + 0.1 * kk) : 0), fz = mv ? -stride * Math.sin(phs) : (s > 0 ? 0.04 : -0.04);
+        if (air) { fy += s > 0 ? 0.22 : 0.12; fz += s > 0 ? 0.08 : -0.06; }
+        if (u.deadAt) { fy = 0.03 + Math.sin(dk * Math.PI) * 0.2; fz = -0.05; fx = s * 0.15; }   // 넘어지며 무릎이 꺾였다 펴짐
+        S.a[0] = s * SK.hipX; S.a[1] = SK.hipY; S.a[2] = 0; S.h[0] = fx; S.h[1] = fy; S.h[2] = fz;
+        S.pole[0] = s * 0.12; S.pole[1] = 0; S.pole[2] = -1;
+        const e = f3IK(S.a, S.h, SK.thigh, SK.shin, S.pole, S.ik), k = i * 2 + (s > 0 ? 1 : 0);
+        f3SegM(S.L, S.a[0], S.a[1], S.a[2], e[0], e[1], e[2], S); put(K.thigh, k, S.M.multiplyMatrices(S.R, S.L), mul);
+        f3SegM(S.L, e[0], e[1], e[2], e[3], e[4], e[5], S); put(K.shin, k, S.M.multiplyMatrices(S.R, S.L), mul);
+      }
+      put(K.pelvis, i, S.R, mul);
+      S.M.multiplyMatrices(S.R, S.U);
+      const lo = this.q === 0 || Math.hypot(p.x - this.x, p.y - this.y) * zf > lodD;
+      if (lo) put(K.upperLo, nLo++, S.M, mul); else put(K.upper, nHi++, S.M, mul);
+      S.M.multiplyMatrices(S.R, S.W);
+      if (sn) put(K.sniper, nS++, S.M, mul); else put(K.rifle, nR++, S.M, mul);
+      // 총구 섬광: 라이플은 연사 박자마다, 스나이퍼는 쏜 순간
+      if (!u.deadAt && (sn ? kt0 < 70 : (p.fire && kt0 % 105 < 45))) {
+        S.L.makeRotationZ(Math.random() * 3).scale(S.v.setScalar(0.8 + Math.random() * 0.5)).setPosition(0, 0, SK.muzzle[sn ? 's' : 'r']);
+        S.c.setRGB(1, 1, 1); put(K.flash, nF++, S.M.multiply(S.L));
+      }
       i++;
     }
-    [this.sBody, this.sTrim, this.sArm].forEach(m => { m.count = i; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; });
-    this.sLegs.count = i * 2; this.sLegs.instanceMatrix.needsUpdate = true; if (this.sLegs.instanceColor) this.sLegs.instanceColor.needsUpdate = true;
+    const fin = (m, n) => { m.count = n; m.visible = n > 0; if (!n) return; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; const a = m.geometry.attributes.iMul; if (a) a.needsUpdate = true; };
+    fin(K.pelvis, i); fin(K.thigh, i * 2); fin(K.shin, i * 2); fin(K.uarm, i * 2); fin(K.farm, i * 2);
+    fin(K.upper, nHi); fin(K.upperLo, nLo); fin(K.rifle, nR); fin(K.sniper, nS); fin(K.flash, nF); fin(K.ring, nG); fin(K.beam, nB);
   }
-
   drawHud(ctx, W, H, now) {
     ctx.clearRect(0, 0, W, H);
     const hy = H / 2, teamC = this.team ? F3_TEAM_CSS[this.team] : '#FFD166';
