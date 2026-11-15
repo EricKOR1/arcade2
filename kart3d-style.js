@@ -546,7 +546,7 @@
     if (this.dirtMat) { const dt = new T.CanvasTexture(dirtCanvas()); dt.wrapS = dt.wrapT = T.RepeatWrapping; dt.encoding = T.sRGBEncoding; this.dirtMat.map = dt; this.dirtMat.needsUpdate = true; }
     if (this.kerbMat) { const kt = new T.CanvasTexture(kerbCanvas((tr.theme.kerb && tr.theme.kerb.length) ? tr.theme.kerb : ['#E63946', '#F5F5F5'])); kt.wrapS = kt.wrapT = T.RepeatWrapping; kt.encoding = T.sRGBEncoding; this.kerbMat.map = kt; this.kerbMat.needsUpdate = true; }
     if (this.railMesh) { const rt2 = new T.CanvasTexture(railCanvas()); rt2.encoding = T.sRGBEncoding; const rm = this.railMesh.material; rm.map = rt2; rm.color.set(this.night ? 0xA8B0CC : 0xffffff); rm.userData.lin = true; rm.userData.rough = 0.4; rm.userData.metal = 0.7; rm.needsUpdate = true;
-      this.railMesh.castShadow = true;
+      this.railMesh.castShadow = this.hq === 'high';   // (가드레일 그림자는 고화질만 — 보통은 그림자 그리기 1번·삼각형 수천 개를 아낌)
       const list = this.railList || [], posts = new T.InstancedMesh(new T.BoxGeometry(0.16, 0.95, 0.16), new T.MeshLambertMaterial({ color: this.night ? 0x5A6080 : 0x8A919E }), Math.max(1, list.length)), m4 = new T.Matrix4(), one = new T.Vector3(1, 1, 1), qi = new T.Quaternion();
       list.forEach((o, k) => { const a = this.P(o.x, o.y, o.e); a.y += 0.47; m4.compose(a, qi, one); posts.setMatrixAt(k, m4); }); posts.count = list.length; posts.receiveShadow = true; this.scene.add(posts); }
     // 4) 노면 자국 (한 덩어리): 코너의 고무 자국 · 출발 격자 꺾쇠 · 출발 자국
@@ -600,7 +600,7 @@
     const mk = (g, sub) => { const im = new T.InstancedMesh(g, mat, Math.max(1, sub.length)), m4 = new T.Matrix4(), q = new T.Quaternion(), sc = new T.Vector3(), cc = new T.Color(), up = new T.Vector3(0, 1, 0), p = new T.Vector3();
       sub.forEach((o, k) => { const s2 = 0.8 + o[2] * 1.1; q.setFromAxisAngle(up, o[3] * 6.28); sc.set(s2, s2 * (0.8 + o[3] * 0.5), s2); p.set(o[0], this.groundY, o[1]); m4.compose(p, q, sc); im.setMatrixAt(k, m4); cc.setRGB(0.8 + o[3] * 0.35, 0.85 + o[2] * 0.25, 0.8 + o[2] * 0.2); im.setColorAt(k, cc); });
       im.count = sub.length; im.receiveShadow = true; this.scene.add(im); return im; };
-    const cut = Math.floor(list.length * (far === 'hills' ? 0.7 : 0.6)); this._scatter = [mk(geo, list.slice(0, cut)), mk(geo2, list.slice(cut))];
+    const cut = this.hq === 'high' ? Math.floor(list.length * (far === 'hills' ? 0.7 : 0.6)) : list.length; this._scatter = [mk(geo, list.slice(0, cut))]; if (cut < list.length) this._scatter.push(mk(geo2, list.slice(cut)));   // (보통 화질은 한 종류만 — 그리기 1번)
   };
   // 노면 자국 한 덩어리 (그리기 1번): 드리프트 구간의 고무 자국(바깥 → 안쪽 꼭짓점 → 바깥) · 출발 격자 · 출발할 때 남은 자국
   P.buildDecals10 = function () {
