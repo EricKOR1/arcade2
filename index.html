@@ -1541,6 +1541,7 @@
   //    players 의 status('gameover') · dnf · score(1000-순위) · rank 도 같은 순위 → 선생님 순위표 = 학생 결과
   //  · 혼자이거나 모두 완주하면 기다리지 않음
   const kEnd = { on: false, gen: 0, all: {}, fin: {}, t1: 0, ended: false, endAt: 0, mine: '', rank: 0, total: 0, shown: false, cardT: null, timer: null, off: null, sec: -1, fixN: 0 };
+  window.__kartEnd = kEnd;                               // (점검용)
   function kartEndAttach() {
     kartEndDetach();
     Object.assign(kEnd, { on: true, gen: startGen, all: {}, fin: {}, t1: 0, ended: false, endAt: 0, mine: '', rank: 0, total: 0, shown: false, sec: -1, fixN: 0 });
@@ -1550,7 +1551,7 @@
   }
   function kartEndDetach() {
     if (kEnd.off) { kEnd.off(); kEnd.off = null; }
-    clearInterval(kEnd.timer); kEnd.timer = null; clearTimeout(kEnd.cardT); kEnd.cardT = null; kEnd.on = false;
+    clearInterval(kEnd.timer); kEnd.timer = null; clearTimeout(kEnd.cardT); kEnd.cardT = null; clearTimeout(kEnd.exactT); kEnd.exactT = null; kEnd.on = false;
     kartCd('');
   }
   // 아직 기록이 없는 참가자 (위치 신호 — ← 로 나간 학생은 위치를 지우므로 빠짐 · 다음 판 대기 학생은 위치를 보내지 않음)
@@ -1597,6 +1598,8 @@
     const left = t1 + KartGame.GRACE_MS - serverNow();
     if (left <= 0 || allIn) { kEnd.ended = true; kEnd.early = left > 0; kEnd.endAt = Date.now(); kartTimeUp(kEnd.early); return; }
     kartCd(left);
+    if (left < 1000 && !kEnd.exactT) { const g0 = kEnd.gen; kEnd.exactT = setTimeout(() => { kEnd.exactT = null; if (kEnd.gen === g0) kartEndTick(); }, Math.max(0, left)); }   // 0 이 되는 순간에 맞춰 (0.1초 간격 기다림 없이)
+    else if (left % 1000 < 110 && left > 1000) { const g0 = kEnd.gen; setTimeout(() => { if (kEnd.gen === g0) kartEndTick(); }, Math.max(0, left % 1000)); }   // 숫자가 바뀌는 순간에 맞춰
   }
   // 경기 끝: early = 모두 완주해 기다릴 사람이 없음 (혼자 할 때 포함 — 완주 카드 뒤 결과)
   function kartTimeUp(early) {

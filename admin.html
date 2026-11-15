@@ -625,7 +625,7 @@
       const live = kartLiveA(), ids = Object.keys(Object.assign({}, live, fin));
       const allIn = ids.length > 0 && ids.every(id => (fin[id] && !fin[id].dnf) || (live[id] && live[id].finished));
       if (left <= 0 || allIn) { aEnd.ended = true; aEnd.early = left > 0; aEnd.endAt = now; kartCdA(aEnd.early ? '' : 'end'); renderStandings(); const b = $('status-badge'); b.textContent = '경기 종료'; b.className = 'badge badge-lg badge-warning'; }
-      else kartCdA(left);
+      else { kartCdA(left); if (left < 1000 && !aEnd.exactT) { const k = aEnd.key; aEnd.exactT = setTimeout(() => { aEnd.exactT = null; if (aEnd.key === k) kartEndWatch(); }, Math.max(0, left)); } }   // 0 이 되는 순간에 맞춰
       return;
     }
     // 끝나고 3초가 지나도 기록이 없는 학생(잠든 기기 등): 선생님 화면이 마지막 위치 신호의 진행도로 대신 씀 (그 사이 학생이 썼으면 그대로)
