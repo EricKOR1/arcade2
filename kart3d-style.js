@@ -831,6 +831,9 @@
   P.fxLightning = function (pos) { baseBolt.call(this, pos); if (!this._r10 || !pos) return; for (let i = 0; i < 6; i++) this.emit10({ x: pos.x, y: pos.y + 1 + i * 3, z: pos.z, life: 0.25, s0: 3.5 - i * 0.3, s1: 1, c: cl('#FFF6C8'), a: 1, tile: 1, add: true }); };
   // 고화질 사진 조명용 아스팔트 굴곡·거칠기 (kart3d-real 이 부름)
   P.roadDetail10 = function () { const T = THREE, d = roadDetail(512), mk = c => { const t = new T.CanvasTexture(c); t.wrapS = t.wrapT = T.RepeatWrapping; t.anisotropy = this.aniso || 8; return t; }; return { n: mk(d.n), r: mk(d.r) }; };
+  // 판이 끝날 때: 환경 반사 큐브(렌더 타깃)도 정리 — freeGL 은 텍스처만 지워 판마다 남았음
+  const baseDestroy = P.destroy;
+  P.destroy = function () { try { if (this._envRT) { this._envRT.dispose(); this._envRT = null; } } catch (e) {} return baseDestroy.apply(this, arguments); };
   // 화면이 느려 자동으로 낮출 때: 입자·스키드 수를 줄임 (그림자를 끄는 단계에서 한 번 더)
   P.onDowngrade = function (lv) { if (!this._q10) return; if (lv !== 'mid' && this._scatter) this._scatter.forEach(m => { m.visible = false; }); this._q10 = Object.assign({}, this._q10, lv === 'mid' ? QP.mid : { pN: 140, pA: 90, rate: 0.35 }); };
 })();
