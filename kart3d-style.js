@@ -45,13 +45,13 @@
   // 카트 재질: 정점마다 광택(gloss) — 도색은 반들반들(고화질은 클리어코트 한 겹 더) · 타이어·좌석은 무광 · 배기관·휠은 금속
   P.kartMat = function () {
     if (this._kmat) return this._kmat; const T = THREE, hi = this.hq === 'high';
-    const o = { vertexColors: true, flatShading: true, roughness: 0.8, metalness: 0, envMapIntensity: 0.75 };
+    const o = { vertexColors: true, flatShading: true, roughness: 0.8, metalness: 0, envMapIntensity: 0.5 };
     const m = hi ? new T.MeshPhysicalMaterial(Object.assign(o, { clearcoat: 1, clearcoatRoughness: 0.1 })) : new T.MeshStandardMaterial(o);
     m.onBeforeCompile = sh => {
       sh.vertexShader = 'attribute float gloss;\nvarying float vGloss;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n\tvGloss = gloss;');
       sh.fragmentShader = 'varying float vGloss;\n' + sh.fragmentShader
-        .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = vGloss > 1.5 ? 0.28 : mix( 0.82, 0.34, clamp( vGloss, 0.0, 1.0 ) );')
-        .replace('#include <metalnessmap_fragment>', 'float metalnessFactor = vGloss > 1.5 ? 0.9 : 0.0;')
+        .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = vGloss > 1.5 ? 0.32 : mix( 0.85, 0.42, clamp( vGloss, 0.0, 1.0 ) );')
+        .replace('#include <metalnessmap_fragment>', 'float metalnessFactor = vGloss > 1.5 ? 0.55 : 0.0;')
         .replace('#include <lights_physical_fragment>', T.ShaderChunk.lights_physical_fragment.replace('material.clearcoat = clearcoat;', 'material.clearcoat = clearcoat * step( 0.5, vGloss ) * step( vGloss, 1.5 );'));
     };
     m.customProgramCacheKey = () => 'kart3d-gloss-' + (hi ? 'h' : 'm');
@@ -783,7 +783,7 @@
     // 배기: 평소엔 옅은 연기(나만) · 부스터면 불꽃 + 배기구 빛
     [-0.22, 0.22].forEach(ex => { const e = W(ex, 0.75, -1.68);
       if (boost) { for (let r2 = 0; r2 < (isMe ? 2 : 1); r2++) this.emit10({ x: e[0], y: e[1], z: e[2], vx: -fwdX * (6 + Math.random() * 4), vy: 0.3, vz: -fwdZ * (6 + Math.random() * 4), life: 0.13 + Math.random() * 0.08, s0: 0.5, s1: 0.15, asp: 2.2, rot: 0, c: Math.random() < 0.4 ? cl('#7FD3FF') : cl('#FF9A3C'), a: 1, tile: 2, add: true });
-        this.imm10(e[0], e[1], e[2], 1.1, cl('#FFB45A'), 0.8, 1, true); }
+        this.imm10(e[0], e[1], e[2], 0.75, cl('#FFB45A'), 0.7, 1, true); }
       else if (isMe && Math.random() < 5 * dt) this.emit10({ x: e[0], y: e[1], z: e[2], vx: -fwdX * 1.5, vy: 0.4, vz: -fwdZ * 1.5, life: 0.9, s0: 0.25, s1: 0.9, c: cl('#BFC4CC'), a: 0.16, drag: 1 }); });
     // 스타(나): 무지개 반짝이
     if (isMe && now < this.starUntil && Math.random() < 30 * dt) { const a = Math.random() * 6.28; this.emit10({ x: p.x + Math.cos(a) * 1.3, y: p.y + 0.4 + Math.random() * 1.4, z: p.z + Math.sin(a) * 1.3, vy: 1.2, life: 0.5, s0: 0.45, s1: 0.05, c: cl(['#FF5C7A', '#FFD166', '#06D6A0', '#4CC9F0', '#B15DFF'][Math.floor(Math.random() * 5)]), a: 1, tile: 1, add: true }); }
