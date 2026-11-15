@@ -449,12 +449,14 @@ function f3SkyCanvas(th, W) {
   gr.addColorStop(0, sk[0]); gr.addColorStop(0.5 - 0.35 / Math.PI, sk[1]); gr.addColorStop(0.5 - 0.08 / Math.PI, sk[2]); gr.addColorStop(0.5, fog); gr.addColorStop(0.56, fog);
   gr.addColorStop(1, '#' + new THREE.Color(th.ground || 0x888888).multiplyScalar(th.night ? 0.25 : 0.6).getHexString()); g.fillStyle = gr; g.fillRect(0, 0, W, H);
   const su = Math.atan2(F3_SUN[2], F3_SUN[0]) / (Math.PI * 2) + 0.5, sv = Math.asin(F3_SUN[1]), sxp = su * W, syp = yOf(sv);
-  const glow = (x, y, r, col, a) => { for (const ox of [-W, 0, W]) { const q = g.createRadialGradient(x + ox, y, 0, x + ox, y, r); q.addColorStop(0, 'rgba(' + col + ',' + a + ')'); q.addColorStop(1, 'rgba(' + col + ',0)'); g.fillStyle = q; g.fillRect(x + ox - r, y - r, r * 2, r * 2); } };
+  const sq = 1 / Math.max(0.3, Math.cos(sv));   // 등장방형은 위로 갈수록 가로가 늘어남 → 해·달을 가로로 늘려 그려야 하늘에서 동그랗게 보임
+  const glow = (x, y, r, col, a, k) => { for (const ox of [-W, 0, W]) { g.save(); g.translate(x + ox, y); g.scale(k || 1, 1); const q = g.createRadialGradient(0, 0, 0, 0, 0, r); q.addColorStop(0, 'rgba(' + col + ',' + a + ')'); q.addColorStop(1, 'rgba(' + col + ',0)'); g.fillStyle = q; g.fillRect(-r, -r, r * 2, r * 2); g.restore(); } };
+  const disc = (r, col) => { g.save(); g.translate(sxp, syp); g.scale(sq, 1); g.fillStyle = col; g.beginPath(); g.arc(0, 0, r, 0, 6.3); g.fill(); g.restore(); };
   if (th.night) {
-    glow(sxp, syp, W * 0.05, '200,210,255', 0.35); g.fillStyle = '#EEF0FF'; g.beginPath(); g.arc(sxp, syp, W * 0.006, 0, 6.3); g.fill();
+    glow(sxp, syp, W * 0.05, '200,210,255', 0.35, sq); disc(W * 0.005, '#EEF0FF');
     glow(W * 0.3, yOf(0.02), W * 0.25, '255,120,200', th.decor === 'neon' ? 0.12 : 0.04); glow(W * 0.8, yOf(0.02), W * 0.2, '120,160,255', 0.08);   // 도시 불빛 노을
   } else {
-    glow(sxp, syp, W * 0.16, '255,244,220', 0.35); glow(sxp, syp, W * 0.045, '255,250,235', 0.75); g.fillStyle = '#FFFDF4'; g.beginPath(); g.arc(sxp, syp, W * 0.007, 0, 6.3); g.fill();
+    glow(sxp, syp, W * 0.16, '255,244,220', 0.35, sq); glow(sxp, syp, W * 0.045, '255,250,235', 0.75, sq); disc(W * 0.006, '#FFFDF4');
     const cl = th.decor === 'cactus' ? 14 : th.decor === 'snow' ? 34 : 26;
     for (let i = 0; i < cl; i++) { const x = R() * W, e = 0.05 + Math.pow(R(), 1.6) * 0.65, y = yOf(e), sc = 1 - e * 0.6, rw = W * (0.02 + R() * 0.035) * sc, n = 5 + Math.floor(R() * 6);
       for (let j = 0; j < n; j++) { const bx = x + (R() - 0.5) * rw * 3, by = y + (R() - 0.5) * rw * 0.35, br = rw * (0.5 + R() * 0.6);
@@ -940,11 +942,16 @@ class Fps3DGame {
     // 하늘: 그린 등장방형 하늘을 방향으로 찾아 그림 (카메라를 따라다님 · 맨 먼저 · 깊이 안 씀). mid·high 는 같은 그림으로 환경광(반사)도 만듦
     const skyW = high ? 2048 : 1024, skyKey = skyW + '|' + tk, skyCv = F3_SKY[skyKey] || (F3_SKY[skyKey] = f3SkyCanvas(th, skyW));
     const skyT = new T.CanvasTexture(skyCv); skyT.minFilter = T.LinearFilter; skyT.generateMipmaps = false; skyT.wrapS = T.RepeatWrapping;
-    this.sky = new T.Mesh(new T.SphereGeometry(90, 24, 12), new T.ShaderMaterial({ uniforms: { map: { value: skyT }, stars: { value: th.night ? 1 : 0 } }, side: T.BackSide, depthWrite: false, fog: false,
+    if (lit) this.sky = new T.Mesh(new T.SphereGeometry(90, 24, 12), new T.ShaderMaterial({ uniforms: { map: { value: skyT }, stars: { value: th.night ? 1 : 0 } }, side: T.BackSide, depthWrite: false, fog: false,
       vertexShader: 'varying vec3 vD; void main(){ vD = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); gl_Position.z = gl_Position.w * 0.99999; }',
       fragmentShader: 'uniform sampler2D map; uniform float stars; varying vec3 vD; void main(){ vec3 d = normalize(vD); vec4 c = texture2D(map, vec2(atan(d.z, d.x) * 0.1591549 + 0.5, asin(clamp(d.y, -1.0, 1.0)) * 0.3183099 + 0.5));' +
         ' if (stars > 0.5 && d.y > 0.04) { vec3 q = floor(d * 420.0); float h = fract(sin(dot(q, vec3(12.9898, 78.233, 37.719))) * 43758.5453); float b = fract(h * 91.7); c.rgb += vec3(0.9, 0.93, 1.0) * step(0.9982, h) * (0.35 + 0.65 * b) * smoothstep(0.04, 0.3, d.y); }' +
         ' gl_FragColor = c; }' }));
+    else {   // low: 픽셀마다 방향 계산 없이 공의 UV 그대로 (소프트웨어 렌더러에서 가볍게) — 공 UV 는 등장방형과 좌우만 반대
+      skyT.repeat.set(-1, 1); skyT.encoding = T.sRGBEncoding;
+      if (th.night) { const sc = f3Cv(skyCv.width, skyCv.height), sg = sc.getContext('2d'), R = f3Rng(77); sg.drawImage(skyCv, 0, 0); for (let i = 0; i < 380; i++) { const y = sc.height * 0.47 * Math.pow(R(), 0.8); sg.fillStyle = 'rgba(235,240,255,' + (0.25 + R() * 0.5) + ')'; sg.fillRect(R() * sc.width, y, 1, 1); } skyT.image = sc; }
+      this.sky = new T.Mesh(new T.SphereGeometry(90, 24, 12), new T.MeshBasicMaterial({ map: skyT, side: T.BackSide, depthWrite: false, fog: false, toneMapped: false }));
+    }
     this.sky.renderOrder = -10; this.sky.frustumCulled = false; this.scene.add(this.sky);
     if (lit && r) { try { const et = new T.CanvasTexture(skyCv); et.encoding = T.sRGBEncoding; et.mapping = T.EquirectangularReflectionMapping; const pm = new T.PMREMGenerator(r); this.envRT = pm.fromEquirectangular(et); pm.dispose(); et.dispose(); this.scene.environment = this.envRT.texture; } catch (e) {} }
     if (high && r && F3_HDR[tk]) this.loadHdr(F3_HDR[tk]);
