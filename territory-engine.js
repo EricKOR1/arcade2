@@ -71,7 +71,7 @@ const TR_DROP = ['speed', 'speed', 'speed', 'shield', 'shield', 'grow', 'grow', 
 // 점수 = 지금 차지한 땅의 비율(%) 소수 한 자리 — HUD·게임 안 순위표·위쪽 점수 칸·선생님 화면(sync score)·결과가 모두 이 숫자 하나
 //   (예전: 위쪽 점수 칸·선생님 화면·결과 = '최고' 칸 수(예: 87), 게임 화면 = 지금 % (예: 2.8%) — 서로 다른 숫자에 순위도 '최고' 기준이라 어긋남)
 //   다른 친구의 % 는 그 친구가 신호에 실어 보낸 자기 점수를 그대로 씀 (각자 계산하면 땅 맞춤이 늦을 때 달라짐)
-const TR_GOAL = 50;                                       // 전체 칸의 50% 이상(표시 점수 50 이상)을 차지하면 경기 끝 · 그 학생 1등
+const TR_GOAL = 30;                                       // 전체 칸의 30% 이상(표시 점수 30 이상)을 차지하면 경기 끝 · 그 학생 1등
 const trPct = (cells, N) => Math.floor(cells * 1000 / (N * N)) / 10;   // 버림: 화면에 50 이 보이면 정말 전체 칸의 절반 이상 (반올림이면 1567/3136 = 49.97% 가 '50' 으로 보여 헷갈림)
 const trFmt = s => String(+s || 0);                       // 12 → '12', 12.3 → '12.3' (위쪽 점수 칸·선생님 화면이 숫자를 그대로 보여 주는 모양과 같게)
 const trClock = ms => { const s = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
@@ -93,9 +93,9 @@ class TerritoryGame {
     this.clock = () => (this.opts.serverNow ? this.opts.serverNow() : Date.now());   // 서버 시계 (기기 시계가 달라도 상자가 같은 때 나옴)
     this.itemT0 = this.opts.seed || this.clock(); this.itemSeed = Math.floor(this.itemT0 / 7) | 0; this.joinAt = this.clock();
     this.taken = new Set(); this.items = []; this.fx = {}; this.sched = []; this.ipos = new Map(); this.isent = new Set(); this.picked = [];
-    // 경기 끝: 시간(endAt, 서버 ms · 페이지가 game.endAt 을 바꿀 수 있음) 또는 50% 달성 — 끝나면 score·rank·total·endReason·winner 고정
+    // 경기 끝: 시간(endAt, 서버 ms · 페이지가 game.endAt 을 바꿀 수 있음) 또는 30% 달성 — 끝나면 score·rank·total·endReason·winner 고정
     this.endAt = +this.opts.endAt || 0; this.endReason = null; this.winner = ''; this.winId = null; this.winName = ''; this.goalT = 0; this.rank = 0; this.total = 0; this.place = '-'; this.board = [];
-    // 판 표시(시작 시각): 지난 판 신호(50% 넘은 채 남은 것 등)를 이번 판으로 잘못 읽지 않게
+    // 판 표시(시작 시각): 지난 판 신호(30% 넘은 채 남은 것 등)를 이번 판으로 잘못 읽지 않게
     this.tag = this.opts.seed ? (Math.floor(this.opts.seed / 1000) % 2176782336).toString(36) : '';
     this.spawn(this.opts.slot);
   }
@@ -191,7 +191,7 @@ class TerritoryGame {
     if (Math.hypot(p.x - x, p.y - y) > 3) { p.x = x; p.y = y; }
     Object.assign(p, { tx: x, ty: y, dir: +a[2] || 0, dead, ci: (+a[4] || 0) % TR_SKINS.length, kills: +a[5] || 0, cells: +a[6] || 0, fl: +a[7] || 0, name: name || p.name || '' });
     p.pct = a[11] != null && a[11] !== '' ? +a[11] || 0 : trPct(p.cells, this.N); p.rcvS = this.clock();   // 그 친구가 보낸 자기 점수 그대로
-    if (!this.tag || a[12] === this.tag) {   // 같은 판 신호일 때만: 친구가 이미 끝났거나(소식이 빠짐) 50% 를 넘었으면 나도 끝
+    if (!this.tag || a[12] === this.tag) {   // 같은 판 신호일 때만: 친구가 이미 끝났거나(소식이 빠짐) 30% 를 넘었으면 나도 끝
       const ef = a[13] || '';
       if (ef[0] === 'g') { this.onGoal(ef.slice(1) || id, 0, ef.slice(1) === id ? name : ''); return; }
       if (ef === 't' && this.endAt > 0) { this.finish('time'); return; }
@@ -222,7 +222,7 @@ class TerritoryGame {
   }
   onEvent(e) {
     if (!e || e.by === this.myId) return;
-    if (e.type === 'goal') { this.onGoal(String(e.by), +e.t || 0, e.name || ''); return; }   // 누가 50% 달성 → 모든 화면 경기 끝
+    if (e.type === 'goal') { this.onGoal(String(e.by), +e.t || 0, e.name || ''); return; }   // 누가 30% 달성 → 모든 화면 경기 끝
     if (this.gameOver) return;   // 끝난 뒤엔 땅·탈락이 바뀌지 않음 (점수 고정)
     if (e.type === 'cap') { const cells = TerritoryGame.rleCells(e.rle, this.N); let lost = 0; cells.forEach(i => { if (this.own[i] === this.myId) lost++; this.own[i] = e.by; }); this.recount(); this.miniDirty = true;
       if (lost >= 8 && !this.isDead) this.toast('😮 ' + ((this.peers[e.by] || {}).name || '친구') + '가 내 땅 ' + lost + '칸을 가져갔어요', '#FFB3BF'); }
@@ -304,7 +304,7 @@ class TerritoryGame {
         if (this.want !== this.dir && !((this.want + 2) % 4 === this.dir && this.trail.length)) this.dir = this.want; this.enter(); }
       // 친구 머리가 내 꼬리 위에 있으면 (신호가 늦어도 꼬리 잘림이 빠지지 않게) — 단 그 칸에 신호가 오기 0.25초 전보다 늦게 들어갔으면 친구가 먼저 지나간 것 (예전: 바로 뒤를 자르면 자른 쪽도 함께 탈락)
       if (this.trail.length && !this.isDead && !this.has('shield') && !this.has('inv')) Object.keys(this.peers).forEach(id => { const p = this.peers[id]; if (p.dead || this.isDead) return; const i = this.idx(Math.round(p.tx), Math.round(p.ty)), at = this.trailAt && this.trailAt.get(i); if (this.trailSet.has(i) && i !== this.trail[this.trail.length - 1] && !(at != null && p.rcvS != null && at > p.rcvS - 250)) this.die((p.name || '친구') + '가 내 꼬리를 밟았어요', id); });
-      // 50% 달성: 모두에게 알리고 경기 끝 (소식이 빠진 기기는 내 위치 신호의 점수·끝 표시로 알아챔)
+      // 30% 달성: 모두에게 알리고 경기 끝 (소식이 빠진 기기는 내 위치 신호의 점수·끝 표시로 알아챔)
       if (!this.isDead && this.score >= TR_GOAL) { const t = Math.round(this.clock()); if (this.opts.onAttack) this.opts.onAttack('goal', null, { name: this.myName || '', pct: this.score }); this.winName = this.myName || '나'; this.finish('goal', this.myId, t); }
     }
     // 친구 머리: 받은 위치까지 정해 둔 속도로 고르게 (칸 따라 ㄱ자로 — 먼저 지금 방향의 줄에 맞춘 뒤 그 줄을 따라). 다음 신호가 늦으면 서서히 늦추고, 닿은 뒤엔 지금 방향으로 0.35칸까지만 더
