@@ -886,7 +886,7 @@ class KartGame {
 
   useItem() {
     if (this.noItems) return;
-    if (!this.items.length || this.finished || this.countdown > 0) return;
+    if (!this.items.length || this.finished || this.timeUp || this.countdown > 0) return;
     const it = this.items[0];
     const now = this.clock();
 
@@ -1347,7 +1347,8 @@ class KartGame {
     //   (예전엔 핸들만 꺾어도 끼익 소리가 계속 나 드리프트가 길게 이어지는 것처럼 들렸음)
     if (!this.spectator && window.Sound && Sound.skidSet) { const sa = Math.abs(this.slip || 0), sk = sa > 0.08 && this.speed > this.maxSpeed * 0.3 ? Math.min(0.9, 0.3 + sa * 1.1) : 0;
       const v = this.finished || this.airborne ? 0 : Math.max(sk, now < (this.slideUntil || 0) ? 0.8 : 0); if (v > 0.05 || this._skidV > 0.05) Sound.skidSet(v); this._skidV = v; }
-    if (!this.finished) this.stepPhysics(now);
+    if (this.timeUp) { this.speed = 0; this.slip = 0; this.drifting = false; this._prev = null; }   // 1등 도착 10초 뒤 시간 초과: 그 자리에 멈춤 (진행도 고정)
+    else if (!this.finished) this.stepPhysics(now);
     else {
       this.slip = 0; this.drifting = false; this._prev = null;
       // 완주 뒤에도 진행도에 완주 순위를 얹음 — 순위(finishRank)는 결승 뒤에 서버에서 오므로, 결승 순간 한 번만 계산하던 예전엔
@@ -1790,6 +1791,22 @@ class KartGame {
       }
     }
     return false;
+  }
+
+  // ── 1등 도착 10초 뒤 경기 끝 (카트라이더 방식) ──
+  // 아직 결승선을 못 넘은 카트는 그 자리에 멈추고(시간 초과), 그 순간의 진행도(바퀴 × 구간 + 구간 안 위치)를 돌려줍니다.
+  timeOver() {
+    if (this.finished || this.timeUp) return this.exactProgress();
+    this.timeUp = true; this.timeUpAt = this.clock(); this.speed = 0; this.items = [];
+    if (window.Sound) { if (Sound.engineStop) Sound.engineStop(); if (Sound.skidSet) Sound.skidSet(0); }
+    this.timeUpP = this.exactProgress();
+    return this.timeUpP;
+  }
+  // 진행도 (바퀴 × 구간 수 + 구간 번호 + 구간 안 위치 -0.6~0.6) — 소수 셋째 자리까지
+  exactProgress() {
+    if (this.timeUpP != null) return this.timeUpP;
+    let f = 0; try { f = this.track.fracAt(this.segIdx, this.x, this.y) || 0; } catch (e) {}
+    return Math.round(((this.lap * this.track.n + this.segIdx) + f) * 1000) / 1000;
   }
 
   // 화면 HUD가 읽어가는 상태
@@ -3708,3 +3725,29 @@ class KartGame {
     }
   }
 }
+
+// ── 카트 최종 순위 (학생 결과 화면 · 선생님 순위표가 같은 규칙으로 셈) ──
+//  fin  : finishes 노드 중 이번 판 것 { id: { ms, n } (완주 — 출발부터 걸린 서버 시간) | { dnf: 1, p, n } (시간 초과 — 그 순간 진행도) }
+//  live : 아직 기록이 없는 참가자 { id: { progress, finished } } (위치 신호 — 기록이 오기 전 잠깐의 예비 순위)
+//  ① 완주자: 걸린 시간 짧은 순 → ② 완주 신호만 온 학생 → ③ 시간 초과·달리는 중: 진행도 큰 순.  같으면 id 순
+KartGame.finalOrder = function (fin, live) {
+  fin = fin || {}; live = live || {};
+  const A = [], B = [], C = [];
+  Object.keys(fin).forEach(id => { const e = fin[id]; if (!e) return; if (!e.dnf && +e.ms > 0) A.push([id, +e.ms]); else C.push([id, +e.p || 0]); });
+  Object.keys(live).forEach(id => { if (fin[id]) return; const l = live[id] || {}; if (l.finished) B.push([id, 0]); else C.push([id, +l.progress || 0]); });
+  const byId = (a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
+  A.sort((a, b) => a[1] - b[1] || byId(a, b)); B.sort(byId); C.sort((a, b) => b[1] - a[1] || byId(a, b));
+  return A.concat(B, C).map(x => x[0]);
+};
+// 이번 판 기록만 (s = 출발 시각 — 지난 판이 남아 있어도 섞이지 않게. s 가 없는 옛 기록은 받아들임)
+KartGame.roundFinishes = function (all, startAt) {
+  const out = {}; all = all || {};
+  Object.keys(all).forEach(id => { const e = all[id]; if (!e || typeof e !== 'object') return; if (e.s && startAt && +e.s !== +startAt) return; out[id] = e; });
+  return out;
+};
+// 1등 도착 서버 시각 (가장 이른 완주) · 없으면 0
+KartGame.firstFinishAt = function (fin, startAt) {
+  let best = 0; Object.keys(fin || {}).forEach(id => { const e = fin[id]; if (e && !e.dnf && +e.ms > 0 && (!best || +e.ms < best)) best = +e.ms; });
+  return best && startAt ? startAt + best : 0;
+};
+KartGame.GRACE_MS = 10000;   // 1등 도착 뒤 기다리는 시간

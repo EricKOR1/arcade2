@@ -289,11 +289,11 @@ const GAMES = {
     primary: '72% 0.15 230', primaryContent: '100% 0 0', hex: '#4CC9F0',
     grid: { cols: 12, rows: 18 },
     adminView: 'grid', fullBleed: true,
-    needsPeers: true, realtime: true, hasNext: false, timed: true,   // timed: 선생님이 시간 제한을 정함 → 끝나면 그 순간 % 로 순위 · 누가 50% 이상이면 바로 끝
+    needsPeers: true, realtime: true, hasNext: false, timed: true,   // timed: 선생님이 시간 제한을 정함 → 끝나면 그 순간 % 로 순위 · 누가 30% 이상이면 바로 끝
     // 점수 = 지금 차지한 땅 %(소수 한 자리) — 위쪽 점수 칸·게임 안 순위표·선생님 화면·결과가 모두 g.score 하나 (예전: 점수 = '최고' 칸 수, 화면 = 지금 % 로 서로 달랐음)
     stats: [{ key: 'place', label: '순위' }, { key: 'kills', label: '자르기' }],
-    overText: function (g) { return g.endReason === 'goal' ? g.winner + ' 50% 달성!' : g.endReason === 'time' ? '시간 끝!' : 'GAME OVER'; },
-    detail: function (g) { return (g.endReason === 'goal' ? g.winner + ' 50% 달성 · ' : g.endReason === 'time' ? '시간 끝 · ' : '') + (g.rank && g.total ? g.total + '명 중 ' + g.rank + '등 · ' : '') + '내 땅 ' + g.score + '% · 꼬리 자르기 ' + g.kills + '번'; },
+    overText: function (g) { return g.endReason === 'goal' ? g.winner + ' 30% 달성!' : g.endReason === 'time' ? '시간 끝!' : 'GAME OVER'; },
+    detail: function (g) { return (g.endReason === 'goal' ? g.winner + ' 30% 달성 · ' : g.endReason === 'time' ? '시간 끝 · ' : '') + (g.rank && g.total ? g.total + '명 중 ' + g.rank + '등 · ' : '') + '내 땅 ' + g.score + '% · 꼬리 자르기 ' + g.kills + '번'; },
     controls: [], padLayout: 'drag',   // 방향 버튼 대신 화면 전체를 밀기 — 게임판을 크게
     create: function (canvas, opts) { return new TerritoryGame(canvas, opts); },
     sync: function (g) { return { board: boardToRows(g.getSnapshot()), score: g.score, pct: g.score, kills: g.kills }; }
@@ -667,7 +667,7 @@ const GAMES = {
     type: 'canvas',
     name: '카트 레이싱',
     desc: '모두 함께 출발해 아이템을 쓰며 3바퀴를 먼저 도세요',
-    howto: '← → 조향 · 상자를 먹으면 아이템 · 아이템 버튼으로 사용 · 3바퀴',
+    howto: '← → 조향 · 상자를 먹으면 아이템 · 아이템 버튼으로 사용 · 3바퀴 · 1등이 들어오면 10초 안에 들어와야 해요 (10초 뒤 경기 끝)',
     meta: '실시간 대전 · 순위 경쟁',
     primary: '77.5% 0.154 71', primaryContent: '18% 0.03 71', hex: '#F5A524',
     fullBleed: true,
@@ -675,6 +675,7 @@ const GAMES = {
     needsPeers: true, hasNext: false, hasTracks: true,
     detail: function (g) { const fmt = ms => { const s2 = ms / 1000; return Math.floor(s2 / 60) + ':' + (s2 % 60).toFixed(1).padStart(4, '0'); };
       const fin = g.finished && (g.finishMs || g.raceMs) ? ' · 완주 시간 ' + (window.fmtRaceMs ? fmtRaceMs(g.finishMs || g.raceMs) : fmt(g.finishMs || g.raceMs)) : '';   // 완주 시간 (순위를 정한 시간)
+      if (g.timeUp && !g.finished) return '시간 초과 · ' + Math.max(1, Math.min(g.lap + 1, g.track ? g.track.laps : 3)) + '바퀴째에서 멈춤';   // 못 들어온 학생 (1등 도착 10초 뒤 경기 끝)
       return (g.finishRank ? g.finishRank + '위로 완주' : g.finished ? '완주' : Math.max(1, g.lap + 1) + '바퀴째') + fin + (g.bestLap ? ' · 최고 랩 ' + fmt(g.bestLap) : ''); },
     controls: [], padLayout: 'kart3dx',
     create: function (canvas, opts) { return new KartGame(canvas, opts); },
@@ -685,7 +686,7 @@ const GAMES = {
     type: 'canvas',
     name: '카트 레이싱 3D',
     desc: '모두 함께 출발해 아이템을 쓰며 3바퀴를 먼저 도세요',
-    howto: '← → 조향 · 상자를 먹으면 아이템 · 아이템 버튼으로 사용 · 3바퀴',
+    howto: '← → 조향 · 상자를 먹으면 아이템 · 아이템 버튼으로 사용 · 3바퀴 · 1등이 들어오면 10초 안에 들어와야 해요 (10초 뒤 경기 끝)',
     meta: '실시간 대전 · 순위 경쟁',
     primary: '77.5% 0.154 71', primaryContent: '18% 0.03 71', hex: '#F5A524',
     fullBleed: true, engine3d: true,
@@ -693,6 +694,7 @@ const GAMES = {
     needsPeers: true, hasNext: false, hasTracks: true,
     detail: function (g) { const fmt = ms => { const s2 = ms / 1000; return Math.floor(s2 / 60) + ':' + (s2 % 60).toFixed(1).padStart(4, '0'); };
       const fin = g.finished && (g.finishMs || g.raceMs) ? ' · 완주 시간 ' + (window.fmtRaceMs ? fmtRaceMs(g.finishMs || g.raceMs) : fmt(g.finishMs || g.raceMs)) : '';   // 완주 시간 (순위를 정한 시간)
+      if (g.timeUp && !g.finished) return '시간 초과 · ' + Math.max(1, Math.min(g.lap + 1, g.track ? g.track.laps : 3)) + '바퀴째에서 멈춤';   // 못 들어온 학생 (1등 도착 10초 뒤 경기 끝)
       return (g.finishRank ? g.finishRank + '위로 완주' : g.finished ? '완주' : Math.max(1, g.lap + 1) + '바퀴째') + fin + (g.bestLap ? ' · 최고 랩 ' + fmt(g.bestLap) : ''); },
     controls: [], padLayout: 'kart3dx',
     create: function (canvas, opts) { return new KartGame3D(canvas, Object.assign({ maxDpr: 1.25 }, opts)); },
@@ -704,7 +706,7 @@ const GAMES = {
     type: 'canvas',
     name: '카트 레이싱 (노템전)',
     desc: '아이템 없이 주행 실력만으로 3바퀴. 부스터 발판과 코너 공략이 승부처',
-    howto: '← → 조향만 · 아이템 없음 · 부스터 발판을 밟고 코너에서 안쪽을 노리세요',
+    howto: '← → 조향만 · 아이템 없음 · 부스터 발판을 밟고 코너에서 안쪽을 노리세요 · 1등이 들어오면 10초 안에 들어와야 해요 (10초 뒤 경기 끝)',
     meta: '실시간 대전 · 순위 경쟁 · 노템전',
     primary: '78% 0.13 230', primaryContent: '20% 0.04 230', hex: '#4CC9F0',
     fullBleed: true,
@@ -712,6 +714,7 @@ const GAMES = {
     needsPeers: true, hasNext: false, hasTracks: true,
     detail: function (g) { const fmt = ms => { const s2 = ms / 1000; return Math.floor(s2 / 60) + ':' + (s2 % 60).toFixed(1).padStart(4, '0'); };
       const fin = g.finished && (g.finishMs || g.raceMs) ? ' · 완주 시간 ' + (window.fmtRaceMs ? fmtRaceMs(g.finishMs || g.raceMs) : fmt(g.finishMs || g.raceMs)) : '';   // 완주 시간 (순위를 정한 시간)
+      if (g.timeUp && !g.finished) return '시간 초과 · ' + Math.max(1, Math.min(g.lap + 1, g.track ? g.track.laps : 3)) + '바퀴째에서 멈춤';   // 못 들어온 학생 (1등 도착 10초 뒤 경기 끝)
       return (g.finishRank ? g.finishRank + '위로 완주' : g.finished ? '완주' : Math.max(1, g.lap + 1) + '바퀴째') + fin + (g.bestLap ? ' · 최고 랩 ' + fmt(g.bestLap) : ''); },
     controls: [], padLayout: 'kart3dx',
     create: function (canvas, opts) { return new KartGame(canvas, Object.assign({ noItems: true }, opts)); },
@@ -722,7 +725,7 @@ const GAMES = {
     type: 'canvas',
     name: '카트 레이싱 3D (노템전)',
     desc: '아이템 없이 주행 실력만으로 3바퀴. 부스터 발판과 코너 공략이 승부처',
-    howto: '← → 조향만 · 아이템 없음 · 부스터 발판을 밟고 코너에서 안쪽을 노리세요',
+    howto: '← → 조향만 · 아이템 없음 · 부스터 발판을 밟고 코너에서 안쪽을 노리세요 · 1등이 들어오면 10초 안에 들어와야 해요 (10초 뒤 경기 끝)',
     meta: '실시간 대전 · 순위 경쟁 · 노템전',
     primary: '78% 0.13 230', primaryContent: '20% 0.04 230', hex: '#4CC9F0',
     fullBleed: true, engine3d: true,
@@ -730,6 +733,7 @@ const GAMES = {
     needsPeers: true, hasNext: false, hasTracks: true,
     detail: function (g) { const fmt = ms => { const s2 = ms / 1000; return Math.floor(s2 / 60) + ':' + (s2 % 60).toFixed(1).padStart(4, '0'); };
       const fin = g.finished && (g.finishMs || g.raceMs) ? ' · 완주 시간 ' + (window.fmtRaceMs ? fmtRaceMs(g.finishMs || g.raceMs) : fmt(g.finishMs || g.raceMs)) : '';   // 완주 시간 (순위를 정한 시간)
+      if (g.timeUp && !g.finished) return '시간 초과 · ' + Math.max(1, Math.min(g.lap + 1, g.track ? g.track.laps : 3)) + '바퀴째에서 멈춤';   // 못 들어온 학생 (1등 도착 10초 뒤 경기 끝)
       return (g.finishRank ? g.finishRank + '위로 완주' : g.finished ? '완주' : Math.max(1, g.lap + 1) + '바퀴째') + fin + (g.bestLap ? ' · 최고 랩 ' + fmt(g.bestLap) : ''); },
     controls: [], padLayout: 'kart3dx',
     create: function (canvas, opts) { return new KartGame3D(canvas, Object.assign({ noItems: true, maxDpr: 1.25 }, opts)); },
