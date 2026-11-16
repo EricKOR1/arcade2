@@ -766,6 +766,9 @@ body.fullgrid .spectate { grid-template-columns: 1fr 320px }
 .aboost { bottom: 30px; right: 30px; border-color: rgba(255,209,102,.45) }
 .aboost.ready { animation: none; box-shadow: 0 0 28px rgba(255,209,102,.8) }
 @media (orientation: landscape) and (max-height: 540px) { .aboost { bottom: 18px; right: 20px } }
+/* 범퍼카·장애물 대탈출·좀비 술래잡기: 버튼(돌진·점프·달리기)을 오른쪽 아래 구석으로 — 엄지가 닿는 자리 */
+.arena-ctl .aboost.aboost-low { bottom: calc(20px + env(safe-area-inset-bottom, 0px)); right: 22px; width: 84px; height: 84px }
+@media (orientation: landscape) and (max-height: 540px) { .arena-ctl .aboost.aboost-low { bottom: calc(12px + env(safe-area-inset-bottom, 0px)); right: 16px; width: 72px; height: 72px } }
 
 /* 레이저 태그 안내 문구: 체력·탄약 카드(조이스틱 위/옆)와 겹치지 않게 화면 위쪽 가운데로 (3.5초 뒤 사라짐) */
 #fps-ctl:not(.arena-ctl) .fhint { bottom: auto; top: 24%; max-width: calc(100% - 32px); white-space: normal; text-align: center }
