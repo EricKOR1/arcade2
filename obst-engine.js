@@ -494,7 +494,7 @@ class ObstCore {
     const cy = Math.cos(this.camYaw), sy = Math.sin(this.camYaw);
     const wx = (-ix * cy + -iy * sy) * OB_SPEED, wz = (ix * sy + -iy * cy) * OB_SPEED;
     const pk = this.grounded && this.plat ? this.plat : null, ice = pk && (pk.kind === 1 || pk.ice);
-    const acc = stunned ? 0.6 : !this.grounded ? 4.5 : ice ? 1.4 : 16;
+    const acc = stunned ? 0.6 : !this.grounded ? 4.5 : ice ? 1.4 : 24;
     const ka = Math.min(1, acc * dt); this.vx += (wx - this.vx) * ka; this.vz += (wz - this.vz) * ka;
     if (il > 0.15 && !stunned) { const tgt = Math.atan2(wx, wz); let d = tgt - this.h; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; this.h += d * Math.min(1, dt * 14); }
     // 점프 (땅에 닿은 직후 0.1초까지 · 누른 뒤 0.16초 안에 닿아도)

@@ -18,7 +18,7 @@ const BP_CORE_R = 5.6, BP_RING_W = 2.6;
 const BP_CAR_R = 1.1, BP_HEAVY_R = 1.3;
 const BP_RESPAWN_MS = 2600, BP_GHOST_MS = 1600;
 const BP_DASH_MS = 320, BP_DASH_CD = 2200, BP_DASH_SPD = 19;
-const BP_ACC = 15.7, BP_KF = 1.75, BP_KL = 5.0, BP_TURN = 8.5;
+const BP_ACC = 21, BP_KF = 2.34, BP_KL = 5.0, BP_TURN = 10.5;   // 최고 속도(ACC/KF ≈ 9)는 그대로, 출발·방향 전환만 더 빠르게
 const BP_CREDIT_MS = 4000;           // 떨어지기 전 이 시간 안에 나를 친 친구가 점수를 받음
 const BP_PAIR_CD = 450;              // 같은 친구와 다시 튕기기까지
 const BP_ECHO_MS = 650, BP_ECHO_NEAR = 0.7, BP_ECHO_WIN = 500;
