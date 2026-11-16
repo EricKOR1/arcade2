@@ -16,7 +16,7 @@ const OB_PTS = [100, 85, 75, 68, 62, 57, 53, 50, 47, 44, 41, 38, 35, 32, 30];
 const OB_HALF_PTS = 10;
 const OB_WRAP = 60466176;      // 36^5 ms ≈ 16.8시간 — 보낸 시각(서버 ms) 을 base36 5글자로
 const OB_W = [10, 12.5, 15];   // 인원(≤12 · ≤20 · 그 이상)별 코스 폭
-const OB_G = 30, OB_JUMP = 11.2, OB_SPEED = 7, OB_R = 0.42, OB_H = 1.3, OB_STEP = 0.4, OB_KILL = -14;
+const OB_G = 30, OB_JUMP = 11.2, OB_SPEED = 7.8, OB_R = 0.42, OB_H = 1.3, OB_STEP = 0.4, OB_KILL = -14;
 const obPts = p => p <= OB_PTS.length ? OB_PTS[p - 1] : Math.max(20, 30 - (p - OB_PTS.length));
 const obB36 = v => Math.max(0, Math.round(v)).toString(36);
 const obClock = ms => { const s = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };

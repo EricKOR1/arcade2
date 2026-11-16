@@ -18,7 +18,7 @@ const TG_TOUCH = 0.95;                           // 사람 화면: 좀비가 이
 const TG_ACCEPT = 2.3;                           // 사건 받기: 그 시각 내 자리 ↔ 좀비 자리
 const TG_SHOWN = 2.8;                            // 사건 받기: 지금 내 화면의 좀비 ↔ 나
 const TG_LATE = 1500;                            // 이보다 늦게 온 'tag' 는 버림
-const TG_WALK = 5.0, TG_SPRINT = 7.4, TG_ZOMB = 6.1, TG_DASH = 13, TG_DASH_MS = 480, TG_DASH_CD = 4000;
+const TG_WALK = 5.6, TG_SPRINT = 8.3, TG_ZOMB = 6.8, TG_DASH = 14.5, TG_DASH_MS = 480, TG_DASH_CD = 4000;
 const TG_STAM_DRAIN = 33, TG_STAM_REGEN = 17;    // 달리기 기력 (100 → 3초)
 const TG_FREEZE = 2200, TG_STUN = 1100;
 const TG_PTS_CATCH = 10, TG_PTS_SURVIVE = 20, TG_PTS_LAST = 10;
